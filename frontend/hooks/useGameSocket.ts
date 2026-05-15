@@ -10,7 +10,7 @@ export function useGameSocket(
 ) {
   const [isConnected, setIsConnected] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
-  const [leaderboard, setLeaderboard] = useState<{ id: string; score: number }[]>([]);
+  const [leaderboard, setLeaderboard] = useState<{ id: string; score: number; kills: number; deaths: number }[]>([]);
   const [killFeed, setKillFeed] = useState<{ id: number; killer: string; victim: string; time: number }[]>([]);
   const [scoreFeed, setScoreFeed] = useState<{ id: number; delta: number; time: number }[]>([]);
 
@@ -99,7 +99,7 @@ export function useGameSocket(
             }
           }
           
-          nextPlayers[pid] = { ...pData, body: newBody };
+          nextPlayers[pid] = { ...oldPlayer, ...pData, body: newBody };
         }
 
         gameStateRef.current = {
@@ -138,7 +138,7 @@ export function useGameSocket(
       // Обновляем React-стейт лидерборда не чаще 2 раз в секунду, чтобы избежать фризов
       if (playersSource && performance.now() - lastLeaderboardUpdateRef.current > 500) {
         const board = Object.entries(playersSource)
-          .map(([playerId, p]: [string, any]) => ({ id: playerId, score: p.score, kills: p.kills, deaths: p.deaths }))
+          .map(([playerId, p]: [string, any]) => ({ id: playerId, score: p.score || 0, kills: p.kills || 0, deaths: p.deaths || 0 }))
           .sort((a, b) => b.score - a.score)
           .slice(0, 5);
         setLeaderboard(board);
