@@ -2,6 +2,14 @@ import React, { useEffect, useRef } from "react";
 import { GameState } from "../types/game";
 import * as PIXI from "pixi.js";
 
+const SERVER_TICK_RATE = 30;
+const SERVER_TICK_MS = 1000 / SERVER_TICK_RATE;
+const TURN_SPEED_PER_SECOND = 5.0;
+const TURN_IDLE_SMOOTHING_AT_20HZ = 0.3;
+const TURN_ACTIVE_SMOOTHING_AT_20HZ = 0.15;
+const frameSmoothing = (smoothingAt20Hz: number, dt: number) =>
+  1 - ((1 - smoothingAt20Hz) ** (dt / 0.05));
+
 interface GameRendererProps {
   gameStateRef: React.MutableRefObject<GameState | null>;
   lastGameStateRef: React.MutableRefObject<GameState | null>;
@@ -122,7 +130,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       }
 
       const now = performance.now();
-      const progress = lastUpdateTimeRef.current === 0 ? 1 : Math.min((now - lastUpdateTimeRef.current) / 50, 2.0);
+      const progress = lastUpdateTimeRef.current === 0 ? 1 : Math.min((now - lastUpdateTimeRef.current) / SERVER_TICK_MS, 2.0);
 
       let camX = (WORLD_WIDTH * gridSize) / 2;
       let camY = (WORLD_HEIGHT * gridSize) / 2;
@@ -134,14 +142,13 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           localAngle = myPlayer.angle;
         }
 
-        const ticks = dt * 20; 
-        const targetTurn = localInputRef.current.turn * 0.25;
+        const targetTurn = localInputRef.current.turn * (TURN_SPEED_PER_SECOND / SERVER_TICK_RATE);
         if (localInputRef.current.turn === 0) {
-          localCurrentTurn += (0 - localCurrentTurn) * 0.3 * ticks;
+          localCurrentTurn += (0 - localCurrentTurn) * frameSmoothing(TURN_IDLE_SMOOTHING_AT_20HZ, dt);
         } else {
-          localCurrentTurn += (targetTurn - localCurrentTurn) * 0.15 * ticks;
+          localCurrentTurn += (targetTurn - localCurrentTurn) * frameSmoothing(TURN_ACTIVE_SMOOTHING_AT_20HZ, dt);
         }
-        localAngle += localCurrentTurn * ticks;
+        localAngle += localCurrentTurn * dt * SERVER_TICK_RATE;
 
         const angleDiff = Math.atan2(Math.sin(myPlayer.angle - localAngle), Math.cos(myPlayer.angle - localAngle));
         if (Math.abs(angleDiff) > Math.PI / 2) {

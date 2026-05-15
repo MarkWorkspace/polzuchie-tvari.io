@@ -86,8 +86,17 @@ class Player:
         return data
 
 class GameState:
-    TICK_INTERVAL = 0.05
+    TICK_RATE = 30
+    TICK_INTERVAL = 1.0 / TICK_RATE
+    BASE_SPEED_PER_SECOND = 6.0
+    TURN_SPEED_PER_SECOND = 5.0
+    TURN_IDLE_SMOOTHING_AT_20HZ = 0.3
+    TURN_ACTIVE_SMOOTHING_AT_20HZ = 0.15
     BOOST_DRAIN_INTERVAL = 1.0
+
+    @classmethod
+    def tick_smoothing(cls, smoothing_at_20hz):
+        return 1.0 - ((1.0 - smoothing_at_20hz) ** (cls.TICK_INTERVAL / 0.05))
 
     def __init__(self):
         self.players = {}
@@ -187,8 +196,10 @@ class GameState:
             self.clusters[idx] = (random.uniform(10, self.grid_width - 10), random.uniform(10, self.grid_height - 10))
 
         # Обновляем координаты для всех игроков одновременно
-        base_speed = 0.3  # Скорость движения (единиц за шаг)
-        turn_speed = 0.25  # Скорость поворота (радиан за шаг)
+        base_speed = self.BASE_SPEED_PER_SECOND * self.TICK_INTERVAL
+        turn_speed = self.TURN_SPEED_PER_SECOND * self.TICK_INTERVAL
+        idle_turn_smoothing = self.tick_smoothing(self.TURN_IDLE_SMOOTHING_AT_20HZ)
+        active_turn_smoothing = self.tick_smoothing(self.TURN_ACTIVE_SMOOTHING_AT_20HZ)
         
         # --- ПРОСТРАНСТВЕННОЕ РАЗДЕЛЕНИЕ (Spatial Partitioning) ---
         # Размер ячейки 10.0 гарантирует, что мы не пропустим коллизии даже у очень толстых змей
@@ -252,9 +263,9 @@ class GameState:
                 # Плавно меняем угол
                 target_turn = player.turn * turn_speed
                 if player.turn == 0:
-                    player.current_turn += (0 - player.current_turn) * 0.3
+                    player.current_turn += (0 - player.current_turn) * idle_turn_smoothing
                 else:
-                    player.current_turn += (target_turn - player.current_turn) * 0.15
+                    player.current_turn += (target_turn - player.current_turn) * active_turn_smoothing
                 
                 player.angle += player.current_turn
                 
