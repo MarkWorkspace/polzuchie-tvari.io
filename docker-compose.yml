@@ -8,6 +8,14 @@ services:
     environment:
       - ENVIRONMENT=production
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.2'
+          memory: 256M
 
   frontend:
     build: ./frontend
@@ -18,3 +26,11 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.8'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
