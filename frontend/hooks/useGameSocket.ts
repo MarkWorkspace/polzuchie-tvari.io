@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, MutableRefObject } from "react";
-import { GameState } from "../types/game";
+import { DeltaGameMessage, GameState, Player, PlayerUpdate, Point, ServerGameMessage } from "../types/game";
 import { decode } from "@msgpack/msgpack";
 
 export function useGameSocket(
@@ -10,7 +10,7 @@ export function useGameSocket(
 ) {
   const [isConnected, setIsConnected] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
-  const [leaderboard, setLeaderboard] = useState<{ id: string; score: number; kills: number; deaths: number }[]>([]);
+  const [leaderboard, setLeaderboard] = useState<{ id: string; score: number; kills: number; deaths: number; isMe: boolean }[]>([]);
   const [killFeed, setKillFeed] = useState<{ id: number; killer: string; victim: string; time: number }[]>([]);
   const [scoreFeed, setScoreFeed] = useState<{ id: number; delta: number; time: number }[]>([]);
 
@@ -23,7 +23,6 @@ export function useGameSocket(
 
   useEffect(() => {
     if (!hasJoined) return;
-    setStatusMsg("Подключение к серверу...");
 
     const id = `${nickname.trim() || "Игрок"}_${Math.random().toString(36).substring(2, 9)}`;
     myIdRef.current = id;
@@ -35,7 +34,7 @@ export function useGameSocket(
     const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
     const wsPort = isStandardPort ? "" : ":8000";
     
-    const socket = new WebSocket(`${protocol}${host}${wsPort}/ws/${id}?skin=${encodeURIComponent(skin)}`);
+    const socket = new WebSocket(`${protocol}${host}${wsPort}/ws/${encodeURIComponent(id)}?skin=${encodeURIComponent(skin)}`);
     socket.binaryType = "arraybuffer";
 
     socket.onopen = () => {
@@ -55,27 +54,30 @@ export function useGameSocket(
     };
 
     socket.onmessage = (event) => {
-      const parsedState = decode(new Uint8Array(event.data)) as any;
+      const parsedState = decode(new Uint8Array(event.data)) as ServerGameMessage;
       
       lastGameStateRef.current = gameStateRef.current;
 
       if (parsedState.type === "FULL" || !parsedState.type) {
-        gameStateRef.current = parsedState;
+        gameStateRef.current = {
+          players: parsedState.players,
+          foods: parsedState.foods,
+        };
       } else if (parsedState.type === "DELTA") {
         if (!gameStateRef.current) return; // Ждем FULL_STATE
         
         const eatenSet = new Set(parsedState.eaten_foods || []);
         // Убираем съеденное, добавляем новое
         const nextFoods = gameStateRef.current.foods
-          .filter((f: any) => !eatenSet.has(f.id))
+          .filter((f) => !eatenSet.has(f.id))
           .concat(parsedState.new_foods || []);
           
         const currentPlayers = gameStateRef.current.players || {};
-        const nextPlayers: any = {};
+        const nextPlayers: Record<string, Player> = {};
         
-        for (const [pid, pData] of Object.entries(parsedState.players as Record<string, any>)) {
+        for (const [pid, pData] of Object.entries((parsedState as DeltaGameMessage).players as Record<string, PlayerUpdate>)) {
           const oldPlayer = currentPlayers[pid];
-          let newBody: any[] = [];
+          let newBody: Point[] = [];
           
           if (pData.body) {
             // Сервер прислал полное тело (FULL или игрок возродился)
@@ -99,7 +101,20 @@ export function useGameSocket(
             }
           }
           
-          nextPlayers[pid] = { ...oldPlayer, ...pData, body: newBody };
+          const defaultPlayer: Player = {
+            angle: 0,
+            score: 0,
+            kills: 0,
+            deaths: 0,
+            body: [],
+          };
+
+          nextPlayers[pid] = {
+            ...defaultPlayer,
+            ...oldPlayer,
+            ...pData,
+            body: newBody,
+          };
         }
 
         gameStateRef.current = {
@@ -122,9 +137,9 @@ export function useGameSocket(
         if (parsedState.kill_events && parsedState.kill_events.length > 0) {
           const extractName = (id: string) => (!id ? "Стена" : id.split('_').slice(0, -1).join('_') || id);
           
-          const newKills = parsedState.kill_events.map((e: any) => ({
+          const newKills = parsedState.kill_events.map((e) => ({
             id: Date.now() + Math.random(),
-            killer: extractName(e.killer),
+            killer: extractName(e.killer || ""),
             victim: extractName(e.victim),
             time: Date.now()
           }));
@@ -138,7 +153,13 @@ export function useGameSocket(
       // Обновляем React-стейт лидерборда не чаще 2 раз в секунду, чтобы избежать фризов
       if (playersSource && performance.now() - lastLeaderboardUpdateRef.current > 500) {
         const board = Object.entries(playersSource)
-          .map(([playerId, p]: [string, any]) => ({ id: playerId, score: p.score || 0, kills: p.kills || 0, deaths: p.deaths || 0 }))
+          .map(([playerId, p]) => ({
+            id: playerId,
+            score: p.score || 0,
+            kills: p.kills || 0,
+            deaths: p.deaths || 0,
+            isMe: playerId === myIdRef.current,
+          }))
           .sort((a, b) => b.score - a.score)
           .slice(0, 5);
         setLeaderboard(board);
@@ -203,7 +224,7 @@ export function useGameSocket(
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [hasJoined, nickname, cameraModeRef]);
+  }, [hasJoined, nickname, skin, cameraModeRef]);
 
   // Очистка старых событий из логов (каждые 1 сек удаляем то, что старше 5 и 3 секунд)
   useEffect(() => {

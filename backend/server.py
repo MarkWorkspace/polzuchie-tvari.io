@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import msgpack
 import random
 import math
@@ -85,8 +86,12 @@ class Player:
         return data
 
 class GameState:
+    TICK_INTERVAL = 0.05
+    BOOST_DRAIN_INTERVAL = 1.0
+
     def __init__(self):
         self.players = {}
+        self.client_visibility = {}
         self.grid_width = 100  # Увеличиваем ширину карты
         self.grid_height = 100 # Увеличиваем высоту карты
         self.target_food_count = 250  # В 5 раз больше еды
@@ -151,6 +156,9 @@ class GameState:
 
     def remove_player(self, player_id):
         self.players.pop(player_id, None)
+        self.client_visibility.pop(player_id, None)
+        for visible_players in self.client_visibility.values():
+            visible_players.discard(player_id)
 
     def update_direction(self, player_id, action):
         if player_id in self.players:
@@ -211,12 +219,11 @@ class GameState:
             player.speed_mult = 2.0 if is_accelerating else 1.0
             
             if is_accelerating:
-                player.score -= 1
-                player.pending_growth -= 1
-                
-                player.boost_drop += 1
-                if player.boost_drop >= 1.0:
-                    player.boost_drop -= 1.0
+                player.boost_drop += self.TICK_INTERVAL
+                if player.boost_drop >= self.BOOST_DRAIN_INTERVAL:
+                    player.boost_drop -= self.BOOST_DRAIN_INTERVAL
+                    player.score -= 1
+                    player.pending_growth -= 1
                     if len(player.body) > 0:
                         tail = player.body[-1]
                         self.food_id_counter += 1
@@ -233,6 +240,8 @@ class GameState:
                             oldest_id = next(iter(self.foods))
                             self.foods[oldest_id].eaten = True
                             self.eaten_foods.append(oldest_id)
+            else:
+                player.boost_drop = 0.0
 
             # Накапливаем шаги (чтобы при ускорении не растягивать змейку)
             player.pending_steps += player.speed_mult
@@ -358,13 +367,15 @@ class GameState:
         for p in self.players.values():
             p.just_respawned = False
 
-    def get_delta_state(self, client_id, is_full=False):
+    def get_delta_state(self, client_id, is_full=False, update_visibility=True, return_visibility=False):
         client_player = self.players.get(client_id)
         if client_player and len(client_player.body) > 0:
             cx, cy = client_player.body[0]["x"], client_player.body[0]["y"]
         else:
             cx, cy = self.grid_width / 2, self.grid_height / 2
             
+        previous_visible = self.client_visibility.get(client_id, set())
+        current_visible = set()
         players_data = {}
         for pid, p in self.players.items():
             if not p.body:
@@ -375,22 +386,35 @@ class GameState:
             # Радиус видимости ~60 (для 3D камеры) + небольшой запас на длину самой змеи
             safe_radius = 60.0 + (len(p.body) * 0.5)
             in_aoi = (pid == client_id) or (dist_sq < safe_radius ** 2)
+            if in_aoi:
+                current_visible.add(pid)
             
             if is_full:
                 players_data[pid] = p.to_dict(in_aoi=in_aoi, is_full=True)
             else:
                 if in_aoi:
-                    players_data[pid] = self.full_players_dict.get(pid, p.to_dict(in_aoi=True, is_full=False))
+                    if pid not in previous_visible:
+                        players_data[pid] = p.to_dict(in_aoi=True, is_full=True)
+                    else:
+                        players_data[pid] = self.full_players_dict.get(pid, p.to_dict(in_aoi=True, is_full=False))
                 else:
                     players_data[pid] = self.mini_players_dict.get(pid, p.to_dict(in_aoi=False, is_full=False))
 
-        return {
+        state = {
             "type": "FULL" if is_full else "DELTA",
             "players": players_data,
             "new_foods": self.new_foods,
             "eaten_foods": self.eaten_foods,
             "kill_events": self.kill_events
         }
+
+        if client_id and update_visibility:
+            self.client_visibility[client_id] = current_visible
+
+        if return_visibility:
+            return state, current_visible
+
+        return state
         
     def get_full_state(self, client_id):
         state = self.get_delta_state(client_id, is_full=True)
@@ -400,9 +424,27 @@ class GameState:
 game = GameState()
 active_connections = {}
 
+async def sender_loop(client_id, websocket, queue):
+    try:
+        while True:
+            data, visible_players = await queue.get()
+            await websocket.send_bytes(data)
+            game.client_visibility[client_id] = visible_players
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        active_connections.pop(client_id, None)
+        game.remove_player(client_id)
+
+def replace_queued_state(queue, data):
+    if queue.full():
+        with contextlib.suppress(asyncio.QueueEmpty):
+            queue.get_nowait()
+    with contextlib.suppress(asyncio.QueueFull):
+        queue.put_nowait(data)
+
 async def game_loop():
     """Глобальный цикл игры (Tick Rate)"""
-    TICK_INTERVAL = 0.05
     while True:
         start_time = asyncio.get_event_loop().time()
         try:
@@ -410,22 +452,18 @@ async def game_loop():
         except Exception as e:
             print(f"Game loop error: {e}")
             
-        for client_id, ws in list(active_connections.items()):
-            delta_state = game.get_delta_state(client_id)
+        for client_id, connection in list(active_connections.items()):
+            delta_state, visible_players = game.get_delta_state(
+                client_id,
+                update_visibility=False,
+                return_visibility=True
+            )
             state_msgpack = msgpack.packb(delta_state)
-            
-            async def send(cid, socket, data):
-                try:
-                    await socket.send_bytes(data)
-                except Exception:
-                    active_connections.pop(cid, None)
-                    game.remove_player(cid)
-            
-            asyncio.create_task(send(client_id, ws, state_msgpack))
+            replace_queued_state(connection["queue"], (state_msgpack, visible_players))
             
         # Компенсация времени выполнения тика
         elapsed = asyncio.get_event_loop().time() - start_time
-        await asyncio.sleep(max(0.0, TICK_INTERVAL - elapsed))
+        await asyncio.sleep(max(0.0, game.TICK_INTERVAL - elapsed))
 
 @app.on_event("startup")
 async def startup_event():
@@ -435,11 +473,14 @@ async def startup_event():
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str, skin: str = "#22c55e"):
     await websocket.accept()
-    active_connections[client_id] = websocket
     game.add_player(client_id, skin)
     
     # Отправляем полное состояние при первом подключении
     await websocket.send_bytes(msgpack.packb(game.get_full_state(client_id)))
+
+    send_queue = asyncio.Queue(maxsize=1)
+    send_task = asyncio.create_task(sender_loop(client_id, websocket, send_queue))
+    active_connections[client_id] = {"websocket": websocket, "queue": send_queue, "task": send_task}
     
     try:
         while True:
@@ -449,7 +490,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str, skin: str = "
         pass # Ловим вообще все исключения обрывов связи
     finally:
         # Гарантированная очистка памяти при отключении клиента
-        active_connections.pop(client_id, None)
+        connection = active_connections.pop(client_id, None)
+        if connection:
+            connection["task"].cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await connection["task"]
         game.remove_player(client_id)
 
 if __name__ == "__main__":

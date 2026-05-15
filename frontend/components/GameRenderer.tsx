@@ -143,7 +143,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
         }
         localAngle += localCurrentTurn * ticks;
 
-        let angleDiff = Math.atan2(Math.sin(myPlayer.angle - localAngle), Math.cos(myPlayer.angle - localAngle));
+        const angleDiff = Math.atan2(Math.sin(myPlayer.angle - localAngle), Math.cos(myPlayer.angle - localAngle));
         if (Math.abs(angleDiff) > Math.PI / 2) {
           localAngle = myPlayer.angle;
         } else {
@@ -227,11 +227,11 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       g.beginPath();
       let startCol = Math.floor(minX / gridSize);
       if (startCol % 2 !== 0) startCol = Math.max(0, startCol - 1);
-      let endCol = Math.min(WORLD_WIDTH, Math.ceil(maxX / gridSize));
+      const endCol = Math.min(WORLD_WIDTH, Math.ceil(maxX / gridSize));
       
       let startRow = Math.floor(minY / gridSize);
       if (startRow % 2 !== 0) startRow = Math.max(0, startRow - 1);
-      let endRow = Math.min(WORLD_HEIGHT, Math.ceil(maxY / gridSize));
+      const endRow = Math.min(WORLD_HEIGHT, Math.ceil(maxY / gridSize));
 
       for (let i = startCol; i <= endCol; i += 2) {
         g.moveTo(i * gridSize, minY);
@@ -279,7 +279,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
       if (state.players) {
         for (const playerId in state.players) {
-          const playerData = state.players[playerId] as any;
+          const playerData = state.players[playerId];
           const body = playerData.body;
           const oldBody = lastState?.players[playerId]?.body;
           const score = playerData.score || 30;
@@ -432,7 +432,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           }
 
           for (const playerId in state.players) {
-            const playerData = state.players[playerId] as any;
+            const playerData = state.players[playerId];
             if (playerData.body.length === 0) continue;
             const head = playerData.body[0];
             let headColor = playerData.skin || "#22c55e";
@@ -467,7 +467,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           }
 
           for (const playerId in state.players) {
-            const playerData = state.players[playerId] as any;
+            const playerData = state.players[playerId];
             if (playerData.body.length === 0) continue;
             const head = playerData.body[0];
             let headColor = playerData.skin || "#22c55e";

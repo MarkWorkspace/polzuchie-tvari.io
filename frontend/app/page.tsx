@@ -90,7 +90,7 @@ export default function Home() {
 
       {/* Таблица лидеров (Справа сверху) */}
       <div style={{ position: "absolute", top: 20, right: 20, zIndex: 50 }}>
-        <Leaderboard leaderboard={leaderboard} myId={myIdRef.current} />
+        <Leaderboard leaderboard={leaderboard} />
       </div>
 
       {/* Фид очков еды (Снизу по центру) */}
