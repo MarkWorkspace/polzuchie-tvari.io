@@ -279,7 +279,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
       if (state.players) {
         for (const playerId in state.players) {
-          const playerData = state.players[playerId];
+          const playerData = state.players[playerId] as any;
           const body = playerData.body;
           const oldBody = lastState?.players[playerId]?.body;
           const score = playerData.score || 30;
@@ -432,7 +432,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           }
 
           for (const playerId in state.players) {
-            const playerData = state.players[playerId];
+            const playerData = state.players[playerId] as any;
             if (playerData.body.length === 0) continue;
             const head = playerData.body[0];
             let headColor = playerData.skin || "#22c55e";
@@ -467,7 +467,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           }
 
           for (const playerId in state.players) {
-            const playerData = state.players[playerId];
+            const playerData = state.players[playerId] as any;
             if (playerData.body.length === 0) continue;
             const head = playerData.body[0];
             let headColor = playerData.skin || "#22c55e";
