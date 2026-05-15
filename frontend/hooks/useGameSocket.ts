@@ -60,6 +60,8 @@ export function useGameSocket(
 
       if (parsedState.type === "FULL" || !parsedState.type) {
         gameStateRef.current = {
+          server_tick_rate: parsedState.server_tick_rate,
+          server_simulation: parsedState.server_simulation,
           players: parsedState.players,
           foods: parsedState.foods,
         };
@@ -119,6 +121,8 @@ export function useGameSocket(
 
         gameStateRef.current = {
           ...gameStateRef.current,
+          server_tick_rate: parsedState.server_tick_rate ?? gameStateRef.current.server_tick_rate,
+          server_simulation: parsedState.server_simulation ?? gameStateRef.current.server_simulation,
           players: nextPlayers,
           foods: nextFoods
         };

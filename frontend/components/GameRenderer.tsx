@@ -2,8 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { GameState } from "../types/game";
 import * as PIXI from "pixi.js";
 
-const SERVER_TICK_RATE = 30;
-const SERVER_TICK_MS = 1000 / SERVER_TICK_RATE;
+const DEFAULT_SERVER_TICK_RATE = 30;
 const TURN_SPEED_PER_SECOND = 5.0;
 const TURN_IDLE_SMOOTHING_AT_20HZ = 0.3;
 const TURN_ACTIVE_SMOOTHING_AT_20HZ = 0.15;
@@ -103,6 +102,12 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
       const state = gameStateRef.current;
       if (!state) return;
+      const serverSimulation = state.server_simulation;
+      const serverTickRate = serverSimulation?.tick_rate || state.server_tick_rate || DEFAULT_SERVER_TICK_RATE;
+      const serverTickMs = 1000 / serverTickRate;
+      const turnSpeedPerSecond = serverSimulation?.turn_speed_per_second || TURN_SPEED_PER_SECOND;
+      const turnIdleSmoothing = serverSimulation?.turn_idle_smoothing_at_20hz ?? TURN_IDLE_SMOOTHING_AT_20HZ;
+      const turnActiveSmoothing = serverSimulation?.turn_active_smoothing_at_20hz ?? TURN_ACTIVE_SMOOTHING_AT_20HZ;
       const lastState = lastGameStateRef.current;
       const myId = myIdRef.current;
 
@@ -130,7 +135,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       }
 
       const now = performance.now();
-      const progress = lastUpdateTimeRef.current === 0 ? 1 : Math.min((now - lastUpdateTimeRef.current) / SERVER_TICK_MS, 2.0);
+      const progress = lastUpdateTimeRef.current === 0 ? 1 : Math.min((now - lastUpdateTimeRef.current) / serverTickMs, 2.0);
 
       let camX = (WORLD_WIDTH * gridSize) / 2;
       let camY = (WORLD_HEIGHT * gridSize) / 2;
@@ -142,13 +147,13 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           localAngle = myPlayer.angle;
         }
 
-        const targetTurn = localInputRef.current.turn * (TURN_SPEED_PER_SECOND / SERVER_TICK_RATE);
+        const targetTurn = localInputRef.current.turn * (turnSpeedPerSecond / serverTickRate);
         if (localInputRef.current.turn === 0) {
-          localCurrentTurn += (0 - localCurrentTurn) * frameSmoothing(TURN_IDLE_SMOOTHING_AT_20HZ, dt);
+          localCurrentTurn += (0 - localCurrentTurn) * frameSmoothing(turnIdleSmoothing, dt);
         } else {
-          localCurrentTurn += (targetTurn - localCurrentTurn) * frameSmoothing(TURN_ACTIVE_SMOOTHING_AT_20HZ, dt);
+          localCurrentTurn += (targetTurn - localCurrentTurn) * frameSmoothing(turnActiveSmoothing, dt);
         }
-        localAngle += localCurrentTurn * dt * SERVER_TICK_RATE;
+        localAngle += localCurrentTurn * dt * serverTickRate;
 
         const angleDiff = Math.atan2(Math.sin(myPlayer.angle - localAngle), Math.cos(myPlayer.angle - localAngle));
         if (Math.abs(angleDiff) > Math.PI / 2) {

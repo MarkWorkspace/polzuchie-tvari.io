@@ -1,3 +1,11 @@
+export type ServerSimulationConfig = {
+  tick_rate: number;
+  base_speed_per_second: number;
+  turn_speed_per_second: number;
+  turn_idle_smoothing_at_20hz: number;
+  turn_active_smoothing_at_20hz: number;
+};
+
 export type Point = {
   x: number;
   y: number;
@@ -21,6 +29,8 @@ export type Player = {
 };
 
 export type GameState = {
+  server_tick_rate?: number;
+  server_simulation?: ServerSimulationConfig;
   players: Record<string, Player>;
   foods: Food[];
 };
@@ -38,6 +48,8 @@ export type KillEvent = {
 
 export type FullGameMessage = {
   type?: "FULL";
+  server_tick_rate?: number;
+  server_simulation?: ServerSimulationConfig;
   players: Record<string, Player>;
   foods: Food[];
   new_foods?: Food[];
@@ -47,6 +59,8 @@ export type FullGameMessage = {
 
 export type DeltaGameMessage = {
   type: "DELTA";
+  server_tick_rate?: number;
+  server_simulation?: ServerSimulationConfig;
   players: Record<string, PlayerUpdate>;
   new_foods?: Food[];
   eaten_foods?: number[];

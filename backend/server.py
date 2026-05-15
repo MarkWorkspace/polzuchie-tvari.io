@@ -5,8 +5,9 @@ import random
 import math
 import uvicorn
 import os
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from game_config import GameConfig
 
 app = FastAPI()
 
@@ -19,13 +20,13 @@ app.add_middleware(
 )
 
 class Food:
-    def __init__(self, fid, x, y, value):
+    def __init__(self, fid, x, y, value, config):
         self.id = fid
         self.x = x
         self.y = y
         self.value = value
         self.eaten = False
-        self.radius = 0.2 + math.sqrt(value) * 0.1
+        self.radius = config.food.base_radius + math.sqrt(value) * config.food.radius_value_scale
 
     def to_dict(self):
         return {
@@ -36,7 +37,8 @@ class Food:
         }
 
 class Player:
-    def __init__(self, start_x, start_y, skin="#22c55e"):
+    def __init__(self, start_x, start_y, config, skin="#22c55e"):
+        self.config = config
         self.skin = skin
         self.kills = 0
         self.deaths = 0
@@ -45,12 +47,11 @@ class Player:
         self.respawn(start_x, start_y)
         
     def respawn(self, start_x, start_y):
-        # Стартовая длина 9 (в 3 раза длиннее), номинальный размер головы зависит от score (остается 10, не утолщается)
-        self.body = [{"x": start_x - i, "y": start_y} for i in range(9)]
+        self.body = [{"x": start_x - i, "y": start_y} for i in range(self.config.snake.start_length)]
         self.angle = 0.0
         self.turn = 0
         self.current_turn = 0.0
-        self.score = 1
+        self.score = self.config.snake.start_score
         self.pending_growth = 0.0
         self.accelerating = False
         self.speed_mult = 1.0
@@ -61,11 +62,11 @@ class Player:
         
     @property
     def is_accelerating_valid(self):
-        return self.accelerating and self.score > 15
+        return self.accelerating and self.score > self.config.boost.min_score
         
     @property
     def head_radius(self):
-        return 0.2 + self.score * 0.0005
+        return self.config.snake.base_head_radius + self.score * self.config.snake.score_radius_scale
         
     def to_dict(self, in_aoi=True, is_full=False):
         data = {
@@ -86,30 +87,19 @@ class Player:
         return data
 
 class GameState:
-    TICK_RATE = 30
-    TICK_INTERVAL = 1.0 / TICK_RATE
-    BASE_SPEED_PER_SECOND = 6.0
-    TURN_SPEED_PER_SECOND = 5.0
-    TURN_IDLE_SMOOTHING_AT_20HZ = 0.3
-    TURN_ACTIVE_SMOOTHING_AT_20HZ = 0.15
-    BOOST_DRAIN_INTERVAL = 1.0
-
-    @classmethod
-    def tick_smoothing(cls, smoothing_at_20hz):
-        return 1.0 - ((1.0 - smoothing_at_20hz) ** (cls.TICK_INTERVAL / 0.05))
-
     def __init__(self):
+        self.config = GameConfig()
         self.players = {}
         self.client_visibility = {}
-        self.grid_width = 100  # Увеличиваем ширину карты
-        self.grid_height = 100 # Увеличиваем высоту карты
-        self.target_food_count = 250  # В 5 раз больше еды
-        # Создаем 8 случайных точек интереса (кучек)
-        self.clusters = [(random.uniform(10, self.grid_width - 10), random.uniform(10, self.grid_height - 10)) for _ in range(8)]
+        self.grid_width = self.config.world.width
+        self.grid_height = self.config.world.height
+        self.target_food_count = self.config.world.target_food_count
+        self.clusters = self._create_clusters()
         self.food_id_counter = 0
         self.foods = {}
         self.new_foods = []
         self.eaten_foods = []
+        self.pending_eaten_foods = []
         self.kill_events = []
         self.full_players_dict = {}
         self.mini_players_dict = {}
@@ -117,14 +107,59 @@ class GameState:
             f = self._spawn_food()
             self.foods[f.id] = f
 
+    @property
+    def tick_interval(self):
+        return 1.0 / self.config.simulation.tick_rate
+
+    def tick_smoothing(self, smoothing_at_20hz):
+        return 1.0 - ((1.0 - smoothing_at_20hz) ** (self.tick_interval / 0.05))
+
+    def _create_clusters(self):
+        return [
+            (
+                random.uniform(10, self.grid_width - 10),
+                random.uniform(10, self.grid_height - 10)
+            )
+            for _ in range(self.config.world.cluster_count)
+        ]
+
+    def get_config(self):
+        return self.config.to_dict()
+
+    def update_config(self, patch):
+        old_width = self.grid_width
+        old_height = self.grid_height
+        old_cluster_count = len(self.clusters)
+        self.config.apply_patch(patch)
+        self.grid_width = self.config.world.width
+        self.grid_height = self.config.world.height
+        self.target_food_count = self.config.world.target_food_count
+        if self.grid_width != old_width or self.grid_height != old_height or len(self.clusters) != self.config.world.cluster_count:
+            self.clusters = self._create_clusters()
+        elif old_cluster_count != self.config.world.cluster_count:
+            self.clusters = self._create_clusters()
+        self._trim_food_overflow(defer_events=True)
+        return self.get_config()
+
+    def _trim_food_overflow(self, defer_events=False):
+        max_food_count = self.target_food_count + self.config.world.food_overflow_limit
+        while len(self.foods) > max_food_count:
+            oldest_id = next(iter(self.foods))
+            self.foods[oldest_id].eaten = True
+            if defer_events:
+                self.pending_eaten_foods.append(oldest_id)
+            else:
+                self.eaten_foods.append(oldest_id)
+            self.foods.pop(oldest_id, None)
+
     def _spawn_food(self):
         self.food_id_counter += 1
-        val = random.choices([1, 2, 5, 10, 20, 50], weights=[50, 25, 15, 6, 3, 1])[0] 
+        val = random.choices(self.config.food.values, weights=self.config.food.weights)[0]
         
-        if random.random() < 0.8: # 80% еды спавнится кучками (точками интереса)
+        if random.random() < self.config.world.cluster_spawn_chance:
             cx, cy = random.choice(self.clusters)
-            x = random.gauss(cx, 5) # Нормальное распределение с радиусом разброса ~5
-            y = random.gauss(cy, 5)
+            x = random.gauss(cx, self.config.world.cluster_spread)
+            y = random.gauss(cy, self.config.world.cluster_spread)
         else: # 20% еды спавнится равномерно по всей карте
             x = random.uniform(1, self.grid_width - 1)
             y = random.uniform(1, self.grid_height - 1)
@@ -133,10 +168,10 @@ class GameState:
         x = max(1, min(self.grid_width - 1, x))
         y = max(1, min(self.grid_height - 1, y))
         
-        return Food(self.food_id_counter, x, y, val)
+        return Food(self.food_id_counter, x, y, val, self.config)
 
     def _get_safe_spawn_location(self):
-        safe_distance_sq = 15.0 ** 2 # Квадрат безопасного радиуса
+        safe_distance_sq = self.config.snake.safe_spawn_distance ** 2
         max_attempts = 50
         
         for _ in range(max_attempts):
@@ -161,7 +196,7 @@ class GameState:
 
     def add_player(self, player_id, skin="#22c55e"):
         start_x, start_y = self._get_safe_spawn_location()
-        self.players[player_id] = Player(start_x, start_y, skin)
+        self.players[player_id] = Player(start_x, start_y, self.config, skin)
 
     def remove_player(self, player_id):
         self.players.pop(player_id, None)
@@ -187,19 +222,21 @@ class GameState:
 
     def tick(self):
         self.new_foods = []
-        self.eaten_foods = []
+        self.eaten_foods = self.pending_eaten_foods
+        self.pending_eaten_foods = []
         self.kill_events = []
         
         # Периодически смещаем одну из точек интереса (2.5% шанс на 20Hz)
-        if random.random() < 0.025:
+        if random.random() < self.config.world.cluster_move_chance:
             idx = random.randint(0, len(self.clusters) - 1)
             self.clusters[idx] = (random.uniform(10, self.grid_width - 10), random.uniform(10, self.grid_height - 10))
 
         # Обновляем координаты для всех игроков одновременно
-        base_speed = self.BASE_SPEED_PER_SECOND * self.TICK_INTERVAL
-        turn_speed = self.TURN_SPEED_PER_SECOND * self.TICK_INTERVAL
-        idle_turn_smoothing = self.tick_smoothing(self.TURN_IDLE_SMOOTHING_AT_20HZ)
-        active_turn_smoothing = self.tick_smoothing(self.TURN_ACTIVE_SMOOTHING_AT_20HZ)
+        tick_interval = self.tick_interval
+        base_speed = self.config.simulation.base_speed_per_second * tick_interval
+        turn_speed = self.config.simulation.turn_speed_per_second * tick_interval
+        idle_turn_smoothing = self.tick_smoothing(self.config.simulation.turn_idle_smoothing_at_20hz)
+        active_turn_smoothing = self.tick_smoothing(self.config.simulation.turn_active_smoothing_at_20hz)
         
         # --- ПРОСТРАНСТВЕННОЕ РАЗДЕЛЕНИЕ (Spatial Partitioning) ---
         # Размер ячейки 10.0 гарантирует, что мы не пропустим коллизии даже у очень толстых змей
@@ -227,14 +264,14 @@ class GameState:
         for pid, player in self.players.items():
             is_accelerating = player.is_accelerating_valid
             
-            player.speed_mult = 2.0 if is_accelerating else 1.0
+            player.speed_mult = self.config.boost.speed_multiplier if is_accelerating else 1.0
             
             if is_accelerating:
-                player.boost_drop += self.TICK_INTERVAL
-                if player.boost_drop >= self.BOOST_DRAIN_INTERVAL:
-                    player.boost_drop -= self.BOOST_DRAIN_INTERVAL
-                    player.score -= 1
-                    player.pending_growth -= 1
+                player.boost_drop += tick_interval
+                if player.boost_drop >= self.config.boost.drain_interval_seconds:
+                    player.boost_drop -= self.config.boost.drain_interval_seconds
+                    player.score -= self.config.boost.score_drain
+                    player.pending_growth -= self.config.boost.growth_drain
                     if len(player.body) > 0:
                         tail = player.body[-1]
                         self.food_id_counter += 1
@@ -242,15 +279,13 @@ class GameState:
                             self.food_id_counter,
                             (tail["x"] + random.uniform(-0.5, 0.5)) % self.grid_width,
                             (tail["y"] + random.uniform(-0.5, 0.5)) % self.grid_height,
-                            1
+                            self.config.boost.food_drop_value,
+                            self.config
                         )
                         self.foods[new_f.id] = new_f
                         self.new_foods.append(new_f.to_dict())
                         # Ограничиваем количество еды, чтобы избежать лагов сервера
-                        if len(self.foods) > self.target_food_count + 150:
-                            oldest_id = next(iter(self.foods))
-                            self.foods[oldest_id].eaten = True
-                            self.eaten_foods.append(oldest_id)
+                        self._trim_food_overflow()
             else:
                 player.boost_drop = 0.0
 
@@ -278,15 +313,15 @@ class GameState:
                 player.body.insert(0, new_head)
                 player.new_heads_this_tick.insert(0, new_head)
 
-                if player.pending_growth >= 10:
-                    player.pending_growth -= 10
+                if player.pending_growth >= self.config.snake.growth_score_per_segment:
+                    player.pending_growth -= self.config.snake.growth_score_per_segment
                 else:
                     if len(player.body) > 0:
                         player.body.pop()
                     
-                    if player.pending_growth <= -10:
-                        player.pending_growth += 10
-                        if len(player.body) > 9:  # Защита от сжатия меньше стартовых 9 сегментов
+                    if player.pending_growth <= -self.config.snake.growth_score_per_segment:
+                        player.pending_growth += self.config.snake.growth_score_per_segment
+                        if len(player.body) > self.config.snake.min_body_length:
                             player.body.pop()
 
             new_head = player.body[0]
@@ -320,18 +355,19 @@ class GameState:
                 dead_players.add(pid)
                 self.kill_events.append({"killer": killer_pid, "victim": pid})
                 # Раскидываем 50% массы змейки в виде еды
-                drop_amount = player.score // 2
+                drop_amount = math.floor(player.score * self.config.food.death_drop_score_fraction)
                 body_len = len(player.body)
                 while drop_amount > 0 and body_len > 0:
                     segment = random.choice(player.body)
-                    val = min(random.choices([1, 2, 5, 10, 20, 50], weights=[50, 25, 15, 6, 3, 1])[0], drop_amount)
+                    val = min(random.choices(self.config.food.values, weights=self.config.food.weights)[0], drop_amount)
                     drop_amount -= val
                     self.food_id_counter += 1
                     new_f = Food(
                         self.food_id_counter,
                         (segment["x"] + random.uniform(-1.5, 1.5)) % self.grid_width,
                         (segment["y"] + random.uniform(-1.5, 1.5)) % self.grid_height,
-                        val
+                        val,
+                        self.config
                     )
                     self.foods[new_f.id] = new_f
                     self.new_foods.append(new_f.to_dict())
@@ -364,6 +400,7 @@ class GameState:
 
         # Очистка съеденной еды одним проходом
         self.foods = {fid: f for fid, f in self.foods.items() if not f.eaten}
+        self._trim_food_overflow()
 
         # Восполняем еду до целевого значения
         while len(self.foods) < self.target_food_count:
@@ -394,8 +431,7 @@ class GameState:
                 
             head = p.body[0]
             dist_sq = (head["x"] - cx)**2 + (head["y"] - cy)**2
-            # Радиус видимости ~60 (для 3D камеры) + небольшой запас на длину самой змеи
-            safe_radius = 60.0 + (len(p.body) * 0.5)
+            safe_radius = self.config.network.aoi_radius + (len(p.body) * self.config.network.aoi_length_padding)
             in_aoi = (pid == client_id) or (dist_sq < safe_radius ** 2)
             if in_aoi:
                 current_visible.add(pid)
@@ -413,6 +449,8 @@ class GameState:
 
         state = {
             "type": "FULL" if is_full else "DELTA",
+            "server_tick_rate": self.config.simulation.tick_rate,
+            "server_simulation": self.config.to_dict()["simulation"],
             "players": players_data,
             "new_foods": self.new_foods,
             "eaten_foods": self.eaten_foods,
@@ -434,6 +472,21 @@ class GameState:
 
 game = GameState()
 active_connections = {}
+
+def admin_password():
+    password = os.getenv("ADMIN_PASSWORD")
+    if password:
+        return password
+    if os.getenv("ENVIRONMENT") != "production":
+        return "admin"
+    return None
+
+def require_admin(x_admin_password: str | None = Header(default=None)):
+    expected_password = admin_password()
+    if not expected_password:
+        raise HTTPException(status_code=403, detail="ADMIN_PASSWORD is not configured")
+    if x_admin_password != expected_password:
+        raise HTTPException(status_code=401, detail="Invalid admin password")
 
 async def sender_loop(client_id, websocket, queue):
     try:
@@ -474,12 +527,25 @@ async def game_loop():
             
         # Компенсация времени выполнения тика
         elapsed = asyncio.get_event_loop().time() - start_time
-        await asyncio.sleep(max(0.0, game.TICK_INTERVAL - elapsed))
+        await asyncio.sleep(max(0.0, game.tick_interval - elapsed))
 
 @app.on_event("startup")
 async def startup_event():
     # Запускаем цикл параллельно с сервером
     asyncio.create_task(game_loop())
+
+@app.get("/admin/config")
+async def get_admin_config(x_admin_password: str | None = Header(default=None, alias="x-admin-password")):
+    require_admin(x_admin_password)
+    return game.get_config()
+
+@app.patch("/admin/config")
+async def patch_admin_config(patch: dict, x_admin_password: str | None = Header(default=None, alias="x-admin-password")):
+    require_admin(x_admin_password)
+    try:
+        return game.update_config(patch)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str, skin: str = "#22c55e"):
