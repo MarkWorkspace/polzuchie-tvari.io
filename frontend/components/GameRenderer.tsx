@@ -55,7 +55,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       });
 
       if (isDestroyed) {
-        app.destroy(true, { children: true, texture: true, baseTexture: true });
+        app.destroy(true, { children: true, texture: true });
         return;
       }
 
@@ -504,7 +504,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       isDestroyed = true;
       cancelAnimationFrame(animationFrameId);
       if (appRef.current) {
-        appRef.current.destroy(true, { children: true, texture: true, baseTexture: true });
+        appRef.current.destroy(true, { children: true, texture: true });
         appRef.current = null;
       }
     };
