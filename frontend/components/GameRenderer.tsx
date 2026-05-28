@@ -82,6 +82,13 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       worldContainer.addChild(g);
       graphicsRef.current = g;
 
+      // Маска ограничивает рендеринг зоной карты [0,2000]×[0,2000],
+      // чтобы части змей не рендерились в сером фоне за её пределами
+      const mapMask = new PIXI.Graphics();
+      mapMask.rect(0, 0, 100 * 20, 100 * 20).fill(0xffffff);
+      worldContainer.addChild(mapMask);
+      worldContainer.mask = mapMask;
+
       // Инициируем вызов цикла отрисовки
       lastFrameTime = performance.now();
       animationFrameId = requestAnimationFrame(renderLoop);
@@ -298,9 +305,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
           const snakeRadius = gridSize * (0.2 + score * 0.0005);
 
-          // Подготавливаем массивы координат
-          const pointsX: number[] = [];
-          const pointsY: number[] = [];
+          // Интерполируем позиции сегментов между тиками сервера
           const logicalX: number[] = [];
           const logicalY: number[] = [];
 
@@ -316,89 +321,112 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
               start = target;
             }
 
-            const currentX = start.x + (target.x - start.x) * progress;
-            const currentY = start.y + (target.y - start.y) * progress;
-
-            logicalX.push(currentX);
-            logicalY.push(currentY);
-            pointsX.push(currentX * gridSize + gridSize / 2);
-            pointsY.push(currentY * gridSize + gridSize / 2);
+            logicalX.push(start.x + (target.x - start.x) * progress);
+            logicalY.push(start.y + (target.y - start.y) * progress);
           }
 
-          const headPx = pointsX[0];
-          const headPy = pointsY[0];
+          // «Разворачиваем» координаты в непрерывный путь — убираем прыжки >WORLD/2
+          // между соседними сегментами. Путь может выйти за [0, WORLD], но маска
+          // worldContainer обрежет всё снаружи белого прямоугольника карты.
+          const uwLX: number[] = [logicalX[0]];
+          const uwLY: number[] = [logicalY[0]];
+          for (let i = 1; i < logicalX.length; i++) {
+            let dx = logicalX[i] - uwLX[i - 1];
+            let dy = logicalY[i] - uwLY[i - 1];
+            if (dx > WORLD_WIDTH / 2) dx -= WORLD_WIDTH;
+            else if (dx < -WORLD_WIDTH / 2) dx += WORLD_WIDTH;
+            if (dy > WORLD_HEIGHT / 2) dy -= WORLD_HEIGHT;
+            else if (dy < -WORLD_HEIGHT / 2) dy += WORLD_HEIGHT;
+            uwLX.push(uwLX[i - 1] + dx);
+            uwLY.push(uwLY[i - 1] + dy);
+          }
+          const uwPX = uwLX.map(x => x * gridSize + gridSize / 2);
+          const uwPY = uwLY.map(y => y * gridSize + gridSize / 2);
 
-          // 1. Отрисовка тени (Ambient Occlusion - без смещения, чуть шире тела)
-          if (pointsX.length > 1) {
-            g.beginPath();
-            g.moveTo(pointsX[0], pointsY[0]);
-            for (let i = 1; i < pointsX.length; i++) {
-              if (Math.abs(logicalX[i] - logicalX[i - 1]) <= 1.5 && Math.abs(logicalY[i] - logicalY[i - 1]) <= 1.5) {
-                g.lineTo(pointsX[i], pointsY[i]);
-              } else {
-                g.moveTo(pointsX[i], pointsY[i]);
+          const headPx = uwPX[0];
+          const headPy = uwPY[0];
+
+          // Рисуем в 5 позициях: реальная + 4 «обёртки» по краям карты.
+          // Маска обрезает лишнее — итог: обе стороны телепорта видны одновременно.
+          const WG = WORLD_WIDTH * gridSize;
+          const HG = WORLD_HEIGHT * gridSize;
+          const wrapOffsets: [number, number][] = [[0, 0], [WG, 0], [-WG, 0], [0, HG], [0, -HG]];
+
+          for (const [ox, oy] of wrapOffsets) {
+            // 1. Тень (Ambient Occlusion)
+            if (uwPX.length > 1) {
+              g.beginPath();
+              g.moveTo(uwPX[0] + ox, uwPY[0] + oy);
+              for (let i = 1; i < uwPX.length; i++) {
+                g.lineTo(uwPX[i] + ox, uwPY[i] + oy);
+              }
+              g.stroke({ width: snakeRadius * 2.4, color: 0x000000, alpha: 0.15, cap: 'round', join: 'round' });
+            } else {
+              g.circle(uwPX[0] + ox, uwPY[0] + oy, snakeRadius * 1.2).fill({ color: 0x000000, alpha: 0.15 });
+            }
+
+            // 2. Тело змеи
+            const skin = playerData.skin;
+            const isMultiColor = skin === "zebra" || skin === "rainbow" || skin === "tiger" || skin === "cyberpunk";
+
+            if (!isMultiColor && uwPX.length > 1) {
+              // Сплошной цвет: весь хвост одним батчем
+              g.beginPath();
+              g.moveTo(uwPX[0] + ox, uwPY[0] + oy);
+              for (let i = 1; i < uwPX.length; i++) {
+                g.lineTo(uwPX[i] + ox, uwPY[i] + oy);
+              }
+              g.stroke({ width: snakeRadius * 2, color: parseColor(skin || "#22c55e"), cap: 'round', join: 'round' });
+            } else {
+              for (let i = 1; i < uwPX.length; i++) {
+                let segColor = parseColor(skin || "#22c55e");
+                if (skin === "zebra") segColor = i % 2 === 0 ? 0xe5e5e5 : 0x171717;
+                else if (skin === "rainbow") segColor = hslToHex(i * 15 - now / 20, 1, 0.5);
+                else if (skin === "tiger") segColor = i % 3 === 0 ? 0x171717 : 0xf97316;
+                else if (skin === "cyberpunk") segColor = i % 2 === 0 ? 0xff00ff : 0x00ffff;
+                g.beginPath();
+                g.moveTo(uwPX[i - 1] + ox, uwPY[i - 1] + oy);
+                g.lineTo(uwPX[i] + ox, uwPY[i] + oy);
+                g.stroke({ width: snakeRadius * 2, color: segColor, cap: 'round', join: 'round' });
               }
             }
-            g.stroke({ width: snakeRadius * 2.4, color: 0x000000, alpha: 0.15, cap: 'round', join: 'round' });
-          } else if (pointsX.length === 1) {
-            g.circle(headPx, headPy, snakeRadius * 1.2).fill({ color: 0x000000, alpha: 0.15 });
-          }
 
-          // 2. Отрисовка тела змеи
-          for (let i = 1; i < pointsX.length; i++) {
-            if (Math.abs(logicalX[i] - logicalX[i - 1]) <= 1.5 && Math.abs(logicalY[i] - logicalY[i - 1]) <= 1.5) {
-              let segColor = parseColor(playerData.skin || "#22c55e");
-              const skin = playerData.skin;
-              if (skin === "zebra") segColor = i % 2 === 0 ? 0xe5e5e5 : 0x171717;
-              else if (skin === "rainbow") segColor = hslToHex(i * 15 - now / 20, 1, 0.5);
-              else if (skin === "tiger") segColor = i % 3 === 0 ? 0x171717 : 0xf97316;
-              else if (skin === "cyberpunk") segColor = i % 2 === 0 ? 0xff00ff : 0x00ffff;
-              
-              g.beginPath();
-              g.moveTo(pointsX[i - 1], pointsY[i - 1]);
-              g.lineTo(pointsX[i], pointsY[i]);
-              g.stroke({ width: snakeRadius * 2, color: segColor, cap: 'round', join: 'round' });
+            if (body.length === 1) {
+              let segColor = parseColor(skin || "#22c55e");
+              if (skin === "zebra") segColor = 0xe5e5e5;
+              else if (skin === "rainbow") segColor = hslToHex(-now / 20, 1, 0.5);
+              else if (skin === "tiger") segColor = 0xf97316;
+              else if (skin === "cyberpunk") segColor = 0xff00ff;
+              g.circle(uwPX[0] + ox, uwPY[0] + oy, snakeRadius).fill(segColor);
             }
+
+            // 3. Глаза (рисуем в каждой «обёртке» для корректности на краях карты)
+            const eyeOffset = snakeRadius * 0.6;
+            let currentAngle = 0;
+
+            if (playerId === myId && localAngle !== null) {
+              currentAngle = localAngle;
+            } else {
+              const targetAngle = playerData.angle;
+              const startAngle = lastState?.players[playerId]?.angle ?? targetAngle;
+              currentAngle = startAngle + (targetAngle - startAngle) * progress;
+            }
+
+            const e1x = headPx + ox + Math.cos(currentAngle - Math.PI / 2.5) * eyeOffset;
+            const e1y = headPy + oy + Math.sin(currentAngle - Math.PI / 2.5) * eyeOffset;
+            const e2x = headPx + ox + Math.cos(currentAngle + Math.PI / 2.5) * eyeOffset;
+            const e2y = headPy + oy + Math.sin(currentAngle + Math.PI / 2.5) * eyeOffset;
+            const px1 = Math.cos(currentAngle) * (snakeRadius * 0.3);
+            const py1 = Math.sin(currentAngle) * (snakeRadius * 0.3);
+
+            const eyeSize = snakeRadius * 0.4;
+            g.circle(e1x, e1y, eyeSize).fill(0xffffff);
+            g.circle(e2x, e2y, eyeSize).fill(0xffffff);
+
+            const pupilSize = snakeRadius * 0.2;
+            g.circle(e1x + px1, e1y + py1, pupilSize).fill(0x000000);
+            g.circle(e2x + px1, e2y + py1, pupilSize).fill(0x000000);
           }
-          
-          if (body.length === 1) {
-            let segColor = parseColor(playerData.skin || "#22c55e");
-            const skin = playerData.skin;
-            if (skin === "zebra") segColor = 0xe5e5e5;
-            else if (skin === "rainbow") segColor = hslToHex(-now / 20, 1, 0.5);
-            else if (skin === "tiger") segColor = 0xf97316;
-            else if (skin === "cyberpunk") segColor = 0xff00ff;
-
-            g.circle(headPx, headPy, snakeRadius).fill(segColor);
-          }
-
-          const eyeOffset = snakeRadius * 0.6;
-          let currentAngle = 0;
-          
-          if (playerId === myId && localAngle !== null) {
-            currentAngle = localAngle; // Используем предсказанный локальный угол
-          } else {
-            const targetAngle = playerData.angle;
-            const startAngle = lastState?.players[playerId]?.angle ?? targetAngle;
-            currentAngle = startAngle + (targetAngle - startAngle) * progress;
-          }
-          
-          const e1x = headPx + Math.cos(currentAngle - Math.PI / 2.5) * eyeOffset;
-          const e1y = headPy + Math.sin(currentAngle - Math.PI / 2.5) * eyeOffset;
-          
-          const e2x = headPx + Math.cos(currentAngle + Math.PI / 2.5) * eyeOffset;
-          const e2y = headPy + Math.sin(currentAngle + Math.PI / 2.5) * eyeOffset;
-          
-          const px1 = Math.cos(currentAngle) * (snakeRadius * 0.3);
-          const py1 = Math.sin(currentAngle) * (snakeRadius * 0.3);
-
-          const eyeSize = snakeRadius * 0.4;
-          g.circle(e1x, e1y, eyeSize).fill(0xffffff);
-          g.circle(e2x, e2y, eyeSize).fill(0xffffff);
-
-          const pupilSize = snakeRadius * 0.2;
-          g.circle(e1x + px1, e1y + py1, pupilSize).fill(0x000000);
-          g.circle(e2x + px1, e2y + py1, pupilSize).fill(0x000000);
         }
       }
 
