@@ -62,6 +62,7 @@ export function useGameSocket(
         gameStateRef.current = {
           server_tick_rate: parsedState.server_tick_rate,
           server_simulation: parsedState.server_simulation,
+          server_snake: parsedState.server_snake,
           players: parsedState.players,
           foods: parsedState.foods,
         };
@@ -73,6 +74,18 @@ export function useGameSocket(
         const nextFoods = gameStateRef.current.foods
           .filter((f) => !eatenSet.has(f.id))
           .concat(parsedState.new_foods || []);
+
+        // Обновляем позиции еды, притянутой к головам змей
+        const movedFoods = (parsedState as DeltaGameMessage).moved_foods;
+        if (movedFoods && movedFoods.length > 0) {
+          for (const mf of movedFoods) {
+            const idx = nextFoods.findIndex(f => f.id === mf.id);
+            if (idx !== -1) {
+              nextFoods[idx] = { ...nextFoods[idx], x: mf.x, y: mf.y };
+            }
+          }
+        }
+
           
         const currentPlayers = gameStateRef.current.players || {};
         const nextPlayers: Record<string, Player> = {};
@@ -123,6 +136,7 @@ export function useGameSocket(
           ...gameStateRef.current,
           server_tick_rate: parsedState.server_tick_rate ?? gameStateRef.current.server_tick_rate,
           server_simulation: parsedState.server_simulation ?? gameStateRef.current.server_simulation,
+          server_snake: parsedState.server_snake ?? gameStateRef.current.server_snake,
           players: nextPlayers,
           foods: nextFoods
         };

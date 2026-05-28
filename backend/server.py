@@ -20,11 +20,12 @@ app.add_middleware(
 )
 
 class Food:
-    def __init__(self, fid, x, y, value, config):
+    def __init__(self, fid, x, y, value, config, color="#ef4444"):
         self.id = fid
         self.x = x
         self.y = y
         self.value = value
+        self.color = color
         self.eaten = False
         self.radius = config.food.base_radius + math.sqrt(value) * config.food.radius_value_scale
 
@@ -33,7 +34,8 @@ class Food:
             "id": self.id,
             "x": self.x,
             "y": self.y,
-            "value": self.value
+            "value": self.value,
+            "color": self.color
         }
 
 class Player:
@@ -101,6 +103,7 @@ class GameState:
         self.eaten_foods = []
         self.pending_eaten_foods = []
         self.kill_events = []
+        self.moved_foods = []
         self.full_players_dict = {}
         self.mini_players_dict = {}
         for _ in range(self.target_food_count):
@@ -154,7 +157,9 @@ class GameState:
 
     def _spawn_food(self):
         self.food_id_counter += 1
-        val = random.choices(self.config.food.values, weights=self.config.food.weights)[0]
+        food_types = self.config.food.types
+        weights = [ft.weight for ft in food_types]
+        chosen = random.choices(food_types, weights=weights)[0]
         
         if random.random() < self.config.world.cluster_spawn_chance:
             cx, cy = random.choice(self.clusters)
@@ -168,7 +173,16 @@ class GameState:
         x = max(1, min(self.grid_width - 1, x))
         y = max(1, min(self.grid_height - 1, y))
         
-        return Food(self.food_id_counter, x, y, val, self.config)
+        return Food(self.food_id_counter, x, y, chosen.value, self.config, chosen.color)
+
+    def _get_food_color(self, value):
+        """Получить цвет еды по номиналу из конфигурации"""
+        for ft in self.config.food.types:
+            if ft.value == value:
+                return ft.color
+        if self.config.food.types:
+            return min(self.config.food.types, key=lambda ft: abs(ft.value - value)).color
+        return "#ef4444"
 
     def _get_safe_spawn_location(self):
         safe_distance_sq = self.config.snake.safe_spawn_distance ** 2
@@ -225,6 +239,7 @@ class GameState:
         self.eaten_foods = self.pending_eaten_foods
         self.pending_eaten_foods = []
         self.kill_events = []
+        self.moved_foods = []
         
         # Периодически смещаем одну из точек интереса (2.5% шанс на 20Hz)
         if random.random() < self.config.world.cluster_move_chance:
@@ -234,7 +249,9 @@ class GameState:
         # Обновляем координаты для всех игроков одновременно
         tick_interval = self.tick_interval
         base_speed = self.config.simulation.base_speed_per_second * tick_interval
-        turn_speed = self.config.simulation.turn_speed_per_second * tick_interval
+        max_turn_deg_rad = self.config.simulation.max_turn_speed_deg_per_second * math.pi / 180
+        min_turn_radius_cfg = self.config.simulation.min_turn_radius
+        thickness_coeff = self.config.simulation.turn_radius_thickness_coeff
         idle_turn_smoothing = self.tick_smoothing(self.config.simulation.turn_idle_smoothing_at_20hz)
         active_turn_smoothing = self.tick_smoothing(self.config.simulation.turn_active_smoothing_at_20hz)
         
@@ -270,17 +287,20 @@ class GameState:
                 player.boost_drop += tick_interval
                 if player.boost_drop >= self.config.boost.drain_interval_seconds:
                     player.boost_drop -= self.config.boost.drain_interval_seconds
-                    player.score -= self.config.boost.score_drain
-                    player.pending_growth -= self.config.boost.growth_drain
+                    drain = self.config.boost.drain_per_interval
+                    player.score -= drain
+                    player.pending_growth -= drain
                     if len(player.body) > 0:
                         tail = player.body[-1]
                         self.food_id_counter += 1
+                        drop_val = self.config.boost.food_drop_value
                         new_f = Food(
                             self.food_id_counter,
                             (tail["x"] + random.uniform(-0.5, 0.5)) % self.grid_width,
                             (tail["y"] + random.uniform(-0.5, 0.5)) % self.grid_height,
-                            self.config.boost.food_drop_value,
-                            self.config
+                            drop_val,
+                            self.config,
+                            self._get_food_color(drop_val)
                         )
                         self.foods[new_f.id] = new_f
                         self.new_foods.append(new_f.to_dict())
@@ -288,6 +308,12 @@ class GameState:
                         self._trim_food_overflow()
             else:
                 player.boost_drop = 0.0
+
+            # Вычисляем скорость поворота для данной змейки
+            # (зависит от толщины: чем толще змея, тем шире минимальный радиус поворота)
+            effective_radius = min_turn_radius_cfg + player.head_radius * thickness_coeff
+            max_turn_from_radius = self.config.simulation.base_speed_per_second / max(effective_radius, 0.01)
+            turn_speed = min(max_turn_deg_rad, max_turn_from_radius) * tick_interval
 
             # Накапливаем шаги (чтобы при ускорении не растягивать змейку)
             player.pending_steps += player.speed_mult
@@ -357,9 +383,12 @@ class GameState:
                 # Раскидываем 50% массы змейки в виде еды
                 drop_amount = math.floor(player.score * self.config.food.death_drop_score_fraction)
                 body_len = len(player.body)
+                food_types = self.config.food.types
+                ft_weights = [ft.weight for ft in food_types]
                 while drop_amount > 0 and body_len > 0:
                     segment = random.choice(player.body)
-                    val = min(random.choices(self.config.food.values, weights=self.config.food.weights)[0], drop_amount)
+                    chosen = random.choices(food_types, weights=ft_weights)[0]
+                    val = min(chosen.value, drop_amount)
                     drop_amount -= val
                     self.food_id_counter += 1
                     new_f = Food(
@@ -367,7 +396,8 @@ class GameState:
                         (segment["x"] + random.uniform(-1.5, 1.5)) % self.grid_width,
                         (segment["y"] + random.uniform(-1.5, 1.5)) % self.grid_height,
                         val,
-                        self.config
+                        self.config,
+                        self._get_food_color(val)
                     )
                     self.foods[new_f.id] = new_f
                     self.new_foods.append(new_f.to_dict())
@@ -397,6 +427,36 @@ class GameState:
                 player.score += eaten_value
                 player.pending_growth += eaten_value
                 
+
+        # Притяжение еды к головам змей
+        attraction_radius = self.config.food.attraction_radius
+        attraction_speed = self.config.food.attraction_speed * tick_interval
+        if attraction_radius > 0 and attraction_speed > 0:
+            attracted_ids = set()
+            for pid, player in self.players.items():
+                if pid in dead_players or not player.body:
+                    continue
+                head = player.body[0]
+                hx, hy = head["x"], head["y"]
+                grid_x, grid_y = int(hx / CELL_SIZE), int(hy / CELL_SIZE)
+                radius_cells = int(attraction_radius / CELL_SIZE) + 1
+                for dx in range(-radius_cells, radius_cells + 1):
+                    for dy in range(-radius_cells, radius_cells + 1):
+                        cell = (grid_x + dx, grid_y + dy)
+                        if cell in food_grid:
+                            for f in food_grid[cell]:
+                                if f.eaten or f.id in attracted_ids:
+                                    continue
+                                fdx = hx - f.x
+                                fdy = hy - f.y
+                                dist_sq = fdx * fdx + fdy * fdy
+                                if dist_sq < attraction_radius * attraction_radius and dist_sq > 0.001:
+                                    dist = math.sqrt(dist_sq)
+                                    move = min(attraction_speed, dist * 0.5)
+                                    f.x += (fdx / dist) * move
+                                    f.y += (fdy / dist) * move
+                                    attracted_ids.add(f.id)
+                                    self.moved_foods.append({"id": f.id, "x": f.x, "y": f.y})
 
         # Очистка съеденной еды одним проходом
         self.foods = {fid: f for fid, f in self.foods.items() if not f.eaten}
@@ -451,9 +511,11 @@ class GameState:
             "type": "FULL" if is_full else "DELTA",
             "server_tick_rate": self.config.simulation.tick_rate,
             "server_simulation": self.config.to_dict()["simulation"],
+            "server_snake": self.config.to_dict()["snake"],
             "players": players_data,
             "new_foods": self.new_foods,
             "eaten_foods": self.eaten_foods,
+            "moved_foods": self.moved_foods,
             "kill_events": self.kill_events
         }
 

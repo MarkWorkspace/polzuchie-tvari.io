@@ -3,7 +3,12 @@ import { GameState } from "../types/game";
 import * as PIXI from "pixi.js";
 
 const DEFAULT_SERVER_TICK_RATE = 30;
-const TURN_SPEED_PER_SECOND = 5.0;
+const MAX_TURN_SPEED_DEG = 290.0;
+const MIN_TURN_RADIUS = 0.5;
+const TURN_RADIUS_THICKNESS_COEFF = 1.0;
+const BASE_HEAD_RADIUS = 0.2;
+const SCORE_RADIUS_SCALE = 0.0005;
+const BASE_SPEED_PER_SECOND = 6.0;
 const TURN_IDLE_SMOOTHING_AT_20HZ = 0.3;
 const TURN_ACTIVE_SMOOTHING_AT_20HZ = 0.15;
 const frameSmoothing = (smoothingAt20Hz: number, dt: number) =>
@@ -112,7 +117,12 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       const serverSimulation = state.server_simulation;
       const serverTickRate = serverSimulation?.tick_rate || state.server_tick_rate || DEFAULT_SERVER_TICK_RATE;
       const serverTickMs = 1000 / serverTickRate;
-      const turnSpeedPerSecond = serverSimulation?.turn_speed_per_second || TURN_SPEED_PER_SECOND;
+      const maxTurnSpeedDeg = serverSimulation?.max_turn_speed_deg_per_second ?? MAX_TURN_SPEED_DEG;
+      const minTurnRadius = serverSimulation?.min_turn_radius ?? MIN_TURN_RADIUS;
+      const turnRadiusThicknessCoeff = serverSimulation?.turn_radius_thickness_coeff ?? TURN_RADIUS_THICKNESS_COEFF;
+      const baseSpeedPerSecond = serverSimulation?.base_speed_per_second ?? BASE_SPEED_PER_SECOND;
+      const baseHeadRadius = state.server_snake?.base_head_radius ?? BASE_HEAD_RADIUS;
+      const scoreRadiusScale = state.server_snake?.score_radius_scale ?? SCORE_RADIUS_SCALE;
       const turnIdleSmoothing = serverSimulation?.turn_idle_smoothing_at_20hz ?? TURN_IDLE_SMOOTHING_AT_20HZ;
       const turnActiveSmoothing = serverSimulation?.turn_active_smoothing_at_20hz ?? TURN_ACTIVE_SMOOTHING_AT_20HZ;
       const lastState = lastGameStateRef.current;
@@ -154,7 +164,14 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           localAngle = myPlayer.angle;
         }
 
-        const targetTurn = localInputRef.current.turn * (turnSpeedPerSecond / serverTickRate);
+        // Вычисляем скорость поворота с учётом толщины змейки
+        const myHeadRadius = baseHeadRadius + (myPlayer.score || 0) * scoreRadiusScale;
+        const effectiveRadius = minTurnRadius + myHeadRadius * turnRadiusThicknessCoeff;
+        const maxTurnFromRadius = baseSpeedPerSecond / Math.max(effectiveRadius, 0.01);
+        const maxTurnDegRad = maxTurnSpeedDeg * Math.PI / 180;
+        const turnPerTick = Math.min(maxTurnDegRad, maxTurnFromRadius) / serverTickRate;
+
+        const targetTurn = localInputRef.current.turn * turnPerTick;
         if (localInputRef.current.turn === 0) {
           localCurrentTurn += (0 - localCurrentTurn) * frameSmoothing(turnIdleSmoothing, dt);
         } else {
@@ -265,6 +282,9 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       g.rect(0, 0, WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize).stroke({ width: 15, color: 0x64c8ff, alpha: 0.4 });
       g.rect(0, 0, WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize).stroke({ width: 5, color: 0xc8f0ff, alpha: 0.8 });
 
+
+      const parseColor = (colorStr: string) => parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
+
       if (state.foods) {
         const foodsLen = state.foods.length;
         for (let i = 0; i < foodsLen; i++) {
@@ -274,18 +294,10 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           if (fx < minX || fx > maxX || fy < minY || fy > maxY) continue;
 
           const foodRadius = gridSize * (0.2 + Math.sqrt(food.value) * 0.1);
-          
-          let glowColor = 0xef4444;
-          let mainColor = 0xef4444;
-          
-          if (food.value >= 50) { mainColor = 0xa855f7; glowColor = 0xa855f7; }
-          else if (food.value >= 20) { mainColor = 0x3b82f6; glowColor = 0x3b82f6; }
-          else if (food.value >= 10) { mainColor = 0x4ade80; glowColor = 0x4ade80; }
-          else if (food.value >= 5) { mainColor = 0xfbbf24; glowColor = 0xfbbf24; }
-          else if (food.value >= 2) { mainColor = 0xf97316; glowColor = 0xf97316; }
+          const mainColor = parseColor(food.color || "#ef4444");
 
           if (food.value >= 2) {
-            g.circle(fx, fy, foodRadius * 1.6).fill({ color: glowColor, alpha: 0.4 });
+            g.circle(fx, fy, foodRadius * 1.6).fill({ color: mainColor, alpha: 0.4 });
           }
           // Тень (Ambient Occlusion - без смещения, чуть шире радиуса еды)
           g.circle(fx, fy, foodRadius * 1.2).fill({ color: 0x000000, alpha: 0.15 });
@@ -294,7 +306,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
         }
       }
 
-      const parseColor = (colorStr: string) => parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
+
 
       if (state.players) {
         for (const playerId in state.players) {
@@ -462,13 +474,15 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           for (let i = 0; i < foodsLen; i++) {
             const food = state.foods[i];
             let dotSize = 2;
-            if (food.value >= 50) { miniCtx.fillStyle = "rgba(168, 85, 247, 0.8)"; dotSize = 5; }
-            else if (food.value >= 20) { miniCtx.fillStyle = "rgba(59, 130, 246, 0.8)"; dotSize = 4; }
-            else if (food.value >= 10) { miniCtx.fillStyle = "rgba(74, 222, 128, 0.8)"; dotSize = 3.5; }
-            else if (food.value >= 5) { miniCtx.fillStyle = "rgba(251, 191, 36, 0.8)"; dotSize = 3; }
-            else if (food.value >= 2) { miniCtx.fillStyle = "rgba(249, 115, 22, 0.8)"; dotSize = 2.5; }
-            else { miniCtx.fillStyle = "rgba(239, 68, 68, 0.5)"; dotSize = 2; }
+            if (food.value >= 50) dotSize = 5;
+            else if (food.value >= 20) dotSize = 4;
+            else if (food.value >= 10) dotSize = 3.5;
+            else if (food.value >= 5) dotSize = 3;
+            else if (food.value >= 2) dotSize = 2.5;
+            miniCtx.fillStyle = food.color || "#ef4444";
+            miniCtx.globalAlpha = food.value >= 2 ? 0.8 : 0.5;
             miniCtx.fillRect(food.x * mapScale - dotSize / 2, food.y * mapScale - dotSize / 2, dotSize, dotSize);
+            miniCtx.globalAlpha = 1;
           }
 
           for (const playerId in state.players) {
@@ -497,13 +511,15 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           for (let i = 0; i < foodsLen; i++) {
             const food = state.foods[i];
             let dotSize = 2;
-            if (food.value >= 50) { miniCtx.fillStyle = "rgba(168, 85, 247, 0.8)"; dotSize = 5; }
-            else if (food.value >= 20) { miniCtx.fillStyle = "rgba(59, 130, 246, 0.8)"; dotSize = 4; }
-            else if (food.value >= 10) { miniCtx.fillStyle = "rgba(74, 222, 128, 0.8)"; dotSize = 3.5; }
-            else if (food.value >= 5) { miniCtx.fillStyle = "rgba(251, 191, 36, 0.8)"; dotSize = 3; }
-            else if (food.value >= 2) { miniCtx.fillStyle = "rgba(249, 115, 22, 0.8)"; dotSize = 2.5; }
-            else { miniCtx.fillStyle = "rgba(239, 68, 68, 0.5)"; dotSize = 2; }
+            if (food.value >= 50) dotSize = 5;
+            else if (food.value >= 20) dotSize = 4;
+            else if (food.value >= 10) dotSize = 3.5;
+            else if (food.value >= 5) dotSize = 3;
+            else if (food.value >= 2) dotSize = 2.5;
+            miniCtx.fillStyle = food.color || "#ef4444";
+            miniCtx.globalAlpha = food.value >= 2 ? 0.8 : 0.5;
             miniCtx.fillRect(food.x * mapScale - dotSize / 2, food.y * mapScale - dotSize / 2, dotSize, dotSize);
+            miniCtx.globalAlpha = 1;
           }
 
           for (const playerId in state.players) {

@@ -1,9 +1,21 @@
 export type ServerSimulationConfig = {
   tick_rate: number;
   base_speed_per_second: number;
-  turn_speed_per_second: number;
+  max_turn_speed_deg_per_second: number;
+  min_turn_radius: number;
+  turn_radius_thickness_coeff: number;
   turn_idle_smoothing_at_20hz: number;
   turn_active_smoothing_at_20hz: number;
+};
+
+export type ServerSnakeConfig = {
+  base_head_radius: number;
+  score_radius_scale: number;
+  growth_score_per_segment: number;
+  start_length: number;
+  start_score: number;
+  min_body_length: number;
+  safe_spawn_distance: number;
 };
 
 export type Point = {
@@ -16,6 +28,7 @@ export type Food = {
   x: number;
   y: number;
   value: number;
+  color: string;
 };
 
 export type Player = {
@@ -31,6 +44,7 @@ export type Player = {
 export type GameState = {
   server_tick_rate?: number;
   server_simulation?: ServerSimulationConfig;
+  server_snake?: ServerSnakeConfig;
   players: Record<string, Player>;
   foods: Food[];
 };
@@ -50,6 +64,7 @@ export type FullGameMessage = {
   type?: "FULL";
   server_tick_rate?: number;
   server_simulation?: ServerSimulationConfig;
+  server_snake?: ServerSnakeConfig;
   players: Record<string, Player>;
   foods: Food[];
   new_foods?: Food[];
@@ -61,9 +76,11 @@ export type DeltaGameMessage = {
   type: "DELTA";
   server_tick_rate?: number;
   server_simulation?: ServerSimulationConfig;
+  server_snake?: ServerSnakeConfig;
   players: Record<string, PlayerUpdate>;
   new_foods?: Food[];
   eaten_foods?: number[];
+  moved_foods?: { id: number; x: number; y: number }[];
   kill_events?: KillEvent[];
 };
 

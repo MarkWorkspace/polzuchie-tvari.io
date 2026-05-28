@@ -1,4 +1,5 @@
 import copy
+import typing
 from dataclasses import asdict, dataclass, field, fields, is_dataclass
 
 
@@ -18,7 +19,9 @@ class WorldConfig:
 class SimulationConfig:
     tick_rate: int = 30
     base_speed_per_second: float = 6.0
-    turn_speed_per_second: float = 5.0
+    max_turn_speed_deg_per_second: float = 290.0
+    min_turn_radius: float = 0.5
+    turn_radius_thickness_coeff: float = 1.0
     turn_idle_smoothing_at_20hz: float = 0.3
     turn_active_smoothing_at_20hz: float = 0.15
 
@@ -39,18 +42,32 @@ class BoostConfig:
     min_score: int = 15
     speed_multiplier: float = 2.0
     drain_interval_seconds: float = 1.0
-    score_drain: int = 1
-    growth_drain: float = 1.0
+    drain_per_interval: float = 1.0
     food_drop_value: int = 1
 
 
 @dataclass
+class FoodTypeConfig:
+    value: int = 1
+    weight: int = 50
+    color: str = "#ef4444"
+
+
+@dataclass
 class FoodConfig:
-    values: list[int] = field(default_factory=lambda: [1, 2, 5, 10, 20, 50])
-    weights: list[int] = field(default_factory=lambda: [50, 25, 15, 6, 3, 1])
+    types: list[FoodTypeConfig] = field(default_factory=lambda: [
+        FoodTypeConfig(value=1, weight=50, color="#ef4444"),
+        FoodTypeConfig(value=2, weight=25, color="#f97316"),
+        FoodTypeConfig(value=5, weight=15, color="#fbbf24"),
+        FoodTypeConfig(value=10, weight=6, color="#4ade80"),
+        FoodTypeConfig(value=20, weight=3, color="#3b82f6"),
+        FoodTypeConfig(value=50, weight=1, color="#a855f7"),
+    ])
     base_radius: float = 0.2
     radius_value_scale: float = 0.1
     death_drop_score_fraction: float = 0.5
+    attraction_radius: float = 3.0
+    attraction_speed: float = 8.0
 
 
 @dataclass
@@ -92,7 +109,9 @@ class GameConfig:
 
         _require_range("simulation.tick_rate", self.simulation.tick_rate, 5, 120)
         _require_range("simulation.base_speed_per_second", self.simulation.base_speed_per_second, 0.1, 200)
-        _require_range("simulation.turn_speed_per_second", self.simulation.turn_speed_per_second, 0.1, 100)
+        _require_range("simulation.max_turn_speed_deg_per_second", self.simulation.max_turn_speed_deg_per_second, 10, 3600)
+        _require_range("simulation.min_turn_radius", self.simulation.min_turn_radius, 0, 100)
+        _require_range("simulation.turn_radius_thickness_coeff", self.simulation.turn_radius_thickness_coeff, 0, 10)
         _require_range("simulation.turn_idle_smoothing_at_20hz", self.simulation.turn_idle_smoothing_at_20hz, 0, 1)
         _require_range("simulation.turn_active_smoothing_at_20hz", self.simulation.turn_active_smoothing_at_20hz, 0, 1)
 
@@ -107,19 +126,19 @@ class GameConfig:
         _require_range("boost.min_score", self.boost.min_score, 0, 1000000)
         _require_range("boost.speed_multiplier", self.boost.speed_multiplier, 1, 20)
         _require_range("boost.drain_interval_seconds", self.boost.drain_interval_seconds, 0.01, 3600)
-        _require_range("boost.score_drain", self.boost.score_drain, 0, 1000000)
-        _require_range("boost.growth_drain", self.boost.growth_drain, 0, 1000000)
+        _require_range("boost.drain_per_interval", self.boost.drain_per_interval, 0, 1000000)
         _require_range("boost.food_drop_value", self.boost.food_drop_value, 1, 1000000)
 
-        if len(self.food.values) == 0 or len(self.food.values) != len(self.food.weights):
-            raise ValueError("food.values and food.weights must be non-empty arrays with the same length")
-        for index, value in enumerate(self.food.values):
-            _require_range(f"food.values[{index}]", value, 1, 1000000)
-        for index, weight in enumerate(self.food.weights):
-            _require_range(f"food.weights[{index}]", weight, 1, 1000000)
+        if len(self.food.types) == 0:
+            raise ValueError("food.types must not be empty")
+        for i, ft in enumerate(self.food.types):
+            _require_range(f"food.types[{i}].value", ft.value, 1, 1000000)
+            _require_range(f"food.types[{i}].weight", ft.weight, 1, 1000000)
         _require_range("food.base_radius", self.food.base_radius, 0.01, 100)
         _require_range("food.radius_value_scale", self.food.radius_value_scale, 0, 100)
         _require_range("food.death_drop_score_fraction", self.food.death_drop_score_fraction, 0, 1)
+        _require_range("food.attraction_radius", self.food.attraction_radius, 0, 100)
+        _require_range("food.attraction_speed", self.food.attraction_speed, 0, 200)
 
         _require_range("network.aoi_radius", self.network.aoi_radius, 1, 10000)
         _require_range("network.aoi_length_padding", self.network.aoi_length_padding, 0, 1000)
@@ -127,6 +146,7 @@ class GameConfig:
 
 def _apply_dataclass_patch(target, patch):
     field_map = {item.name: item for item in fields(target)}
+    hints = typing.get_type_hints(type(target))
     for key, value in patch.items():
         if key not in field_map:
             raise ValueError(f"Unknown config key: {key}")
@@ -135,6 +155,20 @@ def _apply_dataclass_patch(target, patch):
             if not isinstance(value, dict):
                 raise ValueError(f"Config section {key} must be an object")
             _apply_dataclass_patch(current_value, value)
+        elif isinstance(value, list):
+            hint = hints.get(key)
+            args = getattr(hint, '__args__', ())
+            if args and is_dataclass(args[0]):
+                dc_type = args[0]
+                new_list = []
+                for item in value:
+                    if isinstance(item, dict):
+                        new_list.append(dc_type(**item))
+                    else:
+                        raise ValueError(f"Each item in {key} must be an object")
+                setattr(target, key, new_list)
+            else:
+                setattr(target, key, value)
         else:
             setattr(target, key, value)
 
