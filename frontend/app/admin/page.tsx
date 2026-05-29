@@ -34,7 +34,7 @@ const FIELD_LABELS: Record<string, string> = {
   start_length: "Стартовая длина",
   start_score: "Стартовый счет",
   base_head_radius: "Минимальный радиус головы",
-  score_radius_scale: "Рост радиуса от счета",
+  score_thickness_scale: "Рост толщины от счёта",
   growth_score_per_segment: "Очков за сегмент роста",
   min_body_length: "Минимальная длина тела",
   safe_spawn_distance: "Безопасная дистанция спавна",

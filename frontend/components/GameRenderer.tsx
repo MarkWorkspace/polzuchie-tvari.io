@@ -7,7 +7,7 @@ const MAX_TURN_SPEED_DEG = 290.0;
 const MIN_TURN_RADIUS = 0.5;
 const TURN_RADIUS_THICKNESS_COEFF = 1.0;
 const BASE_HEAD_RADIUS = 0.2;
-const SCORE_RADIUS_SCALE = 0.0005;
+const SCORE_THICKNESS_SCALE = 0.0005;
 const BASE_SPEED_PER_SECOND = 6.0;
 const TURN_IDLE_SMOOTHING_AT_20HZ = 0.3;
 const TURN_ACTIVE_SMOOTHING_AT_20HZ = 0.15;
@@ -54,6 +54,8 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
     let localCurrentTurn = 0;
     let isDestroyed = false;
     let cameraTransition = cameraModeRef.current === "3D" ? 1.0 : 0.0;
+    const nickPool: PIXI.Text[] = [];
+    let nickContainer: PIXI.Container | null = null;
 
     const initPixi = async () => {
       const app = new PIXI.Application();
@@ -94,6 +96,10 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       worldContainer.addChild(mapMask);
       worldContainer.mask = mapMask;
 
+      // Контейнер для ников (поверх Graphics, но под маской)
+      nickContainer = new PIXI.Container();
+      worldContainer.addChild(nickContainer);
+
       // Инициируем вызов цикла отрисовки
       lastFrameTime = performance.now();
       animationFrameId = requestAnimationFrame(renderLoop);
@@ -122,7 +128,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       const turnRadiusThicknessCoeff = serverSimulation?.turn_radius_thickness_coeff ?? TURN_RADIUS_THICKNESS_COEFF;
       const baseSpeedPerSecond = serverSimulation?.base_speed_per_second ?? BASE_SPEED_PER_SECOND;
       const baseHeadRadius = state.server_snake?.base_head_radius ?? BASE_HEAD_RADIUS;
-      const scoreRadiusScale = state.server_snake?.score_radius_scale ?? SCORE_RADIUS_SCALE;
+      const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? SCORE_THICKNESS_SCALE;
       const turnIdleSmoothing = serverSimulation?.turn_idle_smoothing_at_20hz ?? TURN_IDLE_SMOOTHING_AT_20HZ;
       const turnActiveSmoothing = serverSimulation?.turn_active_smoothing_at_20hz ?? TURN_ACTIVE_SMOOTHING_AT_20HZ;
       const lastState = lastGameStateRef.current;
@@ -165,7 +171,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
         }
 
         // Вычисляем скорость поворота с учётом толщины змейки
-        const myHeadRadius = baseHeadRadius + (myPlayer.score || 0) * scoreRadiusScale;
+        const myHeadRadius = baseHeadRadius + (myPlayer.score || 0) * scoreThicknessScale;
         const effectiveRadius = minTurnRadius + myHeadRadius * turnRadiusThicknessCoeff;
         const maxTurnFromRadius = baseSpeedPerSecond / Math.max(effectiveRadius, 0.01);
         const maxTurnDegRad = maxTurnSpeedDeg * Math.PI / 180;
@@ -236,6 +242,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
       miniCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
       g.clear();
+      let nickPoolIdx = 0;
       
       const zoom2D = 1.0 - currentZoomOffset * 0.05;
       const targetContainerScale = (zoom2D + (1 - zoom2D) * cameraTransition) * resolutionScale;
@@ -313,9 +320,9 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           const playerData = state.players[playerId];
           const body = playerData.body;
           const oldBody = lastState?.players[playerId]?.body;
-          const score = playerData.score || 30;
+          const score = playerData.score || 0;
 
-          const snakeRadius = gridSize * (0.2 + score * 0.0005);
+          const snakeRadius = gridSize * (baseHeadRadius + score * scoreThicknessScale);
 
           // Интерполируем позиции сегментов между тиками сервера
           const logicalX: number[] = [];
@@ -438,8 +445,37 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
             const pupilSize = snakeRadius * 0.2;
             g.circle(e1x + px1, e1y + py1, pupilSize).fill(0x000000);
             g.circle(e2x + px1, e2y + py1, pupilSize).fill(0x000000);
+
+            // 4. Ник игрока над головой (только для основной обёртки)
+            if (ox === 0 && oy === 0 && nickContainer) {
+              const nickname = playerId.split('_').slice(0, -1).join('_') || playerId;
+              const fontSize = Math.max(12, Math.min(snakeRadius * 1.2, 28));
+              const nickY = headPy - snakeRadius - fontSize * 0.6;
+
+              let textObj: PIXI.Text;
+              if (nickPoolIdx < nickPool.length) {
+                textObj = nickPool[nickPoolIdx];
+                textObj.visible = true;
+              } else {
+                textObj = new PIXI.Text({ text: '', style: { fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 14, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 3 }, align: 'center' } });
+                textObj.anchor.set(0.5, 1);
+                nickContainer.addChild(textObj);
+                nickPool.push(textObj);
+              }
+              textObj.text = nickname;
+              textObj.style.fontSize = fontSize;
+              textObj.style.stroke = { color: 0x000000, width: Math.max(2, fontSize * 0.15) };
+              textObj.position.set(headPx, nickY);
+              textObj.alpha = playerId === myId ? 0.5 : 0.65;
+              nickPoolIdx++;
+            }
           }
         }
+      }
+
+      // Скрываем неиспользованные ники из пула
+      for (let i = nickPoolIdx; i < nickPool.length; i++) {
+        nickPool[i].visible = false;
       }
 
       if (state.players && state.foods) {
@@ -594,4 +630,4 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       </div>
     </div>
   );
-};;;
+};

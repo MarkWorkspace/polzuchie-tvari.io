@@ -68,7 +68,7 @@ class Player:
         
     @property
     def head_radius(self):
-        return self.config.snake.base_head_radius + self.score * self.config.snake.score_radius_scale
+        return self.config.snake.base_head_radius + self.score * self.config.snake.score_thickness_scale
         
     def to_dict(self, in_aoi=True, is_full=False):
         data = {

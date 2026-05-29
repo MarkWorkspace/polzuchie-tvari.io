@@ -31,7 +31,7 @@ class SnakeConfig:
     start_length: int = 9
     start_score: int = 1
     base_head_radius: float = 0.2
-    score_radius_scale: float = 0.0005
+    score_thickness_scale: float = 0.0005
     growth_score_per_segment: float = 10.0
     min_body_length: int = 9
     safe_spawn_distance: float = 15.0
@@ -118,7 +118,7 @@ class GameConfig:
         _require_range("snake.start_length", self.snake.start_length, 1, 10000)
         _require_range("snake.start_score", self.snake.start_score, 0, 1000000)
         _require_range("snake.base_head_radius", self.snake.base_head_radius, 0.01, 100)
-        _require_range("snake.score_radius_scale", self.snake.score_radius_scale, 0, 10)
+        _require_range("snake.score_thickness_scale", self.snake.score_thickness_scale, 0, 10)
         _require_range("snake.growth_score_per_segment", self.snake.growth_score_per_segment, 0.1, 1000000)
         _require_range("snake.min_body_length", self.snake.min_body_length, 1, 10000)
         _require_range("snake.safe_spawn_distance", self.snake.safe_spawn_distance, 0, 10000)

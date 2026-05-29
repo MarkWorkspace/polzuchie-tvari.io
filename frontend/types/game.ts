@@ -10,7 +10,7 @@ export type ServerSimulationConfig = {
 
 export type ServerSnakeConfig = {
   base_head_radius: number;
-  score_radius_scale: number;
+  score_thickness_scale: number;
   growth_score_per_segment: number;
   start_length: number;
   start_score: number;
