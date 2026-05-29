@@ -62,6 +62,12 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
     let foodContainer: PIXI.Container | null = null;
     const foodPool: { container: PIXI.Container; glow: PIXI.Sprite; shadow: PIXI.Sprite; main: PIXI.Sprite }[] = [];
 
+    // --- Миникарта (Pixi) ---
+    let minimapApp: PIXI.Application | null = null;
+    let minimapG: PIXI.Graphics | null = null;
+    let minimapMask: PIXI.Graphics | null = null;
+    let minimapContent: PIXI.Container | null = null;
+
     const initPixi = async () => {
       const app = new PIXI.Application();
       await app.init({
@@ -111,6 +117,30 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       worldContainer.mask = mapMask;
 
       // Инициируем вызов цикла отрисовки
+      if (minimapCanvasRef.current) {
+        minimapApp = new PIXI.Application();
+        await minimapApp.init({
+          canvas: minimapCanvasRef.current,
+          width: 150,
+          height: 150,
+          backgroundAlpha: 0,
+          antialias: true,
+        });
+        
+        const bgG = new PIXI.Graphics();
+        minimapApp.stage.addChild(bgG);
+        
+        minimapContent = new PIXI.Container();
+        minimapApp.stage.addChild(minimapContent);
+        
+        minimapG = new PIXI.Graphics();
+        minimapContent.addChild(minimapG);
+        
+        minimapMask = new PIXI.Graphics();
+        minimapApp.stage.addChild(minimapMask);
+        minimapContent.mask = minimapMask;
+      }
+
       lastFrameTime = performance.now();
       animationFrameId = requestAnimationFrame(renderLoop);
     };
@@ -123,11 +153,6 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       const g = graphicsRef.current;
       const worldContainer = worldContainerRef.current;
       
-      const minimapCanvas = minimapCanvasRef.current;
-      if (!minimapCanvas) return;
-      const miniCtx = minimapCanvas.getContext("2d");
-      if (!miniCtx) return;
-
       const state = gameStateRef.current;
       if (!state) return;
       const serverSimulation = state.server_simulation;
@@ -250,9 +275,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
         }
       }
 
-      miniCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
       g.clear();
-
       
       const zoom2D = 1.0 - currentZoomOffset * 0.05;
       const targetContainerScale = (zoom2D + (1 - zoom2D) * cameraTransition) * resolutionScale;
@@ -576,104 +599,67 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
         }
       }
 
-      if (state.players && state.foods) {
+      if (state.players && state.foods && minimapApp && minimapG && minimapContent && minimapMask) {
         const mapSize = 150;
         const mapScale = mapSize / WORLD_WIDTH;
 
-        miniCtx.save();
+        minimapG.clear();
+        const bgG = minimapApp.stage.children[0] as PIXI.Graphics;
+        bgG.clear();
+        minimapMask.clear();
 
         if (cameraTransition > 0.5) {
           const mapCenterX = mapSize / 2;
           const mapCenterY = mapSize / 2;
           const mapRadius = mapSize / 2;
 
-          miniCtx.beginPath();
-          miniCtx.arc(mapCenterX, mapCenterY, mapRadius, 0, Math.PI * 2);
-          miniCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
-          miniCtx.fill();
-          miniCtx.lineWidth = 2;
-          miniCtx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-          miniCtx.stroke();
+          bgG.circle(mapCenterX, mapCenterY, mapRadius).fill({ color: 0x000000, alpha: 0.7 }).stroke({ width: 2, color: 0xffffff, alpha: 0.2 });
+          minimapMask.circle(mapCenterX, mapCenterY, mapRadius).fill(0xffffff);
           
-          miniCtx.clip();
-
-          miniCtx.translate(mapCenterX, mapCenterY);
-          miniCtx.rotate(-camAngle - Math.PI / 2);
+          minimapContent.position.set(mapCenterX, mapCenterY);
+          minimapContent.rotation = -camAngle - Math.PI / 2;
           
           const mapCamX = (camX / gridSize) * mapScale;
           const mapCamY = (camY / gridSize) * mapScale;
-          miniCtx.translate(-mapCamX, -mapCamY);
-
-          const foodsLen = state.foods.length;
-          for (let i = 0; i < foodsLen; i++) {
-            const food = state.foods[i];
-            let dotSize = 2;
-            if (food.value >= 50) dotSize = 5;
-            else if (food.value >= 20) dotSize = 4;
-            else if (food.value >= 10) dotSize = 3.5;
-            else if (food.value >= 5) dotSize = 3;
-            else if (food.value >= 2) dotSize = 2.5;
-            miniCtx.fillStyle = food.color || "#ef4444";
-            miniCtx.globalAlpha = food.value >= 2 ? 0.8 : 0.5;
-            miniCtx.fillRect(food.x * mapScale - dotSize / 2, food.y * mapScale - dotSize / 2, dotSize, dotSize);
-            miniCtx.globalAlpha = 1;
-          }
-
-          for (const playerId in state.players) {
-            const playerData = state.players[playerId];
-            if (playerData.body.length === 0) continue;
-            const head = playerData.body[0];
-            let headColor = playerData.skin || "#22c55e";
-            if (headColor === "zebra") headColor = "#ffffff";
-            else if (headColor === "rainbow") headColor = "#a855f7";
-            else if (headColor === "tiger") headColor = "#f97316";
-            else if (headColor === "cyberpunk") headColor = "#0ff";
-
-            miniCtx.fillStyle = headColor;
-            miniCtx.beginPath();
-            miniCtx.arc(head.x * mapScale, head.y * mapScale, playerId === myId ? 4 : 2, 0, Math.PI * 2);
-            miniCtx.fill();
-          }
+          minimapContent.pivot.set(mapCamX, mapCamY);
         } else {
-          miniCtx.fillStyle = "rgba(0, 0, 0, 0.7)";
-          miniCtx.fillRect(0, 0, mapSize, mapSize);
-          miniCtx.lineWidth = 2;
-          miniCtx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-          miniCtx.strokeRect(0, 0, mapSize, mapSize);
-
-          const foodsLen = state.foods.length;
-          for (let i = 0; i < foodsLen; i++) {
-            const food = state.foods[i];
-            let dotSize = 2;
-            if (food.value >= 50) dotSize = 5;
-            else if (food.value >= 20) dotSize = 4;
-            else if (food.value >= 10) dotSize = 3.5;
-            else if (food.value >= 5) dotSize = 3;
-            else if (food.value >= 2) dotSize = 2.5;
-            miniCtx.fillStyle = food.color || "#ef4444";
-            miniCtx.globalAlpha = food.value >= 2 ? 0.8 : 0.5;
-            miniCtx.fillRect(food.x * mapScale - dotSize / 2, food.y * mapScale - dotSize / 2, dotSize, dotSize);
-            miniCtx.globalAlpha = 1;
-          }
-
-          for (const playerId in state.players) {
-            const playerData = state.players[playerId];
-            if (playerData.body.length === 0) continue;
-            const head = playerData.body[0];
-            let headColor = playerData.skin || "#22c55e";
-            if (headColor === "zebra") headColor = "#ffffff";
-            else if (headColor === "rainbow") headColor = "#a855f7";
-            else if (headColor === "tiger") headColor = "#f97316";
-            else if (headColor === "cyberpunk") headColor = "#0ff";
-
-            miniCtx.fillStyle = headColor;
-            miniCtx.beginPath();
-            miniCtx.arc(head.x * mapScale, head.y * mapScale, playerId === myId ? 4 : 2, 0, Math.PI * 2);
-            miniCtx.fill();
-          }
+          bgG.rect(0, 0, mapSize, mapSize).fill({ color: 0x000000, alpha: 0.7 }).stroke({ width: 2, color: 0xffffff, alpha: 0.2 });
+          minimapMask.rect(0, 0, mapSize, mapSize).fill(0xffffff);
+          
+          minimapContent.position.set(0, 0);
+          minimapContent.rotation = 0;
+          minimapContent.pivot.set(0, 0);
         }
 
-        miniCtx.restore();
+        const parseColor = (colorStr: string) => parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
+        
+        const foodsLen = state.foods.length;
+        for (let i = 0; i < foodsLen; i++) {
+          const food = state.foods[i];
+          let dotSize = 2;
+          if (food.value >= 50) dotSize = 5;
+          else if (food.value >= 20) dotSize = 4;
+          else if (food.value >= 10) dotSize = 3.5;
+          else if (food.value >= 5) dotSize = 3;
+          else if (food.value >= 2) dotSize = 2.5;
+          
+          minimapG.rect(food.x * mapScale - dotSize / 2, food.y * mapScale - dotSize / 2, dotSize, dotSize)
+                  .fill({ color: parseColor(food.color || "#ef4444"), alpha: food.value >= 2 ? 0.8 : 0.5 });
+        }
+
+        for (const playerId in state.players) {
+          const playerData = state.players[playerId];
+          if (playerData.body.length === 0) continue;
+          const head = playerData.body[0];
+          let headColor = playerData.skin || "#22c55e";
+          if (headColor === "zebra") headColor = "#ffffff";
+          else if (headColor === "rainbow") headColor = "#a855f7";
+          else if (headColor === "tiger") headColor = "#f97316";
+          else if (headColor === "cyberpunk") headColor = "#0ff";
+
+          minimapG.circle(head.x * mapScale, head.y * mapScale, playerId === myId ? 4 : 2)
+                  .fill({ color: parseColor(headColor) });
+        }
       }
     };
 
@@ -704,6 +690,11 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       // Очищаем HTML-ники
       nickElements.forEach(el => el.remove());
       nickElements.length = 0;
+      
+      if (minimapApp) {
+        minimapApp.destroy(true, { children: true });
+        minimapApp = null;
+      }
     };
   }, [gameStateRef, lastGameStateRef, lastUpdateTimeRef, myIdRef, cameraModeRef, localInputRef]);
 
@@ -730,9 +721,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
         <div style={{ pointerEvents: "auto" }}>
           <canvas
             ref={minimapCanvasRef}
-            width={150}
-            height={150}
-            style={{ display: "block" }}
+            style={{ display: "block", width: "150px", height: "150px" }}
           />
         </div>
       </div>
