@@ -34,6 +34,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
   const pixiContainerRef = useRef<HTMLDivElement>(null);
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
   const fogOverlayRef = useRef<HTMLDivElement>(null);
+  const nicknameOverlayRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<PIXI.Application | null>(null);
   const graphicsRef = useRef<PIXI.Graphics | null>(null);
   const worldContainerRef = useRef<PIXI.Container | null>(null);
@@ -54,8 +55,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
     let localCurrentTurn = 0;
     let isDestroyed = false;
     let cameraTransition = cameraModeRef.current === "3D" ? 1.0 : 0.0;
-    const nickPool: PIXI.Text[] = [];
-    let nickContainer: PIXI.Container | null = null;
+    const nickElements: HTMLDivElement[] = [];
 
     const initPixi = async () => {
       const app = new PIXI.Application();
@@ -95,10 +95,6 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       mapMask.rect(0, 0, 100 * 20, 100 * 20).fill(0xffffff);
       worldContainer.addChild(mapMask);
       worldContainer.mask = mapMask;
-
-      // Контейнер для ников (поверх Graphics, но под маской)
-      nickContainer = new PIXI.Container();
-      worldContainer.addChild(nickContainer);
 
       // Инициируем вызов цикла отрисовки
       lastFrameTime = performance.now();
@@ -242,7 +238,7 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
       miniCtx.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
       g.clear();
-      let nickPoolIdx = 0;
+
       
       const zoom2D = 1.0 - currentZoomOffset * 0.05;
       const targetContainerScale = (zoom2D + (1 - zoom2D) * cameraTransition) * resolutionScale;
@@ -315,6 +311,8 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
 
 
+      const playerHeadScreenPos: { id: string; sx: number; sy: number; radius: number }[] = [];
+
       if (state.players) {
         for (const playerId in state.players) {
           const playerData = state.players[playerId];
@@ -364,6 +362,45 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
           const headPx = uwPX[0];
           const headPy = uwPY[0];
+
+          // Вычисляем экранную позицию головы для HTML-ника
+          {
+            const hdx = headPx - camX;
+            const hdy = headPy - camY;
+            const rot = worldContainer.rotation;
+            const cosR = Math.cos(rot);
+            const sinR = Math.sin(rot);
+            const sc = targetContainerScale;
+            const stX = (hdx * cosR - hdy * sinR) * sc + currentLogicalWidth / 2;
+            const stY = (hdx * sinR + hdy * cosR) * sc + targetContainerY;
+
+            const canvasOriginX = containerW;
+            const canvasOriginY = 0.75 * containerH;
+            const canvasOffX = -0.5 * containerW;
+            let sX: number, sY: number;
+
+            if (cameraTransition > 0.01) {
+              const tRad = currentTilt * Math.PI / 180;
+              const cdx = (stX - canvasOriginX) * currentScale;
+              const cdy = (stY - canvasOriginY) * currentScale;
+              const dyRot = cdy * Math.cos(tRad);
+              const dz = cdy * Math.sin(tRad);
+              const f = currentPerspective / (currentPerspective - dz);
+              sX = canvasOffX + canvasOriginX + cdx * f;
+              sY = canvasOriginY + dyRot * f;
+            } else {
+              sX = canvasOffX + stX;
+              sY = stY;
+            }
+
+            // Смещение вверх в экранном пространстве — ник "парит" над головой
+            const apparentRadius = snakeRadius * targetContainerScale;
+            sY -= apparentRadius + 14;
+
+            if (sX > -100 && sX < containerW + 100 && sY > -50 && sY < containerH + 50) {
+              playerHeadScreenPos.push({ id: playerId, sx: sX, sy: sY, radius: apparentRadius });
+            }
+          }
 
           // Рисуем в 5 позициях: реальная + 4 «обёртки» по краям карты.
           // Маска обрезает лишнее — итог: обе стороны телепорта видны одновременно.
@@ -445,37 +482,43 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
             const pupilSize = snakeRadius * 0.2;
             g.circle(e1x + px1, e1y + py1, pupilSize).fill(0x000000);
             g.circle(e2x + px1, e2y + py1, pupilSize).fill(0x000000);
-
-            // 4. Ник игрока над головой (только для основной обёртки)
-            if (ox === 0 && oy === 0 && nickContainer) {
-              const nickname = playerId.split('_').slice(0, -1).join('_') || playerId;
-              const fontSize = Math.max(12, Math.min(snakeRadius * 1.2, 28));
-              const nickY = headPy - snakeRadius - fontSize * 0.6;
-
-              let textObj: PIXI.Text;
-              if (nickPoolIdx < nickPool.length) {
-                textObj = nickPool[nickPoolIdx];
-                textObj.visible = true;
-              } else {
-                textObj = new PIXI.Text({ text: '', style: { fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 14, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 3 }, align: 'center' } });
-                textObj.anchor.set(0.5, 1);
-                nickContainer.addChild(textObj);
-                nickPool.push(textObj);
-              }
-              textObj.text = nickname;
-              textObj.style.fontSize = fontSize;
-              textObj.style.stroke = { color: 0x000000, width: Math.max(2, fontSize * 0.15) };
-              textObj.position.set(headPx, nickY);
-              textObj.alpha = playerId === myId ? 0.5 : 0.65;
-              nickPoolIdx++;
-            }
           }
         }
       }
 
-      // Скрываем неиспользованные ники из пула
-      for (let i = nickPoolIdx; i < nickPool.length; i++) {
-        nickPool[i].visible = false;
+      // 4. HTML-ники над головами (вне canvas — не подвержены CSS 3D-тилту)
+      if (nicknameOverlayRef.current) {
+        const overlay = nicknameOverlayRef.current;
+        let nickIdx = 0;
+        for (const ph of playerHeadScreenPos) {
+          let el: HTMLDivElement;
+          if (nickIdx < nickElements.length) {
+            el = nickElements[nickIdx];
+            el.style.display = '';
+          } else {
+            el = document.createElement('div');
+            Object.assign(el.style, {
+              position: 'absolute', pointerEvents: 'none', whiteSpace: 'nowrap',
+              fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 'bold',
+              transform: 'translate(-50%, -100%)',
+              textShadow: '0 0 3px #000, 0 0 3px #000, 0 1px 5px rgba(0,0,0,0.7)',
+              color: '#fff', letterSpacing: '0.5px',
+            });
+            overlay.appendChild(el);
+            nickElements.push(el);
+          }
+          const nickname = ph.id.split('_').slice(0, -1).join('_') || ph.id;
+          if (el.textContent !== nickname) el.textContent = nickname;
+          const fontSize = Math.max(11, Math.min(13 + ph.radius * 0.15, 18));
+          el.style.fontSize = fontSize + 'px';
+          el.style.opacity = ph.id === myId ? '0.4' : '0.6';
+          el.style.left = ph.sx + 'px';
+          el.style.top = ph.sy + 'px';
+          nickIdx++;
+        }
+        for (let i = nickIdx; i < nickElements.length; i++) {
+          nickElements[i].style.display = 'none';
+        }
       }
 
       if (state.players && state.foods) {
@@ -599,6 +642,9 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
         appRef.current.destroy(true, { children: true, texture: true });
         appRef.current = null;
       }
+      // Очищаем HTML-ники
+      nickElements.forEach(el => el.remove());
+      nickElements.length = 0;
     };
   }, [gameStateRef, lastGameStateRef, lastUpdateTimeRef, myIdRef, cameraModeRef, localInputRef]);
 
@@ -608,6 +654,9 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       {/* Контейнер для PixiJS */}
       <div ref={pixiContainerRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }} />
         
+      {/* HTML-ники над головами змей (вне canvas — не подвержены CSS perspective) */}
+      <div ref={nicknameOverlayRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5, overflow: "hidden" }} />
+
       {/* Оптимизированный 3D-туман через CSS Overlay */}
       <div 
         ref={fogOverlayRef} 
