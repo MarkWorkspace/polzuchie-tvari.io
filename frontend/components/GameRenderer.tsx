@@ -57,6 +57,11 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
     let cameraTransition = cameraModeRef.current === "3D" ? 1.0 : 0.0;
     const nickElements: HTMLDivElement[] = [];
 
+    // --- Пул для еды ---
+    let foodTexture: PIXI.Texture | null = null;
+    let foodContainer: PIXI.Container | null = null;
+    const foodPool: { container: PIXI.Container; glow: PIXI.Sprite; shadow: PIXI.Sprite; main: PIXI.Sprite }[] = [];
+
     const initPixi = async () => {
       const app = new PIXI.Application();
       await app.init({
@@ -85,9 +90,18 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       app.stage.addChild(worldContainer);
       worldContainerRef.current = worldContainer;
 
+      // Контейнер для еды
+      foodContainer = new PIXI.Container();
+      worldContainer.addChild(foodContainer);
+
       const g = new PIXI.Graphics();
       worldContainer.addChild(g);
       graphicsRef.current = g;
+
+      // Генерируем базовую текстуру для еды
+      const circleG = new PIXI.Graphics();
+      circleG.circle(0, 0, 64).fill({ color: 0xffffff });
+      foodTexture = app.renderer.generateTexture(circleG);
 
       // Маска ограничивает рендеринг зоной карты [0,2000]×[0,2000],
       // чтобы части змей не рендерились в сером фоне за её пределами
@@ -288,8 +302,10 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
 
       const parseColor = (colorStr: string) => parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
 
-      if (state.foods) {
+      if (state.foods && foodContainer && foodTexture) {
         const foodsLen = state.foods.length;
+        let poolIdx = 0;
+        
         for (let i = 0; i < foodsLen; i++) {
           const food = state.foods[i];
           const fx = food.x * gridSize + gridSize / 2;
@@ -299,13 +315,52 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
           const foodRadius = gridSize * (0.2 + Math.sqrt(food.value) * 0.1);
           const mainColor = parseColor(food.color || "#ef4444");
 
-          if (food.value >= 2) {
-            g.circle(fx, fy, foodRadius * 1.6).fill({ color: mainColor, alpha: 0.4 });
+          let poolItem: typeof foodPool[0];
+          if (poolIdx < foodPool.length) {
+            poolItem = foodPool[poolIdx];
+            poolItem.container.visible = true;
+          } else {
+            const container = new PIXI.Container();
+            const glow = new PIXI.Sprite(foodTexture);
+            glow.anchor.set(0.5);
+            glow.alpha = 0.4;
+            const shadow = new PIXI.Sprite(foodTexture);
+            shadow.anchor.set(0.5);
+            shadow.tint = 0x000000;
+            shadow.alpha = 0.15;
+            const main = new PIXI.Sprite(foodTexture);
+            main.anchor.set(0.5);
+
+            container.addChild(glow, shadow, main);
+            foodContainer.addChild(container);
+            
+            poolItem = { container, glow, shadow, main };
+            foodPool.push(poolItem);
           }
-          // Тень (Ambient Occlusion - без смещения, чуть шире радиуса еды)
-          g.circle(fx, fy, foodRadius * 1.2).fill({ color: 0x000000, alpha: 0.15 });
-          // Основной круг
-          g.circle(fx, fy, foodRadius).fill({ color: mainColor });
+
+          poolItem.container.position.set(fx, fy);
+          
+          // Базовый радиус текстуры - 64
+          const scale = foodRadius / 64;
+          
+          if (food.value >= 2) {
+            poolItem.glow.visible = true;
+            poolItem.glow.tint = mainColor;
+            poolItem.glow.scale.set(scale * 1.6);
+          } else {
+            poolItem.glow.visible = false;
+          }
+
+          poolItem.shadow.scale.set(scale * 1.2);
+          
+          poolItem.main.tint = mainColor;
+          poolItem.main.scale.set(scale);
+
+          poolIdx++;
+        }
+        
+        for (let i = poolIdx; i < foodPool.length; i++) {
+          foodPool[i].container.visible = false;
         }
       }
 
@@ -641,6 +696,10 @@ export const GameRenderer: React.FC<GameRendererProps> = ({
       if (appRef.current) {
         appRef.current.destroy(true, { children: true, texture: true });
         appRef.current = null;
+      }
+      if (foodTexture) {
+        foodTexture.destroy(true);
+        foodTexture = null;
       }
       // Очищаем HTML-ники
       nickElements.forEach(el => el.remove());
