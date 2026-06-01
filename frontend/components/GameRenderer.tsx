@@ -206,8 +206,8 @@ const foodMat = new THREE.ShaderMaterial({
   transparent: true,
   depthWrite: false,
   side: THREE.DoubleSide,
+  vertexColors: true,
   vertexShader: `
-    attribute vec3 instanceColor;
     varying vec2 vUv;
     varying vec3 vColor;
     void main() {
