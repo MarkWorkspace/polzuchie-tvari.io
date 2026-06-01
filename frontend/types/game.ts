@@ -11,11 +11,22 @@ export type ServerSimulationConfig = {
 export type ServerSnakeConfig = {
   base_head_radius: number;
   score_thickness_scale: number;
+  camera_zoom_out_coeff: number;
   growth_score_per_segment: number;
   start_length: number;
   start_score: number;
   min_body_length: number;
   safe_spawn_distance: number;
+};
+
+export type ServerVisualConfig = {
+  min_fog_radius: number;
+  fog_score_expansion_coeff: number;
+  camera_base_zoom: number;
+  camera_pitch_angle: number;
+  camera_z_height: number;
+  camera_y_offset: number;
+  mouse_sensitivity?: number;
 };
 
 export type Point = {
@@ -39,12 +50,14 @@ export type Player = {
   deaths: number;
   accelerating?: boolean;
   skin?: string;
+  nickname?: string;
 };
 
 export type GameState = {
   server_tick_rate?: number;
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
+  server_visual?: ServerVisualConfig;
   players: Record<string, Player>;
   foods: Food[];
 };
@@ -65,6 +78,7 @@ export type FullGameMessage = {
   server_tick_rate?: number;
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
+  server_visual?: ServerVisualConfig;
   players: Record<string, Player>;
   foods: Food[];
   new_foods?: Food[];
@@ -77,6 +91,7 @@ export type DeltaGameMessage = {
   server_tick_rate?: number;
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
+  server_visual?: ServerVisualConfig;
   players: Record<string, PlayerUpdate>;
   new_foods?: Food[];
   eaten_foods?: number[];

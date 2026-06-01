@@ -1,0 +1,89 @@
+{
+    "world": {
+        "width": 100,
+        "height": 100,
+        "target_food_count": 250,
+        "food_overflow_limit": 150,
+        "cluster_count": 8,
+        "cluster_spawn_chance": 0.8,
+        "cluster_spread": 5.0,
+        "cluster_move_chance": 0.025
+    },
+    "simulation": {
+        "tick_rate": 30,
+        "base_speed_per_second": 6.0,
+        "max_turn_speed_deg_per_second": 290.0,
+        "min_turn_radius": 0.5,
+        "turn_radius_thickness_coeff": 1.0,
+        "turn_idle_smoothing_at_20hz": 0.3,
+        "turn_active_smoothing_at_20hz": 0.15
+    },
+    "snake": {
+        "start_length": 9,
+        "start_score": 1,
+        "base_head_radius": 0.2,
+        "score_thickness_scale": 0.0002,
+        "camera_zoom_out_coeff": 0.0005,
+        "growth_score_per_segment": 10.0,
+        "min_body_length": 9,
+        "safe_spawn_distance": 15.0
+    },
+    "boost": {
+        "min_score": 15,
+        "speed_multiplier": 2.0,
+        "drain_interval_seconds": 1.0,
+        "drain_per_interval": 1.0,
+        "food_drop_value": 1
+    },
+    "food": {
+        "types": [
+            {
+                "value": 1,
+                "weight": 50,
+                "color": "#ef4444"
+            },
+            {
+                "value": 2,
+                "weight": 25,
+                "color": "#f97316"
+            },
+            {
+                "value": 5,
+                "weight": 15,
+                "color": "#fbbf24"
+            },
+            {
+                "value": 10,
+                "weight": 6,
+                "color": "#4ade80"
+            },
+            {
+                "value": 20,
+                "weight": 3,
+                "color": "#3b82f6"
+            },
+            {
+                "value": 50,
+                "weight": 1,
+                "color": "#a855f7"
+            }
+        ],
+        "base_radius": 0.2,
+        "radius_value_scale": 0.1,
+        "death_drop_score_fraction": 0.5,
+        "attraction_radius": 3.0,
+        "attraction_speed": 8.0
+    },
+    "network": {
+        "aoi_radius": 60.0,
+        "aoi_length_padding": 0.5
+    },
+    "visual": {
+        "min_fog_radius": 700,
+        "fog_score_expansion_coeff": 0.5,
+        "camera_base_zoom": 2.5,
+        "camera_pitch_angle": 55.0,
+        "camera_z_height": 0.0,
+        "camera_y_offset": 0.25
+    }
+}

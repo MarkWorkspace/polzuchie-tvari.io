@@ -8,6 +8,8 @@ services:
     environment:
       - ENVIRONMENT=production
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+    volumes:
+      - ./backend/config.json:/app/config.json
     restart: unless-stopped
     deploy:
       resources:

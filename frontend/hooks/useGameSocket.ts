@@ -2,191 +2,279 @@ import { useEffect, useRef, useState, MutableRefObject } from "react";
 import { DeltaGameMessage, GameState, Player, PlayerUpdate, Point, ServerGameMessage } from "../types/game";
 import { decode } from "@msgpack/msgpack";
 
+type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
+
 export function useGameSocket(
   nickname: string,
   skin: string,
   hasJoined: boolean,
   cameraModeRef: MutableRefObject<"2D" | "3D">
 ) {
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [statusMsg, setStatusMsg] = useState("");
+  const [controlMode, setControlMode] = useState<"keyboard" | "mouse">("keyboard");
+  const controlModeRef = useRef<"keyboard" | "mouse">("keyboard");
   const [leaderboard, setLeaderboard] = useState<{ id: string; score: number; kills: number; deaths: number; isMe: boolean }[]>([]);
   const [killFeed, setKillFeed] = useState<{ id: number; killer: string; victim: string; time: number }[]>([]);
   const [scoreFeed, setScoreFeed] = useState<{ id: number; delta: number; time: number }[]>([]);
+  const [ping, setPing] = useState<number | null>(null);
+  const [activePlayersCount, setActivePlayersCount] = useState<number>(0);
 
   const gameStateRef = useRef<GameState | null>(null);
   const lastGameStateRef = useRef<GameState | null>(null);
   const lastUpdateTimeRef = useRef<number>(0);
+  const stateQueueRef = useRef<{ time: number; state: GameState }[]>([]);
   const myIdRef = useRef<string>("");
   const lastLeaderboardUpdateRef = useRef<number>(0);
   const localInputRef = useRef({ turn: 0, accelerating: false });
+  const socketRef = useRef<WebSocket | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isCleaningUpRef = useRef(false);
 
   useEffect(() => {
     if (!hasJoined) return;
+    isCleaningUpRef.current = false;
+    let pingInterval: ReturnType<typeof setInterval> | null = null;
 
-    const id = `${nickname.trim() || "Игрок"}_${Math.random().toString(36).substring(2, 9)}`;
-    myIdRef.current = id;
-    
-    const host = window.location.hostname || "127.0.0.1";
-    const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-    
-    // В проде обращаемся без порта (через Nginx: 443/80), в дев-режиме стучимся на :8000
-    const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
-    const wsPort = isStandardPort ? "" : ":8000";
-    
-    const socket = new WebSocket(`${protocol}${host}${wsPort}/ws/${encodeURIComponent(id)}?skin=${encodeURIComponent(skin)}`);
-    socket.binaryType = "arraybuffer";
-
-    socket.onopen = () => {
-      console.log("Подключено к серверу!");
-      setIsConnected(true);
-      setStatusMsg("A/D/Стрелочки — рулить | Пробел — ускорение | C — камера");
+    const buildWsUrl = () => {
+      const host = window.location.hostname || "127.0.0.1";
+      const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+      const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
+      const wsPort = isStandardPort ? "" : ":8000";
+      const trimmedNickname = nickname.trim() || "Игрок";
+      return `${protocol}${host}${wsPort}/ws?nickname=${encodeURIComponent(trimmedNickname)}&skin=${encodeURIComponent(skin)}`;
     };
 
-    socket.onclose = () => {
-      setIsConnected(false);
-      setStatusMsg("Отключено от сервера. Перезагрузите страницу.");
-    };
-
-    socket.onerror = (error) => {
-      console.error("Ошибка WebSocket:", error);
-      setStatusMsg("Ошибка! Возможно, брандмауэр блокирует порт 8000.");
-    };
-
-    socket.onmessage = (event) => {
-      const parsedState = decode(new Uint8Array(event.data)) as ServerGameMessage;
+    const connect = () => {
+      if (isCleaningUpRef.current) return;
       
-      lastGameStateRef.current = gameStateRef.current;
+      const attempt = reconnectAttemptRef.current;
+      if (attempt === 0) {
+        setConnectionStatus("connecting");
+        setStatusMsg("Подключение к серверу...");
+      } else {
+        setConnectionStatus("reconnecting");
+        setStatusMsg(`Переподключение... (попытка ${attempt})`);
+      }
 
-      if (parsedState.type === "FULL" || !parsedState.type) {
-        gameStateRef.current = {
-          server_tick_rate: parsedState.server_tick_rate,
-          server_simulation: parsedState.server_simulation,
-          server_snake: parsedState.server_snake,
-          players: parsedState.players,
-          foods: parsedState.foods,
-        };
-      } else if (parsedState.type === "DELTA") {
-        if (!gameStateRef.current) return; // Ждем FULL_STATE
+      const socket = new WebSocket(buildWsUrl());
+      socket.binaryType = "arraybuffer";
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        console.log("Подключено к серверу!");
+        reconnectAttemptRef.current = 0;
+        setConnectionStatus("connected");
+        setStatusMsg(controlModeRef.current === "keyboard"
+          ? "A/D/Стрелочки — рулить | Пробел — ускорение | C — камера | T — управление"
+          : "Движение за курсором | Пробел — ускорение | C — камера | T — управление"
+        );
         
-        const eatenSet = new Set(parsedState.eaten_foods || []);
-        // Убираем съеденное, добавляем новое
-        const nextFoods = gameStateRef.current.foods
-          .filter((f) => !eatenSet.has(f.id))
-          .concat(parsedState.new_foods || []);
-
-        // Обновляем позиции еды, притянутой к головам змей
-        const movedFoods = (parsedState as DeltaGameMessage).moved_foods;
-        if (movedFoods && movedFoods.length > 0) {
-          for (const mf of movedFoods) {
-            const idx = nextFoods.findIndex(f => f.id === mf.id);
-            if (idx !== -1) {
-              nextFoods[idx] = { ...nextFoods[idx], x: mf.x, y: mf.y };
-            }
+        if (pingInterval) clearInterval(pingInterval);
+        pingInterval = setInterval(() => {
+          if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+            socketRef.current.send(`PING:${Math.floor(performance.now())}`);
           }
+        }, 2000);
+      };
+
+      socket.onclose = (event) => {
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+        setPing(null);
+        setActivePlayersCount(0);
+
+        if (isCleaningUpRef.current) return;
+        
+        setConnectionStatus("reconnecting");
+        
+        // Exponential backoff: 1s, 2s, 4s, 8s, 16s, capped at 30s
+        reconnectAttemptRef.current += 1;
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current - 1), 30000);
+        setStatusMsg(`Соединение потеряно. Переподключение через ${Math.ceil(delay / 1000)}с...`);
+        
+        reconnectTimerRef.current = setTimeout(() => {
+          connect();
+        }, delay);
+      };
+
+      socket.onerror = () => {
+        // onclose will fire after this, which handles reconnection
+      };
+
+      socket.onmessage = (event) => {
+        if (typeof event.data === "string") {
+          if (event.data.startsWith("PONG:")) {
+            const timestamp = parseFloat(event.data.substring(5));
+            const latency = performance.now() - timestamp;
+            setPing(Math.round(latency));
+          }
+          return;
         }
 
+        const parsedState = decode(new Uint8Array(event.data)) as any;
+        if (parsedState.type === "SERVER_RESTART") {
+          setConnectionStatus("reconnecting");
+          setStatusMsg(parsedState.message || "Сервер перезагружается...");
+          socket.close(1000, "Server Restart");
+          return;
+        }
+
+        // Server assigns our ID on first FULL message
+        if (parsedState.your_id) {
+          myIdRef.current = parsedState.your_id;
+        }
+
+        lastGameStateRef.current = gameStateRef.current;
+
+        if (parsedState.type === "FULL" || !parsedState.type) {
+          gameStateRef.current = {
+            server_tick_rate: parsedState.server_tick_rate,
+            server_simulation: parsedState.server_simulation,
+            server_snake: parsedState.server_snake,
+            server_visual: parsedState.server_visual,
+            players: parsedState.players,
+            foods: parsedState.foods,
+          };
+          // Clear interpolation queue on full state to prevent glitches
+          stateQueueRef.current = [];
+        } else if (parsedState.type === "DELTA") {
+          if (!gameStateRef.current) return;
           
-        const currentPlayers = gameStateRef.current.players || {};
-        const nextPlayers: Record<string, Player> = {};
-        
-        for (const [pid, pData] of Object.entries((parsedState as DeltaGameMessage).players as Record<string, PlayerUpdate>)) {
-          const oldPlayer = currentPlayers[pid];
-          let newBody: Point[] = [];
-          
-          if (pData.body) {
-            // Сервер прислал полное тело (FULL или игрок возродился)
-            newBody = pData.body;
-          } else if (oldPlayer && oldPlayer.body) {
-            // Дельта: Добавляем в массив новые головы, присланные сервером
-            newBody = [...oldPlayer.body];
-            if (pData.new_heads && pData.new_heads.length > 0) {
-              newBody.unshift(...pData.new_heads);
-            }
-            // Удаляем хвост до целевой длины (команда удаления)
-            if (pData.length !== undefined) {
-              while (newBody.length > pData.length) {
-                newBody.pop();
+          const eatenSet = new Set(parsedState.eaten_foods || []);
+          const nextFoods = gameStateRef.current.foods
+            .filter((f) => !eatenSet.has(f.id))
+            .concat(parsedState.new_foods || []);
+
+          const movedFoods = (parsedState as DeltaGameMessage).moved_foods;
+          if (movedFoods && movedFoods.length > 0) {
+            const foodIndex = new Map<number, number>();
+            for (let i = 0; i < nextFoods.length; i++) foodIndex.set(nextFoods[i].id, i);
+            for (const mf of movedFoods) {
+              const idx = foodIndex.get(mf.id);
+              if (idx !== undefined) {
+                nextFoods[idx] = { ...nextFoods[idx], x: mf.x, y: mf.y };
               }
             }
-          } else {
-            // Игрок впервые вошел в AoI, но у нас есть только новые головы
-            if (pData.new_heads && pData.new_heads.length > 0) {
-              newBody = [...pData.new_heads];
+          }
+
+          const currentPlayers = gameStateRef.current.players || {};
+          const nextPlayers: Record<string, Player> = {};
+          
+          for (const [pid, pData] of Object.entries((parsedState as DeltaGameMessage).players as Record<string, PlayerUpdate>)) {
+            const oldPlayer = currentPlayers[pid];
+            let newBody: Point[] = [];
+            
+            if (pData.body) {
+              newBody = pData.body;
+            } else if (oldPlayer && oldPlayer.body) {
+              newBody = [...oldPlayer.body];
+              if (pData.new_heads && pData.new_heads.length > 0) {
+                newBody.unshift(...pData.new_heads);
+              }
+              if (pData.length !== undefined) {
+                while (newBody.length > pData.length) {
+                  newBody.pop();
+                }
+              }
+            } else {
+              if (pData.new_heads && pData.new_heads.length > 0) {
+                newBody = [...pData.new_heads];
+              }
+            }
+            
+            const defaultPlayer: Player = {
+              angle: 0,
+              score: 0,
+              kills: 0,
+              deaths: 0,
+              body: [],
+            };
+
+            nextPlayers[pid] = {
+              ...defaultPlayer,
+              ...oldPlayer,
+              ...pData,
+              body: newBody,
+            };
+          }
+
+          gameStateRef.current = {
+            ...gameStateRef.current,
+            server_tick_rate: parsedState.server_tick_rate ?? gameStateRef.current.server_tick_rate,
+            server_simulation: parsedState.server_simulation ?? gameStateRef.current.server_simulation,
+            server_snake: parsedState.server_snake ?? gameStateRef.current.server_snake,
+            server_visual: parsedState.server_visual ?? gameStateRef.current.server_visual,
+            players: nextPlayers,
+            foods: nextFoods
+          };
+
+          // Обработка событий для UI
+          const myOldPlayer = currentPlayers[myIdRef.current];
+          const myNewPlayer = nextPlayers[myIdRef.current];
+          if (myOldPlayer && myNewPlayer) {
+            const delta = myNewPlayer.score - myOldPlayer.score;
+            if (delta > 0 || delta < -1) {
+              setScoreFeed(prev => [...prev, { id: Date.now() + Math.random(), delta, time: Date.now() }].slice(-3));
             }
           }
-          
-          const defaultPlayer: Player = {
-            angle: 0,
-            score: 0,
-            kills: 0,
-            deaths: 0,
-            body: [],
-          };
 
-          nextPlayers[pid] = {
-            ...defaultPlayer,
-            ...oldPlayer,
-            ...pData,
-            body: newBody,
-          };
-        }
-
-        gameStateRef.current = {
-          ...gameStateRef.current,
-          server_tick_rate: parsedState.server_tick_rate ?? gameStateRef.current.server_tick_rate,
-          server_simulation: parsedState.server_simulation ?? gameStateRef.current.server_simulation,
-          server_snake: parsedState.server_snake ?? gameStateRef.current.server_snake,
-          players: nextPlayers,
-          foods: nextFoods
-        };
-
-        // Обработка событий для UI
-        const myOldPlayer = currentPlayers[myIdRef.current];
-        const myNewPlayer = nextPlayers[myIdRef.current];
-        if (myOldPlayer && myNewPlayer) {
-          const delta = myNewPlayer.score - myOldPlayer.score;
-          // Игнорируем дельту -1, так как это просто потеря очков от ускорения
-          if (delta > 0 || delta < -1) {
-            setScoreFeed(prev => [...prev, { id: Date.now() + Math.random(), delta, time: Date.now() }].slice(-5));
+          if (parsedState.kill_events && parsedState.kill_events.length > 0) {
+            const extractName = (id: string) => {
+              if (!id) return "Стена";
+              // Look up nickname from game state
+              const player = gameStateRef.current?.players[id];
+              return player?.nickname || id;
+            };
+            
+            const newKills = parsedState.kill_events.map((e: any) => ({
+              id: Date.now() + Math.random(),
+              killer: extractName(e.killer || ""),
+              victim: extractName(e.victim),
+              time: Date.now()
+            }));
+            setKillFeed(prev => [...prev, ...newKills].slice(-5));
           }
         }
 
-        if (parsedState.kill_events && parsedState.kill_events.length > 0) {
-          const extractName = (id: string) => (!id ? "Стена" : id.split('_').slice(0, -1).join('_') || id);
-          
-          const newKills = parsedState.kill_events.map((e) => ({
-            id: Date.now() + Math.random(),
-            killer: extractName(e.killer || ""),
-            victim: extractName(e.victim),
-            time: Date.now()
-          }));
-          setKillFeed(prev => [...prev, ...newKills].slice(-5));
+        lastUpdateTimeRef.current = performance.now();
+
+        if (gameStateRef.current) {
+          stateQueueRef.current.push({
+            time: lastUpdateTimeRef.current,
+            state: gameStateRef.current,
+          });
+          if (stateQueueRef.current.length > 20) {
+            stateQueueRef.current.shift();
+          }
         }
-      }
 
-      lastUpdateTimeRef.current = performance.now();
-
-      const playersSource = gameStateRef.current?.players;
-      // Обновляем React-стейт лидерборда не чаще 2 раз в секунду, чтобы избежать фризов
-      if (playersSource && performance.now() - lastLeaderboardUpdateRef.current > 500) {
-        const board = Object.entries(playersSource)
-          .map(([playerId, p]) => ({
-            id: playerId,
-            score: p.score || 0,
-            kills: p.kills || 0,
-            deaths: p.deaths || 0,
-            isMe: playerId === myIdRef.current,
-          }))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 5);
-        setLeaderboard(board);
-        lastLeaderboardUpdateRef.current = performance.now();
-      }
+        const playersSource = gameStateRef.current?.players;
+        if (playersSource && performance.now() - lastLeaderboardUpdateRef.current > 500) {
+          const board = Object.entries(playersSource)
+            .map(([playerId, p]) => ({
+              id: playerId,
+              nickname: p.nickname || "Игрок",
+              score: p.score || 0,
+              kills: p.kills || 0,
+              deaths: p.deaths || 0,
+              isMe: playerId === myIdRef.current,
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5);
+          setLeaderboard(board);
+          setActivePlayersCount(Object.keys(playersSource).length);
+          lastLeaderboardUpdateRef.current = performance.now();
+        }
+      };
     };
 
+    connect();
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Предотвращаем скроллинг страницы пробелом или стрелочками
       if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
         e.preventDefault();
       }
@@ -195,41 +283,70 @@ export function useGameSocket(
         cameraModeRef.current = cameraModeRef.current === "2D" ? "3D" : "2D";
         return;
       }
-      if (socket.readyState !== WebSocket.OPEN) return;
+
+      const sock = socketRef.current;
+
+      if (e.code === "KeyT") {
+        const next = controlModeRef.current === "keyboard" ? "mouse" : "keyboard";
+        controlModeRef.current = next;
+        setControlMode(next);
+
+        // Reset turn state on mode toggle
+        if (sock && sock.readyState === WebSocket.OPEN) {
+          if (localInputRef.current.turn === -1) sock.send("LEFT_UP");
+          if (localInputRef.current.turn === 1) sock.send("RIGHT_UP");
+        }
+        localInputRef.current.turn = 0;
+
+        setStatusMsg(next === "keyboard"
+          ? "A/D/Стрелочки — рулить | Пробел — ускорение | C — камера | T — управление"
+          : "Движение за курсором | Пробел — ускорение | C — камера | T — управление"
+        );
+        return;
+      }
       
-      if (e.code === "ArrowLeft" || e.code === "KeyA") {
-        if (localInputRef.current.turn !== -1) {
-          socket.send("LEFT_DOWN");
-          localInputRef.current.turn = -1;
+      if (!sock || sock.readyState !== WebSocket.OPEN) return;
+      
+      if (controlModeRef.current === "keyboard") {
+        if (e.code === "ArrowLeft" || e.code === "KeyA") {
+          if (localInputRef.current.turn !== -1) {
+            sock.send("LEFT_DOWN");
+            localInputRef.current.turn = -1;
+          }
+        }
+        if (e.code === "ArrowRight" || e.code === "KeyD") {
+          if (localInputRef.current.turn !== 1) {
+            sock.send("RIGHT_DOWN");
+            localInputRef.current.turn = 1;
+          }
         }
       }
-      if (e.code === "ArrowRight" || e.code === "KeyD") {
-        if (localInputRef.current.turn !== 1) {
-          socket.send("RIGHT_DOWN");
-          localInputRef.current.turn = 1;
-        }
-      }
+      
       if (e.code === "Space") {
         if (!localInputRef.current.accelerating) {
-          socket.send("SPACE_DOWN");
+          sock.send("SPACE_DOWN");
           localInputRef.current.accelerating = true;
         }
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if (socket.readyState !== WebSocket.OPEN) return;
+      const sock = socketRef.current;
+      if (!sock || sock.readyState !== WebSocket.OPEN) return;
       
-      if (e.code === "ArrowLeft" || e.code === "KeyA") {
-        socket.send("LEFT_UP");
-        if (localInputRef.current.turn === -1) localInputRef.current.turn = 0;
+      if (controlModeRef.current === "keyboard") {
+        if (e.code === "ArrowLeft" || e.code === "KeyA") {
+          sock.send("LEFT_UP");
+          if (localInputRef.current.turn === -1) localInputRef.current.turn = 0;
+        }
+        if (e.code === "ArrowRight" || e.code === "KeyD") {
+          sock.send("RIGHT_UP");
+          if (localInputRef.current.turn === 1) localInputRef.current.turn = 0;
+        }
       }
-      if (e.code === "ArrowRight" || e.code === "KeyD") {
-        socket.send("RIGHT_UP");
-        if (localInputRef.current.turn === 1) localInputRef.current.turn = 0;
-      }
+      
       if (e.code === "Space") {
-        socket.send("SPACE_UP");
+        sock.send("SPACE_UP");
         localInputRef.current.accelerating = false;
       }
     };
@@ -238,13 +355,25 @@ export function useGameSocket(
     window.addEventListener("keyup", handleKeyUp);
 
     return () => {
-      socket.close();
+      isCleaningUpRef.current = true;
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
   }, [hasJoined, nickname, skin, cameraModeRef]);
 
-  // Очистка старых событий из логов (каждые 1 сек удаляем то, что старше 5 и 3 секунд)
+  // Очистка старых событий из логов
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -255,7 +384,8 @@ export function useGameSocket(
   }, []);
 
   return {
-    isConnected,
+    isConnected: connectionStatus === "connected",
+    connectionStatus,
     statusMsg,
     leaderboard,
     killFeed,
@@ -263,7 +393,13 @@ export function useGameSocket(
     gameStateRef,
     lastGameStateRef,
     lastUpdateTimeRef,
+    stateQueueRef,
     myIdRef,
     localInputRef,
+    ping,
+    activePlayersCount,
+    controlMode,
+    controlModeRef,
+    socketRef
   };
 }

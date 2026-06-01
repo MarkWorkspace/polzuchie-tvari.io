@@ -32,6 +32,7 @@ class SnakeConfig:
     start_score: int = 1
     base_head_radius: float = 0.2
     score_thickness_scale: float = 0.0005
+    camera_zoom_out_coeff: float = 0.002
     growth_score_per_segment: float = 10.0
     min_body_length: int = 9
     safe_spawn_distance: float = 15.0
@@ -77,6 +78,17 @@ class NetworkConfig:
 
 
 @dataclass
+class VisualConfig:
+    min_fog_radius: float = 900.0
+    fog_score_expansion_coeff: float = 0.5
+    camera_base_zoom: float = 1.0
+    camera_pitch_angle: float = 55.0
+    camera_z_height: float = 0.0
+    camera_y_offset: float = 0.25
+    mouse_sensitivity: float = 1.0
+
+
+@dataclass
 class GameConfig:
     world: WorldConfig = field(default_factory=WorldConfig)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
@@ -84,6 +96,7 @@ class GameConfig:
     boost: BoostConfig = field(default_factory=BoostConfig)
     food: FoodConfig = field(default_factory=FoodConfig)
     network: NetworkConfig = field(default_factory=NetworkConfig)
+    visual: VisualConfig = field(default_factory=VisualConfig)
 
     def to_dict(self):
         return asdict(self)
@@ -119,6 +132,7 @@ class GameConfig:
         _require_range("snake.start_score", self.snake.start_score, 0, 1000000)
         _require_range("snake.base_head_radius", self.snake.base_head_radius, 0.01, 100)
         _require_range("snake.score_thickness_scale", self.snake.score_thickness_scale, 0, 10)
+        _require_range("snake.camera_zoom_out_coeff", self.snake.camera_zoom_out_coeff, 0.0, 1.0)
         _require_range("snake.growth_score_per_segment", self.snake.growth_score_per_segment, 0.1, 1000000)
         _require_range("snake.min_body_length", self.snake.min_body_length, 1, 10000)
         _require_range("snake.safe_spawn_distance", self.snake.safe_spawn_distance, 0, 10000)
@@ -142,6 +156,14 @@ class GameConfig:
 
         _require_range("network.aoi_radius", self.network.aoi_radius, 1, 10000)
         _require_range("network.aoi_length_padding", self.network.aoi_length_padding, 0, 1000)
+
+        _require_range("visual.min_fog_radius", self.visual.min_fog_radius, 100, 5000)
+        _require_range("visual.fog_score_expansion_coeff", self.visual.fog_score_expansion_coeff, 0.0, 100.0)
+        _require_range("visual.camera_base_zoom", self.visual.camera_base_zoom, 0.1, 10.0)
+        _require_range("visual.camera_pitch_angle", self.visual.camera_pitch_angle, 0, 89.9)
+        _require_range("visual.camera_z_height", self.visual.camera_z_height, -1000, 1000)
+        _require_range("visual.camera_y_offset", self.visual.camera_y_offset, -1.0, 1.0)
+        _require_range("visual.mouse_sensitivity", self.visual.mouse_sensitivity, 0.1, 10.0)
 
 
 def _apply_dataclass_patch(target, patch):

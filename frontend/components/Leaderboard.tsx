@@ -1,30 +1,49 @@
 import React from "react";
 
+interface LeaderboardEntry {
+  id: string;
+  score: number;
+  kills: number;
+  deaths: number;
+  isMe: boolean;
+  nickname?: string;
+}
+
 interface LeaderboardProps {
-  leaderboard: { id: string; score: number; kills: number; deaths: number; isMe: boolean }[];
+  leaderboard: LeaderboardEntry[];
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({ leaderboard }) => {
   return (
-    <div style={{ backgroundColor: "#222", border: "2px solid #333", padding: "15px", borderRadius: "8px", color: "white", flex: "1 1 200px", minWidth: "200px" }}>
-      <h3 style={{ margin: "0 0 10px 0", textAlign: "center", fontSize: "16px" }}>Таблица лидеров</h3>
+    <div style={{ 
+      background: "rgba(20, 22, 28, 0.75)", 
+      border: "1px solid rgba(255, 255, 255, 0.08)", 
+      padding: "16px", 
+      borderRadius: "16px", 
+      color: "white", 
+      flex: "1 1 220px", 
+      minWidth: "220px",
+      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+      backdropFilter: "blur(12px)"
+    }}>
+      <h3 style={{ margin: "0 0 12px 0", textAlign: "center", fontSize: "13px", fontWeight: 800, color: "rgba(255, 255, 255, 0.75)" }}>Таблица лидеров</h3>
       <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "14px" }}>
         {leaderboard.map((player, index) => {
-          const displayName = player.isMe ? "Вы" : player.id.split('_')[0];
+          const displayName = player.nickname || player.id;
           return (
-            <li key={player.id} style={{ padding: "8px 0", color: player.isMe ? "#4ade80" : "white", fontWeight: player.isMe ? "bold" : "normal", borderBottom: "1px solid #444" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>{index + 1}. {displayName}</span>
-                <span>{player.score}</span>
+            <li key={player.id} style={{ padding: "8px 0", color: player.isMe ? "#4ade80" : "white", fontWeight: player.isMe ? "bold" : "normal", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "140px" }}>{index + 1}. {displayName}</span>
+                <span style={{ fontWeight: 700, color: player.isMe ? "#4ade80" : "#fafafa" }}>{player.score}</span>
               </div>
-              <div style={{ fontSize: "11px", color: "#aaa", display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "2px" }}>
-                <span title="Убийства">⚔️ {player.kills ?? 0}</span>
-                <span title="Смерти">💀 {player.deaths ?? 0}</span>
+              <div style={{ fontSize: "11px", color: "rgba(255, 255, 255, 0.4)", display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "4px", fontWeight: 600 }}>
+                <span title="Убийства" style={{ display: "flex", alignItems: "center", gap: "2px" }}>⚔️ {player.kills ?? 0}</span>
+                <span title="Смерти" style={{ display: "flex", alignItems: "center", gap: "2px" }}>💀 {player.deaths ?? 0}</span>
               </div>
             </li>
           );
         })}
-        {leaderboard.length === 0 && <li style={{ color: "#aaa", textAlign: "center" }}>Ожидание...</li>}
+        {leaderboard.length === 0 && <li style={{ color: "rgba(255, 255, 255, 0.4)", textAlign: "center", padding: "10px 0" }}>Ожидание...</li>}
       </ul>
     </div>
   );

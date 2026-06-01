@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from "react";
-import { GameState } from "../types/game";
-import * as PIXI from "pixi.js";
+import React, { useEffect, useRef, useMemo, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
+import { Text } from '@react-three/drei';
+import { GameState } from '../types/game';
 
 const DEFAULT_SERVER_TICK_RATE = 30;
 const MAX_TURN_SPEED_DEG = 290.0;
@@ -8,723 +10,1428 @@ const MIN_TURN_RADIUS = 0.5;
 const TURN_RADIUS_THICKNESS_COEFF = 1.0;
 const BASE_HEAD_RADIUS = 0.2;
 const SCORE_THICKNESS_SCALE = 0.0005;
+const CAMERA_ZOOM_OUT_COEFF = 0.002;
+const MIN_FOG_RADIUS = 900.0;
+const FOG_SCORE_EXPANSION_COEFF = 0.5;
 const BASE_SPEED_PER_SECOND = 6.0;
 const TURN_IDLE_SMOOTHING_AT_20HZ = 0.3;
 const TURN_ACTIVE_SMOOTHING_AT_20HZ = 0.15;
 const frameSmoothing = (smoothingAt20Hz: number, dt: number) =>
-  1 - ((1 - smoothingAt20Hz) ** (dt / 0.05));
+  1 - Math.pow(1 - smoothingAt20Hz, dt / 0.05);
 
-interface GameRendererProps {
+const WORLD_WIDTH = 100;
+const WORLD_HEIGHT = 100;
+const gridSize = 20;
+const WG = WORLD_WIDTH * gridSize;
+const HG = WORLD_HEIGHT * gridSize;
+const wrapOffsets: [number, number][] = [[0, 0], [WG, 0], [-WG, 0], [0, HG], [0, -HG]];
+
+// Shared geometries and materials
+const fogColor = new THREE.Color(12/255, 12/255, 15/255);
+const flatCircleGeo = new THREE.CircleGeometry(1, 32);
+const planeGeo = new THREE.PlaneGeometry(2, 2);
+const pupilGeo = new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+pupilGeo.rotateX(Math.PI / 2); // Orient the hemisphere to point towards positive Z
+
+const shadowMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  depthTest: true,
+  side: THREE.DoubleSide,
+  uniforms: {
+    uCenter: { value: new THREE.Vector2(0, 0) },
+    uRadius: { value: 900.0 },
+    uFogColor: { value: fogColor }
+  },
+  vertexShader: `
+    attribute vec2 snakeParams;
+    varying vec2 vUv;
+    varying vec3 vWorldPosition;
+    varying vec2 vSnakeParams;
+    void main() {
+      vUv = uv;
+      vSnakeParams = snakeParams;
+      vec4 worldPos = modelMatrix * vec4(position, 1.0);
+      vWorldPosition = worldPos.xyz;
+      gl_Position = projectionMatrix * viewMatrix * worldPos;
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    varying vec3 vWorldPosition;
+    varying vec2 vSnakeParams;
+    uniform vec2 uCenter;
+    uniform float uRadius;
+    void main() {
+      float r = vSnakeParams.x;
+      float L = vSnakeParams.y;
+      float x = (vUv.x - 0.5) * 2.0 * r;
+      float y = vUv.y;
+      
+      float d_dist = 0.0;
+      if (y < 0.0) {
+        d_dist = length(vec2(x, y)) / r;
+        if (d_dist > 1.0) discard;
+      } else if (y > L) {
+        d_dist = length(vec2(x, y - L)) / r;
+        if (d_dist > 1.0) discard;
+      } else {
+        d_dist = abs(x) / r;
+      }
+      
+      float shadow = (1.0 - smoothstep(0.4, 1.0, d_dist)) * 0.45;
+      if (shadow <= 0.01) discard;
+      
+      float dist = distance(vWorldPosition.xy, uCenter);
+      float start = uRadius * 0.75;
+      float end = uRadius * 0.95;
+      float fogAmount = smoothstep(start, end, dist);
+      
+      gl_FragColor = vec4(vec3(0.0), shadow * (1.0 - fogAmount));
+    }
+  `
+});
+
+const snakeMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  depthTest: true,
+  side: THREE.DoubleSide,
+  vertexColors: true,
+  uniforms: {
+    uTime: { value: 0.0 },
+    uCenter: { value: new THREE.Vector2(0, 0) },
+    uRadius: { value: 900.0 },
+    uFogColor: { value: fogColor }
+  },
+  vertexShader: `
+    attribute vec2 snakeParams;
+    varying vec2 vUv;
+    varying vec3 vColor;
+    varying vec3 vWorldPosition;
+    varying vec2 vSnakeParams;
+    void main() {
+      vUv = uv;
+      vColor = color;
+      vSnakeParams = snakeParams;
+      vec4 worldPos = modelMatrix * vec4(position, 1.0);
+      vWorldPosition = worldPos.xyz;
+      gl_Position = projectionMatrix * viewMatrix * worldPos;
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    varying vec3 vColor;
+    varying vec3 vWorldPosition;
+    varying vec2 vSnakeParams;
+    uniform float uTime;
+    uniform vec2 uCenter;
+    uniform float uRadius;
+    uniform vec3 uFogColor;
+
+    vec3 hslToRgb(float h, float s, float l) {
+      float c = (1.0 - abs(2.0 * l - 1.0)) * s;
+      float x = c * (1.0 - abs(mod(h * 6.0, 2.0) - 1.0));
+      float m = l - c * 0.5;
+      vec3 rgb;
+      if (h < 1.0 / 6.0) rgb = vec3(c, x, 0.0);
+      else if (h < 2.0 / 6.0) rgb = vec3(x, c, 0.0);
+      else if (h < 3.0 / 6.0) rgb = vec3(0.0, c, x);
+      else if (h < 4.0 / 6.0) rgb = vec3(0.0, x, c);
+      else if (h < 5.0 / 6.0) rgb = vec3(x, 0.0, c);
+      else rgb = vec3(c, 0.0, x);
+      return rgb + vec3(m);
+    }
+
+    void main() {
+      float r = vSnakeParams.x;
+      float L = vSnakeParams.y;
+      float x = (vUv.x - 0.5) * 2.0 * r;
+      float y = vUv.y;
+      
+      float d_dist = 0.0;
+      if (y < 0.0) {
+        d_dist = length(vec2(x, y)) / r;
+        if (d_dist > 1.0) discard;
+      } else if (y > L) {
+        d_dist = length(vec2(x, y - L)) / r;
+        if (d_dist > 1.0) discard;
+      } else {
+        d_dist = abs(x) / r;
+      }
+      
+      float skinType = vColor.r;
+      vec3 baseColor;
+      
+      if (skinType > 1.5) {
+        float sCoord = vUv.y;
+        
+        if (skinType < 2.5) {
+          // Zebra (25px wide stripes)
+          float f = 0.5 + 0.5 * cos((sCoord / 25.0) * 3.14159);
+          baseColor = mix(vec3(0.09, 0.09, 0.09), vec3(0.9, 0.9, 0.9), f);
+        } else if (skinType < 3.5) {
+          // Tiger (35px wide stripes)
+          float f = 0.5 + 0.5 * cos((sCoord / 35.0) * 3.14159);
+          baseColor = mix(vec3(0.09, 0.09, 0.09), vec3(0.97, 0.45, 0.09), f);
+        } else if (skinType < 4.5) {
+          // Cyberpunk (25px wide stripes)
+          float f = 0.5 + 0.5 * cos((sCoord / 25.0) * 3.14159);
+          baseColor = mix(vec3(1.0, 0.0, 1.0), vec3(0.0, 1.0, 1.0), f);
+        } else {
+          // Rainbow (repeats every 720px)
+          float h = mod(sCoord * 0.5 - uTime / 20.0, 360.0);
+          baseColor = hslToRgb(h / 360.0, 1.0, 0.5);
+        }
+      } else {
+        baseColor = vColor;
+      }
+      
+      // Flat premium contour edge outline
+      float edge = smoothstep(0.85, 0.98, d_dist);
+      vec3 finalColor = mix(baseColor, baseColor * 0.8, edge);
+      
+      // Apply GPU-based fog
+      float dist = distance(vWorldPosition.xy, uCenter);
+      float start = uRadius * 0.75;
+      float end = uRadius * 0.95;
+      float fogAmount = smoothstep(start, end, dist);
+      vec3 finalColorWithFog = mix(finalColor, uFogColor, fogAmount);
+      
+      gl_FragColor = vec4(finalColorWithFog, 1.0);
+    }
+  `
+});
+const foodMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  vertexShader: `
+    varying vec2 vUv;
+    varying vec3 vColor;
+    void main() {
+      vUv = uv;
+      vColor = instanceColor;
+      gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    varying vec3 vColor;
+    void main() {
+      float d = length(vUv - vec2(0.5)) * 2.0;
+      float body = 1.0 - smoothstep(0.58, 0.62, d);
+      float glow = (1.0 - smoothstep(0.6, 1.0, d)) * 0.6;
+      
+      if (body <= 0.01 && glow <= 0.01) discard;
+      
+      vec3 glowColor = vColor * 0.7;
+      vec3 finalColor = mix(glowColor, vColor, body);
+      float finalAlpha = max(body, glow);
+      
+      gl_FragColor = vec4(finalColor, finalAlpha);
+    }
+  `
+});
+const particleGeo = new THREE.PlaneGeometry(1, 1);
+const particleMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+const eyeMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+const pupilMat = new THREE.MeshStandardMaterial({
+  color: 0x000000,
+  roughness: 0.05,
+  metalness: 0.1
+});
+
+const groundMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    uFogColor: { value: fogColor },
+    uGroundColor: { value: new THREE.Color(0xfafafa) },
+    uGridColor: { value: new THREE.Color(0xe5e5e5) },
+    uCenter: { value: new THREE.Vector2(0, 0) },
+    uRadius: { value: 900.0 },
+    uGridSize: { value: 20.0 },
+    uWorldWidth: { value: WORLD_WIDTH },
+    uWorldHeight: { value: WORLD_HEIGHT },
+  },
+  vertexShader: `
+    varying vec3 vWorldPosition;
+    void main() {
+      vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+      vWorldPosition = worldPosition.xyz;
+      gl_Position = projectionMatrix * viewMatrix * worldPosition;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uFogColor;
+    uniform vec3 uGroundColor;
+    uniform vec3 uGridColor;
+    uniform vec2 uCenter;
+    uniform float uRadius;
+    uniform float uGridSize;
+    uniform float uWorldWidth;
+    uniform float uWorldHeight;
+    varying vec3 vWorldPosition;
+    
+    void main() {
+      float gridX = step(0.95, fract(vWorldPosition.x / (uGridSize * 2.0)));
+      float gridY = step(0.95, fract(vWorldPosition.y / (uGridSize * 2.0)));
+      float isGrid = max(gridX, gridY);
+      
+      float isOut = 0.0;
+      if (vWorldPosition.x < 0.0 || vWorldPosition.x > uWorldWidth * uGridSize ||
+          vWorldPosition.y > 0.0 || vWorldPosition.y < -uWorldHeight * uGridSize) {
+          isOut = 1.0;
+      }
+                    
+      vec3 finalColor = mix(uGroundColor, uGridColor, isGrid);
+      if (isOut > 0.0) finalColor = vec3(0.0);
+      
+      float dist = distance(vWorldPosition.xy, uCenter);
+      float start = uRadius * 0.75;
+      float end = uRadius * 0.95;
+      
+      float fogAmount = smoothstep(start, end, dist);
+      gl_FragColor = vec4(mix(finalColor, uFogColor, fogAmount), 1.0);
+    }
+  `,
+});
+
+const hslToHex = (h: number, s: number, l: number) => {
+  h = ((h % 360) + 360) % 360;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number, k = (n + h / 30) % 12) => l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+  return (Math.round(f(0) * 255) << 16) + (Math.round(f(8) * 255) << 8) + Math.round(f(4) * 255);
+};
+
+const lerpColors = (c1: string, c2: string, f: number) => {
+  const r1 = parseInt(c1.substring(1, 3), 16);
+  const g1 = parseInt(c1.substring(3, 5), 16);
+  const b1 = parseInt(c1.substring(5, 7), 16);
+
+  const r2 = parseInt(c2.substring(1, 3), 16);
+  const g2 = parseInt(c2.substring(3, 5), 16);
+  const b2 = parseInt(c2.substring(5, 7), 16);
+
+  const r = Math.round(r1 + (r2 - r1) * f);
+  const g = Math.round(g1 + (g2 - g1) * f);
+  const b = Math.round(b1 + (b2 - b1) * f);
+
+  return (r << 16) + (g << 8) + b;
+};
+
+const parseColor = (colorStr: string) => parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
+
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  color: number;
+  size: number;
+  life: number;
+}
+
+interface GameSceneProps {
   gameStateRef: React.MutableRefObject<GameState | null>;
   lastGameStateRef: React.MutableRefObject<GameState | null>;
   lastUpdateTimeRef: React.MutableRefObject<number>;
+  stateQueueRef: React.MutableRefObject<{ time: number; state: GameState }[]>;
   myIdRef: React.MutableRefObject<string>;
   cameraModeRef: React.MutableRefObject<"2D" | "3D">;
   localInputRef: React.MutableRefObject<{ turn: number; accelerating: boolean }>;
+  particlesRef: React.MutableRefObject<Particle[]>;
+  controlModeRef: React.MutableRefObject<"keyboard" | "mouse">;
+  socketRef: React.MutableRefObject<WebSocket | null>;
 }
 
-export const GameRenderer: React.FC<GameRendererProps> = ({
+const GameScene = ({
   gameStateRef,
   lastGameStateRef,
   lastUpdateTimeRef,
+  stateQueueRef,
   myIdRef,
   cameraModeRef,
   localInputRef,
-}) => {
-  const pixiContainerRef = useRef<HTMLDivElement>(null);
-  const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
-  const fogOverlayRef = useRef<HTMLDivElement>(null);
-  const nicknameOverlayRef = useRef<HTMLDivElement>(null);
-  const appRef = useRef<PIXI.Application | null>(null);
-  const graphicsRef = useRef<PIXI.Graphics | null>(null);
-  const worldContainerRef = useRef<PIXI.Container | null>(null);
+  particlesRef,
+  controlModeRef,
+  socketRef
+}: GameSceneProps) => {
+  const { camera, scene } = useThree();
+  const foodMeshRef = useRef<THREE.InstancedMesh>(null);
+  const snakeMeshRef = useRef<THREE.Mesh>(null);
+  const snakeShadowMeshRef = useRef<THREE.Mesh>(null);
+  const bodyGeometryRef = useRef<THREE.BufferGeometry>(null);
+  const shadowGeometryRef = useRef<THREE.BufferGeometry>(null);
+  const eyeMeshRef = useRef<THREE.InstancedMesh>(null);
+  const pupilMeshRef = useRef<THREE.InstancedMesh>(null);
+  const particleMeshRef = useRef<THREE.InstancedMesh>(null);
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const colorObj = useMemo(() => new THREE.Color(), []);
+  
+  const textRefs = useRef<Record<string, any>>({});
+  const [activePlayerIds, setActivePlayerIds] = useState<{id: string, isMe: boolean, nickname: string}[]>([]);
+  const renderTimeRef = useRef<number | null>(null);
+  const cachedFoodMapRef = useRef(new Map<number, { x: number; y: number }>());
+  const lastSentTurnRef = useRef<number>(0);
+  const lastSentTimeRef = useRef<number>(0);
 
-  // Вспомогательная функция для HSL -> HEX (PixiJS использует числа 0xFFFFFF)
-  const hslToHex = (h: number, s: number, l: number) => {
-    h = ((h % 360) + 360) % 360;
-    const a = s * Math.min(l, 1 - l);
-    const f = (n: number, k = (n + h / 30) % 12) => l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return (Math.round(f(0) * 255) << 16) + (Math.round(f(8) * 255) << 8) + Math.round(f(4) * 255);
-  };
+  const bodyVerticesRef = useRef<number[]>([]);
+  const bodyUVsRef = useRef<number[]>([]);
+  const bodyColorsRef = useRef<number[]>([]);
+  const bodySnakeParamsRef = useRef<number[]>([]);
+  const bodyIndicesRef = useRef<number[]>([]);
 
-  useEffect(() => {
-    let animationFrameId: number;
-    let currentZoomOffset = 0;
-    let lastFrameTime = performance.now();
-    let localAngle: number | null = null;
-    let localCurrentTurn = 0;
-    let isDestroyed = false;
-    let cameraTransition = cameraModeRef.current === "3D" ? 1.0 : 0.0;
-    const nickElements: HTMLDivElement[] = [];
+  const shadowVerticesRef = useRef<number[]>([]);
+  const shadowUVsRef = useRef<number[]>([]);
+  const shadowColorsRef = useRef<number[]>([]);
+  const shadowSnakeParamsRef = useRef<number[]>([]);
+  const shadowIndicesRef = useRef<number[]>([]);
 
-    // --- Пул для еды ---
-    let foodTexture: PIXI.Texture | null = null;
-    let foodContainer: PIXI.Container | null = null;
-    const foodPool: { container: PIXI.Container; glow: PIXI.Sprite; shadow: PIXI.Sprite; main: PIXI.Sprite }[] = [];
+  // Camera transition state
+  const camState = useRef({
+    transition: cameraModeRef.current === '3D' ? 1.0 : 0.0,
+    currentZoomOffset: 0,
+    localAngle: null as number | null,
+    localCurrentTurn: 0,
+    lastFrameTime: performance.now(),
+    lastPlayerSyncTime: 0,
+    lastDeathCheckTime: 0,
+    currentFov: 50.0,
+  });
 
-    // --- Миникарта (Pixi) ---
-    let minimapApp: PIXI.Application | null = null;
-    let minimapG: PIXI.Graphics | null = null;
-    let minimapMask: PIXI.Graphics | null = null;
-    let minimapContent: PIXI.Container | null = null;
+  useFrame((r3fState) => {
+    const time = performance.now();
+    let dt = (time - camState.current.lastFrameTime) / 1000;
+    if (dt > 0.1) dt = 0.1;
+    camState.current.lastFrameTime = time;
 
-    const initPixi = async () => {
-      const app = new PIXI.Application();
-      await app.init({
-        width: window.innerWidth * 2,
-        height: window.innerHeight,
-        backgroundColor: 0x222222,
-        resolution: window.devicePixelRatio || 1,
-        autoDensity: true,
-        antialias: true, // Включаем сглаживание для красивых змеек
-      });
+    const queue = stateQueueRef.current;
+    const serverSimulation = gameStateRef.current?.server_simulation;
+    const serverTickRate = serverSimulation?.tick_rate || gameStateRef.current?.server_tick_rate || DEFAULT_SERVER_TICK_RATE;
+    const serverTickMs = 1000 / serverTickRate;
 
-      if (isDestroyed) {
-        app.destroy(true, { children: true, texture: true });
-        return;
+    let state: GameState | null = null;
+    let lastState: GameState | null = null;
+    let progress = 1.0;
+
+    if (queue.length >= 2) {
+      const targetDelay = 3.0 * serverTickMs;
+      if (renderTimeRef.current === null) {
+        renderTimeRef.current = queue[queue.length - 1].time - targetDelay;
       }
 
-      if (pixiContainerRef.current) {
-        pixiContainerRef.current.appendChild(app.canvas);
-        app.canvas.style.position = "absolute";
-        app.canvas.style.top = "0";
-        app.canvas.style.left = "0";
+      const newestTime = queue[queue.length - 1].time;
+      const oldestTime = queue[0].time;
+
+      const currentDelay = newestTime - renderTimeRef.current;
+      const error = currentDelay - targetDelay;
+      let playbackSpeed = 1.0 + error * 0.005;
+      playbackSpeed = Math.max(0.5, Math.min(1.5, playbackSpeed));
+
+      if (renderTimeRef.current < oldestTime) {
+        renderTimeRef.current = oldestTime;
       }
-      appRef.current = app;
-
-      const worldContainer = new PIXI.Container();
-      app.stage.addChild(worldContainer);
-      worldContainerRef.current = worldContainer;
-
-      // Контейнер для еды
-      foodContainer = new PIXI.Container();
-      worldContainer.addChild(foodContainer);
-
-      const g = new PIXI.Graphics();
-      worldContainer.addChild(g);
-      graphicsRef.current = g;
-
-      // Генерируем базовую текстуру для еды
-      const circleG = new PIXI.Graphics();
-      circleG.circle(0, 0, 64).fill({ color: 0xffffff });
-      foodTexture = app.renderer.generateTexture(circleG);
-
-      // Маска ограничивает рендеринг зоной карты [0,2000]×[0,2000],
-      // чтобы части змей не рендерились в сером фоне за её пределами
-      const mapMask = new PIXI.Graphics();
-      mapMask.rect(0, 0, 100 * 20, 100 * 20).fill(0xffffff);
-      worldContainer.addChild(mapMask);
-      worldContainer.mask = mapMask;
-
-      // Инициируем вызов цикла отрисовки
-      if (minimapCanvasRef.current) {
-        minimapApp = new PIXI.Application();
-        await minimapApp.init({
-          canvas: minimapCanvasRef.current,
-          width: 150,
-          height: 150,
-          backgroundAlpha: 0,
-          antialias: true,
-        });
-        
-        const bgG = new PIXI.Graphics();
-        minimapApp.stage.addChild(bgG);
-        
-        minimapContent = new PIXI.Container();
-        minimapApp.stage.addChild(minimapContent);
-        
-        minimapG = new PIXI.Graphics();
-        minimapContent.addChild(minimapG);
-        
-        minimapMask = new PIXI.Graphics();
-        minimapApp.stage.addChild(minimapMask);
-        minimapContent.mask = minimapMask;
+      if (renderTimeRef.current > newestTime) {
+        renderTimeRef.current = newestTime;
+        playbackSpeed = 0.0;
       }
 
-      lastFrameTime = performance.now();
-      animationFrameId = requestAnimationFrame(renderLoop);
-    };
+      renderTimeRef.current += dt * 1000 * playbackSpeed;
 
-    const drawGame = (dt: number) => {
-      if (!appRef.current || !graphicsRef.current || !worldContainerRef.current) return;
-      
-      const app = appRef.current;
-      const canvas = app.canvas;
-      const g = graphicsRef.current;
-      const worldContainer = worldContainerRef.current;
-      
-      const state = gameStateRef.current;
-      if (!state) return;
-      const serverSimulation = state.server_simulation;
-      const serverTickRate = serverSimulation?.tick_rate || state.server_tick_rate || DEFAULT_SERVER_TICK_RATE;
-      const serverTickMs = 1000 / serverTickRate;
-      const maxTurnSpeedDeg = serverSimulation?.max_turn_speed_deg_per_second ?? MAX_TURN_SPEED_DEG;
-      const minTurnRadius = serverSimulation?.min_turn_radius ?? MIN_TURN_RADIUS;
-      const turnRadiusThicknessCoeff = serverSimulation?.turn_radius_thickness_coeff ?? TURN_RADIUS_THICKNESS_COEFF;
-      const baseSpeedPerSecond = serverSimulation?.base_speed_per_second ?? BASE_SPEED_PER_SECOND;
-      const baseHeadRadius = state.server_snake?.base_head_radius ?? BASE_HEAD_RADIUS;
-      const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? SCORE_THICKNESS_SCALE;
-      const turnIdleSmoothing = serverSimulation?.turn_idle_smoothing_at_20hz ?? TURN_IDLE_SMOOTHING_AT_20HZ;
-      const turnActiveSmoothing = serverSimulation?.turn_active_smoothing_at_20hz ?? TURN_ACTIVE_SMOOTHING_AT_20HZ;
-      const lastState = lastGameStateRef.current;
-      const myId = myIdRef.current;
-
-      const WORLD_WIDTH = 100;
-      const WORLD_HEIGHT = 100;
-      const gridSize = 20;
-
-      const targetTransition = cameraModeRef.current === "3D" ? 1.0 : 0.0;
-      cameraTransition += (targetTransition - cameraTransition) * dt * 6.0;
-      if (Math.abs(targetTransition - cameraTransition) < 0.005) cameraTransition = targetTransition;
-
-      const containerW = pixiContainerRef.current?.clientWidth || window.innerWidth;
-      const containerH = pixiContainerRef.current?.clientHeight || window.innerHeight;
-      const currentLogicalWidth = containerW * 2;
-      const currentLogicalHeight = containerH;
-
-      // Масштабирование (Anti-Cheat & Responsiveness): 
-      // Фиксируем максимальную видимую область логических пикселей независимо от монитора
-      const BASE_VIEWPORT_WIDTH = 1600;
-      const BASE_VIEWPORT_HEIGHT = 800;
-      const resolutionScale = Math.max(containerW / BASE_VIEWPORT_WIDTH, containerH / BASE_VIEWPORT_HEIGHT);
-
-      if (app.renderer.screen.width !== currentLogicalWidth || app.renderer.screen.height !== currentLogicalHeight) {
-        app.renderer.resize(currentLogicalWidth, currentLogicalHeight);
-      }
-
-      const now = performance.now();
-      const progress = lastUpdateTimeRef.current === 0 ? 1 : Math.min((now - lastUpdateTimeRef.current) / serverTickMs, 2.0);
-
-      let camX = (WORLD_WIDTH * gridSize) / 2;
-      let camY = (WORLD_HEIGHT * gridSize) / 2;
-      let camAngle = 0;
-      const myPlayer = state.players[myId];
-
-      if (myPlayer) {
-        if (localAngle === null) {
-          localAngle = myPlayer.angle;
+      let indexA = 0;
+      for (let i = 0; i < queue.length - 1; i++) {
+        if (queue[i].time <= renderTimeRef.current && renderTimeRef.current <= queue[i + 1].time) {
+          indexA = i;
+          break;
         }
+        if (queue[i + 1].time > renderTimeRef.current) {
+          indexA = i;
+          break;
+        }
+      }
 
-        // Вычисляем скорость поворота с учётом толщины змейки
-        const myHeadRadius = baseHeadRadius + (myPlayer.score || 0) * scoreThicknessScale;
-        const effectiveRadius = minTurnRadius + myHeadRadius * turnRadiusThicknessCoeff;
-        const maxTurnFromRadius = baseSpeedPerSecond / Math.max(effectiveRadius, 0.01);
-        const maxTurnDegRad = maxTurnSpeedDeg * Math.PI / 180;
-        const turnPerTick = Math.min(maxTurnDegRad, maxTurnFromRadius) / serverTickRate;
+      const stateA = queue[indexA].state;
+      const stateB = queue[indexA + 1].state;
+      const timeA = queue[indexA].time;
+      const timeB = queue[indexA + 1].time;
 
-        const targetTurn = localInputRef.current.turn * turnPerTick;
-        if (localInputRef.current.turn === 0) {
-          localCurrentTurn += (0 - localCurrentTurn) * frameSmoothing(turnIdleSmoothing, dt);
+      lastState = stateA;
+      state = stateB;
+
+      const denom = timeB - timeA;
+      progress = denom > 0.001 ? Math.max(0.0, Math.min(1.0, (renderTimeRef.current - timeA) / denom)) : 1.0;
+    } else {
+      state = gameStateRef.current;
+      lastState = lastGameStateRef.current;
+      progress = lastUpdateTimeRef.current === 0 ? 1 : Math.min((time - lastUpdateTimeRef.current) / serverTickMs, 2.0);
+    }
+
+    if (!state) return;
+    const myId = myIdRef.current;
+    const myPlayer = state.players[myId];
+
+    if (controlModeRef.current === "mouse" && myPlayer) {
+      const pointer = r3fState.pointer;
+      const sensitivity = state.server_visual?.mouse_sensitivity ?? 1.0;
+      const targetDeflection = 0.5 * sensitivity;
+
+      let desiredTurnFactor = 0;
+      // Small deadzone of 0.02 (1% of screen half-width) to easily go perfectly straight
+      if (Math.abs(pointer.x) > 0.02) {
+        desiredTurnFactor = pointer.x / targetDeflection;
+        desiredTurnFactor = Math.max(-1.0, Math.min(1.0, desiredTurnFactor));
+      }
+
+      // Direct DOM update of the turn indicator elements for 60FPS fluid lag-free updates
+      const needleEl = document.getElementById("mouse-turn-needle");
+      const fillEl = document.getElementById("mouse-turn-fill");
+      if (needleEl) {
+        // desiredTurnFactor is from -1.0 to 1.0. Map it to percentage: -1.0 -> 0%, 0.0 -> 50%, 1.0 -> 100%.
+        const percent = (desiredTurnFactor + 1) * 50;
+        needleEl.style.left = `${percent}%`;
+        if (Math.abs(desiredTurnFactor) > 0.95) {
+          needleEl.style.backgroundColor = "#e63946";
+          needleEl.style.boxShadow = "0 0 10px #e63946";
+        } else if (Math.abs(desiredTurnFactor) > 0.02) {
+          needleEl.style.backgroundColor = "#3b82f6";
+          needleEl.style.boxShadow = "0 0 8px #3b82f6";
         } else {
-          localCurrentTurn += (targetTurn - localCurrentTurn) * frameSmoothing(turnActiveSmoothing, dt);
+          needleEl.style.backgroundColor = "#fafafa";
+          needleEl.style.boxShadow = "0 0 6px rgba(255,255,255,0.5)";
         }
-        localAngle += localCurrentTurn * dt * serverTickRate;
-
-        const angleDiff = Math.atan2(Math.sin(myPlayer.angle - localAngle), Math.cos(myPlayer.angle - localAngle));
-        if (Math.abs(angleDiff) > Math.PI / 2) {
-          localAngle = myPlayer.angle;
+      }
+      if (fillEl) {
+        // Show fill from center (50%) to the active deflection
+        if (desiredTurnFactor >= 0) {
+          fillEl.style.left = "50%";
+          fillEl.style.width = `${desiredTurnFactor * 50}%`;
+          fillEl.style.background = "linear-gradient(90deg, #3b82f6, #4ade80)";
         } else {
-          localAngle += angleDiff * 0.1; 
-        }
-
-        if (myPlayer.accelerating || localInputRef.current.accelerating) {
-          currentZoomOffset += 3.0 * dt; 
-          if (currentZoomOffset > 1) currentZoomOffset = 1;
-        } else {
-          currentZoomOffset -= 3.0 * dt;
-          if (currentZoomOffset < 0) currentZoomOffset = 0;
+          // Negative desiredTurnFactor: fill goes left from center
+          const widthPercent = -desiredTurnFactor * 50;
+          fillEl.style.left = `${50 - widthPercent}%`;
+          fillEl.style.width = `${widthPercent}%`;
+          fillEl.style.background = "linear-gradient(90deg, #f87171, #3b82f6)";
         }
       }
 
-      if (myPlayer && myPlayer.body.length > 0) {
-        const target = myPlayer.body[0];
-        let start = target;
-        const oldBody = lastState?.players[myId]?.body;
+      // Throttle updates: send at most 20 updates per second (every 50ms),
+      // or instantly when resetting back to 0.0 to prevent drifting.
+      const throttleInterval = 50; 
+      const isSignificantlyDifferent = Math.abs(desiredTurnFactor - lastSentTurnRef.current) > 0.06;
+      const isResetting = desiredTurnFactor === 0 && lastSentTurnRef.current !== 0;
 
-        if (oldBody && oldBody.length > 0) start = oldBody[0];
-        if (Math.abs(target.x - start.x) > 50 || Math.abs(target.y - start.y) > 50) start = target;
-
-        camX = (start.x + (target.x - start.x) * progress) * gridSize + gridSize / 2;
-        camY = (start.y + (target.y - start.y) * progress) * gridSize + gridSize / 2;
-        
-        camAngle = localAngle!;
-      }
-
-      const basePerspective = Math.max(800, containerH);
-      const currentPerspective = basePerspective - 500 * cameraTransition - currentZoomOffset * 80 * cameraTransition;
-      const currentScale = 1.0 + 0.4 * cameraTransition - currentZoomOffset * 0.2 * cameraTransition;
-      const currentTilt = (55 + currentZoomOffset * 7) * cameraTransition;
-
-      canvas.style.width = "200%";
-      canvas.style.height = "100%";
-      canvas.style.left = "-50%";
-      
-      if (cameraTransition > 0.01) {
-        canvas.style.transform = `perspective(${currentPerspective}px) rotateX(${currentTilt}deg) scale(${currentScale})`;
-        canvas.style.transformOrigin = "50% 75%";
-        if (fogOverlayRef.current) {
-          // Плавно опускаем туман сверху вниз (от -100% до 0%) синхронно с переходом
-          fogOverlayRef.current.style.transform = `translateY(${-100 * (1 - cameraTransition)}%)`;
-          fogOverlayRef.current.style.opacity = "1";
-        }
-      } else {
-        canvas.style.transform = "none";
-        if (fogOverlayRef.current) {
-          fogOverlayRef.current.style.transform = "translateY(-100%)";
-          fogOverlayRef.current.style.opacity = "0";
+      if (isResetting || (isSignificantlyDifferent && (time - lastSentTimeRef.current > throttleInterval))) {
+        const sock = socketRef.current;
+        if (sock && sock.readyState === WebSocket.OPEN) {
+          sock.send(`TURN:${desiredTurnFactor.toFixed(3)}`);
+          lastSentTurnRef.current = desiredTurnFactor;
+          lastSentTimeRef.current = time;
         }
       }
 
-      g.clear();
-      
-      const zoom2D = 1.0 - currentZoomOffset * 0.05;
-      const targetContainerScale = (zoom2D + (1 - zoom2D) * cameraTransition) * resolutionScale;
-      const targetContainerY = currentLogicalHeight / 2 + (currentLogicalHeight * 0.75 - currentLogicalHeight / 2) * cameraTransition;
-      
-      const baseRot = -camAngle - Math.PI / 2;
-      let targetZero = baseRot;
-      while (targetZero > Math.PI) targetZero -= Math.PI * 2;
-      while (targetZero < -Math.PI) targetZero += Math.PI * 2;
-      targetZero = baseRot - targetZero; // Вычисляем ближайший кратный ноль для плавного вращения без рывков
-      
-      worldContainer.position.set(currentLogicalWidth / 2, targetContainerY);
-      worldContainer.rotation = targetZero + (baseRot - targetZero) * cameraTransition;
-      worldContainer.scale.set(targetContainerScale, targetContainerScale);
-      worldContainer.pivot.set(camX, camY);
+      // Instantly update client-side prediction turn factor for 60FPS fluid locally predicted response
+      localInputRef.current.turn = desiredTurnFactor;
+    }
 
-      g.rect(0, 0, WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize).fill(0xfafafa);
-
-      const viewRadius = (1000 + 800 * cameraTransition) / zoom2D;
-      const minX = Math.max(0, camX - viewRadius);
-      const maxX = Math.min(WORLD_WIDTH * gridSize, camX + viewRadius);
-      const minY = Math.max(0, camY - viewRadius);
-      const maxY = Math.min(WORLD_HEIGHT * gridSize, camY + viewRadius);
-
-      g.beginPath();
-      let startCol = Math.floor(minX / gridSize);
-      if (startCol % 2 !== 0) startCol = Math.max(0, startCol - 1);
-      const endCol = Math.min(WORLD_WIDTH, Math.ceil(maxX / gridSize));
-      
-      let startRow = Math.floor(minY / gridSize);
-      if (startRow % 2 !== 0) startRow = Math.max(0, startRow - 1);
-      const endRow = Math.min(WORLD_HEIGHT, Math.ceil(maxY / gridSize));
-
-      for (let i = startCol; i <= endCol; i += 2) {
-        g.moveTo(i * gridSize, minY);
-        g.lineTo(i * gridSize, maxY);
+    // Update active players list for React rendering (throttled to 2Hz to prevent GC spikes and re-renders)
+    if (time - camState.current.lastPlayerSyncTime > 500) {
+      camState.current.lastPlayerSyncTime = time;
+      const currentActiveIds = Object.keys(state.players);
+      if (currentActiveIds.length !== activePlayerIds.length || !currentActiveIds.every(id => activePlayerIds.some((p: any) => p.id === id))) {
+        setActivePlayerIds(currentActiveIds.map(id => ({ id, isMe: id === myId, nickname: state.players[id]?.nickname || "Игрок" })));
       }
-      for (let i = startRow; i <= endRow; i += 2) {
-        g.moveTo(minX, i * gridSize);
-        g.lineTo(maxX, i * gridSize);
-      }
-      g.stroke({ width: 1, color: 0xe5e5e5 });
-
-      g.rect(0, 0, WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize).stroke({ width: 15, color: 0x64c8ff, alpha: 0.4 });
-      g.rect(0, 0, WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize).stroke({ width: 5, color: 0xc8f0ff, alpha: 0.8 });
-
-
-      const parseColor = (colorStr: string) => parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
-
-      if (state.foods && foodContainer && foodTexture) {
-        const foodsLen = state.foods.length;
-        let poolIdx = 0;
-        
-        for (let i = 0; i < foodsLen; i++) {
-          const food = state.foods[i];
-          const fx = food.x * gridSize + gridSize / 2;
-          const fy = food.y * gridSize + gridSize / 2;
-          if (fx < minX || fx > maxX || fy < minY || fy > maxY) continue;
-
-          const foodRadius = gridSize * (0.2 + Math.sqrt(food.value) * 0.1);
-          const mainColor = parseColor(food.color || "#ef4444");
-
-          let poolItem: typeof foodPool[0];
-          if (poolIdx < foodPool.length) {
-            poolItem = foodPool[poolIdx];
-            poolItem.container.visible = true;
-          } else {
-            const container = new PIXI.Container();
-            const glow = new PIXI.Sprite(foodTexture);
-            glow.anchor.set(0.5);
-            glow.alpha = 0.4;
-            const shadow = new PIXI.Sprite(foodTexture);
-            shadow.anchor.set(0.5);
-            shadow.tint = 0x000000;
-            shadow.alpha = 0.15;
-            const main = new PIXI.Sprite(foodTexture);
-            main.anchor.set(0.5);
-
-            container.addChild(glow, shadow, main);
-            foodContainer.addChild(container);
-            
-            poolItem = { container, glow, shadow, main };
-            foodPool.push(poolItem);
-          }
-
-          poolItem.container.position.set(fx, fy);
-          
-          // Базовый радиус текстуры - 64
-          const scale = foodRadius / 64;
-          
-          if (food.value >= 2) {
-            poolItem.glow.visible = true;
-            poolItem.glow.tint = mainColor;
-            poolItem.glow.scale.set(scale * 1.6);
-          } else {
-            poolItem.glow.visible = false;
-          }
-
-          poolItem.shadow.scale.set(scale * 1.2);
-          
-          poolItem.main.tint = mainColor;
-          poolItem.main.scale.set(scale);
-
-          poolIdx++;
-        }
-        
-        for (let i = poolIdx; i < foodPool.length; i++) {
-          foodPool[i].container.visible = false;
-        }
-      }
-
-
-
-      const playerHeadScreenPos: { id: string; sx: number; sy: number; radius: number }[] = [];
-
-      if (state.players) {
-        for (const playerId in state.players) {
-          const playerData = state.players[playerId];
-          const body = playerData.body;
-          const oldBody = lastState?.players[playerId]?.body;
-          const score = playerData.score || 0;
-
-          const snakeRadius = gridSize * (baseHeadRadius + score * scoreThicknessScale);
-
-          // Интерполируем позиции сегментов между тиками сервера
-          const logicalX: number[] = [];
-          const logicalY: number[] = [];
-
-          for (let i = 0; i < body.length; i++) {
-            const target = body[i];
-            let start = target;
-
-            if (oldBody) {
-              start = oldBody[i] || oldBody[oldBody.length - 1] || target;
-            }
-
-            if (Math.abs(target.x - start.x) > 50 || Math.abs(target.y - start.y) > 50) {
-              start = target;
-            }
-
-            logicalX.push(start.x + (target.x - start.x) * progress);
-            logicalY.push(start.y + (target.y - start.y) * progress);
-          }
-
-          // «Разворачиваем» координаты в непрерывный путь — убираем прыжки >WORLD/2
-          // между соседними сегментами. Путь может выйти за [0, WORLD], но маска
-          // worldContainer обрежет всё снаружи белого прямоугольника карты.
-          const uwLX: number[] = [logicalX[0]];
-          const uwLY: number[] = [logicalY[0]];
-          for (let i = 1; i < logicalX.length; i++) {
-            let dx = logicalX[i] - uwLX[i - 1];
-            let dy = logicalY[i] - uwLY[i - 1];
-            if (dx > WORLD_WIDTH / 2) dx -= WORLD_WIDTH;
-            else if (dx < -WORLD_WIDTH / 2) dx += WORLD_WIDTH;
-            if (dy > WORLD_HEIGHT / 2) dy -= WORLD_HEIGHT;
-            else if (dy < -WORLD_HEIGHT / 2) dy += WORLD_HEIGHT;
-            uwLX.push(uwLX[i - 1] + dx);
-            uwLY.push(uwLY[i - 1] + dy);
-          }
-          const uwPX = uwLX.map(x => x * gridSize + gridSize / 2);
-          const uwPY = uwLY.map(y => y * gridSize + gridSize / 2);
-
-          const headPx = uwPX[0];
-          const headPy = uwPY[0];
-
-          // Вычисляем экранную позицию головы для HTML-ника
-          {
-            const hdx = headPx - camX;
-            const hdy = headPy - camY;
-            const rot = worldContainer.rotation;
-            const cosR = Math.cos(rot);
-            const sinR = Math.sin(rot);
-            const sc = targetContainerScale;
-            const stX = (hdx * cosR - hdy * sinR) * sc + currentLogicalWidth / 2;
-            const stY = (hdx * sinR + hdy * cosR) * sc + targetContainerY;
-
-            const canvasOriginX = containerW;
-            const canvasOriginY = 0.75 * containerH;
-            const canvasOffX = -0.5 * containerW;
-            let sX: number, sY: number;
-
-            if (cameraTransition > 0.01) {
-              const tRad = currentTilt * Math.PI / 180;
-              const cdx = (stX - canvasOriginX) * currentScale;
-              const cdy = (stY - canvasOriginY) * currentScale;
-              const dyRot = cdy * Math.cos(tRad);
-              const dz = cdy * Math.sin(tRad);
-              const f = currentPerspective / (currentPerspective - dz);
-              sX = canvasOffX + canvasOriginX + cdx * f;
-              sY = canvasOriginY + dyRot * f;
-            } else {
-              sX = canvasOffX + stX;
-              sY = stY;
-            }
-
-            // Смещение вверх в экранном пространстве — ник "парит" над головой
-            const apparentRadius = snakeRadius * targetContainerScale;
-            sY -= apparentRadius + 14;
-
-            if (sX > -100 && sX < containerW + 100 && sY > -50 && sY < containerH + 50) {
-              playerHeadScreenPos.push({ id: playerId, sx: sX, sy: sY, radius: apparentRadius });
-            }
-          }
-
-          // Рисуем в 5 позициях: реальная + 4 «обёртки» по краям карты.
-          // Маска обрезает лишнее — итог: обе стороны телепорта видны одновременно.
-          const WG = WORLD_WIDTH * gridSize;
-          const HG = WORLD_HEIGHT * gridSize;
-          const wrapOffsets: [number, number][] = [[0, 0], [WG, 0], [-WG, 0], [0, HG], [0, -HG]];
-
-          for (const [ox, oy] of wrapOffsets) {
-            // 1. Тень (Ambient Occlusion)
-            if (uwPX.length > 1) {
-              g.beginPath();
-              g.moveTo(uwPX[0] + ox, uwPY[0] + oy);
-              for (let i = 1; i < uwPX.length; i++) {
-                g.lineTo(uwPX[i] + ox, uwPY[i] + oy);
-              }
-              g.stroke({ width: snakeRadius * 2.4, color: 0x000000, alpha: 0.15, cap: 'round', join: 'round' });
-            } else {
-              g.circle(uwPX[0] + ox, uwPY[0] + oy, snakeRadius * 1.2).fill({ color: 0x000000, alpha: 0.15 });
-            }
-
-            // 2. Тело змеи
-            const skin = playerData.skin;
-            const isMultiColor = skin === "zebra" || skin === "rainbow" || skin === "tiger" || skin === "cyberpunk";
-
-            if (!isMultiColor && uwPX.length > 1) {
-              // Сплошной цвет: весь хвост одним батчем
-              g.beginPath();
-              g.moveTo(uwPX[0] + ox, uwPY[0] + oy);
-              for (let i = 1; i < uwPX.length; i++) {
-                g.lineTo(uwPX[i] + ox, uwPY[i] + oy);
-              }
-              g.stroke({ width: snakeRadius * 2, color: parseColor(skin || "#22c55e"), cap: 'round', join: 'round' });
-            } else {
-              for (let i = 1; i < uwPX.length; i++) {
-                let segColor = parseColor(skin || "#22c55e");
-                if (skin === "zebra") segColor = i % 2 === 0 ? 0xe5e5e5 : 0x171717;
-                else if (skin === "rainbow") segColor = hslToHex(i * 15 - now / 20, 1, 0.5);
-                else if (skin === "tiger") segColor = i % 3 === 0 ? 0x171717 : 0xf97316;
-                else if (skin === "cyberpunk") segColor = i % 2 === 0 ? 0xff00ff : 0x00ffff;
-                g.beginPath();
-                g.moveTo(uwPX[i - 1] + ox, uwPY[i - 1] + oy);
-                g.lineTo(uwPX[i] + ox, uwPY[i] + oy);
-                g.stroke({ width: snakeRadius * 2, color: segColor, cap: 'round', join: 'round' });
-              }
-            }
-
-            if (body.length === 1) {
-              let segColor = parseColor(skin || "#22c55e");
-              if (skin === "zebra") segColor = 0xe5e5e5;
-              else if (skin === "rainbow") segColor = hslToHex(-now / 20, 1, 0.5);
-              else if (skin === "tiger") segColor = 0xf97316;
-              else if (skin === "cyberpunk") segColor = 0xff00ff;
-              g.circle(uwPX[0] + ox, uwPY[0] + oy, snakeRadius).fill(segColor);
-            }
-
-            // 3. Глаза (рисуем в каждой «обёртке» для корректности на краях карты)
-            const eyeOffset = snakeRadius * 0.6;
-            let currentAngle = 0;
-
-            if (playerId === myId && localAngle !== null) {
-              currentAngle = localAngle;
-            } else {
-              const targetAngle = playerData.angle;
-              const startAngle = lastState?.players[playerId]?.angle ?? targetAngle;
-              currentAngle = startAngle + (targetAngle - startAngle) * progress;
-            }
-
-            const e1x = headPx + ox + Math.cos(currentAngle - Math.PI / 2.5) * eyeOffset;
-            const e1y = headPy + oy + Math.sin(currentAngle - Math.PI / 2.5) * eyeOffset;
-            const e2x = headPx + ox + Math.cos(currentAngle + Math.PI / 2.5) * eyeOffset;
-            const e2y = headPy + oy + Math.sin(currentAngle + Math.PI / 2.5) * eyeOffset;
-            const px1 = Math.cos(currentAngle) * (snakeRadius * 0.3);
-            const py1 = Math.sin(currentAngle) * (snakeRadius * 0.3);
-
-            const eyeSize = snakeRadius * 0.4;
-            g.circle(e1x, e1y, eyeSize).fill(0xffffff);
-            g.circle(e2x, e2y, eyeSize).fill(0xffffff);
-
-            const pupilSize = snakeRadius * 0.2;
-            g.circle(e1x + px1, e1y + py1, pupilSize).fill(0x000000);
-            g.circle(e2x + px1, e2y + py1, pupilSize).fill(0x000000);
-          }
-        }
-      }
-
-      // 4. HTML-ники над головами (вне canvas — не подвержены CSS 3D-тилту)
-      if (nicknameOverlayRef.current) {
-        const overlay = nicknameOverlayRef.current;
-        let nickIdx = 0;
-        for (const ph of playerHeadScreenPos) {
-          let el: HTMLDivElement;
-          if (nickIdx < nickElements.length) {
-            el = nickElements[nickIdx];
-            el.style.display = '';
-          } else {
-            el = document.createElement('div');
-            Object.assign(el.style, {
-              position: 'absolute', pointerEvents: 'none', whiteSpace: 'nowrap',
-              fontFamily: 'Arial, Helvetica, sans-serif', fontWeight: 'bold',
-              transform: 'translate(-50%, -100%)',
-              textShadow: '0 0 3px #000, 0 0 3px #000, 0 1px 5px rgba(0,0,0,0.7)',
-              color: '#fff', letterSpacing: '0.5px',
-            });
-            overlay.appendChild(el);
-            nickElements.push(el);
-          }
-          const nickname = ph.id.split('_').slice(0, -1).join('_') || ph.id;
-          if (el.textContent !== nickname) el.textContent = nickname;
-          const fontSize = Math.max(11, Math.min(13 + ph.radius * 0.15, 18));
-          el.style.fontSize = fontSize + 'px';
-          el.style.opacity = ph.id === myId ? '0.4' : '0.6';
-          el.style.left = ph.sx + 'px';
-          el.style.top = ph.sy + 'px';
-          nickIdx++;
-        }
-        for (let i = nickIdx; i < nickElements.length; i++) {
-          nickElements[i].style.display = 'none';
-        }
-      }
-
-      if (state.players && state.foods && minimapApp && minimapG && minimapContent && minimapMask) {
-        const mapSize = 150;
-        const mapScale = mapSize / WORLD_WIDTH;
-
-        minimapG.clear();
-        const bgG = minimapApp.stage.children[0] as PIXI.Graphics;
-        bgG.clear();
-        minimapMask.clear();
-
-        if (cameraTransition > 0.5) {
-          const mapCenterX = mapSize / 2;
-          const mapCenterY = mapSize / 2;
-          const mapRadius = mapSize / 2;
-
-          bgG.circle(mapCenterX, mapCenterY, mapRadius).fill({ color: 0x000000, alpha: 0.7 }).stroke({ width: 2, color: 0xffffff, alpha: 0.2 });
-          minimapMask.circle(mapCenterX, mapCenterY, mapRadius).fill(0xffffff);
-          
-          minimapContent.position.set(mapCenterX, mapCenterY);
-          minimapContent.rotation = -camAngle - Math.PI / 2;
-          
-          const mapCamX = (camX / gridSize) * mapScale;
-          const mapCamY = (camY / gridSize) * mapScale;
-          minimapContent.pivot.set(mapCamX, mapCamY);
-        } else {
-          bgG.rect(0, 0, mapSize, mapSize).fill({ color: 0x000000, alpha: 0.7 }).stroke({ width: 2, color: 0xffffff, alpha: 0.2 });
-          minimapMask.rect(0, 0, mapSize, mapSize).fill(0xffffff);
-          
-          minimapContent.position.set(0, 0);
-          minimapContent.rotation = 0;
-          minimapContent.pivot.set(0, 0);
-        }
-
-        const parseColor = (colorStr: string) => parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
-        
-        const foodsLen = state.foods.length;
-        for (let i = 0; i < foodsLen; i++) {
-          const food = state.foods[i];
-          let dotSize = 2;
-          if (food.value >= 50) dotSize = 5;
-          else if (food.value >= 20) dotSize = 4;
-          else if (food.value >= 10) dotSize = 3.5;
-          else if (food.value >= 5) dotSize = 3;
-          else if (food.value >= 2) dotSize = 2.5;
-          
-          minimapG.rect(food.x * mapScale - dotSize / 2, food.y * mapScale - dotSize / 2, dotSize, dotSize)
-                  .fill({ color: parseColor(food.color || "#ef4444"), alpha: food.value >= 2 ? 0.8 : 0.5 });
-        }
-
-        for (const playerId in state.players) {
-          const playerData = state.players[playerId];
-          if (playerData.body.length === 0) continue;
-          const head = playerData.body[0];
-          let headColor = playerData.skin || "#22c55e";
-          if (headColor === "zebra") headColor = "#ffffff";
-          else if (headColor === "rainbow") headColor = "#a855f7";
-          else if (headColor === "tiger") headColor = "#f97316";
-          else if (headColor === "cyberpunk") headColor = "#0ff";
-
-          minimapG.circle(head.x * mapScale, head.y * mapScale, playerId === myId ? 4 : 2)
-                  .fill({ color: parseColor(headColor) });
-        }
-      }
-    };
-
-    const renderLoop = (time: number) => {
-      let dt = (time - lastFrameTime) / 1000;
-      if (dt > 0.1) dt = 0.1;
-      
-      lastFrameTime = time;
-      drawGame(dt);
-      if (!isDestroyed) {
-        animationFrameId = requestAnimationFrame(renderLoop);
-      }
-    };
+    }
+    const maxTurnSpeedDeg = serverSimulation?.max_turn_speed_deg_per_second ?? MAX_TURN_SPEED_DEG;
+    const minTurnRadius = serverSimulation?.min_turn_radius ?? MIN_TURN_RADIUS;
+    const turnRadiusThicknessCoeff = serverSimulation?.turn_radius_thickness_coeff ?? TURN_RADIUS_THICKNESS_COEFF;
+    const baseSpeedPerSecond = serverSimulation?.base_speed_per_second ?? BASE_SPEED_PER_SECOND;
+    const baseHeadRadius = state.server_snake?.base_head_radius ?? BASE_HEAD_RADIUS;
+    const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? SCORE_THICKNESS_SCALE;
+    const cameraZoomOutCoeff = state.server_snake?.camera_zoom_out_coeff ?? CAMERA_ZOOM_OUT_COEFF;
     
-    initPixi();
+    const visual = state.server_visual;
+    const minFogRadius = visual?.min_fog_radius ?? MIN_FOG_RADIUS;
+    const fogExpansionCoeff = visual?.fog_score_expansion_coeff ?? FOG_SCORE_EXPANSION_COEFF;
+    const fogRadiusWorld = minFogRadius + (myPlayer?.score || 0) * fogExpansionCoeff;
+    const cameraBaseZoom = visual?.camera_base_zoom ?? 1.0;
+    const cameraPitchAngle = visual?.camera_pitch_angle ?? 55.0;
+    const cameraZHeightOffset = visual?.camera_z_height ?? 0.0;
+    const cameraYOffset = visual?.camera_y_offset ?? 0.25;
 
-    return () => {
-      isDestroyed = true;
-      cancelAnimationFrame(animationFrameId);
-      if (appRef.current) {
-        appRef.current.destroy(true, { children: true, texture: true });
-        appRef.current = null;
+    const targetTransition = cameraModeRef.current === '3D' ? 1.0 : 0.0;
+    camState.current.transition += (targetTransition - camState.current.transition) * dt * 6.0;
+    if (Math.abs(targetTransition - camState.current.transition) < 0.005) camState.current.transition = targetTransition;
+    const cameraTransition = camState.current.transition;
+    let camX = (WORLD_WIDTH * gridSize) / 2;
+    let camY = -(WORLD_HEIGHT * gridSize) / 2;
+    let camAngle = 0;
+
+    if (myPlayer) {
+      if (camState.current.localAngle === null) {
+        camState.current.localAngle = myPlayer.angle;
       }
-      if (foodTexture) {
-        foodTexture.destroy(true);
-        foodTexture = null;
-      }
-      // Очищаем HTML-ники
-      nickElements.forEach(el => el.remove());
-      nickElements.length = 0;
       
-      if (minimapApp) {
-        minimapApp.destroy(true, { children: true });
-        minimapApp = null;
+      const myHeadRadius = baseHeadRadius + (myPlayer.score || 0) * scoreThicknessScale;
+      const effectiveRadius = minTurnRadius + myHeadRadius * turnRadiusThicknessCoeff;
+      const maxTurnFromRadius = baseSpeedPerSecond / Math.max(effectiveRadius, 0.01);
+      const turnPerTick = Math.min(maxTurnSpeedDeg * Math.PI / 180, maxTurnFromRadius) / serverTickRate;
+
+      const targetTurn = localInputRef.current.turn * turnPerTick;
+      if (controlModeRef.current === "mouse") {
+        camState.current.localCurrentTurn = targetTurn; // Instant response in mouse mode!
+      } else {
+        const smoothing = localInputRef.current.turn === 0 ? (serverSimulation?.turn_idle_smoothing_at_20hz ?? TURN_IDLE_SMOOTHING_AT_20HZ) : (serverSimulation?.turn_active_smoothing_at_20hz ?? TURN_ACTIVE_SMOOTHING_AT_20HZ);
+        camState.current.localCurrentTurn += (targetTurn - camState.current.localCurrentTurn) * frameSmoothing(smoothing, dt);
       }
+      camState.current.localAngle += camState.current.localCurrentTurn * dt * serverTickRate;
+
+      const angleDiff = Math.atan2(Math.sin(myPlayer.angle - camState.current.localAngle), Math.cos(myPlayer.angle - camState.current.localAngle));
+      if (Math.abs(angleDiff) > Math.PI / 2) {
+        camState.current.localAngle = myPlayer.angle;
+      } else {
+        camState.current.localAngle += angleDiff * 0.1;
+      }
+
+      if (myPlayer.accelerating || localInputRef.current.accelerating) {
+        camState.current.currentZoomOffset = Math.min(1, camState.current.currentZoomOffset + 3.0 * dt);
+      } else {
+        camState.current.currentZoomOffset = Math.max(0, camState.current.currentZoomOffset - 3.0 * dt);
+      }
+
+      const target = myPlayer.body[0];
+      let start = target;
+      const oldBody = lastState?.players[myId]?.body;
+      if (oldBody && oldBody.length > 0) start = oldBody[0];
+      if (Math.abs(target.x - start.x) > 50 || Math.abs(target.y - start.y) > 50) start = target;
+
+      camX = (start.x + (target.x - start.x) * progress) * gridSize + gridSize / 2;
+      camY = -((start.y + (target.y - start.y) * progress) * gridSize + gridSize / 2);
+      camAngle = camState.current.localAngle;
+    }
+
+    // UPDATE CAMERA
+    const zoom2D = 1.0 - camState.current.currentZoomOffset * 0.05;
+    const scoreZoomFactor = 1.0 / (1.0 + (myPlayer?.score || 0) * cameraZoomOutCoeff);
+    const globalScale = (zoom2D + (1 - zoom2D) * cameraTransition) * scoreZoomFactor * cameraBaseZoom;
+    
+    // In three.js FOV affects visual scale. Let's fix FOV to 50 and use height to zoom.
+    const distance = (1500 / globalScale) + cameraZHeightOffset; 
+    const pitch = (cameraPitchAngle * Math.PI / 180) * cameraTransition;
+    
+    const trueCamAngle = -camAngle;
+    
+    // Orbit camera backwards based on pitch to keep the snake in the center of view
+    const dirB_x = -Math.cos(trueCamAngle);
+    const dirB_y = -Math.sin(trueCamAngle);
+    
+    const orbitCamX = camX + dirB_x * distance * Math.sin(pitch);
+    const orbitCamY = camY + dirB_y * distance * Math.sin(pitch);
+    const orbitCamZ = distance * Math.cos(pitch);
+
+    // Offset camera forwards along the ground to shift snake lower on the screen
+    const offsetDistance = 1000 * cameraYOffset * cameraTransition / globalScale;
+    const finalCamX = orbitCamX + Math.cos(trueCamAngle) * offsetDistance;
+    const finalCamY = orbitCamY + Math.sin(trueCamAngle) * offsetDistance;
+
+    camera.position.set(finalCamX, finalCamY, orbitCamZ);
+    camera.rotation.order = 'ZYX';
+    camera.rotation.set(0, 0, trueCamAngle - Math.PI / 2);
+    camera.rotateX(pitch);
+    
+    // FOV ACCELERATION EFFECT
+    const targetFov = myPlayer?.accelerating ? 70.0 : 50.0;
+    camState.current.currentFov += (targetFov - camState.current.currentFov) * 5.0 * dt;
+    const pCam = camera as THREE.PerspectiveCamera;
+    if (pCam.isPerspectiveCamera) {
+      pCam.fov = camState.current.currentFov;
+    }
+    camera.updateProjectionMatrix();
+
+    // UPDATE GROUND FOG SHADER
+    groundMaterial.uniforms.uCenter.value.set(camX, camY);
+    groundMaterial.uniforms.uRadius.value = fogRadiusWorld;
+
+    // UPDATE SNAKE & SHADOW UNIFORMS
+    snakeMat.uniforms.uTime.value = time;
+    snakeMat.uniforms.uCenter.value.set(camX, camY);
+    snakeMat.uniforms.uRadius.value = fogRadiusWorld;
+
+    shadowMat.uniforms.uCenter.value.set(camX, camY);
+    shadowMat.uniforms.uRadius.value = fogRadiusWorld;
+
+    const calcFogAmount = (wx: number, wy: number) => {
+      const dist = Math.sqrt((wx - camX)**2 + (wy - camY)**2);
+      const start = fogRadiusWorld * 0.75;
+      const end = fogRadiusWorld * 0.95;
+      if (dist >= end) return 1.0;
+      if (dist <= start) return 0.0;
+      return (dist - start) / (end - start);
     };
-  }, [gameStateRef, lastGameStateRef, lastUpdateTimeRef, myIdRef, cameraModeRef, localInputRef]);
+
+    // UPDATE FOODS
+    const foods = state.foods || [];
+    if (foodMeshRef.current) {
+      let count = 0;
+      
+      const lastFoodMap = cachedFoodMapRef.current;
+      lastFoodMap.clear();
+      if (lastState && lastState.foods) {
+        for (let i = 0; i < lastState.foods.length; i++) {
+          const lf = lastState.foods[i];
+          lastFoodMap.set(lf.id, { x: lf.x, y: lf.y });
+        }
+      }
+
+      for (let i = 0; i < foods.length; i++) {
+        const food = foods[i];
+        
+        let fx = food.x;
+        let fy = food.y;
+        
+        const lf = lastFoodMap.get(food.id);
+        if (lf) {
+          let dx = food.x - lf.x;
+          let dy = food.y - lf.y;
+          if (Math.abs(dx) > WORLD_WIDTH / 2) {
+            fx = food.x;
+          } else {
+            fx = lf.x + dx * progress;
+          }
+          if (Math.abs(dy) > WORLD_HEIGHT / 2) {
+            fy = food.y;
+          } else {
+            fy = lf.y + dy * progress;
+          }
+        }
+
+        const foodRadius = (0.2 + Math.sqrt(food.value) * 0.1) * gridSize;
+        const wx = fx * gridSize + gridSize/2;
+        const wy = -(fy * gridSize + gridSize/2);
+        
+        colorObj.set(parseColor(food.color || '#ef4444'));
+        const fogAmt = calcFogAmount(wx, wy);
+        if (fogAmt > 0) colorObj.lerp(fogColor, fogAmt);
+
+        // Combined Food Body and Glow via shader (scaled by 1.666)
+        dummy.position.set(wx, wy, 0.1);
+        dummy.scale.setScalar(foodRadius * 1.666);
+        dummy.updateMatrix();
+        foodMeshRef.current.setMatrixAt(count, dummy.matrix);
+        foodMeshRef.current.setColorAt(count, colorObj);
+        
+        count++;
+      }
+      foodMeshRef.current.count = count;
+      foodMeshRef.current.instanceMatrix.needsUpdate = true;
+      if (foodMeshRef.current.instanceColor) foodMeshRef.current.instanceColor.needsUpdate = true;
+    }
+
+    // UPDATE SNAKES
+    if (bodyGeometryRef.current && shadowGeometryRef.current) {
+      const bodyGeom = bodyGeometryRef.current;
+      const shadowGeom = shadowGeometryRef.current;
+
+      const bodyVertices = bodyVerticesRef.current;
+      const bodyUVs = bodyUVsRef.current;
+      const bodyColors = bodyColorsRef.current;
+      const bodySnakeParams = bodySnakeParamsRef.current;
+      const bodyIndices = bodyIndicesRef.current;
+
+      const shadowVertices = shadowVerticesRef.current;
+      const shadowUVs = shadowUVsRef.current;
+      const shadowColors = shadowColorsRef.current;
+      const shadowSnakeParams = shadowSnakeParamsRef.current;
+      const shadowIndices = shadowIndicesRef.current;
+
+      bodyVertices.length = 0;
+      bodyUVs.length = 0;
+      bodyColors.length = 0;
+      bodySnakeParams.length = 0;
+      bodyIndices.length = 0;
+
+      shadowVertices.length = 0;
+      shadowUVs.length = 0;
+      shadowColors.length = 0;
+      shadowSnakeParams.length = 0;
+      shadowIndices.length = 0;
+
+      let globalVertexCount = 0;
+      let shadowVertexCount = 0;
+
+      for (const playerId in state.players) {
+        const p = state.players[playerId];
+        const oldP = lastState?.players[playerId];
+        if (!p.body || p.body.length === 0) continue;
+
+        const score = p.score || 0;
+        const snakeRadius = (baseHeadRadius + score * scoreThicknessScale) * gridSize;
+        const skin = p.skin || '#22c55e';
+
+        const logicalX: number[] = [];
+        const logicalY: number[] = [];
+        for (let i = 0; i < p.body.length; i++) {
+          const target = p.body[i];
+          let start = target;
+          if (oldP && oldP.body) {
+            start = oldP.body[i] || oldP.body[oldP.body.length - 1] || target;
+          }
+          if (Math.abs(target.x - start.x) > 50 || Math.abs(target.y - start.y) > 50) start = target;
+          logicalX.push(start.x + (target.x - start.x) * progress);
+          logicalY.push(start.y + (target.y - start.y) * progress);
+        }
+
+        const uwLX = [logicalX[0]];
+        const uwLY = [logicalY[0]];
+        for (let i = 1; i < logicalX.length; i++) {
+          let dx = logicalX[i] - uwLX[i - 1];
+          let dy = logicalY[i] - uwLY[i - 1];
+          if (dx > WORLD_WIDTH / 2) dx -= WORLD_WIDTH;
+          else if (dx < -WORLD_WIDTH / 2) dx += WORLD_WIDTH;
+          if (dy > WORLD_HEIGHT / 2) dy -= WORLD_HEIGHT;
+          else if (dy < -WORLD_HEIGHT / 2) dy += WORLD_HEIGHT;
+          uwLX.push(uwLX[i - 1] + dx);
+          uwLY.push(uwLY[i - 1] + dy);
+        }
+
+        const density = 4;
+        const smoothPoints: { x: number; y: number; coord: number }[] = [];
+
+        // Build continuous path points (from tail to head)
+        for (let i = uwLX.length - 1; i >= 0; i--) {
+          const steps = i === uwLX.length - 1 ? 1 : density;
+          for (let k = steps - 1; k >= 0; k--) {
+            const t = k / density;
+            
+            let sx = uwLX[i];
+            let sy = uwLY[i];
+            if (i < uwLX.length - 1) {
+              sx = uwLX[i] + (uwLX[i+1] - uwLX[i]) * t;
+              sy = uwLY[i] + (uwLY[i+1] - uwLY[i]) * t;
+            }
+            
+            const wx = sx * gridSize + gridSize/2;
+            const wy = -(sy * gridSize + gridSize/2);
+            smoothPoints.push({ x: wx, y: wy, coord: i + t });
+          }
+        }
+
+        const numPoints = smoothPoints.length;
+        if (numPoints < 2) continue;
+
+        // Calculate cumulative physical arc length (in pixels) for stable, uniform texturing
+        const distances: number[] = [0];
+        for (let j = 1; j < numPoints; j++) {
+          const dx = smoothPoints[j].x - smoothPoints[j - 1].x;
+          const dy = smoothPoints[j].y - smoothPoints[j - 1].y;
+          const segmentDist = Math.sqrt(dx * dx + dy * dy);
+          distances.push(distances[j - 1] + segmentDist);
+        }
+
+        // Calculate raw normals at each point along the snake
+        const rawNormalsX: number[] = [];
+        const rawNormalsY: number[] = [];
+        for (let j = 0; j < numPoints; j++) {
+          let dx = 0;
+          let dy = 0;
+          if (j === 0) {
+            dx = smoothPoints[1].x - smoothPoints[0].x;
+            dy = smoothPoints[1].y - smoothPoints[0].y;
+          } else if (j === numPoints - 1) {
+            dx = smoothPoints[numPoints - 1].x - smoothPoints[numPoints - 2].x;
+            dy = smoothPoints[numPoints - 1].y - smoothPoints[numPoints - 2].y;
+          } else {
+            dx = smoothPoints[j + 1].x - smoothPoints[j - 1].x;
+            dy = smoothPoints[j + 1].y - smoothPoints[j - 1].y;
+          }
+          let len = Math.sqrt(dx * dx + dy * dy);
+          if (len < 0.001) {
+            rawNormalsX.push(j > 0 ? rawNormalsX[j - 1] : 1);
+            rawNormalsY.push(j > 0 ? rawNormalsY[j - 1] : 0);
+          } else {
+            rawNormalsX.push(-dy / len);
+            rawNormalsY.push(dx / len);
+          }
+        }
+
+        // Apply a 5-tap moving window average box filter to perfectly smooth the normals
+        const nx: number[] = [];
+        const ny: number[] = [];
+        for (let j = 0; j < numPoints; j++) {
+          let sumX = 0;
+          let sumY = 0;
+          for (let w = -2; w <= 2; w++) {
+            const idx = j + w;
+            if (idx >= 0 && idx < numPoints) {
+              sumX += rawNormalsX[idx];
+              sumY += rawNormalsY[idx];
+            }
+          }
+          let len = Math.sqrt(sumX * sumX + sumY * sumY);
+          if (len < 0.001) {
+            nx.push(rawNormalsX[j]);
+            ny.push(rawNormalsY[j]);
+          } else {
+            nx.push(sumX / len);
+            ny.push(sumY / len);
+          }
+        }
+
+        // Parse skin encoding color
+        let skinR = 0;
+        let skinG = 0;
+        let skinB = 0;
+
+        if (skin === 'zebra') {
+          skinR = 2.0;
+        } else if (skin === 'tiger') {
+          skinR = 3.0;
+        } else if (skin === 'cyberpunk') {
+          skinR = 4.0;
+        } else if (skin === 'rainbow') {
+          skinR = 5.0;
+        } else {
+          const c = parseColor(skin);
+          skinR = ((c >> 16) & 255) / 255;
+          skinG = ((c >> 8) & 255) / 255;
+          skinB = (c & 255) / 255;
+        }
+
+        // Calculate segment directions for cap extensions
+        // 1. Tail direction (from smoothPoints[1] to smoothPoints[0])
+        const dxTail = smoothPoints[0].x - smoothPoints[1].x;
+        const dyTail = smoothPoints[0].y - smoothPoints[1].y;
+        const lenTail = Math.sqrt(dxTail * dxTail + dyTail * dyTail);
+        let dirTailX = 0;
+        let dirTailY = 0;
+        if (lenTail > 0.001) {
+          dirTailX = dxTail / lenTail;
+          dirTailY = dyTail / lenTail;
+        } else {
+          dirTailX = -ny[0];
+          dirTailY = nx[0];
+        }
+
+        // 2. Head direction (from smoothPoints[N-2] to smoothPoints[N-1])
+        const dxHead = smoothPoints[numPoints - 1].x - smoothPoints[numPoints - 2].x;
+        const dyHead = smoothPoints[numPoints - 1].y - smoothPoints[numPoints - 2].y;
+        const lenHead = Math.sqrt(dxHead * dxHead + dyHead * dyHead);
+        let dirHeadX = 0;
+        let dirHeadY = 0;
+        if (lenHead > 0.001) {
+          dirHeadX = dxHead / lenHead;
+          dirHeadY = dyHead / lenHead;
+        } else {
+          dirHeadX = ny[numPoints - 1];
+          dirHeadY = -nx[numPoints - 1];
+        }
+
+        const shadowRadius = snakeRadius * 1.8;
+
+        // Loop over wrapOffsets to handle map boundaries dynamically
+        for (const [ox, oy] of wrapOffsets) {
+          const headX = smoothPoints[smoothPoints.length - 1].x + ox;
+          const headY = smoothPoints[smoothPoints.length - 1].y + oy;
+          const distToCam = Math.sqrt((headX - camX) ** 2 + (headY - camY) ** 2);
+          if (distToCam > fogRadiusWorld * 1.5) continue; // Skip offscreen wrapped ribbons for maximum performance
+
+          const L = distances[numPoints - 1];
+
+          // 1. BUILD BODY MESH WITH PERFECT FLAT ENDS AND DOME GEOMETRY
+          const pxTailExtBody = smoothPoints[0].x + dirTailX * snakeRadius;
+          const pyTailExtBody = smoothPoints[0].y + dirTailY * snakeRadius;
+          const pxHeadExtBody = smoothPoints[numPoints - 1].x + dirHeadX * snakeRadius;
+          const pyHeadExtBody = smoothPoints[numPoints - 1].y + dirHeadY * snakeRadius;
+
+          const bodyNodes = [
+            { px: pxTailExtBody, py: pyTailExtBody, snx: nx[0], sny: ny[0], uvY: -snakeRadius },
+            ...smoothPoints.map((p, j) => ({ px: p.x, py: p.y, snx: nx[j], sny: ny[j], uvY: distances[j] })),
+            { px: pxHeadExtBody, py: pyHeadExtBody, snx: nx[numPoints - 1], sny: ny[numPoints - 1], uvY: L + snakeRadius }
+          ];
+
+          const bodyStartIdx = globalVertexCount;
+          const zOffset = 0.1;
+
+          for (const node of bodyNodes) {
+            const px = node.px + ox;
+            const py = node.py + oy;
+            const activeRadius = snakeRadius;
+
+            bodyVertices.push(px + node.snx * activeRadius, py + node.sny * activeRadius, zOffset);
+            bodyUVs.push(0.0, node.uvY);
+            bodyColors.push(skinR, skinG, skinB);
+            bodySnakeParams.push(snakeRadius, L);
+
+            bodyVertices.push(px - node.snx * activeRadius, py - node.sny * activeRadius, zOffset);
+            bodyUVs.push(1.0, node.uvY);
+            bodyColors.push(skinR, skinG, skinB);
+            bodySnakeParams.push(snakeRadius, L);
+
+            globalVertexCount += 2;
+          }
+
+          const numNodes = bodyNodes.length;
+          for (let j = 0; j < numNodes - 1; j++) {
+            const v0 = bodyStartIdx + j * 2;
+            const v1 = bodyStartIdx + j * 2 + 1;
+            const v2 = bodyStartIdx + (j + 1) * 2;
+            const v3 = bodyStartIdx + (j + 1) * 2 + 1;
+
+            bodyIndices.push(v0, v1, v2);
+            bodyIndices.push(v1, v3, v2);
+          }
+
+          // 2. BUILD SHADOW MESH WITH PERFECT FLAT ENDS AND DOME GEOMETRY
+          const pxTailExtShadow = smoothPoints[0].x + dirTailX * shadowRadius;
+          const pyTailExtShadow = smoothPoints[0].y + dirTailY * shadowRadius;
+          const pxHeadExtShadow = smoothPoints[numPoints - 1].x + dirHeadX * shadowRadius;
+          const pyHeadExtShadow = smoothPoints[numPoints - 1].y + dirHeadY * shadowRadius;
+
+          const shadowNodes = [
+            { px: pxTailExtShadow, py: pyTailExtShadow, snx: nx[0], sny: ny[0], uvY: -shadowRadius },
+            ...smoothPoints.map((p, j) => ({ px: p.x, py: p.y, snx: nx[j], sny: ny[j], uvY: distances[j] })),
+            { px: pxHeadExtShadow, py: pyHeadExtShadow, snx: nx[numPoints - 1], sny: ny[numPoints - 1], uvY: L + shadowRadius }
+          ];
+
+          const shadowStartIdx = shadowVertexCount;
+          const sz = 0.05;
+
+          for (const node of shadowNodes) {
+            const px = node.px + ox;
+            const py = node.py + oy;
+            const activeRadius = shadowRadius;
+
+            shadowVertices.push(px + node.snx * activeRadius, py + node.sny * activeRadius, sz);
+            shadowUVs.push(0.0, node.uvY);
+            shadowColors.push(0, 0, 0);
+            shadowSnakeParams.push(shadowRadius, L);
+
+            shadowVertices.push(px - node.snx * activeRadius, py - node.sny * activeRadius, sz);
+            shadowUVs.push(1.0, node.uvY);
+            shadowColors.push(0, 0, 0);
+            shadowSnakeParams.push(shadowRadius, L);
+
+            shadowVertexCount += 2;
+          }
+
+          const numShadowNodes = shadowNodes.length;
+          for (let j = 0; j < numShadowNodes - 1; j++) {
+            const v0 = shadowStartIdx + j * 2;
+            const v1 = shadowStartIdx + j * 2 + 1;
+            const v2 = shadowStartIdx + (j + 1) * 2;
+            const v3 = shadowStartIdx + (j + 1) * 2 + 1;
+
+            shadowIndices.push(v0, v1, v2);
+            shadowIndices.push(v1, v3, v2);
+          }
+        }
+      }
+
+      // Upload body attributes
+      bodyGeom.setAttribute('position', new THREE.Float32BufferAttribute(bodyVertices, 3));
+      bodyGeom.setAttribute('uv', new THREE.Float32BufferAttribute(bodyUVs, 2));
+      bodyGeom.setAttribute('color', new THREE.Float32BufferAttribute(bodyColors, 3));
+      bodyGeom.setAttribute('snakeParams', new THREE.Float32BufferAttribute(bodySnakeParams, 2));
+      bodyGeom.setIndex(bodyIndices);
+      bodyGeom.computeVertexNormals();
+      bodyGeom.computeBoundingBox();
+      bodyGeom.computeBoundingSphere();
+      
+      bodyGeom.attributes.position.needsUpdate = true;
+      bodyGeom.attributes.uv.needsUpdate = true;
+      bodyGeom.attributes.color.needsUpdate = true;
+      bodyGeom.attributes.snakeParams.needsUpdate = true;
+
+      // Upload shadow attributes
+      shadowGeom.setAttribute('position', new THREE.Float32BufferAttribute(shadowVertices, 3));
+      shadowGeom.setAttribute('uv', new THREE.Float32BufferAttribute(shadowUVs, 2));
+      shadowGeom.setAttribute('color', new THREE.Float32BufferAttribute(shadowColors, 3));
+      shadowGeom.setAttribute('snakeParams', new THREE.Float32BufferAttribute(shadowSnakeParams, 2));
+      shadowGeom.setIndex(shadowIndices);
+      shadowGeom.computeVertexNormals();
+      shadowGeom.computeBoundingBox();
+      shadowGeom.computeBoundingSphere();
+
+      shadowGeom.attributes.position.needsUpdate = true;
+      shadowGeom.attributes.uv.needsUpdate = true;
+      shadowGeom.attributes.color.needsUpdate = true;
+      shadowGeom.attributes.snakeParams.needsUpdate = true;
+    }
+      
+      // UPDATE EYES
+      if (eyeMeshRef.current && pupilMeshRef.current) {
+        let eyeCount = 0;
+        let pupilCount = 0;
+        for (const playerId in state.players) {
+          const p = state.players[playerId];
+          if (!p.body || p.body.length === 0) continue;
+          
+          const score = p.score || 0;
+          const snakeRadius = (baseHeadRadius + score * scoreThicknessScale) * gridSize;
+          const head = p.body[0];
+          
+          const oldP = lastState?.players[playerId];
+          let start = head;
+          if (oldP && oldP.body) start = oldP.body[0] || head;
+          if (Math.abs(head.x - start.x) > 50 || Math.abs(head.y - start.y) > 50) start = head;
+          
+          const hx = (start.x + (head.x - start.x) * progress) * gridSize + gridSize/2;
+          const hy = -((start.y + (head.y - start.y) * progress) * gridSize + gridSize/2);
+          
+          const eyeRadius = snakeRadius * 0.35;
+          const pupilRadius = eyeRadius * 0.5;
+          const forwardOffset = snakeRadius * 0.45;
+          const sideOffset = snakeRadius * 0.45;
+          const zOffset = 0.2 + p.body.length * 0.01 + 0.2; // Extra 0.2 to ensure it renders above head
+          
+          const visAngle = -p.angle;
+          const dirFx = Math.cos(visAngle);
+          const dirFy = Math.sin(visAngle);
+          const dirRx = Math.cos(visAngle + Math.PI/2);
+          const dirRy = Math.sin(visAngle + Math.PI/2);
+          
+          const fogAmt = calcFogAmount(hx, hy);
+          
+          for (const side of [-1, 1]) {
+            const ex = hx + dirFx * forwardOffset + dirRx * sideOffset * side;
+            const ey = hy + dirFy * forwardOffset + dirRy * sideOffset * side;
+            
+            dummy.position.set(ex, ey, zOffset);
+            dummy.scale.setScalar(eyeRadius);
+            dummy.updateMatrix();
+            eyeMeshRef.current.setMatrixAt(eyeCount, dummy.matrix);
+            
+            colorObj.setHex(0xffffff);
+            if (fogAmt > 0) colorObj.lerp(fogColor, fogAmt);
+            eyeMeshRef.current.setColorAt(eyeCount, colorObj);
+            eyeCount++;
+            
+            const px = ex + dirFx * (eyeRadius * 0.3);
+            const py = ey + dirFy * (eyeRadius * 0.3);
+            
+            dummy.position.set(px, py, zOffset + 0.001);
+            dummy.scale.setScalar(pupilRadius);
+            dummy.updateMatrix();
+            pupilMeshRef.current.setMatrixAt(pupilCount, dummy.matrix);
+            
+            colorObj.setHex(0x000000);
+            if (fogAmt > 0) colorObj.lerp(fogColor, fogAmt);
+            pupilMeshRef.current.setColorAt(pupilCount, colorObj);
+            pupilCount++;
+          }
+        }
+        eyeMeshRef.current.count = eyeCount;
+        eyeMeshRef.current.instanceMatrix.needsUpdate = true;
+        if (eyeMeshRef.current.instanceColor) eyeMeshRef.current.instanceColor.needsUpdate = true;
+        
+        pupilMeshRef.current.count = pupilCount;
+        pupilMeshRef.current.instanceMatrix.needsUpdate = true;
+        if (pupilMeshRef.current.instanceColor) pupilMeshRef.current.instanceColor.needsUpdate = true;
+      }
+
+      // UPDATE NICKNAMES DYNAMICALLY (60FPS)
+      for (const playerId in state.players) {
+        const p = state.players[playerId];
+        const oldP = lastState?.players[playerId];
+        if (!p.body || p.body.length === 0) continue;
+        
+        let targetX = p.body[0].x;
+        let targetY = p.body[0].y;
+
+        let alpha = 1.0;
+        if ((p as any).spawn_protection_time && (p as any).spawn_protection_time > 0) {
+          if ((p as any).spawn_protection_time < 2.0) {
+            alpha = 0.5 + Math.sin(time * 0.02) * 0.3;
+          }
+        }
+        
+        let startX = targetX;
+        let startY = targetY;
+        if (oldP && oldP.body && oldP.body.length > 0) {
+          startX = oldP.body[0].x;
+          startY = oldP.body[0].y;
+        }
+        if (Math.abs(targetX - startX) > 50 || Math.abs(targetY - startY) > 50) {
+          startX = targetX;
+          startY = targetY;
+        }
+        
+        const lx = startX + (targetX - startX) * progress;
+        const ly = startY + (targetY - startY) * progress;
+        
+        const worldX = lx * gridSize + gridSize/2;
+        const worldY = -(ly * gridSize + gridSize/2);
+        
+        // Find shortest path to camera
+        let dx = worldX - camX;
+        let dy = worldY - camY;
+        if (dx > (WORLD_WIDTH*gridSize)/2) dx -= WORLD_WIDTH*gridSize;
+        else if (dx < -(WORLD_WIDTH*gridSize)/2) dx += WORLD_WIDTH*gridSize;
+        if (dy > (WORLD_HEIGHT*gridSize)/2) dy -= WORLD_HEIGHT*gridSize;
+        else if (dy < -(WORLD_HEIGHT*gridSize)/2) dy += WORLD_HEIGHT*gridSize;
+        
+        const wX = camX + dx;
+        const wY = camY + dy;
+        
+        const score = p.score || 0;
+        const snakeRadius = (baseHeadRadius + score * scoreThicknessScale) * gridSize;
+        
+        const textObj = textRefs.current[playerId];
+        if (textObj) {
+          textObj.position.set(wX, wY, snakeRadius + 20);
+          textObj.quaternion.copy(camera.quaternion);
+          textObj.fillOpacity = alpha;
+        }
+      }
+
+      // UPDATE PARTICLES
+    const activeParticles = particlesRef.current;
+    if (particleMeshRef.current) {
+      let count = 0;
+      for (let i = activeParticles.length - 1; i >= 0; i--) {
+        const p = activeParticles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) {
+          activeParticles[i] = activeParticles[activeParticles.length - 1];
+          activeParticles.pop();
+          continue;
+        }
+        if (count >= 2000) break;
+
+        p.vx *= Math.max(0.1, 1 - 1.5 * dt);
+        p.vy *= Math.max(0.1, 1 - 1.5 * dt);
+        
+        const pSize = gridSize * p.size;
+        dummy.position.set(p.x * gridSize + gridSize/2, -(p.y * gridSize + gridSize/2), 0.5);
+        dummy.scale.setScalar(pSize);
+        // Particles rotate randomly
+        dummy.rotation.set(0, 0, p.life * 5.0);
+        dummy.updateMatrix();
+        particleMeshRef.current.setMatrixAt(count, dummy.matrix);
+        colorObj.set(p.color);
+        const fogAmt = calcFogAmount(dummy.position.x, dummy.position.y);
+        if (fogAmt > 0) colorObj.lerp(fogColor, fogAmt);
+        particleMeshRef.current.setColorAt(count, colorObj);
+        count++;
+      }
+      particleMeshRef.current.count = count;
+      particleMeshRef.current.instanceMatrix.needsUpdate = true;
+      if (particleMeshRef.current.instanceColor) particleMeshRef.current.instanceColor.needsUpdate = true;
+    }
+    
+    // DEATH CHECKS (moved into useFrame to avoid extra RAF)
+    if (time - camState.current.lastDeathCheckTime > 200) {
+      camState.current.lastDeathCheckTime = time;
+      if (state && lastState && lastState.players) {
+        for (const pid in lastState.players) {
+          const lastP = lastState.players[pid];
+          const currP = state.players[pid];
+          const died = !currP || (currP.deaths > lastP.deaths);
+          if (died && lastP.body && lastP.body.length > 0) {
+            const head = lastP.body[0];
+            let baseColor = parseColor(lastP.skin || "#22c55e");
+            if (lastP.skin === "zebra") baseColor = 0xe5e5e5;
+            else if (lastP.skin === "tiger") baseColor = 0xf97316;
+            else if (lastP.skin === "cyberpunk") baseColor = 0xff00ff;
+
+            for (let i = 0; i < 35; i++) {
+              const angle = Math.random() * Math.PI * 2;
+              const speed = 3.0 + Math.random() * 8.0;
+              let pColor = baseColor;
+              if (lastP.skin === "rainbow") pColor = hslToHex(Math.random() * 360, 1, 0.5);
+              activeParticles.push({
+                x: head.x,
+                y: head.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                color: pColor,
+                size: 0.15 + Math.random() * 0.25,
+                life: 0.6 + Math.random() * 0.6,
+              });
+            }
+          }
+        }
+      }
+    }
+  });
+
+  // Resource cleanup on unmount
+  useEffect(() => {
+    return () => {
+      [foodMat, snakeMat, eyeMat, pupilMat, particleMat, groundMaterial].forEach(mat => mat.dispose());
+      [planeGeo, flatCircleGeo, pupilGeo, particleGeo].forEach(geo => geo.dispose());
+      if (bodyGeometryRef.current) bodyGeometryRef.current.dispose();
+      if (shadowGeometryRef.current) shadowGeometryRef.current.dispose();
+    };
+  }, []);
 
   return (
-    <div style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", overflow: "hidden", backgroundColor: "#222" }}>
+    <>
+      <ambientLight intensity={0.7} />
+      <directionalLight position={[100, 100, 200]} intensity={1.2} />
       
-      {/* Контейнер для PixiJS */}
-      <div ref={pixiContainerRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 1 }} />
-        
-      {/* HTML-ники над головами змей (вне canvas — не подвержены CSS perspective) */}
-      <div ref={nicknameOverlayRef} style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5, overflow: "hidden" }} />
+      {/* Custom Infinite Floor with Fog and Grid */}
+      <mesh position={[(WORLD_WIDTH*gridSize)/2, -(WORLD_HEIGHT*gridSize)/2, -0.1]}>
+        <planeGeometry args={[WORLD_WIDTH*gridSize*4, WORLD_HEIGHT*gridSize*4]} />
+        <primitive object={groundMaterial} attach="material" />
+      </mesh>
 
-      {/* Оптимизированный 3D-туман через CSS Overlay */}
-      <div 
-        ref={fogOverlayRef} 
-        style={{ 
-          position: "absolute", top: 0, left: 0, width: "100%", height: "100%", 
-          pointerEvents: "none", zIndex: 10, opacity: 0, transform: "translateY(-100%)",
-          background: "linear-gradient(to bottom, rgba(34,34,34,1) 0%, rgba(34,34,34,1) 49%, rgba(34,34,34,0) 55%)"
-        }} 
-      />
+      {/* Main entities third (rendered on top of shadows and glows) */}
+      <instancedMesh ref={foodMeshRef} args={[planeGeo, foodMat, 5000]} frustumCulled={false} renderOrder={1} />
+      <mesh ref={snakeShadowMeshRef} renderOrder={1} frustumCulled={false}>
+        <bufferGeometry ref={shadowGeometryRef} />
+        <primitive object={shadowMat} attach="material" />
+      </mesh>
+      <mesh ref={snakeMeshRef} renderOrder={2} frustumCulled={false}>
+        <bufferGeometry ref={bodyGeometryRef} />
+        <primitive object={snakeMat} attach="material" />
+      </mesh>
+      <instancedMesh ref={eyeMeshRef} args={[flatCircleGeo, eyeMat, 2000]} frustumCulled={false} />
+      <instancedMesh ref={pupilMeshRef} args={[pupilGeo, pupilMat, 2000]} frustumCulled={false} />
+      <instancedMesh ref={particleMeshRef} args={[particleGeo, particleMat, 2000]} frustumCulled={false} />
+      
+      {activePlayerIds.filter((n: any) => !n.isMe).map((n: any) => {
+        return (
+          <Text
+            key={n.id}
+            ref={(r) => { if (r) textRefs.current[n.id] = r; else delete textRefs.current[n.id]; }}
+            position={[0, 0, 0]}
+            fontSize={10}
+            color="white"
+            anchorX="center"
+            anchorY="bottom"
+            outlineWidth={2}
+            outlineColor="#000000"
+          >
+            {n.nickname}
+          </Text>
+        );
+      })}
+    </>
+  );
+};
 
-      <div style={{ position: "absolute", bottom: 20, right: 20, display: "flex", gap: "20px", zIndex: 50, pointerEvents: "none", alignItems: "flex-end" }}>
-        <div style={{ pointerEvents: "auto" }}>
-          <canvas
-            ref={minimapCanvasRef}
-            style={{ display: "block", width: "150px", height: "150px" }}
-          />
-        </div>
+export const GameRenderer = React.memo(({
+  gameStateRef,
+  lastGameStateRef,
+  lastUpdateTimeRef,
+  stateQueueRef,
+  myIdRef,
+  cameraModeRef,
+  localInputRef,
+  controlModeRef,
+  socketRef,
+}: {
+  gameStateRef: React.MutableRefObject<GameState | null>;
+  lastGameStateRef: React.MutableRefObject<GameState | null>;
+  lastUpdateTimeRef: React.MutableRefObject<number>;
+  stateQueueRef: React.MutableRefObject<{ time: number; state: GameState }[]>;
+  myIdRef: React.MutableRefObject<string>;
+  cameraModeRef: React.MutableRefObject<"2D" | "3D">;
+  localInputRef: React.MutableRefObject<{ turn: number; accelerating: boolean }>;
+  controlModeRef: React.MutableRefObject<"keyboard" | "mouse">;
+  socketRef: React.MutableRefObject<WebSocket | null>;
+}) => {
+  const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
+  const particlesRef = useRef<Particle[]>([]);
+  // checkDeaths effect was moved into useFrame
+
+  // Render Minimap
+  useEffect(() => {
+    const canvas = minimapCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    let animId: number;
+    let lastDrawTime = 0;
+    const draw = (time: number) => {
+      animId = requestAnimationFrame(draw);
+      
+      // Throttle to ~15 FPS (66ms)
+      if (time - lastDrawTime < 66) return;
+      lastDrawTime = time;
+      
+      const state = gameStateRef.current;
+      if (state && state.players && state.foods) {
+        ctx.clearRect(0, 0, 150, 150);
+        // Soft dark overlay to maintain dot contrast without blocking the glassmorphism backdrop blur
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        ctx.fillRect(0, 0, 150, 150);
+        const mapScale = 150 / WORLD_WIDTH;
+
+        for (let i = 0; i < state.foods.length; i++) {
+          const f = state.foods[i];
+          ctx.fillStyle = f.color || '#ef4444';
+          ctx.globalAlpha = f.value >= 2 ? 0.8 : 0.5;
+          const s = f.value >= 50 ? 5 : f.value >= 20 ? 4 : 2;
+          ctx.fillRect(f.x * mapScale - s/2, f.y * mapScale - s/2, s, s);
+        }
+        ctx.globalAlpha = 1.0;
+
+        const dotSize = 3.5;
+        // Draw other players first
+        for (const pid in state.players) {
+          if (pid === myIdRef.current) continue;
+          const p = state.players[pid];
+          if (p.body.length === 0) continue;
+          ctx.fillStyle = p.skin === 'zebra' ? '#e2e8f0' : p.skin || '#22c55e';
+          const head = p.body[0];
+          ctx.beginPath();
+          ctx.arc(head.x * mapScale, head.y * mapScale, dotSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Draw self player on top in bright white
+        const myPlayer = state.players[myIdRef.current];
+        if (myPlayer && myPlayer.body.length > 0) {
+          ctx.fillStyle = '#ffffff';
+          const head = myPlayer.body[0];
+          ctx.beginPath();
+          ctx.arc(head.x * mapScale, head.y * mapScale, dotSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    };
+    animId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animId);
+  }, [gameStateRef, myIdRef]);
+
+  return (
+    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#0c0c0f' }}>
+      <Canvas shadows camera={{ fov: 50, near: 1, far: 20000 }}>
+        <GameScene 
+          gameStateRef={gameStateRef}
+          lastGameStateRef={lastGameStateRef}
+          lastUpdateTimeRef={lastUpdateTimeRef}
+          stateQueueRef={stateQueueRef}
+          myIdRef={myIdRef}
+          cameraModeRef={cameraModeRef}
+          localInputRef={localInputRef}
+          particlesRef={particlesRef}
+          controlModeRef={controlModeRef}
+          socketRef={socketRef}
+        />
+      </Canvas>
+      <div style={{ 
+        position: 'absolute', 
+        bottom: 20, 
+        right: 20, 
+        zIndex: 50, 
+        pointerEvents: 'none',
+        background: "rgba(20, 22, 28, 0.75)", 
+        border: "1px solid rgba(255, 255, 255, 0.08)", 
+        borderRadius: "16px", 
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+        backdropFilter: "blur(12px)",
+        overflow: "hidden"
+      }}>
+        <canvas ref={minimapCanvasRef} width={150} height={150} style={{ display: "block" }} />
       </div>
     </div>
   );
-};
+});
+
+GameRenderer.displayName = "GameRenderer";

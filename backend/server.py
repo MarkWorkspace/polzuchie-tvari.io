@@ -3,21 +3,25 @@ import contextlib
 import msgpack
 import random
 import math
+import re
+import time as time_module
+import traceback
+import uuid
 import uvicorn
 import os
+import json
+from collections import deque
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from game_config import GameConfig
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Разрешаем подключения с любых IP
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+MAX_CONNECTIONS = 50
+RATE_LIMIT_PER_SECOND = 30
+VALID_ACTIONS = frozenset({"LEFT_DOWN", "LEFT_UP", "RIGHT_DOWN", "RIGHT_UP", "SPACE_DOWN", "SPACE_UP"})
+VALID_SKINS = frozenset({"zebra", "tiger", "rainbow", "cyberpunk"})
+HEX_COLOR_PATTERN = re.compile(r'^#[0-9a-fA-F]{6}$')
+NICKNAME_MAX_LENGTH = 16
 
 class Food:
     def __init__(self, fid, x, y, value, config, color="#ef4444"):
@@ -39,8 +43,9 @@ class Food:
         }
 
 class Player:
-    def __init__(self, start_x, start_y, config, skin="#22c55e"):
+    def __init__(self, start_x, start_y, config, nickname="Игрок", skin="#22c55e"):
         self.config = config
+        self.nickname = nickname
         self.skin = skin
         self.kills = 0
         self.deaths = 0
@@ -49,7 +54,7 @@ class Player:
         self.respawn(start_x, start_y)
         
     def respawn(self, start_x, start_y):
-        self.body = [{"x": start_x - i, "y": start_y} for i in range(self.config.snake.start_length)]
+        self.body = deque({"x": start_x - i, "y": start_y} for i in range(self.config.snake.start_length))
         self.angle = 0.0
         self.turn = 0
         self.current_turn = 0.0
@@ -61,6 +66,7 @@ class Player:
         self.pending_steps = 0.0
         self.new_heads_this_tick = []
         self.just_respawned = True
+        self.steered_by_mouse = False
         
     @property
     def is_accelerating_valid(self):
@@ -77,11 +83,15 @@ class Player:
             "kills": self.kills,
             "deaths": self.deaths,
             "accelerating": self.is_accelerating_valid if in_aoi else False,
-            "skin": self.skin
         }
+        # Передаем никнейм и скин только один раз при появлении игрока
+        if is_full:
+            data["skin"] = self.skin
+            data["nickname"] = self.nickname
+            
         # При первом подключении или после гибели отправляем массив тела целиком
         if is_full or self.just_respawned:
-            data["body"] = self.body if in_aoi else ([self.body[0]] if self.body else [])
+            data["body"] = list(self.body) if in_aoi else ([self.body[0]] if self.body else [])
         else:
             # Дельта: отправляем только новые добавленные точки головы и целевую длину
             data["new_heads"] = self.new_heads_this_tick if in_aoi else (self.new_heads_this_tick[:1] if self.new_heads_this_tick else [])
@@ -91,6 +101,8 @@ class Player:
 class GameState:
     def __init__(self):
         self.config = GameConfig()
+        self.config_file_path = "config.json"
+        self._load_config_from_disk()
         self.players = {}
         self.client_visibility = {}
         self.grid_width = self.config.world.width
@@ -126,6 +138,25 @@ class GameState:
             for _ in range(self.config.world.cluster_count)
         ]
 
+    def _load_config_from_disk(self):
+        if os.path.exists(self.config_file_path):
+            try:
+                with open(self.config_file_path, "r", encoding="utf-8") as f:
+                    patch = json.load(f)
+                if isinstance(patch, dict):
+                    self.config.apply_patch(patch)
+                    print(f"[Config] Successfully loaded config from {self.config_file_path}")
+            except Exception as e:
+                print(f"[Config] Failed to load config from disk: {e}")
+
+    def _save_config_to_disk(self):
+        try:
+            with open(self.config_file_path, "w", encoding="utf-8") as f:
+                json.dump(self.config.to_dict(), f, indent=4, ensure_ascii=False)
+            print(f"[Config] Successfully saved config to {self.config_file_path}")
+        except Exception as e:
+            print(f"[Config] Failed to save config to disk: {e}")
+
     def get_config(self):
         return self.config.to_dict()
 
@@ -134,12 +165,11 @@ class GameState:
         old_height = self.grid_height
         old_cluster_count = len(self.clusters)
         self.config.apply_patch(patch)
+        self._save_config_to_disk()
         self.grid_width = self.config.world.width
         self.grid_height = self.config.world.height
         self.target_food_count = self.config.world.target_food_count
-        if self.grid_width != old_width or self.grid_height != old_height or len(self.clusters) != self.config.world.cluster_count:
-            self.clusters = self._create_clusters()
-        elif old_cluster_count != self.config.world.cluster_count:
+        if self.grid_width != old_width or self.grid_height != old_height or old_cluster_count != self.config.world.cluster_count:
             self.clusters = self._create_clusters()
         self._trim_food_overflow(defer_events=True)
         return self.get_config()
@@ -185,19 +215,46 @@ class GameState:
         return "#ef4444"
 
     def _get_safe_spawn_location(self):
-        safe_distance_sq = self.config.snake.safe_spawn_distance ** 2
+        safe_distance = self.config.snake.safe_spawn_distance
+        safe_distance_sq = safe_distance ** 2
         max_attempts = 50
+        
+        CELL_SIZE = 10.0
+        grid_width_cells = math.ceil(self.grid_width / CELL_SIZE)
+        grid_height_cells = math.ceil(self.grid_height / CELL_SIZE)
+        cells_range = math.ceil(safe_distance / CELL_SIZE)
+        
+        spatial_grid = {}
+        for p in self.players.values():
+            for segment in p.body:
+                cx = int(segment["x"] / CELL_SIZE) % max(1, grid_width_cells)
+                cy = int(segment["y"] / CELL_SIZE) % max(1, grid_height_cells)
+                spatial_grid.setdefault((cx, cy), []).append(segment)
         
         for _ in range(max_attempts):
             x = random.uniform(5, self.grid_width - 5)
             y = random.uniform(5, self.grid_height - 5)
             
+            grid_x = int(x / CELL_SIZE) % max(1, grid_width_cells)
+            grid_y = int(y / CELL_SIZE) % max(1, grid_height_cells)
+            
             is_safe = True
-            for p in self.players.values():
-                for segment in p.body:
-                    dist_sq = (x - segment["x"])**2 + (y - segment["y"])**2
-                    if dist_sq < safe_distance_sq:
-                        is_safe = False
+            for dx in range(-cells_range, cells_range + 1):
+                for dy in range(-cells_range, cells_range + 1):
+                    cx = (grid_x + dx) % max(1, grid_width_cells)
+                    cy = (grid_y + dy) % max(1, grid_height_cells)
+                    
+                    if (cx, cy) in spatial_grid:
+                        for segment in spatial_grid[(cx, cy)]:
+                            dist_x = abs(x - segment["x"])
+                            dist_x = min(dist_x, self.grid_width - dist_x)
+                            dist_y = abs(y - segment["y"])
+                            dist_y = min(dist_y, self.grid_height - dist_y)
+                            
+                            if (dist_x * dist_x + dist_y * dist_y) < safe_distance_sq:
+                                is_safe = False
+                                break
+                    if not is_safe:
                         break
                 if not is_safe:
                     break
@@ -205,12 +262,12 @@ class GameState:
             if is_safe:
                 return x, y
                 
-        # Если карта переполнена и безопасное место не найдено за 50 попыток, возвращаем просто случайную точку
+        # Если безопасное место не найдено, возвращаем случайную точку
         return random.uniform(5, self.grid_width - 5), random.uniform(5, self.grid_height - 5)
 
-    def add_player(self, player_id, skin="#22c55e"):
+    def add_player(self, player_id, nickname="Игрок", skin="#22c55e"):
         start_x, start_y = self._get_safe_spawn_location()
-        self.players[player_id] = Player(start_x, start_y, self.config, skin)
+        self.players[player_id] = Player(start_x, start_y, self.config, nickname, skin)
 
     def remove_player(self, player_id):
         self.players.pop(player_id, None)
@@ -219,16 +276,33 @@ class GameState:
             visible_players.discard(player_id)
 
     def update_direction(self, player_id, action):
+        if action.startswith("TURN:"):
+            try:
+                val = float(action[5:])
+                if -1.0 <= val <= 1.0:
+                    if player_id in self.players:
+                        self.players[player_id].turn = val
+                        self.players[player_id].steered_by_mouse = True
+            except ValueError:
+                pass
+            return
+
+        if action not in VALID_ACTIONS:
+            return
         if player_id in self.players:
             p = self.players[player_id]
             if action == "LEFT_DOWN":
                 p.turn = -1
+                p.steered_by_mouse = False
             elif action == "LEFT_UP" and p.turn == -1:
                 p.turn = 0
+                p.steered_by_mouse = False
             elif action == "RIGHT_DOWN":
                 p.turn = 1
+                p.steered_by_mouse = False
             elif action == "RIGHT_UP" and p.turn == 1:
                 p.turn = 0
+                p.steered_by_mouse = False
             elif action == "SPACE_DOWN":
                 p.accelerating = True
             elif action == "SPACE_UP":
@@ -258,20 +332,24 @@ class GameState:
         # --- ПРОСТРАНСТВЕННОЕ РАЗДЕЛЕНИЕ (Spatial Partitioning) ---
         # Размер ячейки 10.0 гарантирует, что мы не пропустим коллизии даже у очень толстых змей
         CELL_SIZE = 10.0 
+        grid_width_cells = max(1, math.ceil(self.grid_width / CELL_SIZE))
+        grid_height_cells = max(1, math.ceil(self.grid_height / CELL_SIZE))
         spatial_grid = {}
         food_grid = {}
 
         for pid, p in self.players.items():
             p.new_heads_this_tick = []
             for segment in p.body:
-                cx, cy = int(segment["x"] / CELL_SIZE), int(segment["y"] / CELL_SIZE)
+                cx = int(segment["x"] / CELL_SIZE) % grid_width_cells
+                cy = int(segment["y"] / CELL_SIZE) % grid_height_cells
                 if (cx, cy) not in spatial_grid:
                     spatial_grid[(cx, cy)] = []
                 spatial_grid[(cx, cy)].append((pid, segment["x"], segment["y"], p.head_radius))
 
         # Заполняем сетку еды
         for f in self.foods.values():
-            cx, cy = int(f.x / CELL_SIZE), int(f.y / CELL_SIZE)
+            cx = int(f.x / CELL_SIZE) % grid_width_cells
+            cy = int(f.y / CELL_SIZE) % grid_height_cells
             if (cx, cy) not in food_grid:
                 food_grid[(cx, cy)] = []
             food_grid[(cx, cy)].append(f)
@@ -288,7 +366,7 @@ class GameState:
                 if player.boost_drop >= self.config.boost.drain_interval_seconds:
                     player.boost_drop -= self.config.boost.drain_interval_seconds
                     drain = self.config.boost.drain_per_interval
-                    player.score -= drain
+                    player.score = max(0, player.score - drain)
                     player.pending_growth -= drain
                     if len(player.body) > 0:
                         tail = player.body[-1]
@@ -323,10 +401,13 @@ class GameState:
             for _ in range(steps_this_tick):
                 # Плавно меняем угол
                 target_turn = player.turn * turn_speed
-                if player.turn == 0:
-                    player.current_turn += (0 - player.current_turn) * idle_turn_smoothing
+                if getattr(player, "steered_by_mouse", False):
+                    player.current_turn = target_turn
                 else:
-                    player.current_turn += (target_turn - player.current_turn) * active_turn_smoothing
+                    if player.turn == 0:
+                        player.current_turn += (0 - player.current_turn) * idle_turn_smoothing
+                    else:
+                        player.current_turn += (target_turn - player.current_turn) * active_turn_smoothing
                 
                 player.angle += player.current_turn
                 
@@ -336,7 +417,7 @@ class GameState:
                     "y": (head["y"] + math.sin(player.angle) * base_speed) % self.grid_height
                 }
                 
-                player.body.insert(0, new_head)
+                player.body.appendleft(new_head)
                 player.new_heads_this_tick.insert(0, new_head)
 
                 if player.pending_growth >= self.config.snake.growth_score_per_segment:
@@ -357,16 +438,19 @@ class GameState:
             is_dead = False
             killer_pid = None
             
-            grid_x, grid_y = int(new_head["x"] / CELL_SIZE), int(new_head["y"] / CELL_SIZE)
+            grid_x = int(new_head["x"] / CELL_SIZE) % grid_width_cells
+            grid_y = int(new_head["y"] / CELL_SIZE) % grid_height_cells
             for dx in (-1, 0, 1):
                 for dy in (-1, 0, 1):
-                    cell = (grid_x + dx, grid_y + dy)
+                    cell = ((grid_x + dx) % grid_width_cells, (grid_y + dy) % grid_height_cells)
                     if cell in spatial_grid:
                         for other_pid, ox, oy, other_radius in spatial_grid[cell]:
                             if pid != other_pid and other_pid not in dead_players:
                                 collision_dist = (head_radius + other_radius) * 0.7
-                                dist_x = new_head["x"] - ox
-                                dist_y = new_head["y"] - oy
+                                dist_x = abs(new_head["x"] - ox)
+                                dist_x = min(dist_x, self.grid_width - dist_x)
+                                dist_y = abs(new_head["y"] - oy)
+                                dist_y = min(dist_y, self.grid_height - dist_y)
                                 if (dist_x * dist_x + dist_y * dist_y) < (collision_dist * collision_dist):
                                     is_dead = True
                                     killer_pid = other_pid
@@ -382,11 +466,13 @@ class GameState:
                 self.kill_events.append({"killer": killer_pid, "victim": pid})
                 # Раскидываем 50% массы змейки в виде еды
                 drop_amount = math.floor(player.score * self.config.food.death_drop_score_fraction)
-                body_len = len(player.body)
                 food_types = self.config.food.types
                 ft_weights = [ft.weight for ft in food_types]
-                while drop_amount > 0 and body_len > 0:
-                    segment = random.choice(player.body)
+                body_list = list(player.body)
+                max_drops = 200  # Cap to prevent lag spikes on high-score deaths
+                drops = 0
+                while drop_amount > 0 and drops < max_drops:
+                    segment = random.choice(body_list)
                     chosen = random.choices(food_types, weights=ft_weights)[0]
                     val = min(chosen.value, drop_amount)
                     drop_amount -= val
@@ -401,6 +487,7 @@ class GameState:
                     )
                     self.foods[new_f.id] = new_f
                     self.new_foods.append(new_f.to_dict())
+                    drops += 1
 
                 # Возрождаем змейку
                 start_x, start_y = self._get_safe_spawn_location()
@@ -409,15 +496,19 @@ class GameState:
 
             # Проверяем, съела ли змейка какое-либо из яблок
             eaten_value = 0
-            grid_x, grid_y = int(new_head["x"] / CELL_SIZE), int(new_head["y"] / CELL_SIZE)
+            food_grid_x = int(new_head["x"] / CELL_SIZE) % grid_width_cells
+            food_grid_y = int(new_head["y"] / CELL_SIZE) % grid_height_cells
+            
             for dx in (-1, 0, 1):
                 for dy in (-1, 0, 1):
-                    cell = (grid_x + dx, grid_y + dy)
+                    cell = ((food_grid_x + dx) % grid_width_cells, (food_grid_y + dy) % grid_height_cells)
                     if cell in food_grid:
                         for f in food_grid[cell]:
                             if f.eaten: continue
-                            dist_x = new_head["x"] - f.x
-                            dist_y = new_head["y"] - f.y
+                            dist_x = abs(new_head["x"] - f.x)
+                            dist_x = min(dist_x, self.grid_width - dist_x)
+                            dist_y = abs(new_head["y"] - f.y)
+                            dist_y = min(dist_y, self.grid_height - dist_y)
                             if (dist_x * dist_x + dist_y * dist_y) < ((head_radius + f.radius) ** 2):
                                 eaten_value += f.value
                                 f.eaten = True
@@ -438,23 +529,36 @@ class GameState:
                     continue
                 head = player.body[0]
                 hx, hy = head["x"], head["y"]
-                grid_x, grid_y = int(hx / CELL_SIZE), int(hy / CELL_SIZE)
+                grid_x = int(hx / CELL_SIZE) % grid_width_cells
+                grid_y = int(hy / CELL_SIZE) % grid_height_cells
                 radius_cells = int(attraction_radius / CELL_SIZE) + 1
                 for dx in range(-radius_cells, radius_cells + 1):
                     for dy in range(-radius_cells, radius_cells + 1):
-                        cell = (grid_x + dx, grid_y + dy)
+                        cell = ((grid_x + dx) % grid_width_cells, (grid_y + dy) % grid_height_cells)
                         if cell in food_grid:
                             for f in food_grid[cell]:
                                 if f.eaten or f.id in attracted_ids:
                                     continue
+                                
+                                # Toroidal direction vector
                                 fdx = hx - f.x
+                                if fdx > self.grid_width / 2:
+                                    fdx -= self.grid_width
+                                elif fdx < -self.grid_width / 2:
+                                    fdx += self.grid_width
+                                    
                                 fdy = hy - f.y
+                                if fdy > self.grid_height / 2:
+                                    fdy -= self.grid_height
+                                elif fdy < -self.grid_height / 2:
+                                    fdy += self.grid_height
+                                    
                                 dist_sq = fdx * fdx + fdy * fdy
                                 if dist_sq < attraction_radius * attraction_radius and dist_sq > 0.001:
                                     dist = math.sqrt(dist_sq)
                                     move = min(attraction_speed, dist * 0.5)
-                                    f.x += (fdx / dist) * move
-                                    f.y += (fdy / dist) * move
+                                    f.x = (f.x + (fdx / dist) * move) % self.grid_width
+                                    f.y = (f.y + (fdy / dist) * move) % self.grid_height
                                     attracted_ids.add(f.id)
                                     self.moved_foods.append({"id": f.id, "x": f.x, "y": f.y})
 
@@ -468,9 +572,10 @@ class GameState:
             self.foods[f.id] = f
             self.new_foods.append(f.to_dict())
 
-        # Предварительно кешируем словари игроков для оптимизации рассылки AoI
+        # Предварительно кешируем словари игроков и конфиг для оптимизации рассылки AoI
         self.full_players_dict = {pid: p.to_dict(in_aoi=True, is_full=False) for pid, p in self.players.items()}
         self.mini_players_dict = {pid: p.to_dict(in_aoi=False, is_full=False) for pid, p in self.players.items()}
+        self._cached_config_dict = self.config.to_dict()
         
         for p in self.players.values():
             p.just_respawned = False
@@ -507,11 +612,13 @@ class GameState:
                 else:
                     players_data[pid] = self.mini_players_dict.get(pid, p.to_dict(in_aoi=False, is_full=False))
 
+        cfg = getattr(self, '_cached_config_dict', None) or self.config.to_dict()
         state = {
             "type": "FULL" if is_full else "DELTA",
             "server_tick_rate": self.config.simulation.tick_rate,
-            "server_simulation": self.config.to_dict()["simulation"],
-            "server_snake": self.config.to_dict()["snake"],
+            "server_simulation": cfg["simulation"],
+            "server_snake": cfg["snake"],
+            "server_visual": cfg["visual"],
             "players": players_data,
             "new_foods": self.new_foods,
             "eaten_foods": self.eaten_foods,
@@ -540,6 +647,7 @@ def admin_password():
     if password:
         return password
     if os.getenv("ENVIRONMENT") != "production":
+        print("[WARNING] Using default admin password 'admin'. Set ADMIN_PASSWORD env var for production!")
         return "admin"
     return None
 
@@ -559,8 +667,7 @@ async def sender_loop(client_id, websocket, queue):
     except asyncio.CancelledError:
         raise
     except Exception:
-        active_connections.pop(client_id, None)
-        game.remove_player(client_id)
+        pass  # Cleanup handled by websocket_endpoint finally block
 
 def replace_queued_state(queue, data):
     if queue.full():
@@ -576,7 +683,11 @@ async def game_loop():
         try:
             game.tick()
         except Exception as e:
-            print(f"Game loop error: {e}")
+            traceback.print_exc()
+            # Skip sending potentially corrupted state after error
+            elapsed = asyncio.get_event_loop().time() - start_time
+            await asyncio.sleep(max(0.0, game.tick_interval - elapsed))
+            continue
             
         for client_id, connection in list(active_connections.items()):
             delta_state, visible_players = game.get_delta_state(
@@ -591,10 +702,33 @@ async def game_loop():
         elapsed = asyncio.get_event_loop().time() - start_time
         await asyncio.sleep(max(0.0, game.tick_interval - elapsed))
 
-@app.on_event("startup")
-async def startup_event():
-    # Запускаем цикл параллельно с сервером
-    asyncio.create_task(game_loop())
+@asynccontextmanager
+async def lifespan(app):
+    task = asyncio.create_task(game_loop())
+    yield
+    print("[Server] Graceful shutdown initiated...")
+    shutdown_message = msgpack.packb({"type": "SERVER_RESTART", "message": "Сервер перезагружается для обновления..."})
+    for client_id, connection in list(active_connections.items()):
+        try:
+            replace_queued_state(connection["queue"], (shutdown_message, set()))
+            # Небольшая пауза, чтобы сообщение успело отправиться до разрыва соединения
+            await asyncio.sleep(0.01)
+        except Exception:
+            pass
+            
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/admin/config")
 async def get_admin_config(x_admin_password: str | None = Header(default=None, alias="x-admin-password")):
@@ -609,26 +743,74 @@ async def patch_admin_config(patch: dict, x_admin_password: str | None = Header(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-@app.websocket("/ws/{client_id}")
-async def websocket_endpoint(websocket: WebSocket, client_id: str, skin: str = "#22c55e"):
-    await websocket.accept()
-    game.add_player(client_id, skin)
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "players": len(game.players),
+        "connections": len(active_connections),
+        "food_count": len(game.foods),
+        "tick_rate": game.config.simulation.tick_rate
+    }
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, nickname: str = "Игрок", skin: str = "#22c55e"):
+    # Серверная генерация уникального ID
+    client_id = str(uuid.uuid4())
     
-    # Отправляем полное состояние при первом подключении
-    await websocket.send_bytes(msgpack.packb(game.get_full_state(client_id)))
+    # Ограничение на число подключений
+    if len(active_connections) >= MAX_CONNECTIONS:
+        await websocket.close(code=4002, reason="Server full")
+        return
+    
+    # Санитизация никнейма
+    nickname = nickname.strip()[:NICKNAME_MAX_LENGTH] or "Игрок"
+    
+    # Санитизация скина (только hex-цвета или именованные скины)
+    if skin not in VALID_SKINS and not HEX_COLOR_PATTERN.match(skin):
+        skin = "#22c55e"
+    
+    await websocket.accept()
+    game.add_player(client_id, nickname, skin)
+    
+    # Отправляем полное состояние + назначенный ID при первом подключении
+    full_state = game.get_full_state(client_id)
+    full_state["your_id"] = client_id
+    await websocket.send_bytes(msgpack.packb(full_state))
 
     send_queue = asyncio.Queue(maxsize=1)
     send_task = asyncio.create_task(sender_loop(client_id, websocket, send_queue))
     active_connections[client_id] = {"websocket": websocket, "queue": send_queue, "task": send_task}
     
+    # Rate limiting state
+    msg_timestamps: deque = deque()
+    
     try:
         while True:
             data = await websocket.receive_text()
+            if len(data) > 20:
+                continue
+            
+            # Rate limiting: max 30 messages per second
+            now = time_module.monotonic()
+            msg_timestamps.append(now)
+            # Remove timestamps older than 1 second
+            while msg_timestamps and msg_timestamps[0] < now - 1.0:
+                msg_timestamps.popleft()
+            if len(msg_timestamps) > RATE_LIMIT_PER_SECOND:
+                continue  # Silently drop excess messages
+            
+            if data.startswith("PING:"):
+                try:
+                    await websocket.send_text(f"PONG:{data[5:]}")
+                except Exception:
+                    pass
+                continue
+            
             game.update_direction(client_id, data)
     except Exception:
-        pass # Ловим вообще все исключения обрывов связи
+        pass
     finally:
-        # Гарантированная очистка памяти при отключении клиента
         connection = active_connections.pop(client_id, None)
         if connection:
             connection["task"].cancel()
