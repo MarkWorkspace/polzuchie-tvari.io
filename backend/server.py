@@ -731,11 +731,13 @@ app.add_middleware(
 )
 
 @app.get("/admin/config")
+@app.get("/ws/admin/config")
 async def get_admin_config(x_admin_password: str | None = Header(default=None, alias="x-admin-password")):
     require_admin(x_admin_password)
     return game.get_config()
 
 @app.patch("/admin/config")
+@app.patch("/ws/admin/config")
 async def patch_admin_config(patch: dict, x_admin_password: str | None = Header(default=None, alias="x-admin-password")):
     require_admin(x_admin_password)
     try:
@@ -744,6 +746,7 @@ async def patch_admin_config(patch: dict, x_admin_password: str | None = Header(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 @app.get("/health")
+@app.get("/ws/health")
 async def health_check():
     return {
         "status": "ok",

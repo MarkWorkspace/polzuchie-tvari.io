@@ -155,8 +155,11 @@ function adminApiUrl() {
   const host = window.location.hostname || "127.0.0.1";
   const protocol = window.location.protocol;
   const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
-  const backendPort = isStandardPort ? "" : ":8000";
-  return `${protocol}//${host}${backendPort}/admin/config`;
+  
+  if (isStandardPort) {
+    return `${protocol}//${host}/ws/admin/config`;
+  }
+  return `${protocol}//${host}:8000/admin/config`;
 }
 
 export default function AdminPage() {
@@ -184,8 +187,9 @@ export default function AdminPage() {
         const host = window.location.hostname || "127.0.0.1";
         const protocol = window.location.protocol;
         const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
-        const backendPort = isStandardPort ? "" : ":8000";
-        const healthUrl = `${protocol}//${host}${backendPort}/health`;
+        const healthUrl = isStandardPort
+          ? `${protocol}//${host}/ws/health`
+          : `${protocol}//${host}:8000/health`;
 
         const res = await fetch(healthUrl);
         if (!res.ok) throw new Error("HTTP error");
