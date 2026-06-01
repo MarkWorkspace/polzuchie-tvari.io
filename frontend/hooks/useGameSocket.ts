@@ -43,7 +43,8 @@ export function useGameSocket(
       const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
       const wsPort = isStandardPort ? "" : ":8000";
       const trimmedNickname = nickname.trim() || "Игрок";
-      return `${protocol}${host}${wsPort}/ws?nickname=${encodeURIComponent(trimmedNickname)}&skin=${encodeURIComponent(skin)}`;
+      // Use trailing slash in the path to match Nginx location rule "/ws/" on production server
+      return `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmedNickname)}&skin=${encodeURIComponent(skin)}`;
     };
 
     const connect = () => {

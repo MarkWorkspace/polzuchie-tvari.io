@@ -754,6 +754,7 @@ async def health_check():
     }
 
 @app.websocket("/ws")
+@app.websocket("/ws/")
 async def websocket_endpoint(websocket: WebSocket, nickname: str = "Игрок", skin: str = "#22c55e"):
     # Серверная генерация уникального ID
     client_id = str(uuid.uuid4())
