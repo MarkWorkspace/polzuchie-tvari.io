@@ -345,6 +345,51 @@ interface GameSceneProps {
   socketRef: React.MutableRefObject<WebSocket | null>;
 }
 
+function updateDynamicAttribute(
+  geometry: THREE.BufferGeometry,
+  name: string,
+  data: number[],
+  itemSize: number
+) {
+  let attr = geometry.getAttribute(name) as THREE.BufferAttribute | undefined;
+  const requiredLength = data.length;
+  
+  if (!attr || attr.array.length < requiredLength) {
+    const newSize = Math.max(Math.ceil(requiredLength * 1.3), 512); // Extra capacity padding
+    const newArray = new Float32Array(newSize);
+    newArray.set(data);
+    attr = new THREE.BufferAttribute(newArray, itemSize);
+    attr.setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute(name, attr);
+  } else {
+    const array = attr.array as Float32Array;
+    // Fast, zero-allocation array copy in-place
+    array.set(data);
+    attr.needsUpdate = true;
+  }
+}
+
+function updateDynamicIndex(
+  geometry: THREE.BufferGeometry,
+  indices: number[]
+) {
+  let indexAttr = geometry.getIndex();
+  const requiredLength = indices.length;
+  
+  if (!indexAttr || indexAttr.array.length < requiredLength) {
+    const newSize = Math.max(Math.ceil(requiredLength * 1.3), 512);
+    const newArray = new Uint32Array(newSize);
+    newArray.set(indices);
+    indexAttr = new THREE.BufferAttribute(newArray, 1);
+    indexAttr.setUsage(THREE.DynamicDrawUsage);
+    geometry.setIndex(indexAttr);
+  } else {
+    const array = indexAttr.array as Uint32Array;
+    array.set(indices);
+    indexAttr.needsUpdate = true;
+  }
+}
+
 const GameScene = ({
   gameStateRef,
   lastGameStateRef,
@@ -674,6 +719,8 @@ const GameScene = ({
     const foods = state.foods || [];
     if (foodMeshRef.current) {
       let count = 0;
+      const baseRadius = state.server_food?.base_radius ?? 0.2;
+      const radiusValueScale = state.server_food?.radius_value_scale ?? 0.1;
       
       const lastFoodMap = cachedFoodMapRef.current;
       lastFoodMap.clear();
@@ -706,7 +753,7 @@ const GameScene = ({
           }
         }
 
-        const foodRadius = (0.2 + Math.sqrt(food.value) * 0.1) * gridSize;
+        const foodRadius = (baseRadius + Math.sqrt(food.value) * radiusValueScale) * gridSize;
         const wx = fx * gridSize + gridSize/2;
         const wy = -(fy * gridSize + gridSize/2);
         
@@ -1027,36 +1074,24 @@ const GameScene = ({
           }
         }
       }
-
-      // Upload body attributes
-      bodyGeom.setAttribute('position', new THREE.Float32BufferAttribute(bodyVertices, 3));
-      bodyGeom.setAttribute('uv', new THREE.Float32BufferAttribute(bodyUVs, 2));
-      bodyGeom.setAttribute('color', new THREE.Float32BufferAttribute(bodyColors, 3));
-      bodyGeom.setAttribute('snakeParams', new THREE.Float32BufferAttribute(bodySnakeParams, 2));
-      bodyGeom.setIndex(bodyIndices);
-      bodyGeom.computeVertexNormals();
-      bodyGeom.computeBoundingBox();
-      bodyGeom.computeBoundingSphere();
       
-      bodyGeom.attributes.position.needsUpdate = true;
-      bodyGeom.attributes.uv.needsUpdate = true;
-      bodyGeom.attributes.color.needsUpdate = true;
-      bodyGeom.attributes.snakeParams.needsUpdate = true;
+      // Upload body attributes dynamically
+      updateDynamicAttribute(bodyGeom, 'position', bodyVertices, 3);
+      updateDynamicAttribute(bodyGeom, 'uv', bodyUVs, 2);
+      updateDynamicAttribute(bodyGeom, 'color', bodyColors, 3);
+      updateDynamicAttribute(bodyGeom, 'snakeParams', bodySnakeParams, 2);
+      updateDynamicIndex(bodyGeom, bodyIndices);
+      bodyGeom.setDrawRange(0, bodyIndices.length);
+      bodyGeom.computeVertexNormals();
 
-      // Upload shadow attributes
-      shadowGeom.setAttribute('position', new THREE.Float32BufferAttribute(shadowVertices, 3));
-      shadowGeom.setAttribute('uv', new THREE.Float32BufferAttribute(shadowUVs, 2));
-      shadowGeom.setAttribute('color', new THREE.Float32BufferAttribute(shadowColors, 3));
-      shadowGeom.setAttribute('snakeParams', new THREE.Float32BufferAttribute(shadowSnakeParams, 2));
-      shadowGeom.setIndex(shadowIndices);
+      // Upload shadow attributes dynamically
+      updateDynamicAttribute(shadowGeom, 'position', shadowVertices, 3);
+      updateDynamicAttribute(shadowGeom, 'uv', shadowUVs, 2);
+      updateDynamicAttribute(shadowGeom, 'color', shadowColors, 3);
+      updateDynamicAttribute(shadowGeom, 'snakeParams', shadowSnakeParams, 2);
+      updateDynamicIndex(shadowGeom, shadowIndices);
+      shadowGeom.setDrawRange(0, shadowIndices.length);
       shadowGeom.computeVertexNormals();
-      shadowGeom.computeBoundingBox();
-      shadowGeom.computeBoundingSphere();
-
-      shadowGeom.attributes.position.needsUpdate = true;
-      shadowGeom.attributes.uv.needsUpdate = true;
-      shadowGeom.attributes.color.needsUpdate = true;
-      shadowGeom.attributes.snakeParams.needsUpdate = true;
     }
       
       // UPDATE EYES

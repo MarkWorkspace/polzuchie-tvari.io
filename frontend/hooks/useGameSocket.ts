@@ -137,6 +137,7 @@ export function useGameSocket(
             server_simulation: parsedState.server_simulation,
             server_snake: parsedState.server_snake,
             server_visual: parsedState.server_visual,
+            server_food: parsedState.server_food,
             players: parsedState.players,
             foods: parsedState.foods,
           };
@@ -209,6 +210,7 @@ export function useGameSocket(
             server_simulation: parsedState.server_simulation ?? gameStateRef.current.server_simulation,
             server_snake: parsedState.server_snake ?? gameStateRef.current.server_snake,
             server_visual: parsedState.server_visual ?? gameStateRef.current.server_visual,
+            server_food: parsedState.server_food ?? gameStateRef.current.server_food,
             players: nextPlayers,
             foods: nextFoods
           };

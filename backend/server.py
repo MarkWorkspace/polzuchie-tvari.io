@@ -111,6 +111,7 @@ class GameState:
         self.clusters = self._create_clusters()
         self.food_id_counter = 0
         self.foods = {}
+        self.cluster_timer = 0.0
         self.new_foods = []
         self.eaten_foods = []
         self.pending_eaten_foods = []
@@ -315,10 +316,13 @@ class GameState:
         self.kill_events = []
         self.moved_foods = []
         
-        # Периодически смещаем одну из точек интереса (2.5% шанс на 20Hz)
-        if random.random() < self.config.world.cluster_move_chance:
-            idx = random.randint(0, len(self.clusters) - 1)
-            self.clusters[idx] = (random.uniform(10, self.grid_width - 10), random.uniform(10, self.grid_height - 10))
+        # Периодически смещаем одну из точек интереса (раз в минуту проверяем шанс)
+        self.cluster_timer += self.tick_interval
+        if self.cluster_timer >= 60.0:
+            self.cluster_timer -= 60.0
+            if random.random() < self.config.world.cluster_move_chance:
+                idx = random.randint(0, len(self.clusters) - 1)
+                self.clusters[idx] = (random.uniform(10, self.grid_width - 10), random.uniform(10, self.grid_height - 10))
 
         # Обновляем координаты для всех игроков одновременно
         tick_interval = self.tick_interval
@@ -584,8 +588,10 @@ class GameState:
         client_player = self.players.get(client_id)
         if client_player and len(client_player.body) > 0:
             cx, cy = client_player.body[0]["x"], client_player.body[0]["y"]
+            score = client_player.score
         else:
             cx, cy = self.grid_width / 2, self.grid_height / 2
+            score = 0
             
         previous_visible = self.client_visibility.get(client_id, set())
         current_visible = set()
@@ -596,7 +602,16 @@ class GameState:
                 
             head = p.body[0]
             dist_sq = (head["x"] - cx)**2 + (head["y"] - cy)**2
-            safe_radius = self.config.network.aoi_radius + (len(p.body) * self.config.network.aoi_length_padding)
+            
+            # Динамический расчет радиуса AoI: радиус тумана клиента + 3% запаса + прибавка за длину цели
+            min_fog = self.config.visual.min_fog_radius
+            expansion = self.config.visual.fog_score_expansion_coeff
+            fog_radius_world = min_fog + score * expansion
+            fog_radius_grid = fog_radius_world / 20.0
+            
+            target_padding = len(p.body) * 0.5
+            safe_radius = (fog_radius_grid + target_padding) * 1.03
+            
             in_aoi = (pid == client_id) or (dist_sq < safe_radius ** 2)
             if in_aoi:
                 current_visible.add(pid)
@@ -619,6 +634,7 @@ class GameState:
             "server_simulation": cfg["simulation"],
             "server_snake": cfg["snake"],
             "server_visual": cfg["visual"],
+            "server_food": cfg["food"],
             "players": players_data,
             "new_foods": self.new_foods,
             "eaten_foods": self.eaten_foods,

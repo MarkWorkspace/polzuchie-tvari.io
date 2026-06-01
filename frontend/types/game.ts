@@ -29,6 +29,14 @@ export type ServerVisualConfig = {
   mouse_sensitivity?: number;
 };
 
+export type ServerFoodConfig = {
+  base_radius: number;
+  radius_value_scale: number;
+  death_drop_score_fraction: number;
+  attraction_radius: number;
+  attraction_speed: number;
+};
+
 export type Point = {
   x: number;
   y: number;
@@ -58,6 +66,7 @@ export type GameState = {
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
+  server_food?: ServerFoodConfig;
   players: Record<string, Player>;
   foods: Food[];
 };
@@ -79,6 +88,7 @@ export type FullGameMessage = {
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
+  server_food?: ServerFoodConfig;
   players: Record<string, Player>;
   foods: Food[];
   new_foods?: Food[];
@@ -92,6 +102,7 @@ export type DeltaGameMessage = {
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
+  server_food?: ServerFoodConfig;
   players: Record<string, PlayerUpdate>;
   new_foods?: Food[];
   eaten_foods?: number[];

@@ -72,12 +72,6 @@ class FoodConfig:
 
 
 @dataclass
-class NetworkConfig:
-    aoi_radius: float = 60.0
-    aoi_length_padding: float = 0.5
-
-
-@dataclass
 class VisualConfig:
     min_fog_radius: float = 900.0
     fog_score_expansion_coeff: float = 0.5
@@ -95,7 +89,6 @@ class GameConfig:
     snake: SnakeConfig = field(default_factory=SnakeConfig)
     boost: BoostConfig = field(default_factory=BoostConfig)
     food: FoodConfig = field(default_factory=FoodConfig)
-    network: NetworkConfig = field(default_factory=NetworkConfig)
     visual: VisualConfig = field(default_factory=VisualConfig)
 
     def to_dict(self):
@@ -154,9 +147,6 @@ class GameConfig:
         _require_range("food.attraction_radius", self.food.attraction_radius, 0, 100)
         _require_range("food.attraction_speed", self.food.attraction_speed, 0, 200)
 
-        _require_range("network.aoi_radius", self.network.aoi_radius, 1, 10000)
-        _require_range("network.aoi_length_padding", self.network.aoi_length_padding, 0, 1000)
-
         _require_range("visual.min_fog_radius", self.visual.min_fog_radius, 100, 5000)
         _require_range("visual.fog_score_expansion_coeff", self.visual.fog_score_expansion_coeff, 0.0, 100.0)
         _require_range("visual.camera_base_zoom", self.visual.camera_base_zoom, 0.1, 10.0)
@@ -171,7 +161,8 @@ def _apply_dataclass_patch(target, patch):
     hints = typing.get_type_hints(type(target))
     for key, value in patch.items():
         if key not in field_map:
-            raise ValueError(f"Unknown config key: {key}")
+            print(f"[Config] Warning: Skipping unknown config key '{key}'")
+            continue
         current_value = getattr(target, key)
         if is_dataclass(current_value):
             if not isinstance(value, dict):

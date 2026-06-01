@@ -8,22 +8,22 @@ type FoodTypeDraft = { value: string; weight: string; color: string; expanded: b
 
 const NEW_SECTIONS: Record<string, { title: string; icon: string; old_sections: string[] }> = {
   world_network: {
-    title: "Мир и Сеть",
+    title: "World & Network",
     icon: "🌐",
     old_sections: ["world", "network"],
   },
   snake_physics: {
-    title: "Змейка и Физика",
+    title: "Snake & Physics",
     icon: "🐍",
     old_sections: ["snake", "simulation"],
   },
   food_boost: {
-    title: "Еда и Бусты",
+    title: "Food & Boost",
     icon: "🍎",
     old_sections: ["food", "boost"],
   },
   camera_visual: {
-    title: "Камера и Визуал",
+    title: "Camera & Visual",
     icon: "🎨",
     old_sections: ["visual"],
   },
@@ -38,118 +38,118 @@ const getNewSectionKey = (oldSec: string): string => {
 };
 
 const FIELD_LABELS: Record<string, string> = {
-  width: "Ширина карты",
-  height: "Высота карты",
-  target_food_count: "Целевое количество еды",
-  food_overflow_limit: "Лимит лишней еды",
-  cluster_count: "Количество кластеров",
-  cluster_spawn_chance: "Шанс спавна в кластере",
-  cluster_spread: "Разброс кластера",
-  cluster_move_chance: "Шанс сдвига кластера за тик",
-  tick_rate: "Тикрейт сервера",
-  base_speed_per_second: "Скорость змейки",
-  max_turn_speed_deg_per_second: "Макс. скорость поворота (°/с)",
-  min_turn_radius: "Мин. радиус поворота",
-  turn_radius_thickness_coeff: "Коэф. радиуса от толщины",
-  turn_idle_smoothing_at_20hz: "Сглаживание выравнивания",
-  turn_active_smoothing_at_20hz: "Сглаживание поворота",
-  start_length: "Стартовая длина",
-  start_score: "Стартовый счет",
-  base_head_radius: "Минимальный радиус головы",
-  score_thickness_scale: "Рост толщины от счёта",
-  camera_zoom_out_coeff: "Коэф. отдаления камеры за очки",
-  growth_score_per_segment: "Очков за сегмент роста",
-  min_body_length: "Минимальная длина тела",
-  safe_spawn_distance: "Безопасная дистанция спавна",
-  min_score: "Минимальный счет для ускорения",
-  speed_multiplier: "Множитель скорости",
-  drain_interval_seconds: "Интервал потери массы (с)",
-  drain_per_interval: "Потеря за интервал",
-  food_drop_value: "Номинал сброшенной еды",
-  base_radius: "Базовый радиус еды",
-  radius_value_scale: "Рост радиуса еды",
-  death_drop_score_fraction: "Доля счёта при смерти",
-  attraction_radius: "Радиус притяжения еды",
-  attraction_speed: "Скорость притяжения еды",
-  aoi_radius: "Базовый AoI радиус",
-  aoi_length_padding: "AoI бонус за длину",
-  min_fog_radius: "Минимальный радиус тумана",
-  fog_score_expansion_coeff: "Коэф. расширения тумана за очки",
-  camera_base_zoom: "Начальное отдаление камеры",
-  camera_pitch_angle: "Наклон камеры pitch (°)",
-  camera_z_height: "Высота камеры по оси Z",
-  camera_y_offset: "Смещение камеры вперед-назад",
-  mouse_sensitivity: "Чувствительность мыши",
+  width: "Map Width",
+  height: "Map Height",
+  target_food_count: "Target Food Count",
+  food_overflow_limit: "Food Overflow Limit",
+  cluster_count: "Cluster Count",
+  cluster_spawn_chance: "Cluster Spawn Chance",
+  cluster_spread: "Cluster Spread",
+  cluster_move_chance: "Cluster Move Chance (once/min)",
+  tick_rate: "Server Tick Rate",
+  base_speed_per_second: "Snake Base Speed",
+  max_turn_speed_deg_per_second: "Max Turn Speed (°/s)",
+  min_turn_radius: "Min Turn Radius",
+  turn_radius_thickness_coeff: "Turn Radius Thickness Coeff",
+  turn_idle_smoothing_at_20hz: "Idle Alignment Smoothing",
+  turn_active_smoothing_at_20hz: "Active Turn Smoothing",
+  start_length: "Start Length",
+  start_score: "Start Score",
+  base_head_radius: "Min Head Radius",
+  score_thickness_scale: "Thickness Growth per Score",
+  camera_zoom_out_coeff: "Camera Zoom-Out Coeff",
+  growth_score_per_segment: "Score per Growth Segment",
+  min_body_length: "Min Body Length",
+  safe_spawn_distance: "Safe Spawn Distance",
+  min_score: "Min Boost Score",
+  speed_multiplier: "Speed Multiplier",
+  drain_interval_seconds: "Mass Drain Interval (s)",
+  drain_per_interval: "Mass Drain per Interval",
+  food_drop_value: "Dropped Food Value",
+  base_radius: "Base Food Radius",
+  radius_value_scale: "Food Radius Scale",
+  death_drop_score_fraction: "Death Drop Score Fraction",
+  attraction_radius: "Food Attraction Radius",
+  attraction_speed: "Food Attraction Speed",
+  aoi_radius: "Base AoI Radius",
+  aoi_length_padding: "AoI Length Bonus",
+  min_fog_radius: "Min Fog Radius",
+  fog_score_expansion_coeff: "Fog Expansion Coeff",
+  camera_base_zoom: "Camera Base Zoom",
+  camera_pitch_angle: "Camera Pitch Angle (°)",
+  camera_z_height: "Camera Z-Height",
+  camera_y_offset: "Camera Y-Offset",
+  mouse_sensitivity: "Mouse Sensitivity",
 };
 
 const FIELD_TOOLTIPS: Record<string, string> = {
-  target_food_count: "Целевое количество еды, которое сервер будет поддерживать на карте.",
-  food_overflow_limit: "Максимальный избыток еды сверх лимита, после которого сервер начнет удалять лишнюю еду.",
-  cluster_spawn_chance: "Шанс (от 0 до 1) спавна новой еды в одном из плотных кластеров, а не случайно.",
-  cluster_move_chance: "Шанс смещения центра кластера на каждом тике для динамики зон питания.",
-  tick_rate: "Частота обновлений (тиков) игрового мира в секунду на сервере.",
-  turn_radius_thickness_coeff: "Коэффициент увеличения радиуса разворота в зависимости от толщины змейки.",
-  turn_idle_smoothing_at_20hz: "Плавность возврата к прямолинейному движению при отпускании кнопок поворота.",
-  turn_active_smoothing_at_20hz: "Плавность входа в поворот при нажатии кнопок направления.",
-  score_thickness_scale: "Коэффициент масштабирования толщины тела и радиуса головы змейки от счёта.",
-  camera_zoom_out_coeff: "Степень отдаления камеры по мере увеличения счёта игрока.",
-  drain_interval_seconds: "Интервал времени в секундах, за который при ускорении списывается масса.",
-  food_drop_value: "Номинал капелек еды, сбрасываемых позади змейки при ускорении.",
-  attraction_radius: "Радиус притяжения (магнетизма), в пределах которого еда летит к змейке.",
-  attraction_speed: "Скорость притяжения еды к голове змейки.",
-  aoi_radius: "Базовый радиус Area of Interest (видимости) игрока в ячейках.",
-  aoi_length_padding: "Коэффициент расширения радиуса Area of Interest от длины змейки.",
-  min_fog_radius: "Минимальный радиус визуального тумана войны вокруг головы змейки.",
-  fog_score_expansion_coeff: "Коэффициент расширения тумана войны по мере увеличения счёта.",
-  mouse_sensitivity: "Коэффициент отклонения курсора от центра экрана для достижения максимальной скорости разворота змейки (1.0 — четверть экрана, 2.0 — половина экрана до края)."
+  target_food_count: "Target food count that the server maintains on the map.",
+  food_overflow_limit: "Maximum extra food above target, after which the server trims excess food.",
+  cluster_spawn_chance: "Chance (0 to 1) of spawning new food inside a dense cluster rather than randomly.",
+  cluster_move_chance: "Chance of shifting a food cluster center, checked by the server once every minute.",
+  tick_rate: "Frequency of game world updates (ticks per second) on the server.",
+  turn_radius_thickness_coeff: "Coefficient for increasing the turn radius based on the snake's thickness.",
+  turn_idle_smoothing_at_20hz: "Smoothness of return to straight motion when turning keys are released.",
+  turn_active_smoothing_at_20hz: "Smoothness of entering a turn when turning keys are pressed.",
+  score_thickness_scale: "Coefficient for scaling body thickness and head radius relative to score.",
+  camera_zoom_out_coeff: "Camera zoom-out factor as the player's score increases.",
+  drain_interval_seconds: "Time interval in seconds at which score is drained during acceleration.",
+  food_drop_value: "Value of food particles dropped behind the snake during acceleration.",
+  attraction_radius: "Attraction (magnetism) radius within which food flies towards the snake.",
+  attraction_speed: "Speed of food attraction towards the snake's head.",
+  aoi_radius: "Base Area of Interest (visibility) radius of the player in cells.",
+  aoi_length_padding: "Length-based Area of Interest expansion coefficient.",
+  min_fog_radius: "Minimum visual fog-of-war radius around the snake's head.",
+  fog_score_expansion_coeff: "Fog-of-war expansion coefficient relative to score.",
+  mouse_sensitivity: "Cursor deflection factor from the center of the screen to reach maximum snake turning speed (1.0 - quarter screen, 2.0 - half screen to the edge)."
 };
 
 const FIELD_UNITS: Record<string, string> = {
-  width: "ячеек",
-  height: "ячеек",
-  target_food_count: "шт.",
-  food_overflow_limit: "шт.",
-  cluster_count: "шт.",
-  cluster_spawn_chance: "доля",
-  cluster_spread: "ячеек",
-  cluster_move_chance: "/ тик",
-  tick_rate: "Гц",
-  base_speed_per_second: "яч./с",
-  max_turn_speed_deg_per_second: "°/с",
-  min_turn_radius: "ячеек",
-  turn_radius_thickness_coeff: "коэф.",
-  turn_idle_smoothing_at_20hz: "коэф.",
-  turn_active_smoothing_at_20hz: "коэф.",
-  start_length: "сегм.",
-  start_score: "очков",
-  base_head_radius: "ячеек",
-  score_thickness_scale: "коэф.",
-  camera_zoom_out_coeff: "коэф.",
-  growth_score_per_segment: "оч./сегм",
-  min_body_length: "сегм.",
-  safe_spawn_distance: "ячеек",
-  min_score: "очков",
+  width: "cells",
+  height: "cells",
+  target_food_count: "pcs",
+  food_overflow_limit: "pcs",
+  cluster_count: "pcs",
+  cluster_spawn_chance: "fraction",
+  cluster_spread: "cells",
+  cluster_move_chance: "fraction",
+  tick_rate: "Hz",
+  base_speed_per_second: "cells/s",
+  max_turn_speed_deg_per_second: "°/s",
+  min_turn_radius: "cells",
+  turn_radius_thickness_coeff: "coeff",
+  turn_idle_smoothing_at_20hz: "coeff",
+  turn_active_smoothing_at_20hz: "coeff",
+  start_length: "segm",
+  start_score: "points",
+  base_head_radius: "cells",
+  score_thickness_scale: "coeff",
+  camera_zoom_out_coeff: "coeff",
+  growth_score_per_segment: "pts/seg",
+  min_body_length: "segm",
+  safe_spawn_distance: "cells",
+  min_score: "points",
   speed_multiplier: "x",
-  drain_interval_seconds: "сек.",
-  drain_per_interval: "очков",
-  food_drop_value: "очков",
-  base_radius: "ячеек",
-  radius_value_scale: "коэф.",
-  death_drop_score_fraction: "доля",
-  attraction_radius: "ячеек",
-  attraction_speed: "яч./с",
-  aoi_radius: "ячеек",
-  aoi_length_padding: "коэф.",
-  min_fog_radius: "ячеек",
-  fog_score_expansion_coeff: "коэф.",
-  camera_base_zoom: "коэф.",
+  drain_interval_seconds: "sec",
+  drain_per_interval: "points",
+  food_drop_value: "points",
+  base_radius: "cells",
+  radius_value_scale: "coeff",
+  death_drop_score_fraction: "fraction",
+  attraction_radius: "cells",
+  attraction_speed: "cells/s",
+  aoi_radius: "cells",
+  aoi_length_padding: "coeff",
+  min_fog_radius: "cells",
+  fog_score_expansion_coeff: "coeff",
+  camera_base_zoom: "coeff",
   camera_pitch_angle: "°",
-  camera_z_height: "ячеек",
-  camera_y_offset: "ячеек",
-  mouse_sensitivity: "коэф."
+  camera_z_height: "cells",
+  camera_y_offset: "cells",
+  mouse_sensitivity: "coeff"
 };
 
-const HIDDEN_FIELDS = new Set(["types"]);
+const HIDDEN_FIELDS = new Set(["types", "width", "height", "aoi_radius", "aoi_length_padding"]);
 
 function adminApiUrl() {
   const host = window.location.hostname || "127.0.0.1";
@@ -170,7 +170,7 @@ export default function AdminPage() {
   const [config, setConfig] = useState<GameConfig | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [foodTypes, setFoodTypes] = useState<FoodTypeDraft[]>([]);
-  const [status, setStatus] = useState("Введите пароль администратора для авторизации");
+  const [status, setStatus] = useState("Enter admin password to authorize");
   const [activeTab, setActiveTab] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [healthData, setHealthData] = useState<{ online: boolean; players: number; ping: number | null }>({
@@ -243,20 +243,20 @@ export default function AdminPage() {
   }, []);
 
   const loadConfig = useCallback(async (passwordOverride = password) => {
-    setStatus("Загрузка текущих параметров баланса...");
+    setStatus("Loading current balance parameters...");
     try {
       const response = await fetch(apiUrl, {
         headers: { "x-admin-password": passwordOverride },
       });
       if (!response.ok) {
-        setStatus(`Ошибка доступа: Неверный пароль (${response.status})`);
+        setStatus(`Access error: Invalid password (${response.status})`);
         return;
       }
       applyLoadedConfig(await response.json() as GameConfig);
-      setStatus("Параметры успешно загружены с сервера");
+      setStatus("Balance parameters loaded successfully from server");
       window.localStorage.setItem("snake-admin-password", passwordOverride);
     } catch (e) {
-      setStatus(`Не удалось подключиться к серверу: ${String(e)}`);
+      setStatus(`Failed to connect to server: ${String(e)}`);
     }
   }, [apiUrl, password, applyLoadedConfig]);
 
@@ -298,10 +298,10 @@ export default function AdminPage() {
   const applyAll = useCallback(async () => {
     const patch = buildPatch();
     if (Object.keys(patch).length === 0) {
-      setStatus("Изменения отсутствуют");
+      setStatus("No changes detected");
       return;
     }
-    setStatus("Применение новых параметров...");
+    setStatus("Applying new parameters...");
     try {
       const response = await fetch(apiUrl, {
         method: "PATCH",
@@ -313,13 +313,13 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const error = (await response.json().catch(() => null)) as { detail?: string } | null;
-        setStatus(error?.detail || `Ошибка при сохранении: ${response.status}`);
+        setStatus(error?.detail || `Error saving config: ${response.status}`);
         return;
       }
       applyLoadedConfig(await response.json() as GameConfig);
-      setStatus("✓ Конфигурация успешно обновлена в реальном времени!");
+      setStatus("✓ Configuration successfully updated in real-time!");
     } catch (e) {
-      setStatus(`Ошибка сети при отправке патча: ${String(e)}`);
+      setStatus(`Network error while sending patch: ${String(e)}`);
     }
   }, [apiUrl, password, buildPatch, applyLoadedConfig]);
 
@@ -340,7 +340,7 @@ export default function AdminPage() {
       color: ft.color,
       expanded: false,
     })));
-    setStatus("Все локальные изменения сброшены к серверным");
+    setStatus("All local changes reset to server defaults");
   }, [config]);
 
   const resetSingleField = useCallback((dk: string, originalValue: unknown) => {
@@ -555,7 +555,7 @@ export default function AdminPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span style={{ fontSize: 28 }}>🛠️</span>
                 <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: "-0.025em", background: "linear-gradient(to right, #fafafa, #a1a1aa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  Snake AI · Консоль Баланса
+                  Snake AI · Balance Console
                 </h1>
               </div>
 
@@ -621,37 +621,30 @@ export default function AdminPage() {
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            
-            <div style={{ position: "relative", display: "flex", gap: 6, background: "#30323a", padding: 4, borderRadius: 10, border: "1px solid #3f414a" }}>
-              <input
-                type="password"
-                placeholder="Пароль администратора"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ 
-                  background: "transparent", 
-                  border: "none", 
-                  color: "#fafafa", 
-                  padding: "6px 12px", 
-                  fontSize: 13, 
-                  width: 170,
-                  outline: "none"
-                }}
-              />
+          {config && (
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <button 
                 type="button" 
-                onClick={() => void loadConfig()} 
+                onClick={() => {
+                  window.localStorage.removeItem("snake-admin-password");
+                  setPassword("");
+                  setConfig(null);
+                  setStatus("Session terminated");
+                }} 
                 className="btn-action"
                 style={{ 
-                  padding: "6px 14px", borderRadius: 7, border: "none",
-                  background: "#3f414a", color: "#fafafa", fontWeight: 600, fontSize: 13 
+                  padding: "6px 14px", borderRadius: 8, border: "none",
+                  background: "rgba(255, 255, 255, 0.06)", color: "#fafafa", fontWeight: 600, fontSize: 13,
+                  cursor: "pointer",
+                  transition: "background 0.2s"
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)"; }}
               >
-                Войти
+                Logout
               </button>
             </div>
-          </div>
+          )}
         </header>
 
         {!config ? (
@@ -661,14 +654,14 @@ export default function AdminPage() {
             textAlign: "center", boxShadow: "0 10px 30px rgba(0,0,0,0.15)" 
           }} className="standard-panel">
             <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-            <h2 style={{ margin: "0 0 12px", fontSize: 22, fontWeight: 700 }}>Требуется авторизация</h2>
+            <h2 style={{ margin: "0 0 12px", fontSize: 22, fontWeight: 700 }}>Authorization Required</h2>
             <p style={{ color: "#a1a1aa", fontSize: 14, lineHeight: "1.6", margin: "0 0 24px" }}>
-              Для управления балансом игры, спавном еды, физикой движения змеек и визуалом введите пароль администратора.
+              To manage the game balance, food spawning, snake physics, and visual parameters, please enter the administrator password.
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
               <input
                 type="password"
-                placeholder="Пароль"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="admin-input"
@@ -687,11 +680,11 @@ export default function AdminPage() {
                   boxShadow: "0 4px 12px rgba(230, 57, 70, 0.2)"
                 }}
               >
-                Подключиться
+                Login
               </button>
             </div>
             <p style={{ margin: "24px 0 0", color: "#a1a1aa", fontSize: 12 }}>
-              В режиме разработки (dev) пароль по умолчанию: <code>admin</code>
+              In development (dev) mode, the default password is: <code>admin</code>
             </p>
           </div>
         ) : (
@@ -701,7 +694,7 @@ export default function AdminPage() {
               display: "flex", justifyContent: "space-between", alignItems: "center", 
               gap: 16, marginBottom: 28, flexWrap: "wrap" 
             }}>
-              {/* Вкладки */}
+              {/* Tabs */}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button
                   type="button"
@@ -709,7 +702,7 @@ export default function AdminPage() {
                   className={`admin-tab ${activeTab === "all" ? "active" : ""}`}
                   style={{ padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer" }}
                 >
-                  🗂️ Все настройки
+                  🗂️ All Settings
                   {sectionModifiedCounts.all > 0 && (
                     <span style={{ background: activeTab === "all" ? "#fff" : "#f59e0b", color: activeTab === "all" ? "#e63946" : "#2b2d34", padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
                       +{sectionModifiedCounts.all}
@@ -742,11 +735,11 @@ export default function AdminPage() {
                 })}
               </div>
 
-              {/* Поиск */}
+              {/* Search */}
               <div style={{ position: "relative", width: "100%", maxWidth: 300 }}>
                 <input
                   type="text"
-                  placeholder="🔎 Быстрый поиск настройки..."
+                  placeholder="🔎 Quick search setting..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="admin-input"
@@ -767,11 +760,11 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* ОСНОВНОЙ КОНТЕНТ */}
+            {/* MAIN CONTENT */}
             {activeTabFields.length === 0 && searchQuery ? (
               <div style={{ border: "1px solid #3f414a", borderRadius: 12, padding: "40px 20px", textAlign: "center", background: "#30323a", color: "#a1a1aa" }}>
                 <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
-                Ничего не найдено по запросу «{searchQuery}» в текущем разделе.
+                No settings found for "{searchQuery}" in the current section.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 32, width: "100%" }}>
@@ -802,6 +795,164 @@ export default function AdminPage() {
                       )}
 
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 16 }}>
+                        {config && (secKey === "world_network") && (
+                          !searchQuery || 
+                          "map size".includes(searchQuery.toLowerCase()) || 
+                          "width".includes(searchQuery.toLowerCase()) || 
+                          "height".includes(searchQuery.toLowerCase()) || 
+                          "width".includes(searchQuery.toLowerCase()) || 
+                          "height".includes(searchQuery.toLowerCase())
+                        ) && (() => {
+                          const wDraft = drafts["world.width"] ?? String(config.world.width);
+                          const hDraft = drafts["world.height"] ?? String(config.world.height);
+                          const isWMody = wDraft !== String(config.world.width);
+                          const isHMody = hDraft !== String(config.world.height);
+                          const isMody = isWMody || isHMody;
+
+                          return (
+                            <div 
+                              className={`setting-card ${isMody ? "modified" : ""}`}
+                              style={{ 
+                                borderRadius: 10, 
+                                padding: 16, 
+                                display: "flex", 
+                                flexDirection: "column",
+                                justifyContent: "space-between",
+                                position: "relative"
+                              }}
+                            >
+                              <div>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ color: "#fafafa", fontSize: 14, fontWeight: 600 }}>Map Size</span>
+                                    <div className="tooltip-container" style={{ position: "relative", display: "inline-block", cursor: "help" }}>
+                                      <span style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        width: 16,
+                                        height: 16,
+                                        borderRadius: "50%",
+                                        background: "#3f414a",
+                                        color: "#a1a1aa",
+                                        fontSize: 10,
+                                        fontWeight: 800,
+                                        transition: "all 0.15s ease"
+                                      }} className="tooltip-icon">
+                                        ?
+                                      </span>
+                                      <div className="tooltip-text" style={{
+                                        visibility: "hidden",
+                                        width: 240,
+                                        backgroundColor: "#1e2025",
+                                        color: "#fafafa",
+                                        textAlign: "left",
+                                        borderRadius: 8,
+                                        padding: "8px 12px",
+                                        position: "absolute",
+                                        zIndex: 10,
+                                        bottom: "125%",
+                                        left: "50%",
+                                        marginLeft: -120,
+                                        opacity: 0,
+                                        transition: "opacity 0.2s ease, transform 0.2s ease",
+                                        transform: "translateY(4px)",
+                                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                                        fontSize: 11,
+                                        lineHeight: "1.4",
+                                        pointerEvents: "none",
+                                        border: "1px solid #3f414a"
+                                      }}>
+                                        The width and height of the game board in cells. A square or rectangular map is recommended.
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {isMody && (
+                                    <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, background: "rgba(245, 158, 11, 0.15)", padding: "2px 6px", borderRadius: 10 }}>
+                                      modified
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#a1a1aa", wordBreak: "break-all", marginBottom: 12 }}>
+                                  world.width × world.height
+                                </div>
+                              </div>
+
+                              <div>
+                                {isMody && (
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#a1a1aa", marginBottom: 6, padding: "0 2px" }}>
+                                    <span>Was: <strong style={{ color: "#8a8b94" }}>{String(config.world.width)} × {String(config.world.height)}</strong></span>
+                                    <button 
+                                      type="button" 
+                                      onClick={() => {
+                                        resetSingleField("world.width", config.world.width);
+                                        resetSingleField("world.height", config.world.height);
+                                      }}
+                                      style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}
+                                    >
+                                      Reset ↺
+                                    </button>
+                                  </div>
+                                )}
+
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
+                                  <input
+                                    value={wDraft}
+                                    onChange={(e) => setDrafts(prev => ({ ...prev, ["world.width"]: e.target.value }))}
+                                    className="admin-input"
+                                    placeholder="Width"
+                                    style={{
+                                      flex: 1,
+                                      width: "100%",
+                                      padding: "10px 12px",
+                                      borderRadius: 8,
+                                      border: `1px solid ${isWMody ? "#d97706" : "#3f414a"}`,
+                                      background: "#2b2d34",
+                                      color: "#fafafa",
+                                      fontSize: 14,
+                                      fontWeight: 600,
+                                      textAlign: "center"
+                                    }}
+                                  />
+                                  <span style={{ color: "#a1a1aa", fontWeight: 700, fontSize: 14 }}>×</span>
+                                  <input
+                                    value={hDraft}
+                                    onChange={(e) => setDrafts(prev => ({ ...prev, ["world.height"]: e.target.value }))}
+                                    className="admin-input"
+                                    placeholder="Height"
+                                    style={{
+                                      flex: 1,
+                                      width: "100%",
+                                      padding: "10px 12px",
+                                      borderRadius: 8,
+                                      border: `1px solid ${isHMody ? "#d97706" : "#3f414a"}`,
+                                      background: "#2b2d34",
+                                      color: "#fafafa",
+                                      fontSize: 14,
+                                      fontWeight: 600,
+                                      textAlign: "center"
+                                    }}
+                                  />
+                                  <span style={{
+                                    color: "#a1a1aa",
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    background: "#24262c",
+                                    border: "1px solid #3f414a",
+                                    padding: "10px 12px",
+                                    borderRadius: 8,
+                                    whiteSpace: "nowrap",
+                                    minWidth: "60px",
+                                    textAlign: "center"
+                                  }}>
+                                    cells
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {fieldsInSec.map((f) => {
                           const draftVal = drafts[f.dk] ?? String(f.value);
                           const isFieldModified = draftVal !== String(f.value);
@@ -869,7 +1020,7 @@ export default function AdminPage() {
                                   </div>
                                   {isFieldModified && (
                                     <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, background: "rgba(245, 158, 11, 0.15)", padding: "2px 6px", borderRadius: 10 }}>
-                                      изменено
+                                      modified
                                     </span>
                                   )}
                                 </div>
@@ -881,13 +1032,13 @@ export default function AdminPage() {
                               <div>
                                 {isFieldModified && (
                                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#a1a1aa", marginBottom: 6, padding: "0 2px" }}>
-                                    <span>Было: <strong style={{ color: "#8a8b94" }}>{String(f.value)}</strong></span>
+                                    <span>Was: <strong style={{ color: "#8a8b94" }}>{String(f.value)}</strong></span>
                                     <button 
                                       type="button" 
                                       onClick={() => resetSingleField(f.dk, f.value)}
                                       style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}
                                     >
-                                      Сбросить ↺
+                                      Reset ↺
                                     </button>
                                   </div>
                                 )}
@@ -932,7 +1083,7 @@ export default function AdminPage() {
                         })}
                       </div>
 
-                      {/* Особая секция "Виды еды" в табе "Еда и Бусты" или табе "Все" */}
+                      {/* Special section "Food Types" in tab "Food & Boost" or tab "All" */}
                       {secKey === "food_boost" && (activeTab === "food_boost" || activeTab === "all") && !searchQuery && (
                         <div style={{ 
                           marginTop: 12, 
@@ -943,9 +1094,9 @@ export default function AdminPage() {
                         }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
                             <div>
-                              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>🍎 Настройка видов и спавна еды</h3>
+                              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>🍎 Food Types & Spawning Settings</h3>
                               <p style={{ margin: "4px 0 0", color: "#a1a1aa", fontSize: 13 }}>
-                                Различные типы яблок, их вес (шанс появления) и цветовое оформление на карте.
+                                Different types of apples, their spawn weight (chance), and color rendering on the map.
                               </p>
                             </div>
                             <button
@@ -957,7 +1108,7 @@ export default function AdminPage() {
                                 background: "rgba(230, 57, 70, 0.1)", color: "#e63946", fontWeight: 600, fontSize: 13 
                               }}
                             >
-                              + Добавить новый вид еды
+                              + Add Food Type
                             </button>
                           </div>
 
@@ -980,10 +1131,10 @@ export default function AdminPage() {
                                   }} />
                                   <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: 13, fontWeight: 600, color: "#fafafa" }}>
-                                      Номинал: {ft.value} очков
+                                      Value: {ft.value} points
                                     </div>
                                     <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2 }}>
-                                      Вес в пуле спавна: {ft.weight}
+                                      Spawn weight: {ft.weight}
                                     </div>
                                   </div>
                                   <button
@@ -1002,17 +1153,17 @@ export default function AdminPage() {
                                 {ft.expanded && (
                                   <div style={{ padding: 14, display: "grid", gap: 10, background: "#30323a", borderTop: "1px solid #3f414a" }}>
                                     <label style={{ display: "grid", gap: 4 }}>
-                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Очки (Номинал)</span>
+                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Points (Value)</span>
                                       <input value={ft.value} onChange={(e) => updateFoodType(i, "value", e.target.value)} className="admin-input" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #3f414a", background: "#2b2d34", color: "#fafafa", fontSize: 13 }} />
                                     </label>
                                     
                                     <label style={{ display: "grid", gap: 4 }}>
-                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Вес (Шанс спавна)</span>
+                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Weight (Spawn Weight)</span>
                                       <input value={ft.weight} onChange={(e) => updateFoodType(i, "weight", e.target.value)} className="admin-input" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #3f414a", background: "#2b2d34", color: "#fafafa", fontSize: 13 }} />
                                     </label>
 
                                     <label style={{ display: "grid", gap: 4 }}>
-                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Цветовой тон</span>
+                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Color</span>
                                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                         <input
                                           type="color"
@@ -1076,10 +1227,10 @@ export default function AdminPage() {
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 16 }}>⚠️</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b" }}>Несохраненные изменения!</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b" }}>Unsaved changes!</span>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: "#a1a1aa", lineHeight: "1.4" }}>
-                  Вы изменили параметры баланса. Примените их, чтобы обновить игровой мир в реальном времени.
+                  You have modified the balance parameters. Apply them to update the game world in real-time.
                 </p>
                 <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                   <button 
@@ -1092,7 +1243,7 @@ export default function AdminPage() {
                       background: "transparent", color: "#f59e0b", fontWeight: 600, fontSize: 13 
                     }}
                   >
-                    Сбросить
+                    Reset
                   </button>
                   <button 
                     type="button" 
@@ -1105,7 +1256,7 @@ export default function AdminPage() {
                       fontWeight: 700, fontSize: 13, boxShadow: "0 4px 14px rgba(230, 57, 70, 0.3)" 
                     }}
                   >
-                    Применить ({sectionModifiedCounts.all})
+                    Apply ({sectionModifiedCounts.all})
                   </button>
                 </div>
               </div>
