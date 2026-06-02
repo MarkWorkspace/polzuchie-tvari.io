@@ -162,6 +162,202 @@ function adminApiUrl() {
   return `${protocol}//${host}:8000/admin/config`;
 }
 
+const parseSafeInt = (val: string | undefined, fallback: number): number => {
+  if (val === undefined || val === "") return fallback;
+  const parsed = parseInt(val, 10);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
+const parseSafeFloat = (val: string | undefined, fallback: number): number => {
+  if (val === undefined || val === "") return fallback;
+  const parsed = parseFloat(val);
+  return isNaN(parsed) ? fallback : parsed;
+};
+
+type SimulatedData = {
+  width: number;
+  height: number;
+  clusters: { x: number; y: number }[];
+  foods: { x: number; y: number; color: string; value: number }[];
+  clusterSpread: number;
+};
+
+function MapSimulator({ simulatedData, onResimulate }: { 
+  simulatedData: SimulatedData | null;
+  onResimulate: () => void;
+}) {
+  const canvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
+    if (!canvas || !simulatedData) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const { width: mapW, height: mapH, clusters, foods, clusterSpread } = simulatedData;
+
+    // Fixed width for display, compute height to match map aspect ratio
+    const displayWidth = canvas.parentElement?.clientWidth || 360;
+    const aspectRatio = mapH / mapW;
+    
+    // Limit height to avoid ultra-long maps breaking UI
+    let displayHeight = displayWidth * aspectRatio;
+    let finalWidth = displayWidth;
+    
+    const maxHeight = 400;
+    if (displayHeight > maxHeight) {
+      displayHeight = maxHeight;
+      finalWidth = displayHeight / aspectRatio;
+    }
+
+    // Handle high DPI screens
+    const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+    canvas.width = finalWidth * dpr;
+    canvas.height = displayHeight * dpr;
+    canvas.style.width = `${finalWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    ctx.scale(dpr, dpr);
+
+    // Coordinate mapping: map coordinate [0, mapW] -> canvas pixel [0, finalWidth]
+    const scaleX = finalWidth / mapW;
+    const scaleY = displayHeight / mapH;
+    const scale = Math.min(scaleX, scaleY);
+
+    // Center the map in canvas if aspect ratios don't match perfectly due to capping
+    const offsetX = (finalWidth - mapW * scale) / 2;
+    const offsetY = (displayHeight - mapH * scale) / 2;
+
+    const mapToCanvas = (x: number, y: number) => {
+      return {
+        cx: offsetX + x * scale,
+        cy: offsetY + y * scale
+      };
+    };
+
+    // Draw background
+    ctx.fillStyle = "#1e2025";
+    ctx.fillRect(0, 0, finalWidth, displayHeight);
+
+    // Draw grid lines (every 10 map cells)
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
+    ctx.lineWidth = 1;
+    
+    // Vertical grid lines
+    for (let x = 0; x <= mapW; x += 10) {
+      const p1 = mapToCanvas(x, 0);
+      const p2 = mapToCanvas(x, mapH);
+      ctx.beginPath();
+      ctx.moveTo(p1.cx, p1.cy);
+      ctx.lineTo(p2.cx, p2.cy);
+      ctx.stroke();
+    }
+    // Horizontal grid lines
+    for (let y = 0; y <= mapH; y += 10) {
+      const p1 = mapToCanvas(0, y);
+      const p2 = mapToCanvas(mapW, y);
+      ctx.beginPath();
+      ctx.moveTo(p1.cx, p1.cy);
+      ctx.lineTo(p2.cx, p2.cy);
+      ctx.stroke();
+    }
+
+    // Draw map border (glowing red border matching game styling)
+    ctx.strokeStyle = "#e63946";
+    ctx.lineWidth = 2;
+    const tl = mapToCanvas(0, 0);
+    ctx.strokeRect(tl.cx, tl.cy, mapW * scale, mapH * scale);
+
+    // Draw cluster zones (circles matching cluster_spread)
+    ctx.fillStyle = "rgba(59, 130, 246, 0.08)";
+    ctx.strokeStyle = "rgba(59, 130, 246, 0.25)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]); // dashed circles
+    
+    for (const cluster of clusters) {
+      const { cx, cy } = mapToCanvas(cluster.x, cluster.y);
+      const r = clusterSpread * scale;
+      
+      // Draw spread circle
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Draw cluster center dot
+      ctx.fillStyle = "rgba(59, 130, 246, 0.5)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(59, 130, 246, 0.08)"; // Restore
+    }
+    ctx.setLineDash([]); // Reset line dash
+
+    // Draw food particles
+    for (const food of foods) {
+      const { cx, cy } = mapToCanvas(food.x, food.y);
+      
+      // Base radius of food drawn as colored dot
+      // Scale dot radius between 1.5px and 6px based on value and map scale
+      const dotRad = Math.max(1.5, Math.min(5, (0.2 + Math.sqrt(food.value) * 0.1) * scale * 2.5));
+      
+      // Shadow / glow around food
+      ctx.fillStyle = food.color;
+      ctx.shadowColor = food.color;
+      ctx.shadowBlur = 4;
+      
+      ctx.beginPath();
+      ctx.arc(cx, cy, dotRad, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Reset shadow blur for other drawings
+    ctx.shadowBlur = 0;
+
+  }, [simulatedData]);
+
+  if (!simulatedData) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{
+        position: "relative",
+        background: "#24262c",
+        border: "1px solid #3f414a",
+        borderRadius: 12,
+        overflow: "hidden",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 12,
+        minHeight: 200,
+        boxShadow: "inset 0 4px 20px rgba(0,0,0,0.4)"
+      }}>
+        <canvas ref={canvasRef} style={{ display: "block", borderRadius: 6 }} />
+      </div>
+      
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: "#a1a1aa", fontWeight: 500 }}>
+          ⚡ Live simulation of server-side food layout
+        </span>
+        <button
+          type="button"
+          onClick={onResimulate}
+          className="btn-action"
+          style={{
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid #3f414a",
+            color: "#fafafa",
+            borderRadius: 6,
+            padding: "4px 10px",
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: "pointer"
+          }}
+        >
+          🎲 Roll Seed
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState(() => {
     if (typeof window === "undefined") return "";
@@ -178,6 +374,117 @@ export default function AdminPage() {
     players: 0,
     ping: null,
   });
+  const [simSeed, setSimSeed] = useState(0);
+
+  const simulatedData = useMemo(() => {
+    if (!config) return null;
+
+    const wVal = parseSafeInt(drafts["world.width"], config ? Number((config.world as any).width) : 100);
+    const hVal = parseSafeInt(drafts["world.height"], config ? Number((config.world as any).height) : 100);
+    const width = Math.max(20, Math.min(10000, wVal));
+    const height = Math.max(20, Math.min(10000, hVal));
+
+    const fCountVal = parseSafeInt(drafts["world.target_food_count"], config ? Number((config.world as any).target_food_count) : 250);
+    const targetFoodCount = Math.max(0, Math.min(2000, fCountVal));
+
+    const cCountVal = parseSafeInt(drafts["world.cluster_count"], config ? Number((config.world as any).cluster_count) : 8);
+    const clusterCount = Math.max(1, Math.min(200, cCountVal));
+
+    const cChanceVal = parseSafeFloat(drafts["world.cluster_spawn_chance"], config ? Number((config.world as any).cluster_spawn_chance) : 0.8);
+    const clusterSpawnChance = Math.max(0, Math.min(1, cChanceVal));
+
+    const cSpreadVal = parseSafeFloat(drafts["world.cluster_spread"], config ? Number((config.world as any).cluster_spread) : 5.0);
+    const clusterSpread = Math.max(0.1, Math.min(1000, cSpreadVal));
+
+    // Extract food types
+    const types = foodTypes.map(ft => ({
+      value: Number(ft.value) || 1,
+      weight: Math.max(1, Number(ft.weight) || 1),
+      color: ft.color || "#ef4444"
+    }));
+
+    if (types.length === 0) {
+      types.push({ value: 1, weight: 1, color: "#ef4444" });
+    }
+
+    // Seeded pseudo-random generator (LCG)
+    let lcgSeed = simSeed + 1;
+    const lcgRandom = () => {
+      const x = Math.sin(lcgSeed++) * 10000;
+      return x - Math.floor(x);
+    };
+
+    // Create clusters
+    const clusters: { x: number; y: number }[] = [];
+    for (let i = 0; i < clusterCount; i++) {
+      clusters.push({
+        x: 10 + lcgRandom() * (width - 20),
+        y: 10 + lcgRandom() * (height - 20)
+      });
+    }
+
+    // Generate food
+    const foods: { x: number; y: number; color: string; value: number }[] = [];
+    
+    // Choose type based on weights
+    const totalWeight = types.reduce((sum, t) => sum + t.weight, 0);
+    const getWeightedType = () => {
+      let rand = lcgRandom() * totalWeight;
+      for (const t of types) {
+        if (rand < t.weight) return t;
+        rand -= t.weight;
+      }
+      return types[0];
+    };
+
+    // Box-Muller Gaussian random approximation
+    const randomNormal = (mean: number, stdDev: number) => {
+      const u1 = lcgRandom() || 0.0001;
+      const u2 = lcgRandom() || 0.0001;
+      const randStdNormal = Math.sqrt(-2.0 * Math.log(u1)) * Math.sin(2.0 * Math.PI * u2);
+      return mean + stdDev * randStdNormal;
+    };
+
+    for (let i = 0; i < targetFoodCount; i++) {
+      const chosen = getWeightedType();
+      let x = 0;
+      let y = 0;
+
+      if (lcgRandom() < clusterSpawnChance && clusters.length > 0) {
+        const cluster = clusters[Math.floor(lcgRandom() * clusters.length)];
+        x = randomNormal(cluster.x, clusterSpread);
+        y = randomNormal(cluster.y, clusterSpread);
+      } else {
+        x = lcgRandom() * (width - 2);
+        y = lcgRandom() * (height - 2);
+      }
+
+      x = Math.max(1, Math.min(width - 1, x));
+      y = Math.max(1, Math.min(height - 1, y));
+
+      foods.push({ x, y, color: chosen.color, value: chosen.value });
+    }
+
+    return {
+      width,
+      height,
+      clusters,
+      foods,
+      clusterSpread
+    };
+  }, [
+    drafts["world.width"],
+    drafts["world.height"],
+    drafts["world.target_food_count"],
+    drafts["world.cluster_count"],
+    drafts["world.cluster_spawn_chance"],
+    drafts["world.cluster_spread"],
+    foodTypes,
+    config,
+    simSeed
+  ]);
+
+  const showMinimap = !!config && (activeTab === "all" || activeTab === "world_network" || activeTab === "food_boost");
 
   useEffect(() => {
     let active = true;
@@ -540,6 +847,16 @@ export default function AdminPage() {
           background: #e63946 !important;
           color: #ffffff !important;
         }
+        @media (min-width: 1024px) {
+          .admin-content-layout {
+            grid-template-columns: 1fr 360px !important;
+          }
+        }
+        @media (min-width: 1280px) {
+          .admin-content-layout {
+            grid-template-columns: 1fr 400px !important;
+          }
+        }
       `}</style>
 
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
@@ -767,214 +1084,70 @@ export default function AdminPage() {
                 No settings found for "{searchQuery}" in the current section.
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 32, width: "100%" }}>
-                
-                {/* Рендеринг отфильтрованных параметров последовательными подписанными блоками */}
-                {Object.entries(NEW_SECTIONS).map(([secKey, secInfo]) => {
-                  const fieldsInSec = groupedFields[secKey] || [];
-                  if (fieldsInSec.length === 0) return null;
+              <div className="admin-content-layout" style={{ 
+                display: "grid", 
+                gridTemplateColumns: "1fr", 
+                gap: 32, 
+                width: "100%",
+                alignItems: "start"
+              }}>
+                {/* LEFT COLUMN: SETTINGS */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+                  {Object.entries(NEW_SECTIONS).map(([secKey, secInfo]) => {
+                    const fieldsInSec = groupedFields[secKey] || [];
+                    if (fieldsInSec.length === 0) return null;
 
-                  return (
-                    <div key={secKey} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                      
-                      {/* Подписанный блок-заголовок категории */}
-                      {(activeTab === "all" || searchQuery) && (
-                        <div style={{ 
-                          display: "flex", 
-                          alignItems: "center", 
-                          gap: 10, 
-                          borderBottom: "2px solid #3f414a", 
-                          paddingBottom: 8,
-                          marginTop: 8
-                        }}>
-                          <span style={{ fontSize: 20 }}>{secInfo.icon}</span>
-                          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#fafafa", letterSpacing: "-0.01em" }}>
-                            {secInfo.title}
-                          </h3>
-                        </div>
-                      )}
+                    return (
+                      <div key={secKey} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                        
+                        {/* Category block header */}
+                        {(activeTab === "all" || searchQuery) && (
+                          <div style={{ 
+                            display: "flex", 
+                            alignItems: "center", 
+                            gap: 10, 
+                            borderBottom: "2px solid #3f414a", 
+                            paddingBottom: 8,
+                            marginTop: 8
+                          }}>
+                            <span style={{ fontSize: 20 }}>{secInfo.icon}</span>
+                            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#fafafa", letterSpacing: "-0.01em" }}>
+                              {secInfo.title}
+                            </h3>
+                          </div>
+                        )}
 
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 16 }}>
-                        {config && (secKey === "world_network") && (
-                          !searchQuery || 
-                          "map size".includes(searchQuery.toLowerCase()) || 
-                          "width".includes(searchQuery.toLowerCase()) || 
-                          "height".includes(searchQuery.toLowerCase()) || 
-                          "width".includes(searchQuery.toLowerCase()) || 
-                          "height".includes(searchQuery.toLowerCase())
-                        ) && (() => {
-                          const wDraft = drafts["world.width"] ?? String(config.world.width);
-                          const hDraft = drafts["world.height"] ?? String(config.world.height);
-                          const isWMody = wDraft !== String(config.world.width);
-                          const isHMody = hDraft !== String(config.world.height);
-                          const isMody = isWMody || isHMody;
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 16 }}>
+                          {config && (secKey === "world_network") && (
+                            !searchQuery || 
+                            "map size".includes(searchQuery.toLowerCase()) || 
+                            "width".includes(searchQuery.toLowerCase()) || 
+                            "height".includes(searchQuery.toLowerCase()) || 
+                            "width".includes(searchQuery.toLowerCase()) || 
+                            "height".includes(searchQuery.toLowerCase())
+                          ) && (() => {
+                            const wDraft = drafts["world.width"] ?? String(config.world.width);
+                            const hDraft = drafts["world.height"] ?? String(config.world.height);
+                            const isWMody = wDraft !== String(config.world.width);
+                            const isHMody = hDraft !== String(config.world.height);
+                            const isMody = isWMody || isHMody;
 
-                          return (
-                            <div 
-                              className={`setting-card ${isMody ? "modified" : ""}`}
-                              style={{ 
-                                borderRadius: 10, 
-                                padding: 16, 
-                                display: "flex", 
-                                flexDirection: "column",
-                                justifyContent: "space-between",
-                                position: "relative"
-                              }}
-                            >
-                              <div>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                    <span style={{ color: "#fafafa", fontSize: 14, fontWeight: 600 }}>Map Size</span>
-                                    <div className="tooltip-container" style={{ position: "relative", display: "inline-block", cursor: "help" }}>
-                                      <span style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        width: 16,
-                                        height: 16,
-                                        borderRadius: "50%",
-                                        background: "#3f414a",
-                                        color: "#a1a1aa",
-                                        fontSize: 10,
-                                        fontWeight: 800,
-                                        transition: "all 0.15s ease"
-                                      }} className="tooltip-icon">
-                                        ?
-                                      </span>
-                                      <div className="tooltip-text" style={{
-                                        visibility: "hidden",
-                                        width: 240,
-                                        backgroundColor: "#1e2025",
-                                        color: "#fafafa",
-                                        textAlign: "left",
-                                        borderRadius: 8,
-                                        padding: "8px 12px",
-                                        position: "absolute",
-                                        zIndex: 10,
-                                        bottom: "125%",
-                                        left: "50%",
-                                        marginLeft: -120,
-                                        opacity: 0,
-                                        transition: "opacity 0.2s ease, transform 0.2s ease",
-                                        transform: "translateY(4px)",
-                                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                                        fontSize: 11,
-                                        lineHeight: "1.4",
-                                        pointerEvents: "none",
-                                        border: "1px solid #3f414a"
-                                      }}>
-                                        The width and height of the game board in cells. A square or rectangular map is recommended.
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {isMody && (
-                                    <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, background: "rgba(245, 158, 11, 0.15)", padding: "2px 6px", borderRadius: 10 }}>
-                                      modified
-                                    </span>
-                                  )}
-                                </div>
-                                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#a1a1aa", wordBreak: "break-all", marginBottom: 12 }}>
-                                  world.width × world.height
-                                </div>
-                              </div>
-
-                              <div>
-                                {isMody && (
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#a1a1aa", marginBottom: 6, padding: "0 2px" }}>
-                                    <span>Was: <strong style={{ color: "#8a8b94" }}>{String(config.world.width)} × {String(config.world.height)}</strong></span>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => {
-                                        resetSingleField("world.width", config.world.width);
-                                        resetSingleField("world.height", config.world.height);
-                                      }}
-                                      style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}
-                                    >
-                                      Reset ↺
-                                    </button>
-                                  </div>
-                                )}
-
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
-                                  <input
-                                    value={wDraft}
-                                    onChange={(e) => setDrafts(prev => ({ ...prev, ["world.width"]: e.target.value }))}
-                                    className="admin-input"
-                                    placeholder="Width"
-                                    style={{
-                                      flex: 1,
-                                      width: "100%",
-                                      padding: "10px 12px",
-                                      borderRadius: 8,
-                                      border: `1px solid ${isWMody ? "#d97706" : "#3f414a"}`,
-                                      background: "#2b2d34",
-                                      color: "#fafafa",
-                                      fontSize: 14,
-                                      fontWeight: 600,
-                                      textAlign: "center"
-                                    }}
-                                  />
-                                  <span style={{ color: "#a1a1aa", fontWeight: 700, fontSize: 14 }}>×</span>
-                                  <input
-                                    value={hDraft}
-                                    onChange={(e) => setDrafts(prev => ({ ...prev, ["world.height"]: e.target.value }))}
-                                    className="admin-input"
-                                    placeholder="Height"
-                                    style={{
-                                      flex: 1,
-                                      width: "100%",
-                                      padding: "10px 12px",
-                                      borderRadius: 8,
-                                      border: `1px solid ${isHMody ? "#d97706" : "#3f414a"}`,
-                                      background: "#2b2d34",
-                                      color: "#fafafa",
-                                      fontSize: 14,
-                                      fontWeight: 600,
-                                      textAlign: "center"
-                                    }}
-                                  />
-                                  <span style={{
-                                    color: "#a1a1aa",
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    background: "#24262c",
-                                    border: "1px solid #3f414a",
-                                    padding: "10px 12px",
-                                    borderRadius: 8,
-                                    whiteSpace: "nowrap",
-                                    minWidth: "60px",
-                                    textAlign: "center"
-                                  }}>
-                                    cells
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {fieldsInSec.map((f) => {
-                          const draftVal = drafts[f.dk] ?? String(f.value);
-                          const isFieldModified = draftVal !== String(f.value);
-
-                          return (
-                            <div 
-                              key={f.dk} 
-                              className={`setting-card ${isFieldModified ? "modified" : ""}`}
-                              style={{ 
-                                borderRadius: 10, 
-                                padding: 16, 
-                                display: "flex", 
-                                flexDirection: "column",
-                                justifyContent: "space-between",
-                                position: "relative"
-                              }}
-                            >
-                              <div>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                    <span style={{ color: "#fafafa", fontSize: 14, fontWeight: 600 }}>{f.label}</span>
-                                    {FIELD_TOOLTIPS[f.key] && (
+                            return (
+                              <div 
+                                className={`setting-card ${isMody ? "modified" : ""}`}
+                                style={{ 
+                                  borderRadius: 10, 
+                                  padding: 16, 
+                                  display: "flex", 
+                                  flexDirection: "column",
+                                  justifyContent: "space-between",
+                                  position: "relative"
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                      <span style={{ color: "#fafafa", fontSize: 14, fontWeight: 600 }}>Map Size</span>
                                       <div className="tooltip-container" style={{ position: "relative", display: "inline-block", cursor: "help" }}>
                                         <span style={{
                                           display: "inline-flex",
@@ -1013,54 +1186,76 @@ export default function AdminPage() {
                                           pointerEvents: "none",
                                           border: "1px solid #3f414a"
                                         }}>
-                                          {FIELD_TOOLTIPS[f.key]}
+                                          The width and height of the game board in cells. A square or rectangular map is recommended.
                                         </div>
                                       </div>
+                                    </div>
+                                    {isMody && (
+                                      <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, background: "rgba(245, 158, 11, 0.15)", padding: "2px 6px", borderRadius: 10 }}>
+                                        modified
+                                      </span>
                                     )}
                                   </div>
-                                  {isFieldModified && (
-                                    <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, background: "rgba(245, 158, 11, 0.15)", padding: "2px 6px", borderRadius: 10 }}>
-                                      modified
-                                    </span>
-                                  )}
-                                </div>
-                                <div style={{ fontFamily: "monospace", fontSize: 10, color: "#a1a1aa", wordBreak: "break-all", marginBottom: 12 }}>
-                                  {f.dk}
-                                </div>
-                              </div>
-
-                              <div>
-                                {isFieldModified && (
-                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#a1a1aa", marginBottom: 6, padding: "0 2px" }}>
-                                    <span>Was: <strong style={{ color: "#8a8b94" }}>{String(f.value)}</strong></span>
-                                    <button 
-                                      type="button" 
-                                      onClick={() => resetSingleField(f.dk, f.value)}
-                                      style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}
-                                    >
-                                      Reset ↺
-                                    </button>
+                                  <div style={{ fontFamily: "monospace", fontSize: 10, color: "#a1a1aa", wordBreak: "break-all", marginBottom: 12 }}>
+                                    world.width × world.height
                                   </div>
-                                )}
+                                </div>
 
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
-                                  <input
-                                    value={draftVal}
-                                    onChange={(e) => setDrafts(prev => ({ ...prev, [f.dk]: e.target.value }))}
-                                    className="admin-input"
-                                    style={{
-                                      flex: 1,
-                                      width: "100%",
-                                      padding: "10px 12px",
-                                      borderRadius: 8,
-                                      border: `1px solid ${isFieldModified ? "#d97706" : "#3f414a"}`,
-                                      background: "#2b2d34",
-                                      color: "#fafafa",
-                                      fontSize: 14,
-                                      fontWeight: 600
-                                    }}
-                                  />
-                                  {FIELD_UNITS[f.key] && (
+                                <div>
+                                  {isMody && (
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#a1a1aa", marginBottom: 6, padding: "0 2px" }}>
+                                      <span>Was: <strong style={{ color: "#8a8b94" }}>{String(config.world.width)} × {String(config.world.height)}</strong></span>
+                                      <button 
+                                        type="button" 
+                                        onClick={() => {
+                                          resetSingleField("world.width", config.world.width);
+                                          resetSingleField("world.height", config.world.height);
+                                        }}
+                                        style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}
+                                      >
+                                        Reset ↺
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
+                                    <input
+                                      value={wDraft}
+                                      onChange={(e) => setDrafts(prev => ({ ...prev, ["world.width"]: e.target.value }))}
+                                      className="admin-input"
+                                      placeholder="Width"
+                                      style={{
+                                        flex: 1,
+                                        width: "100%",
+                                        padding: "10px 12px",
+                                        borderRadius: 8,
+                                        border: `1px solid ${isWMody ? "#d97706" : "#3f414a"}`,
+                                        background: "#2b2d34",
+                                        color: "#fafafa",
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        textAlign: "center"
+                                      }}
+                                    />
+                                    <span style={{ color: "#a1a1aa", fontWeight: 700, fontSize: 14 }}>×</span>
+                                    <input
+                                      value={hDraft}
+                                      onChange={(e) => setDrafts(prev => ({ ...prev, ["world.height"]: e.target.value }))}
+                                      className="admin-input"
+                                      placeholder="Height"
+                                      style={{
+                                        flex: 1,
+                                        width: "100%",
+                                        padding: "10px 12px",
+                                        borderRadius: 8,
+                                        border: `1px solid ${isHMody ? "#d97706" : "#3f414a"}`,
+                                        background: "#2b2d34",
+                                        color: "#fafafa",
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        textAlign: "center"
+                                      }}
+                                    />
                                     <span style={{
                                       color: "#a1a1aa",
                                       fontSize: 12,
@@ -1073,195 +1268,397 @@ export default function AdminPage() {
                                       minWidth: "60px",
                                       textAlign: "center"
                                     }}>
-                                      {FIELD_UNITS[f.key]}
+                                      cells
                                     </span>
-                                  )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                            );
+                          })()}
 
-                      {/* Special section "Food Types" in tab "Food & Boost" or tab "All" */}
-                      {secKey === "food_boost" && (activeTab === "food_boost" || activeTab === "all") && !searchQuery && (
-                        <div style={{ 
-                          marginTop: 12, 
-                          border: "1px solid #3f414a", 
-                          borderRadius: 12, 
-                          padding: 20, 
-                          background: "#30323a" 
-                        }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-                            <div>
-                              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>🍎 Food Types & Spawning Settings</h3>
-                              <p style={{ margin: "4px 0 0", color: "#a1a1aa", fontSize: 13 }}>
-                                Different types of apples, their spawn weight (chance), and color rendering on the map.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={addFoodType}
-                              className="btn-action"
-                              style={{ 
-                                padding: "8px 16px", borderRadius: 8, border: "1px solid #e63946",
-                                background: "rgba(230, 57, 70, 0.1)", color: "#e63946", fontWeight: 600, fontSize: 13 
-                              }}
-                            >
-                              + Add Food Type
-                            </button>
-                          </div>
+                          {fieldsInSec.map((f) => {
+                            const draftVal = drafts[f.dk] ?? String(f.value);
+                            const isFieldModified = draftVal !== String(f.value);
 
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-                            {foodTypes.map((ft, i) => (
-                              <div key={i} className="food-card" style={{ borderRadius: 10, overflow: "hidden" }}>
-                                <div
-                                  onClick={() => updateFoodType(i, "expanded", !ft.expanded)}
-                                  style={{
-                                    display: "flex", alignItems: "center", gap: 10,
-                                    padding: "12px 14px", cursor: "pointer",
-                                    background: "#383a43", userSelect: "none"
-                                  }}
-                                >
-                                  <span style={{
-                                    width: 16, height: 16, borderRadius: "50%",
-                                    background: ft.color, border: "2px solid rgba(255,255,255,0.2)",
-                                    boxShadow: `0 0 10px ${ft.color}40`,
-                                    flexShrink: 0
-                                  }} />
-                                  <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: 13, fontWeight: 600, color: "#fafafa" }}>
-                                      Value: {ft.value} points
+                            return (
+                              <div 
+                                key={f.dk} 
+                                className={`setting-card ${isFieldModified ? "modified" : ""}`}
+                                style={{ 
+                                  borderRadius: 10, 
+                                  padding: 16, 
+                                  display: "flex", 
+                                  flexDirection: "column",
+                                  justifyContent: "space-between",
+                                  position: "relative"
+                                }}
+                              >
+                                <div>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                      <span style={{ color: "#fafafa", fontSize: 14, fontWeight: 600 }}>{f.label}</span>
+                                      {FIELD_TOOLTIPS[f.key] && (
+                                        <div className="tooltip-container" style={{ position: "relative", display: "inline-block", cursor: "help" }}>
+                                          <span style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            width: 16,
+                                            height: 16,
+                                            borderRadius: "50%",
+                                            background: "#3f414a",
+                                            color: "#a1a1aa",
+                                            fontSize: 10,
+                                            fontWeight: 800,
+                                            transition: "all 0.15s ease"
+                                          }} className="tooltip-icon">
+                                            ?
+                                          </span>
+                                          <div className="tooltip-text" style={{
+                                            visibility: "hidden",
+                                            width: 240,
+                                            backgroundColor: "#1e2025",
+                                            color: "#fafafa",
+                                            textAlign: "left",
+                                            borderRadius: 8,
+                                            padding: "8px 12px",
+                                            position: "absolute",
+                                            zIndex: 10,
+                                            bottom: "125%",
+                                            left: "50%",
+                                            marginLeft: -120,
+                                            opacity: 0,
+                                            transition: "opacity 0.2s ease, transform 0.2s ease",
+                                            transform: "translateY(4px)",
+                                            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                                            fontSize: 11,
+                                            lineHeight: "1.4",
+                                            pointerEvents: "none",
+                                            border: "1px solid #3f414a"
+                                          }}>
+                                            {FIELD_TOOLTIPS[f.key]}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                    <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2 }}>
-                                      Spawn weight: {ft.weight}
-                                    </div>
+                                    {isFieldModified && (
+                                      <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, background: "rgba(245, 158, 11, 0.15)", padding: "2px 6px", borderRadius: 10 }}>
+                                        modified
+                                      </span>
+                                    )}
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); removeFoodType(i); }}
-                                    style={{ 
-                                      background: "none", border: "none", color: "#e63946", 
-                                      cursor: "pointer", fontSize: 18, padding: "0 6px" 
+                                  <div style={{ fontFamily: "monospace", fontSize: 10, color: "#a1a1aa", wordBreak: "break-all", marginBottom: 12 }}>
+                                    {f.dk}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  {isFieldModified && (
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#a1a1aa", marginBottom: 6, padding: "0 2px" }}>
+                                      <span>Was: <strong style={{ color: "#8a8b94" }}>{String(f.value)}</strong></span>
+                                      <button 
+                                        type="button" 
+                                        onClick={() => resetSingleField(f.dk, f.value)}
+                                        style={{ background: "none", border: "none", color: "#f59e0b", cursor: "pointer", fontSize: 11, padding: 0, textDecoration: "underline" }}
+                                      >
+                                        Reset ↺
+                                      </button>
+                                    </div>
+                                  )}
+
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
+                                    <input
+                                      value={draftVal}
+                                      onChange={(e) => setDrafts(prev => ({ ...prev, [f.dk]: e.target.value }))}
+                                      className="admin-input"
+                                      style={{
+                                        flex: 1,
+                                        width: "100%",
+                                        padding: "10px 12px",
+                                        borderRadius: 8,
+                                        border: `1px solid ${isFieldModified ? "#d97706" : "#3f414a"}`,
+                                        background: "#2b2d34",
+                                        color: "#fafafa",
+                                        fontSize: 14,
+                                        fontWeight: 600
+                                      }}
+                                    />
+                                    {FIELD_UNITS[f.key] && (
+                                      <span style={{
+                                        color: "#a1a1aa",
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        background: "#24262c",
+                                        border: "1px solid #3f414a",
+                                        padding: "10px 12px",
+                                        borderRadius: 8,
+                                        whiteSpace: "nowrap",
+                                        minWidth: "60px",
+                                        textAlign: "center"
+                                      }}>
+                                        {FIELD_UNITS[f.key]}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Special section "Food Types" in tab "Food & Boost" or tab "All" */}
+                        {secKey === "food_boost" && (activeTab === "food_boost" || activeTab === "all") && !searchQuery && (
+                          <div style={{ 
+                            marginTop: 12, 
+                            border: "1px solid #3f414a", 
+                            borderRadius: 12, 
+                            padding: 20, 
+                            background: "#30323a" 
+                          }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+                              <div>
+                                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>🍎 Food Types & Spawning Settings</h3>
+                                <p style={{ margin: "4px 0 0", color: "#a1a1aa", fontSize: 13 }}>
+                                  Different types of apples, their spawn weight (chance), and color rendering on the map.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={addFoodType}
+                                className="btn-action"
+                                style={{ 
+                                  padding: "8px 16px", borderRadius: 8, border: "1px solid #e63946",
+                                  background: "rgba(230, 57, 70, 0.1)", color: "#e63946", fontWeight: 600, fontSize: 13 
+                                }}
+                              >
+                                + Add Food Type
+                              </button>
+                            </div>
+
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                              {foodTypes.map((ft, i) => (
+                                <div key={i} className="food-card" style={{ borderRadius: 10, overflow: "hidden" }}>
+                                  <div
+                                    onClick={() => updateFoodType(i, "expanded", !ft.expanded)}
+                                    style={{
+                                      display: "flex", alignItems: "center", gap: 10,
+                                      padding: "12px 14px", cursor: "pointer",
+                                      background: "#383a43", userSelect: "none"
                                     }}
                                   >
-                                    ✕
-                                  </button>
-                                  <span style={{ color: "#a1a1aa", fontSize: 10 }}>{ft.expanded ? "▲" : "▼"}</span>
-                                </div>
-
-                                {ft.expanded && (
-                                  <div style={{ padding: 14, display: "grid", gap: 10, background: "#30323a", borderTop: "1px solid #3f414a" }}>
-                                    <label style={{ display: "grid", gap: 4 }}>
-                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Points (Value)</span>
-                                      <input value={ft.value} onChange={(e) => updateFoodType(i, "value", e.target.value)} className="admin-input" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #3f414a", background: "#2b2d34", color: "#fafafa", fontSize: 13 }} />
-                                    </label>
-                                    
-                                    <label style={{ display: "grid", gap: 4 }}>
-                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Weight (Spawn Weight)</span>
-                                      <input value={ft.weight} onChange={(e) => updateFoodType(i, "weight", e.target.value)} className="admin-input" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #3f414a", background: "#2b2d34", color: "#fafafa", fontSize: 13 }} />
-                                    </label>
-
-                                    <label style={{ display: "grid", gap: 4 }}>
-                                      <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Color</span>
-                                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                        <input
-                                          type="color"
-                                          value={ft.color}
-                                          onChange={(e) => updateFoodType(i, "color", e.target.value)}
-                                          style={{ 
-                                            width: 42, height: 34, padding: 2, 
-                                            border: "1px solid #3f414a", borderRadius: 6, 
-                                            background: "#2b2d34", cursor: "pointer" 
-                                          }}
-                                        />
-                                        <input 
-                                          value={ft.color} 
-                                          onChange={(e) => updateFoodType(i, "color", e.target.value)} 
-                                          className="admin-input" 
-                                          style={{ 
-                                            flex: 1, padding: "8px 10px", borderRadius: 6, 
-                                            border: "1px solid #3f414a", background: "#2b2d34", 
-                                            color: "#fafafa", fontSize: 13, fontFamily: "monospace" 
-                                          }} 
-                                        />
+                                    <span style={{
+                                      width: 16, height: 16, borderRadius: "50%",
+                                      background: ft.color, border: "2px solid rgba(255,255,255,0.2)",
+                                      boxShadow: `0 0 10px ${ft.color}40`,
+                                      flexShrink: 0
+                                    }} />
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 600, color: "#fafafa" }}>
+                                        Value: {ft.value} points
                                       </div>
-                                    </label>
+                                      <div style={{ fontSize: 11, color: "#a1a1aa", marginTop: 2 }}>
+                                        Spawn weight: {ft.weight}
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); removeFoodType(i); }}
+                                      style={{ 
+                                        background: "none", border: "none", color: "#e63946", 
+                                        cursor: "pointer", fontSize: 18, padding: "0 6px" 
+                                      }}
+                                    >
+                                      ✕
+                                    </button>
+                                    <span style={{ color: "#a1a1aa", fontSize: 10 }}>{ft.expanded ? "▲" : "▼"}</span>
                                   </div>
-                                )}
-                              </div>
-                            ))}
+
+                                  {ft.expanded && (
+                                    <div style={{ padding: 14, display: "grid", gap: 10, background: "#30323a", borderTop: "1px solid #3f414a" }}>
+                                      <label style={{ display: "grid", gap: 4 }}>
+                                        <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Points (Value)</span>
+                                        <input value={ft.value} onChange={(e) => updateFoodType(i, "value", e.target.value)} className="admin-input" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #3f414a", background: "#2b2d34", color: "#fafafa", fontSize: 13 }} />
+                                      </label>
+                                      
+                                      <label style={{ display: "grid", gap: 4 }}>
+                                        <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Weight (Spawn Weight)</span>
+                                        <input value={ft.weight} onChange={(e) => updateFoodType(i, "weight", e.target.value)} className="admin-input" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #3f414a", background: "#2b2d34", color: "#fafafa", fontSize: 13 }} />
+                                      </label>
+
+                                      <label style={{ display: "grid", gap: 4 }}>
+                                        <span style={{ color: "#a1a1aa", fontSize: 12, fontWeight: 500 }}>Color</span>
+                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                          <input
+                                            type="color"
+                                            value={ft.color}
+                                            onChange={(e) => updateFoodType(i, "color", e.target.value)}
+                                            style={{ 
+                                              width: 42, height: 34, padding: 2, 
+                                              border: "1px solid #3f414a", borderRadius: 6, 
+                                              background: "#2b2d34", cursor: "pointer" 
+                                            }}
+                                          />
+                                          <input 
+                                            value={ft.color} 
+                                            onChange={(e) => updateFoodType(i, "color", e.target.value)} 
+                                            className="admin-input" 
+                                            style={{ 
+                                              flex: 1, padding: "8px 10px", borderRadius: 6, 
+                                              border: "1px solid #3f414a", background: "#2b2d34", 
+                                              color: "#fafafa", fontSize: 13, fontFamily: "monospace" 
+                                            }} 
+                                          />
+                                        </div>
+                                      </label>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           </div>
+                        )}
+
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* RIGHT COLUMN: SIMULATION MINIMAP */}
+                {showMinimap && (
+                  <div style={{
+                    position: "sticky",
+                    top: 110,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 20
+                  }}>
+                    <div className="standard-panel" style={{
+                      borderRadius: 16,
+                      padding: 24,
+                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+                      backdropFilter: "blur(8px)",
+                      border: "1px solid #3f414a"
+                    }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                        <span style={{ fontSize: 22 }}>🗺️</span>
+                        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#fafafa" }}>
+                          Map Simulation
+                        </h3>
+                      </div>
+                      
+                      <p style={{ margin: "0 0 16px", color: "#a1a1aa", fontSize: 13, lineHeight: "1.5" }}>
+                        Preview of the food and cluster layout based on your current settings. Updates in real-time as you modify parameters.
+                      </p>
+
+                      <MapSimulator simulatedData={simulatedData} onResimulate={() => setSimSeed(s => s + 1)} />
+
+                      {/* Simulation Stats Panel */}
+                      <div style={{
+                        marginTop: 20,
+                        borderTop: "1px solid #3f414a",
+                        paddingTop: 16,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                        fontSize: 12
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ color: "#a1a1aa" }}>Grid Size:</span>
+                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                            {simulatedData?.width} × {simulatedData?.height} cells
+                          </span>
                         </div>
-                      )}
-
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ color: "#a1a1aa" }}>Simulated Food:</span>
+                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                            {simulatedData?.foods.length} items
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ color: "#a1a1aa" }}>Food Clusters:</span>
+                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                            {simulatedData?.clusters.length} zones
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ color: "#a1a1aa" }}>Cluster Spread:</span>
+                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                            {simulatedData?.clusterSpread.toFixed(1)} cells
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ color: "#a1a1aa" }}>Cluster Chance:</span>
+                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                            {Math.round((Math.max(0, Math.min(1, parseFloat(drafts["world.cluster_spawn_chance"]) ?? (config ? Number(config.world.cluster_spawn_chance) : 0.8))) * 100))}%
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  );
-                })}
-
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Floating Action Panel in Bottom-Right Corner */}
-            {hasChanges && (
-              <div 
-                className="floating-action-panel"
-                style={{
-                  position: "fixed",
-                  bottom: 24,
-                  right: 24,
-                  zIndex: 1000,
-                  background: "rgba(48, 50, 58, 0.95)",
-                  border: "1px solid #f59e0b",
-                  borderRadius: 16,
-                  padding: "16px 20px",
-                  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(245, 158, 11, 0.15)",
-                  backdropFilter: "blur(8px)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 12,
-                  maxWidth: 320,
-                  color: "#fafafa",
-                  pointerEvents: "auto"
+          </div>
+        )}
+
+        {/* Floating Action Panel in Bottom-Right Corner - Positioned Fixed Outside Grid */}
+        {hasChanges && (
+          <div 
+            className="floating-action-panel"
+            style={{
+              position: "fixed",
+              bottom: 24,
+              right: 24,
+              zIndex: 9999, // Super high z-index to overlay everything on the screen
+              background: "rgba(36, 38, 44, 0.98)", // dark high-opacity backdrop
+              border: "1px solid #f59e0b",
+              borderRadius: 16,
+              padding: "16px 20px",
+              boxShadow: "0 10px 35px rgba(0, 0, 0, 0.5), 0 0 25px rgba(245, 158, 11, 0.25)",
+              backdropFilter: "blur(12px)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              maxWidth: 320,
+              color: "#fafafa",
+              pointerEvents: "auto"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16 }}>⚠️</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b" }}>Unsaved changes!</span>
+            </div>
+            <p style={{ margin: 0, fontSize: 12, color: "#a1a1aa", lineHeight: "1.4" }}>
+              You have modified the balance parameters. Apply them to update the game world in real-time.
+            </p>
+            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+              <button 
+                type="button" 
+                onClick={resetAllDrafts} 
+                className="btn-action"
+                style={{ 
+                  flex: 1,
+                  padding: "10px 14px", borderRadius: 8, border: "1px solid #f59e0b",
+                  background: "transparent", color: "#f59e0b", fontWeight: 600, fontSize: 13 
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 16 }}>⚠️</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#f59e0b" }}>Unsaved changes!</span>
-                </div>
-                <p style={{ margin: 0, fontSize: 12, color: "#a1a1aa", lineHeight: "1.4" }}>
-                  You have modified the balance parameters. Apply them to update the game world in real-time.
-                </p>
-                <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                  <button 
-                    type="button" 
-                    onClick={resetAllDrafts} 
-                    className="btn-action"
-                    style={{ 
-                      flex: 1,
-                      padding: "10px 14px", borderRadius: 8, border: "1px solid #f59e0b",
-                      background: "transparent", color: "#f59e0b", fontWeight: 600, fontSize: 13 
-                    }}
-                  >
-                    Reset
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => void applyAll()} 
-                    className="btn-action"
-                    style={{ 
-                      flex: 1.3,
-                      padding: "10px 16px", borderRadius: 8, border: "none",
-                      background: "linear-gradient(135deg, #e63946, #c92a3a)", color: "#fff", 
-                      fontWeight: 700, fontSize: 13, boxShadow: "0 4px 14px rgba(230, 57, 70, 0.3)" 
-                    }}
-                  >
-                    Apply ({sectionModifiedCounts.all})
-                  </button>
-                </div>
-              </div>
-            )}
-
+                Reset
+              </button>
+              <button 
+                type="button" 
+                onClick={() => void applyAll()} 
+                className="btn-action"
+                style={{ 
+                  flex: 1.3,
+                  padding: "10px 16px", borderRadius: 8, border: "none",
+                  background: "linear-gradient(135deg, #e63946, #c92a3a)", color: "#fff", 
+                  fontWeight: 700, fontSize: 13, boxShadow: "0 4px 14px rgba(230, 57, 70, 0.3)" 
+                }}
+              >
+                Apply ({sectionModifiedCounts.all})
+              </button>
+            </div>
           </div>
         )}
       </div>

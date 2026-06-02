@@ -24,11 +24,24 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ leaderboard }) => {
       flex: "1 1 220px", 
       minWidth: "220px",
       boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-      backdropFilter: "blur(12px)"
+      backdropFilter: "blur(12px)",
+      maxHeight: "calc(100vh - 250px)",
+      display: "flex",
+      flexDirection: "column"
     }}>
-      <h3 style={{ margin: "0 0 12px 0", textAlign: "center", fontSize: "13px", fontWeight: 800, color: "rgba(255, 255, 255, 0.75)" }}>Таблица лидеров</h3>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "14px" }}>
-        {leaderboard.map((player, index) => {
+      <h3 style={{ margin: "0 0 12px 0", textAlign: "center", fontSize: "13px", fontWeight: 800, color: "rgba(255, 255, 255, 0.75)" }}>Топ 10</h3>
+      <ul 
+        className="custom-scrollbar"
+        style={{ 
+          listStyle: "none", 
+          padding: 0, 
+          margin: 0, 
+          fontSize: "14px",
+          overflowY: "auto",
+          paddingRight: "4px"
+        }}
+      >
+        {leaderboard.slice(0, 10).map((player, index) => {
           const displayName = player.nickname || player.id;
           return (
             <li key={player.id} style={{ padding: "8px 0", color: player.isMe ? "#4ade80" : "white", fontWeight: player.isMe ? "bold" : "normal", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>

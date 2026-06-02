@@ -71,9 +71,13 @@ export type GameState = {
   foods: Food[];
 };
 
-export type PlayerUpdate = Partial<Omit<Player, "body">> & {
-  body?: Point[];
-  new_heads?: Point[];
+export type NetworkPlayer = Omit<Player, "body"> & {
+  body: Point[] | number[];
+};
+
+export type NetworkPlayerUpdate = Partial<Omit<Player, "body">> & {
+  body?: Point[] | number[];
+  new_heads?: Point[] | number[];
   length?: number;
 };
 
@@ -89,11 +93,12 @@ export type FullGameMessage = {
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
   server_food?: ServerFoodConfig;
-  players: Record<string, Player>;
+  players: Record<string, NetworkPlayer>;
   foods: Food[];
   new_foods?: Food[];
   eaten_foods?: number[];
   kill_events?: KillEvent[];
+  your_id?: string;
 };
 
 export type DeltaGameMessage = {
@@ -103,7 +108,7 @@ export type DeltaGameMessage = {
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
   server_food?: ServerFoodConfig;
-  players: Record<string, PlayerUpdate>;
+  players: Record<string, NetworkPlayerUpdate>;
   new_foods?: Food[];
   eaten_foods?: number[];
   moved_foods?: { id: number; x: number; y: number }[];

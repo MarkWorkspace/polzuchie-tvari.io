@@ -1,8 +1,26 @@
 import { useEffect, useRef, useState, MutableRefObject } from "react";
-import { DeltaGameMessage, GameState, Player, PlayerUpdate, Point, ServerGameMessage } from "../types/game";
+import { DeltaGameMessage, GameState, Player, NetworkPlayerUpdate, Point, ServerGameMessage } from "../types/game";
 import { decode } from "@msgpack/msgpack";
 
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
+
+function parsePoints(arr: any): Point[] {
+  if (!arr) return [];
+  if (arr.length === 0) return [];
+  if (typeof arr[0] === 'number') {
+    const points: Point[] = [];
+    const len = arr.length;
+    for (let i = 0; i < len - 1; i += 2) {
+      const px = arr[i];
+      const py = arr[i+1];
+      if (typeof px === 'number' && typeof py === 'number' && !isNaN(px) && !isNaN(py)) {
+        points.push({ x: px, y: py });
+      }
+    }
+    return points;
+  }
+  return (arr as Point[]).filter(pt => pt && typeof pt.x === 'number' && typeof pt.y === 'number' && !isNaN(pt.x) && !isNaN(pt.y));
+}
 
 export function useGameSocket(
   nickname: string,
@@ -132,14 +150,24 @@ export function useGameSocket(
         lastGameStateRef.current = gameStateRef.current;
 
         if (parsedState.type === "FULL" || !parsedState.type) {
+          const players: Record<string, Player> = {};
+          if (parsedState.players) {
+            for (const [pid, player] of Object.entries(parsedState.players)) {
+              const netPlayer = player as any;
+              players[pid] = {
+                ...netPlayer,
+                body: parsePoints(netPlayer.body),
+              };
+            }
+          }
           gameStateRef.current = {
             server_tick_rate: parsedState.server_tick_rate,
             server_simulation: parsedState.server_simulation,
             server_snake: parsedState.server_snake,
             server_visual: parsedState.server_visual,
             server_food: parsedState.server_food,
-            players: parsedState.players,
-            foods: parsedState.foods,
+            players,
+            foods: parsedState.foods || [],
           };
           // Clear interpolation queue on full state to prevent glitches
           stateQueueRef.current = [];
@@ -157,7 +185,7 @@ export function useGameSocket(
             for (let i = 0; i < nextFoods.length; i++) foodIndex.set(nextFoods[i].id, i);
             for (const mf of movedFoods) {
               const idx = foodIndex.get(mf.id);
-              if (idx !== undefined) {
+              if (idx !== undefined && typeof mf.x === "number" && typeof mf.y === "number" && !isNaN(mf.x) && !isNaN(mf.y)) {
                 nextFoods[idx] = { ...nextFoods[idx], x: mf.x, y: mf.y };
               }
             }
@@ -166,16 +194,16 @@ export function useGameSocket(
           const currentPlayers = gameStateRef.current.players || {};
           const nextPlayers: Record<string, Player> = {};
           
-          for (const [pid, pData] of Object.entries((parsedState as DeltaGameMessage).players as Record<string, PlayerUpdate>)) {
+          for (const [pid, pData] of Object.entries((parsedState as DeltaGameMessage).players as Record<string, NetworkPlayerUpdate>)) {
             const oldPlayer = currentPlayers[pid];
             let newBody: Point[] = [];
             
             if (pData.body) {
-              newBody = pData.body;
+              newBody = parsePoints(pData.body);
             } else if (oldPlayer && oldPlayer.body) {
               newBody = [...oldPlayer.body];
               if (pData.new_heads && pData.new_heads.length > 0) {
-                newBody.unshift(...pData.new_heads);
+                newBody.unshift(...parsePoints(pData.new_heads));
               }
               if (pData.length !== undefined) {
                 while (newBody.length > pData.length) {
@@ -184,7 +212,7 @@ export function useGameSocket(
               }
             } else {
               if (pData.new_heads && pData.new_heads.length > 0) {
-                newBody = [...pData.new_heads];
+                newBody = parsePoints(pData.new_heads);
               }
             }
             
@@ -196,10 +224,11 @@ export function useGameSocket(
               body: [],
             };
 
+            const { body: _body, new_heads: _new_heads, length: _length, ...otherProps } = pData;
             nextPlayers[pid] = {
               ...defaultPlayer,
               ...oldPlayer,
-              ...pData,
+              ...(otherProps as any),
               body: newBody,
             };
           }

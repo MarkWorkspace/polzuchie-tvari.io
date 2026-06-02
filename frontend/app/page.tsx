@@ -72,130 +72,15 @@ export default function Home() {
     <div style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", overflow: "hidden", backgroundColor: "#222" }}>
       
       {/* Left Sidebar Panel (Header HUD + Killfeed) */}
-      <div style={{ position: "absolute", top: 14, left: 20, zIndex: 50, pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "12px" }}>
+      <div style={{ position: "absolute", top: 20, left: 20, zIndex: 50, pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "12px" }}>
         
         {/* Header HUD Info */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", color: "white", textShadow: "0 2px 4px rgba(0,0,0,0.8)" }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: "10px" }}>
-            <h1 style={{ margin: "0", fontSize: "14px", fontWeight: 800, color: "rgba(255, 255, 255, 0.9)" }}>
-              Polzuchie-tvari.io
-            </h1>
-            
-            {connectionStatus === "connected" && ping !== null ? (
-              <span style={{
-                fontSize: "12px",
-                fontWeight: 700,
-                color: ping <= 75 ? "#4ade80" : ping <= 150 ? "#fbbf24" : "#f87171",
-                transition: "color 0.2s ease"
-              }}>
-                Ping: {ping} ms
-              </span>
-            ) : (
-              <span style={{
-                fontSize: "12px",
-                fontWeight: 700,
-                color: "#f87171"
-              }}>
-                offline
-              </span>
-            )}
-          </div>
+          <h1 style={{ margin: "0", fontSize: "22px", fontWeight: 800, color: "rgba(255, 255, 255, 0.9)" }}>
+            Polzuchie-tvari.io
+          </h1>
           
-          {/* Collapsible Helper Panel (Single Unified Card Box) */}
-          {connectionStatus === "connected" ? (
-            <div 
-              style={{
-                pointerEvents: "auto",
-                background: "rgba(20, 22, 28, 0.75)",
-                border: "1px solid rgba(255, 255, 255, 0.08)",
-                borderRadius: "12px",
-                padding: "8px 12px",
-                backdropFilter: "blur(8px)",
-                boxShadow: "0 6px 20px rgba(0, 0, 0, 0.25)",
-                display: "flex",
-                flexDirection: "column",
-                gap: isHelpOpen ? "10px" : "0px",
-                width: "220px",
-                marginTop: "8px",
-                transition: "all 0.2s ease"
-              }}
-            >
-              {/* Header (Clickable toggle trigger) */}
-              <div 
-                onClick={() => setIsHelpOpen(prev => !prev)}
-                style={{
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  color: "#fafafa",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  userSelect: "none"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "#60a5fa";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "#fafafa";
-                }}
-              >
-                <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span>⌨️</span> Управление
-                </span>
-                <span style={{ 
-                  fontSize: "8px", 
-                  transition: "transform 0.2s ease", 
-                  transform: isHelpOpen ? "rotate(180deg)" : "rotate(90deg)",
-                  color: "rgba(255,255,255,0.6)",
-                  display: "inline-block"
-                }}>
-                  ▲
-                </span>
-              </div>
-
-              {/* Body (Conditional list of keys) */}
-              {isHelpOpen && (
-                <div style={{ 
-                  display: "flex", 
-                  flexDirection: "column", 
-                  gap: "6px",
-                  fontSize: "12px", 
-                  color: "rgba(255, 255, 255, 0.65)",
-                  fontWeight: 500,
-                  borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-                  paddingTop: "8px"
-                }}>
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
-                      {controlMode === "keyboard" ? "A / D / Стрелочки" : "Движение мыши"}
-                    </kbd>
-                    <span>— Руление</span>
-                  </div>
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
-                      Пробел
-                    </kbd>
-                    <span>— Ускорение</span>
-                  </div>
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
-                      C
-                    </kbd>
-                    <span>— Смена камеры (2D / 3D)</span>
-                  </div>
-                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                    <kbd style={{ background: "rgba(59, 130, 246, 0.2)", border: "1px solid rgba(59, 130, 246, 0.35)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#60a5fa" }}>
-                      T
-                    </kbd>
-                    <span>
-                      — Режим: <strong style={{ color: "#60a5fa", fontWeight: "normal" }}>{controlMode === "keyboard" ? "клавиатура" : "мышь"}</strong>
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
+          {connectionStatus !== "connected" && (
             <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#fafafa", opacity: 0.8, fontWeight: 500 }}>
               {statusMsg}
             </p>
@@ -235,13 +120,123 @@ export default function Home() {
         <Leaderboard leaderboard={leaderboard} />
       </div>
 
-      {/* Фид очков еды (Снизу слева) */}
-      <div style={{ position: "absolute", bottom: 40, left: 20, zIndex: 50, pointerEvents: "none", display: "flex", flexDirection: "column", gap: "4px" }}>
-        {scoreFeed.map(s => (
-          <div key={s.id} style={{ color: s.delta > 0 ? "#4ade80" : "#f87171", fontSize: "20px", fontWeight: "bold", textShadow: "0px 2px 4px rgba(0,0,0,0.8)" }}>
-            {s.delta > 0 ? `+${s.delta}` : s.delta}
+      {/* Bottom-left unified HUD Panel (Score feed + Collapsible Help Panel) */}
+      <div style={{ 
+        position: "absolute", 
+        bottom: 20, 
+        left: 20, 
+        zIndex: 50, 
+        pointerEvents: "none", 
+        display: "flex", 
+        flexDirection: "column-reverse", 
+        gap: "12px" 
+      }}>
+        {connectionStatus === "connected" && (
+          /* Collapsible Helper Panel (Single Unified Card Box) */
+          <div 
+            style={{
+              pointerEvents: "auto",
+              background: "rgba(20, 22, 28, 0.75)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              borderRadius: "16px",
+              padding: "16px",
+              backdropFilter: "blur(12px)",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+              display: "flex",
+              flexDirection: "column-reverse",
+              gap: isHelpOpen ? "10px" : "0px",
+              width: "220px",
+              transition: "all 0.2s ease",
+              textShadow: "none"
+            }}
+          >
+            {/* Header (Clickable toggle trigger) */}
+            <div 
+              onClick={() => setIsHelpOpen(prev => !prev)}
+              style={{
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                color: "rgba(255, 255, 255, 0.75)",
+                fontSize: "13px",
+                fontWeight: 800,
+                userSelect: "none"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#60a5fa";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "rgba(255, 255, 255, 0.75)";
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>⌨️</span> Управление
+              </span>
+              <span style={{ 
+                fontSize: "8px", 
+                transition: "transform 0.2s ease", 
+                transform: isHelpOpen ? "rotate(180deg)" : "rotate(0deg)",
+                color: "rgba(255,255,255,0.6)",
+                display: "inline-block"
+              }}>
+                ▲
+              </span>
+            </div>
+
+            {/* Body (Conditional list of keys) */}
+            {isHelpOpen && (
+              <div style={{ 
+                display: "flex", 
+                flexDirection: "column", 
+                gap: "6px",
+                fontSize: "12px", 
+                color: "rgba(255, 255, 255, 0.65)",
+                fontWeight: 500,
+                borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                paddingBottom: "8px"
+              }}>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
+                    {controlMode === "keyboard" ? "A / D / Стрелочки" : "Движение мыши"}
+                  </kbd>
+                  <span>— Руление</span>
+                </div>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
+                    Пробел
+                  </kbd>
+                  <span>— Ускорение</span>
+                </div>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
+                    C
+                  </kbd>
+                  <span>— Смена камеры (2D / 3D)</span>
+                </div>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <kbd style={{ background: "rgba(59, 130, 246, 0.2)", border: "1px solid rgba(59, 130, 246, 0.35)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#60a5fa" }}>
+                    T
+                  </kbd>
+                  <span>
+                    — Режим: <strong style={{ color: "#60a5fa", fontWeight: "normal" }}>{controlMode === "keyboard" ? "клавиатура" : "мышь"}</strong>
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
-        ))}
+        )}
+
+        {/* Фид очков еды (Отображается над панелью подсказок) */}
+        {scoreFeed.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {scoreFeed.map(s => (
+              <div key={s.id} style={{ color: s.delta > 0 ? "#4ade80" : "#f87171", fontSize: "20px", fontWeight: "bold", textShadow: "0px 2px 4px rgba(0,0,0,0.8)" }}>
+                {s.delta > 0 ? `+${s.delta}` : s.delta}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Шкала-индикатор поворота (По центру снизу, прижатая к самому низу) */}
@@ -352,6 +347,37 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Пинг в правом нижнем углу над миникартой */}
+      <div style={{ 
+        position: "absolute", 
+        bottom: "182px", 
+        right: "20px", 
+        zIndex: 50, 
+        pointerEvents: "none",
+        textAlign: "right"
+      }}>
+        {connectionStatus === "connected" && ping !== null ? (
+          <span style={{
+            fontSize: "12px",
+            fontWeight: 700,
+            color: ping <= 75 ? "#4ade80" : ping <= 150 ? "#fbbf24" : "#f87171",
+            transition: "color 0.2s ease",
+            textShadow: "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000, 1px 0 0 #000"
+          }}>
+            Ping: {ping} ms
+          </span>
+        ) : (
+          <span style={{
+            fontSize: "12px",
+            fontWeight: 700,
+            color: "#f87171",
+            textShadow: "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000, 1px 0 0 #000"
+          }}>
+            offline
+          </span>
+        )}
+      </div>
 
       <GameRenderer
         gameStateRef={gameStateRef}

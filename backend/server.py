@@ -10,7 +10,7 @@ import uuid
 import uvicorn
 import os
 import json
-from collections import deque
+from collections import deque, defaultdict
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,8 +36,8 @@ class Food:
     def to_dict(self):
         return {
             "id": self.id,
-            "x": self.x,
-            "y": self.y,
+            "x": round(self.x, 2),
+            "y": round(self.y, 2),
             "value": self.value,
             "color": self.color
         }
@@ -78,7 +78,7 @@ class Player:
         
     def to_dict(self, in_aoi=True, is_full=False):
         data = {
-            "angle": self.angle,
+            "angle": round(self.angle, 2),
             "score": self.score,
             "kills": self.kills,
             "deaths": self.deaths,
@@ -89,12 +89,18 @@ class Player:
             data["skin"] = self.skin
             data["nickname"] = self.nickname
             
-        # При первом подключении или после гибели отправляем массив тела целиком
+        # При первом подключении или после гибели отправляем массив тела целиком (упакованный во флэт-массив float координат)
         if is_full or self.just_respawned:
-            data["body"] = list(self.body) if in_aoi else ([self.body[0]] if self.body else [])
+            if in_aoi:
+                data["body"] = [round(coord, 2) for pt in self.body for coord in (pt["x"], pt["y"])]
+            else:
+                data["body"] = [round(self.body[0]["x"], 2), round(self.body[0]["y"], 2)] if self.body else []
         else:
             # Дельта: отправляем только новые добавленные точки головы и целевую длину
-            data["new_heads"] = self.new_heads_this_tick if in_aoi else (self.new_heads_this_tick[:1] if self.new_heads_this_tick else [])
+            if in_aoi:
+                data["new_heads"] = [round(coord, 2) for pt in self.new_heads_this_tick for coord in (pt["x"], pt["y"])]
+            else:
+                data["new_heads"] = [round(self.new_heads_this_tick[0]["x"], 2), round(self.new_heads_this_tick[0]["y"], 2)] if self.new_heads_this_tick else []
             data["length"] = len(self.body) if in_aoi else 1
         return data
 
@@ -117,6 +123,10 @@ class GameState:
         self.pending_eaten_foods = []
         self.kill_events = []
         self.moved_foods = []
+        self.player_grid = defaultdict(list)
+        self._grid_width_cells = max(1, math.ceil(self.grid_width / 10.0))
+        self._grid_height_cells = max(1, math.ceil(self.grid_height / 10.0))
+        self._max_player_body_len = 1
         self.full_players_dict = {}
         self.mini_players_dict = {}
         for _ in range(self.target_food_count):
@@ -450,7 +460,7 @@ class GameState:
                     if cell in spatial_grid:
                         for other_pid, ox, oy, other_radius in spatial_grid[cell]:
                             if pid != other_pid and other_pid not in dead_players:
-                                collision_dist = (head_radius + other_radius) * 0.7
+                                collision_dist = (head_radius + other_radius) * 0.95
                                 dist_x = abs(new_head["x"] - ox)
                                 dist_x = min(dist_x, self.grid_width - dist_x)
                                 dist_y = abs(new_head["y"] - oy)
@@ -579,12 +589,35 @@ class GameState:
         # Предварительно кешируем словари игроков и конфиг для оптимизации рассылки AoI
         self.full_players_dict = {pid: p.to_dict(in_aoi=True, is_full=False) for pid, p in self.players.items()}
         self.mini_players_dict = {pid: p.to_dict(in_aoi=False, is_full=False) for pid, p in self.players.items()}
+        
+        # Кешируем сериализованные MsgPack байты каждого игрока (Item 5 Caching)
+        self.full_players_packed = {pid: msgpack.packb(p_dict) for pid, p_dict in self.full_players_dict.items()}
+        self.mini_players_packed = {pid: msgpack.packb(p_dict) for pid, p_dict in self.mini_players_dict.items()}
         self._cached_config_dict = self.config.to_dict()
+
+        # Строим пространственную сетку для игроков (Spatial Partitioning - Item 3)
+        self.player_grid = defaultdict(list)
+        CELL_SIZE = 10.0
+        self._grid_width_cells = max(1, math.ceil(self.grid_width / CELL_SIZE))
+        self._grid_height_cells = max(1, math.ceil(self.grid_height / CELL_SIZE))
+        self._max_player_body_len = 1
+        
+        for pid, p in self.players.items():
+            if not p.body:
+                continue
+            head = p.body[0]
+            cx = int(head["x"] / CELL_SIZE) % self._grid_width_cells
+            cy = int(head["y"] / CELL_SIZE) % self._grid_height_cells
+            self.player_grid[(cx, cy)].append((pid, p))
+            
+            p_len = len(p.body)
+            if p_len > self._max_player_body_len:
+                self._max_player_body_len = p_len
         
         for p in self.players.values():
             p.just_respawned = False
 
-    def get_delta_state(self, client_id, is_full=False, update_visibility=True, return_visibility=False):
+    def get_delta_state(self, client_id, is_full=False, update_visibility=True, return_visibility=False, serialize_msgpack=False):
         client_player = self.players.get(client_id)
         if client_player and len(client_player.body) > 0:
             cx, cy = client_player.body[0]["x"], client_player.body[0]["y"]
@@ -596,59 +629,146 @@ class GameState:
         previous_visible = self.client_visibility.get(client_id, set())
         current_visible = set()
         players_data = {}
-        for pid, p in self.players.items():
+        
+        # Динамический расчет радиуса AoI: радиус тумана клиента + 3% запаса + прибавка за длину цели
+        min_fog = self.config.visual.min_fog_radius
+        expansion = self.config.visual.fog_score_expansion_coeff
+        fog_radius_world = min_fog + score * expansion
+        fog_radius_grid = fog_radius_world / 20.0
+        
+        # Использование пространственной сетки для игроков (Spatial Partitioning - Item 3)
+        max_safe_radius = (fog_radius_grid + self._max_player_body_len * 0.5) * 1.03
+        
+        CELL_SIZE = 10.0
+        gcx = int(cx / CELL_SIZE) % self._grid_width_cells
+        gcy = int(cy / CELL_SIZE) % self._grid_height_cells
+        cell_range = math.ceil(max_safe_radius / CELL_SIZE)
+        
+        candidate_players = []
+        for dx in range(-cell_range, cell_range + 1):
+            for dy in range(-cell_range, cell_range + 1):
+                cell = ((gcx + dx) % self._grid_width_cells, (gcy + dy) % self._grid_height_cells)
+                if cell in self.player_grid:
+                    candidate_players.extend(self.player_grid[cell])
+                    
+        candidates_dict = {pid: p for pid, p in candidate_players}
+        if client_player and client_id not in candidates_dict:
+            candidates_dict[client_id] = client_player
+            
+        for pid, p in candidates_dict.items():
             if not p.body:
                 continue
                 
             head = p.body[0]
-            dist_sq = (head["x"] - cx)**2 + (head["y"] - cy)**2
-            
-            # Динамический расчет радиуса AoI: радиус тумана клиента + 3% запаса + прибавка за длину цели
-            min_fog = self.config.visual.min_fog_radius
-            expansion = self.config.visual.fog_score_expansion_coeff
-            fog_radius_world = min_fog + score * expansion
-            fog_radius_grid = fog_radius_world / 20.0
-            
+            # Вычисляем расстояние с учетом циклического переноса карты
+            fdx = head["x"] - cx
+            if fdx > self.grid_width / 2:
+                fdx -= self.grid_width
+            elif fdx < -self.grid_width / 2:
+                fdx += self.grid_width
+                
+            fdy = head["y"] - cy
+            if fdy > self.grid_height / 2:
+                fdy -= self.grid_height
+            elif fdy < -self.grid_height / 2:
+                fdy += self.grid_height
+                
+            dist_sq = fdx * fdx + fdy * fdy
             target_padding = len(p.body) * 0.5
             safe_radius = (fog_radius_grid + target_padding) * 1.03
             
             in_aoi = (pid == client_id) or (dist_sq < safe_radius ** 2)
             if in_aoi:
                 current_visible.add(pid)
-            
-            if is_full:
-                players_data[pid] = p.to_dict(in_aoi=in_aoi, is_full=True)
-            else:
-                if in_aoi:
-                    if pid not in previous_visible:
-                        players_data[pid] = p.to_dict(in_aoi=True, is_full=True)
-                    else:
-                        players_data[pid] = self.full_players_dict.get(pid, p.to_dict(in_aoi=True, is_full=False))
+                
+            if serialize_msgpack:
+                if is_full:
+                    players_data[pid] = msgpack.packb(p.to_dict(in_aoi=in_aoi, is_full=True))
                 else:
+                    if in_aoi:
+                        if pid not in previous_visible:
+                            players_data[pid] = msgpack.packb(p.to_dict(in_aoi=True, is_full=True))
+                        else:
+                            players_data[pid] = self.full_players_packed.get(pid, self.full_players_packed[pid])
+                    else:
+                        players_data[pid] = self.mini_players_packed.get(pid, self.mini_players_packed[pid])
+            else:
+                if is_full:
+                    players_data[pid] = p.to_dict(in_aoi=in_aoi, is_full=True)
+                else:
+                    if in_aoi:
+                        if pid not in previous_visible:
+                            players_data[pid] = p.to_dict(in_aoi=True, is_full=True)
+                        else:
+                            players_data[pid] = self.full_players_dict.get(pid, p.to_dict(in_aoi=True, is_full=False))
+                    else:
+                        players_data[pid] = self.mini_players_dict.get(pid, p.to_dict(in_aoi=False, is_full=False))
+                        
+        # Для всех остальных игроков, не попавших в кандидаты, используем мини-версию
+        for pid in self.players:
+            if pid not in players_data:
+                if serialize_msgpack:
+                    players_data[pid] = self.mini_players_packed.get(pid)
+                else:
+                    p = self.players[pid]
                     players_data[pid] = self.mini_players_dict.get(pid, p.to_dict(in_aoi=False, is_full=False))
 
         cfg = getattr(self, '_cached_config_dict', None) or self.config.to_dict()
-        state = {
-            "type": "FULL" if is_full else "DELTA",
-            "server_tick_rate": self.config.simulation.tick_rate,
-            "server_simulation": cfg["simulation"],
-            "server_snake": cfg["snake"],
-            "server_visual": cfg["visual"],
-            "server_food": cfg["food"],
-            "players": players_data,
-            "new_foods": self.new_foods,
-            "eaten_foods": self.eaten_foods,
-            "moved_foods": self.moved_foods,
-            "kill_events": self.kill_events
-        }
+        
+        if serialize_msgpack:
+            # Сборка бинарного MsgPack словаря для игроков (Item 5 Caching)
+            prepacked_kv_list = []
+            for pid, packed_val in players_data.items():
+                if packed_val:
+                    prepacked_kv_list.append(msgpack.packb(pid) + packed_val)
+                
+            n = len(prepacked_kv_list)
+            if n <= 15:
+                players_header = bytes([0x80 | n])
+            elif n <= 65535:
+                players_header = b'\xde' + n.to_bytes(2, byteorder='big')
+            else:
+                players_header = b'\xdf' + n.to_bytes(4, byteorder='big')
+            players_packed = players_header + b''.join(prepacked_kv_list)
+            
+            state = {
+                "type": "FULL" if is_full else "DELTA",
+                "server_tick_rate": self.config.simulation.tick_rate,
+                "server_simulation": cfg["simulation"],
+                "server_snake": cfg["snake"],
+                "server_visual": cfg["visual"],
+                "server_food": cfg["food"],
+                "players": b"PLAYERS_PLACEHOLDER",
+                "new_foods": self.new_foods,
+                "eaten_foods": self.eaten_foods,
+                "moved_foods": self.moved_foods,
+                "kill_events": self.kill_events
+            }
+            packed_state = msgpack.packb(state)
+            final_state = packed_state.replace(b"\xc4\x13PLAYERS_PLACEHOLDER", players_packed)
+        else:
+            state = {
+                "type": "FULL" if is_full else "DELTA",
+                "server_tick_rate": self.config.simulation.tick_rate,
+                "server_simulation": cfg["simulation"],
+                "server_snake": cfg["snake"],
+                "server_visual": cfg["visual"],
+                "server_food": cfg["food"],
+                "players": players_data,
+                "new_foods": self.new_foods,
+                "eaten_foods": self.eaten_foods,
+                "moved_foods": self.moved_foods,
+                "kill_events": self.kill_events
+            }
+            final_state = state
 
         if client_id and update_visibility:
             self.client_visibility[client_id] = current_visible
 
         if return_visibility:
-            return state, current_visible
+            return final_state, current_visible
 
-        return state
+        return final_state
         
     def get_full_state(self, client_id):
         state = self.get_delta_state(client_id, is_full=True)
@@ -706,12 +826,12 @@ async def game_loop():
             continue
             
         for client_id, connection in list(active_connections.items()):
-            delta_state, visible_players = game.get_delta_state(
+            state_msgpack, visible_players = game.get_delta_state(
                 client_id,
                 update_visibility=False,
-                return_visibility=True
+                return_visibility=True,
+                serialize_msgpack=True
             )
-            state_msgpack = msgpack.packb(delta_state)
             replace_queued_state(connection["queue"], (state_msgpack, visible_players))
             
         # Компенсация времени выполнения тика

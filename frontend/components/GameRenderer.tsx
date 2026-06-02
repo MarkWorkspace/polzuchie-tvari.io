@@ -41,7 +41,9 @@ const shadowMat = new THREE.ShaderMaterial({
   uniforms: {
     uCenter: { value: new THREE.Vector2(0, 0) },
     uRadius: { value: 900.0 },
-    uFogColor: { value: fogColor }
+    uFogColor: { value: fogColor },
+    uMapWidth: { value: WORLD_WIDTH * gridSize },
+    uMapHeight: { value: WORLD_HEIGHT * gridSize }
   },
   vertexShader: `
     attribute vec2 snakeParams;
@@ -62,6 +64,8 @@ const shadowMat = new THREE.ShaderMaterial({
     varying vec2 vSnakeParams;
     uniform vec2 uCenter;
     uniform float uRadius;
+    uniform float uMapWidth;
+    uniform float uMapHeight;
     void main() {
       float r = vSnakeParams.x;
       float L = vSnakeParams.y;
@@ -78,6 +82,14 @@ const shadowMat = new THREE.ShaderMaterial({
       } else {
         d_dist = abs(x) / r;
       }
+      
+      // Clip parts outside the map boundaries, except for the head when near the boundary
+      bool isInsideMap = (vWorldPosition.x >= 0.0 && vWorldPosition.x <= uMapWidth &&
+                          vWorldPosition.y <= 0.0 && vWorldPosition.y >= -uMapHeight);
+      bool isHead = (y >= L - r * 1.5);
+      bool isNearMap = (vWorldPosition.x >= -r * 2.0 && vWorldPosition.x <= uMapWidth + r * 2.0 &&
+                        vWorldPosition.y <= r * 2.0 && vWorldPosition.y >= -uMapHeight - r * 2.0);
+      if (!isInsideMap && !(isHead && isNearMap)) discard;
       
       float shadow = (1.0 - smoothstep(0.4, 1.0, d_dist)) * 0.45;
       if (shadow <= 0.01) discard;
@@ -102,7 +114,9 @@ const snakeMat = new THREE.ShaderMaterial({
     uTime: { value: 0.0 },
     uCenter: { value: new THREE.Vector2(0, 0) },
     uRadius: { value: 900.0 },
-    uFogColor: { value: fogColor }
+    uFogColor: { value: fogColor },
+    uMapWidth: { value: WORLD_WIDTH * gridSize },
+    uMapHeight: { value: WORLD_HEIGHT * gridSize }
   },
   vertexShader: `
     attribute vec2 snakeParams;
@@ -128,6 +142,8 @@ const snakeMat = new THREE.ShaderMaterial({
     uniform vec2 uCenter;
     uniform float uRadius;
     uniform vec3 uFogColor;
+    uniform float uMapWidth;
+    uniform float uMapHeight;
 
     vec3 hslToRgb(float h, float s, float l) {
       float c = (1.0 - abs(2.0 * l - 1.0)) * s;
@@ -159,6 +175,14 @@ const snakeMat = new THREE.ShaderMaterial({
       } else {
         d_dist = abs(x) / r;
       }
+      
+      // Clip parts outside the map boundaries, except for the head when near the boundary
+      bool isInsideMap = (vWorldPosition.x >= 0.0 && vWorldPosition.x <= uMapWidth &&
+                          vWorldPosition.y <= 0.0 && vWorldPosition.y >= -uMapHeight);
+      bool isHead = (y >= L - r * 1.5);
+      bool isNearMap = (vWorldPosition.x >= -r * 2.0 && vWorldPosition.x <= uMapWidth + r * 2.0 &&
+                        vWorldPosition.y <= r * 2.0 && vWorldPosition.y >= -uMapHeight - r * 2.0);
+      if (!isInsideMap && !(isHead && isNearMap)) discard;
       
       float skinType = vColor.r;
       vec3 baseColor;
@@ -199,6 +223,28 @@ const snakeMat = new THREE.ShaderMaterial({
       vec3 finalColorWithFog = mix(finalColor, uFogColor, fogAmount);
       
       gl_FragColor = vec4(finalColorWithFog, 1.0);
+    }
+  `
+});
+const foodShadowMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec2 vUv;
+    void main() {
+      float d = length(vUv - vec2(0.5)) * 2.0;
+      // Beautiful Gaussian soft shadow profile for levitating food
+      float shadow = exp(-d * d * 4.5) * 0.65;
+      if (shadow <= 0.01) discard;
+      gl_FragColor = vec4(0.0, 0.0, 0.0, shadow);
     }
   `
 });
@@ -320,7 +366,35 @@ const lerpColors = (c1: string, c2: string, f: number) => {
   return (r << 16) + (g << 8) + b;
 };
 
-const parseColor = (colorStr: string) => parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
+const colorCache = new Map<string, number>();
+const parseColor = (colorStr: string) => {
+  if (!colorStr) return 0x22c55e;
+  const cached = colorCache.get(colorStr);
+  if (cached !== undefined) return cached;
+  const parsed = parseInt(colorStr.replace('#', '0x'), 16) || 0x22c55e;
+  colorCache.set(colorStr, parsed);
+  return parsed;
+};
+
+type SmoothPoint = { x: number; y: number; coord: number };
+const smoothPointsPool: SmoothPoint[] = [];
+let smoothPointsPoolSize = 0;
+
+function resetSmoothPointsPool() {
+  smoothPointsPoolSize = 0;
+}
+
+function pushSmoothPoint(x: number, y: number, coord: number) {
+  if (smoothPointsPoolSize >= smoothPointsPool.length) {
+    smoothPointsPool.push({ x, y, coord });
+  } else {
+    const pt = smoothPointsPool[smoothPointsPoolSize];
+    pt.x = x;
+    pt.y = y;
+    pt.coord = coord;
+  }
+  smoothPointsPoolSize++;
+}
 
 interface Particle {
   x: number;
@@ -404,6 +478,7 @@ const GameScene = ({
 }: GameSceneProps) => {
   const { camera, scene } = useThree();
   const foodMeshRef = useRef<THREE.InstancedMesh>(null);
+  const foodShadowMeshRef = useRef<THREE.InstancedMesh>(null);
   const snakeMeshRef = useRef<THREE.Mesh>(null);
   const snakeShadowMeshRef = useRef<THREE.Mesh>(null);
   const bodyGeometryRef = useRef<THREE.BufferGeometry>(null);
@@ -717,7 +792,7 @@ const GameScene = ({
 
     // UPDATE FOODS
     const foods = state.foods || [];
-    if (foodMeshRef.current) {
+    if (foodMeshRef.current && foodShadowMeshRef.current) {
       let count = 0;
       const baseRadius = state.server_food?.base_radius ?? 0.2;
       const radiusValueScale = state.server_food?.radius_value_scale ?? 0.1;
@@ -757,13 +832,30 @@ const GameScene = ({
         const wx = fx * gridSize + gridSize/2;
         const wy = -(fy * gridSize + gridSize/2);
         
+        // Instanced Food Viewport Culling (Item 4)
+        const distToCamSq = (wx - camX)**2 + (wy - camY)**2;
+        if (distToCamSq > (fogRadiusWorld * 1.05) ** 2) {
+          continue;
+        }
+        
         colorObj.set(parseColor(food.color || '#ef4444'));
         const fogAmt = calcFogAmount(wx, wy);
         if (fogAmt > 0) colorObj.lerp(fogColor, fogAmt);
 
-        // Combined Food Body and Glow via shader (scaled by 1.666)
-        dummy.position.set(wx, wy, 0.1);
+        // 1. Food Shadow flat on shadow plane at Z = 0.2
+        // We place the shadow exactly at (wx, wy) without any manual offset to keep it natural in 2D mode,
+        // while letting the camera tilt perspective project the natural 3D parallax shift perfectly.
+        dummy.position.set(wx, wy, 0.2);
+        dummy.scale.setScalar(foodRadius * 2.4); // Beautifully soft, realistic, slightly wider shadow
+        dummy.rotation.set(0, 0, 0); // Ensure it lies flat in the XY plane (parallel to the ground)
+        dummy.updateMatrix();
+        foodShadowMeshRef.current.setMatrixAt(count, dummy.matrix);
+
+        // 2. Food Body levitating slightly above shadow at Z = 1.5
+        // This height creates a beautiful, subtle 3D parallax shift when viewed from camera angles.
+        dummy.position.set(wx, wy, 1.5);
         dummy.scale.setScalar(foodRadius * 1.666);
+        dummy.rotation.set(0, 0, 0); // Keep it completely flat in the XY plane (parallel to ground)
         dummy.updateMatrix();
         foodMeshRef.current.setMatrixAt(count, dummy.matrix);
         foodMeshRef.current.setColorAt(count, colorObj);
@@ -773,6 +865,9 @@ const GameScene = ({
       foodMeshRef.current.count = count;
       foodMeshRef.current.instanceMatrix.needsUpdate = true;
       if (foodMeshRef.current.instanceColor) foodMeshRef.current.instanceColor.needsUpdate = true;
+
+      foodShadowMeshRef.current.count = count;
+      foodShadowMeshRef.current.instanceMatrix.needsUpdate = true;
     }
 
     // UPDATE SNAKES
@@ -809,9 +904,30 @@ const GameScene = ({
 
       for (const playerId in state.players) {
         const p = state.players[playerId];
-        const oldP = lastState?.players[playerId];
         if (!p.body || p.body.length === 0) continue;
 
+        // Spline Bounding Box Culling (Item 6)
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (let i = 0; i < p.body.length; i++) {
+          const pt = p.body[i];
+          if (pt.x < minX) minX = pt.x;
+          if (pt.x > maxX) maxX = pt.x;
+          if (pt.y < minY) minY = pt.y;
+          if (pt.y > maxY) maxY = pt.y;
+        }
+        const bMinX = minX * gridSize;
+        const bMaxX = maxX * gridSize + gridSize;
+        const bMinY = -(maxY * gridSize + gridSize);
+        const bMaxY = -minY * gridSize;
+        
+        const closestX = Math.max(bMinX, Math.min(camX, bMaxX));
+        const closestY = Math.max(bMinY, Math.min(camY, bMaxY));
+        const distSq = (closestX - camX)**2 + (closestY - camY)**2;
+        if (distSq > (fogRadiusWorld * 1.05) ** 2) {
+          continue;
+        }
+
+        const oldP = lastState?.players[playerId];
         const score = p.score || 0;
         const snakeRadius = (baseHeadRadius + score * scoreThicknessScale) * gridSize;
         const skin = p.skin || '#22c55e';
@@ -842,8 +958,10 @@ const GameScene = ({
           uwLY.push(uwLY[i - 1] + dy);
         }
 
-        const density = 4;
-        const smoothPoints: { x: number; y: number; coord: number }[] = [];
+        const bodyLength = p.body.length;
+        const density = bodyLength > 40 ? 1 : 2;
+
+        resetSmoothPointsPool();
 
         // Build continuous path points (from tail to head)
         for (let i = uwLX.length - 1; i >= 0; i--) {
@@ -860,11 +978,12 @@ const GameScene = ({
             
             const wx = sx * gridSize + gridSize/2;
             const wy = -(sy * gridSize + gridSize/2);
-            smoothPoints.push({ x: wx, y: wy, coord: i + t });
+            pushSmoothPoint(wx, wy, i + t);
           }
         }
 
-        const numPoints = smoothPoints.length;
+        const smoothPoints = smoothPointsPool;
+        const numPoints = smoothPointsPoolSize;
         if (numPoints < 2) continue;
 
         // Calculate cumulative physical arc length (in pixels) for stable, uniform texturing
@@ -902,26 +1021,35 @@ const GameScene = ({
           }
         }
 
-        // Apply a 5-tap moving window average box filter to perfectly smooth the normals
+        // Apply dynamic box filter to smooth the normals
         const nx: number[] = [];
         const ny: number[] = [];
-        for (let j = 0; j < numPoints; j++) {
-          let sumX = 0;
-          let sumY = 0;
-          for (let w = -2; w <= 2; w++) {
-            const idx = j + w;
-            if (idx >= 0 && idx < numPoints) {
-              sumX += rawNormalsX[idx];
-              sumY += rawNormalsY[idx];
-            }
-          }
-          let len = Math.sqrt(sumX * sumX + sumY * sumY);
-          if (len < 0.001) {
+        if (density === 1) {
+          // Bypass filtering entirely for long snakes to save performance
+          for (let j = 0; j < numPoints; j++) {
             nx.push(rawNormalsX[j]);
             ny.push(rawNormalsY[j]);
-          } else {
-            nx.push(sumX / len);
-            ny.push(sumY / len);
+          }
+        } else {
+          const filterSize = density === 2 ? 1 : 2; // 3-tap for density 2, 5-tap for density 4
+          for (let j = 0; j < numPoints; j++) {
+            let sumX = 0;
+            let sumY = 0;
+            for (let w = -filterSize; w <= filterSize; w++) {
+              const idx = j + w;
+              if (idx >= 0 && idx < numPoints) {
+                sumX += rawNormalsX[idx];
+                sumY += rawNormalsY[idx];
+              }
+            }
+            let len = Math.sqrt(sumX * sumX + sumY * sumY);
+            if (len < 0.001) {
+              nx.push(rawNormalsX[j]);
+              ny.push(rawNormalsY[j]);
+            } else {
+              nx.push(sumX / len);
+              ny.push(sumY / len);
+            }
           }
         }
 
@@ -974,12 +1102,14 @@ const GameScene = ({
           dirHeadY = -nx[numPoints - 1];
         }
 
-        const shadowRadius = snakeRadius * 1.8;
+        // Make the snake shadow spread (margin) a static offset in world space (e.g. 3.2 units) 
+        // to keep it independent of the snake's scale as requested by the user.
+        const shadowRadius = snakeRadius + 3.2;
 
         // Loop over wrapOffsets to handle map boundaries dynamically
         for (const [ox, oy] of wrapOffsets) {
-          const headX = smoothPoints[smoothPoints.length - 1].x + ox;
-          const headY = smoothPoints[smoothPoints.length - 1].y + oy;
+          const headX = smoothPoints[numPoints - 1].x + ox;
+          const headY = smoothPoints[numPoints - 1].y + oy;
           const distToCam = Math.sqrt((headX - camX) ** 2 + (headY - camY) ** 2);
           if (distToCam > fogRadiusWorld * 1.5) continue; // Skip offscreen wrapped ribbons for maximum performance
 
@@ -991,34 +1121,55 @@ const GameScene = ({
           const pxHeadExtBody = smoothPoints[numPoints - 1].x + dirHeadX * snakeRadius;
           const pyHeadExtBody = smoothPoints[numPoints - 1].y + dirHeadY * snakeRadius;
 
-          const bodyNodes = [
-            { px: pxTailExtBody, py: pyTailExtBody, snx: nx[0], sny: ny[0], uvY: -snakeRadius },
-            ...smoothPoints.map((p, j) => ({ px: p.x, py: p.y, snx: nx[j], sny: ny[j], uvY: distances[j] })),
-            { px: pxHeadExtBody, py: pyHeadExtBody, snx: nx[numPoints - 1], sny: ny[numPoints - 1], uvY: L + snakeRadius }
-          ];
-
           const bodyStartIdx = globalVertexCount;
-          const zOffset = 0.1;
+          // Raise the snake body slightly above the food (which is at Z = 1.5)
+          const zOffset = 2.0 + (p.body ? p.body.length : 0) * 0.001;
 
-          for (const node of bodyNodes) {
-            const px = node.px + ox;
-            const py = node.py + oy;
+          const numNodes = numPoints + 2;
+          for (let j = 0; j < numNodes; j++) {
+            let px = 0;
+            let py = 0;
+            let snx = 0;
+            let sny = 0;
+            let uvY = 0;
+
+            if (j === 0) {
+              px = pxTailExtBody + ox;
+              py = pyTailExtBody + oy;
+              snx = nx[0];
+              sny = ny[0];
+              uvY = -snakeRadius;
+            } else if (j === numNodes - 1) {
+              px = pxHeadExtBody + ox;
+              py = pyHeadExtBody + oy;
+              snx = nx[numPoints - 1];
+              sny = ny[numPoints - 1];
+              uvY = L + snakeRadius;
+            } else {
+              const pIdx = j - 1;
+              const pPt = smoothPoints[pIdx];
+              px = pPt.x + ox;
+              py = pPt.y + oy;
+              snx = nx[pIdx];
+              sny = ny[pIdx];
+              uvY = distances[pIdx];
+            }
+
             const activeRadius = snakeRadius;
 
-            bodyVertices.push(px + node.snx * activeRadius, py + node.sny * activeRadius, zOffset);
-            bodyUVs.push(0.0, node.uvY);
+            bodyVertices.push(px + snx * activeRadius, py + sny * activeRadius, zOffset);
+            bodyUVs.push(0.0, uvY);
             bodyColors.push(skinR, skinG, skinB);
             bodySnakeParams.push(snakeRadius, L);
 
-            bodyVertices.push(px - node.snx * activeRadius, py - node.sny * activeRadius, zOffset);
-            bodyUVs.push(1.0, node.uvY);
+            bodyVertices.push(px - snx * activeRadius, py - sny * activeRadius, zOffset);
+            bodyUVs.push(1.0, uvY);
             bodyColors.push(skinR, skinG, skinB);
             bodySnakeParams.push(snakeRadius, L);
 
             globalVertexCount += 2;
           }
 
-          const numNodes = bodyNodes.length;
           for (let j = 0; j < numNodes - 1; j++) {
             const v0 = bodyStartIdx + j * 2;
             const v1 = bodyStartIdx + j * 2 + 1;
@@ -1035,34 +1186,54 @@ const GameScene = ({
           const pxHeadExtShadow = smoothPoints[numPoints - 1].x + dirHeadX * shadowRadius;
           const pyHeadExtShadow = smoothPoints[numPoints - 1].y + dirHeadY * shadowRadius;
 
-          const shadowNodes = [
-            { px: pxTailExtShadow, py: pyTailExtShadow, snx: nx[0], sny: ny[0], uvY: -shadowRadius },
-            ...smoothPoints.map((p, j) => ({ px: p.x, py: p.y, snx: nx[j], sny: ny[j], uvY: distances[j] })),
-            { px: pxHeadExtShadow, py: pyHeadExtShadow, snx: nx[numPoints - 1], sny: ny[numPoints - 1], uvY: L + shadowRadius }
-          ];
-
           const shadowStartIdx = shadowVertexCount;
-          const sz = 0.05;
+          const sz = 0.2 + (p.body ? p.body.length : 0) * 0.001;
 
-          for (const node of shadowNodes) {
-            const px = node.px + ox;
-            const py = node.py + oy;
+          const numShadowNodes = numPoints + 2;
+          for (let j = 0; j < numShadowNodes; j++) {
+            let px = 0;
+            let py = 0;
+            let snx = 0;
+            let sny = 0;
+            let uvY = 0;
+
+            if (j === 0) {
+              px = pxTailExtShadow + ox;
+              py = pyTailExtShadow + oy;
+              snx = nx[0];
+              sny = ny[0];
+              uvY = -shadowRadius;
+            } else if (j === numShadowNodes - 1) {
+              px = pxHeadExtShadow + ox;
+              py = pyHeadExtShadow + oy;
+              snx = nx[numPoints - 1];
+              sny = ny[numPoints - 1];
+              uvY = L + shadowRadius;
+            } else {
+              const pIdx = j - 1;
+              const pPt = smoothPoints[pIdx];
+              px = pPt.x + ox;
+              py = pPt.y + oy;
+              snx = nx[pIdx];
+              sny = ny[pIdx];
+              uvY = distances[pIdx];
+            }
+
             const activeRadius = shadowRadius;
 
-            shadowVertices.push(px + node.snx * activeRadius, py + node.sny * activeRadius, sz);
-            shadowUVs.push(0.0, node.uvY);
+            shadowVertices.push(px + snx * activeRadius, py + sny * activeRadius, sz);
+            shadowUVs.push(0.0, uvY);
             shadowColors.push(0, 0, 0);
             shadowSnakeParams.push(shadowRadius, L);
 
-            shadowVertices.push(px - node.snx * activeRadius, py - node.sny * activeRadius, sz);
-            shadowUVs.push(1.0, node.uvY);
+            shadowVertices.push(px - snx * activeRadius, py - sny * activeRadius, sz);
+            shadowUVs.push(1.0, uvY);
             shadowColors.push(0, 0, 0);
             shadowSnakeParams.push(shadowRadius, L);
 
             shadowVertexCount += 2;
           }
 
-          const numShadowNodes = shadowNodes.length;
           for (let j = 0; j < numShadowNodes - 1; j++) {
             const v0 = shadowStartIdx + j * 2;
             const v1 = shadowStartIdx + j * 2 + 1;
@@ -1118,7 +1289,9 @@ const GameScene = ({
           const pupilRadius = eyeRadius * 0.5;
           const forwardOffset = snakeRadius * 0.45;
           const sideOffset = snakeRadius * 0.45;
-          const zOffset = 0.2 + p.body.length * 0.01 + 0.2; // Extra 0.2 to ensure it renders above head
+          // Raise the eyes and pupils to remain relative to the new snake body height (Z = 2.0)
+          const snakeZ = 2.0 + p.body.length * 0.001;
+          const zOffset = snakeZ + 0.1;
           
           const visAngle = -p.angle;
           const dirFx = Math.cos(visAngle);
@@ -1145,7 +1318,7 @@ const GameScene = ({
             const px = ex + dirFx * (eyeRadius * 0.3);
             const py = ey + dirFy * (eyeRadius * 0.3);
             
-            dummy.position.set(px, py, zOffset + 0.001);
+            dummy.position.set(px, py, zOffset + 0.01);
             dummy.scale.setScalar(pupilRadius);
             dummy.updateMatrix();
             pupilMeshRef.current.setMatrixAt(pupilCount, dummy.matrix);
@@ -1240,7 +1413,7 @@ const GameScene = ({
         p.vy *= Math.max(0.1, 1 - 1.5 * dt);
         
         const pSize = gridSize * p.size;
-        dummy.position.set(p.x * gridSize + gridSize/2, -(p.y * gridSize + gridSize/2), 0.5);
+        dummy.position.set(p.x * gridSize + gridSize/2, -(p.y * gridSize + gridSize/2), 1.2);
         dummy.scale.setScalar(pSize);
         // Particles rotate randomly
         dummy.rotation.set(0, 0, p.life * 5.0);
@@ -1296,7 +1469,7 @@ const GameScene = ({
   // Resource cleanup on unmount
   useEffect(() => {
     return () => {
-      [foodMat, snakeMat, eyeMat, pupilMat, particleMat, groundMaterial].forEach(mat => mat.dispose());
+      [foodMat, foodShadowMat, snakeMat, eyeMat, pupilMat, particleMat, groundMaterial].forEach(mat => mat.dispose());
       [planeGeo, flatCircleGeo, pupilGeo, particleGeo].forEach(geo => geo.dispose());
       if (bodyGeometryRef.current) bodyGeometryRef.current.dispose();
       if (shadowGeometryRef.current) shadowGeometryRef.current.dispose();
@@ -1309,12 +1482,13 @@ const GameScene = ({
       <directionalLight position={[100, 100, 200]} intensity={1.2} />
       
       {/* Custom Infinite Floor with Fog and Grid */}
-      <mesh position={[(WORLD_WIDTH*gridSize)/2, -(WORLD_HEIGHT*gridSize)/2, -0.1]}>
+      <mesh position={[(WORLD_WIDTH*gridSize)/2, -(WORLD_HEIGHT*gridSize)/2, -1.0]}>
         <planeGeometry args={[WORLD_WIDTH*gridSize*4, WORLD_HEIGHT*gridSize*4]} />
         <primitive object={groundMaterial} attach="material" />
       </mesh>
 
       {/* Main entities third (rendered on top of shadows and glows) */}
+      <instancedMesh ref={foodShadowMeshRef} args={[planeGeo, foodShadowMat, 5000]} frustumCulled={false} renderOrder={0} />
       <instancedMesh ref={foodMeshRef} args={[planeGeo, foodMat, 5000]} frustumCulled={false} renderOrder={1} />
       <mesh ref={snakeShadowMeshRef} renderOrder={1} frustumCulled={false}>
         <bufferGeometry ref={shadowGeometryRef} />
@@ -1437,7 +1611,7 @@ export const GameRenderer = React.memo(({
 
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#0c0c0f' }}>
-      <Canvas shadows camera={{ fov: 50, near: 1, far: 20000 }}>
+      <Canvas shadows camera={{ fov: 50, near: 15.0, far: 15000.0 }} gl={{ logarithmicDepthBuffer: true }}>
         <GameScene 
           gameStateRef={gameStateRef}
           lastGameStateRef={lastGameStateRef}
