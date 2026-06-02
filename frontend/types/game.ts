@@ -12,11 +12,12 @@ export type ServerSnakeConfig = {
   base_head_radius: number;
   score_thickness_scale: number;
   camera_zoom_out_coeff: number;
-  growth_score_per_segment: number;
+  growth_score_per_segment: number | string;
   start_length: number;
   start_score: number;
   min_body_length: number;
   safe_spawn_distance: number;
+  max_growth_score: number;
 };
 
 export type ServerVisualConfig = {

@@ -413,10 +413,11 @@ interface GameSceneProps {
   stateQueueRef: React.MutableRefObject<{ time: number; state: GameState }[]>;
   myIdRef: React.MutableRefObject<string>;
   cameraModeRef: React.MutableRefObject<"2D" | "3D">;
-  localInputRef: React.MutableRefObject<{ turn: number; accelerating: boolean }>;
+  localInputRef: React.MutableRefObject<{ turn: number; accelerating: boolean; touchX?: number | null; tiltX?: number | null }>;
   particlesRef: React.MutableRefObject<Particle[]>;
-  controlModeRef: React.MutableRefObject<"keyboard" | "mouse">;
+  controlModeRef: React.MutableRefObject<"keyboard" | "mouse" | "tilt">;
   socketRef: React.MutableRefObject<WebSocket | null>;
+  isMobile?: boolean;
 }
 
 function updateDynamicAttribute(
@@ -474,7 +475,8 @@ const GameScene = ({
   localInputRef,
   particlesRef,
   controlModeRef,
-  socketRef
+  socketRef,
+  isMobile
 }: GameSceneProps) => {
   const { camera, scene } = useThree();
   const foodMeshRef = useRef<THREE.InstancedMesh>(null);
@@ -591,15 +593,27 @@ const GameScene = ({
     const myId = myIdRef.current;
     const myPlayer = state.players[myId];
 
-    if (controlModeRef.current === "mouse" && myPlayer) {
-      const pointer = r3fState.pointer;
+    if ((controlModeRef.current === "mouse" || controlModeRef.current === "tilt") && myPlayer) {
       const sensitivity = state.server_visual?.mouse_sensitivity ?? 1.0;
       const targetDeflection = 0.5 * sensitivity;
 
+      let pointerX = 0;
+      if (controlModeRef.current === "tilt") {
+        pointerX = (localInputRef.current.tiltX !== undefined && localInputRef.current.tiltX !== null)
+          ? localInputRef.current.tiltX
+          : 0.0;
+      } else if (isMobile) {
+        pointerX = (localInputRef.current.touchX !== undefined && localInputRef.current.touchX !== null)
+          ? localInputRef.current.touchX
+          : 0.0;
+      } else {
+        pointerX = r3fState.pointer.x;
+      }
+
       let desiredTurnFactor = 0;
       // Small deadzone of 0.02 (1% of screen half-width) to easily go perfectly straight
-      if (Math.abs(pointer.x) > 0.02) {
-        desiredTurnFactor = pointer.x / targetDeflection;
+      if (Math.abs(pointerX) > 0.02) {
+        desiredTurnFactor = pointerX / targetDeflection;
         desiredTurnFactor = Math.max(-1.0, Math.min(1.0, desiredTurnFactor));
       }
 
@@ -699,8 +713,8 @@ const GameScene = ({
       const turnPerTick = Math.min(maxTurnSpeedDeg * Math.PI / 180, maxTurnFromRadius) / serverTickRate;
 
       const targetTurn = localInputRef.current.turn * turnPerTick;
-      if (controlModeRef.current === "mouse") {
-        camState.current.localCurrentTurn = targetTurn; // Instant response in mouse mode!
+      if (controlModeRef.current === "mouse" || controlModeRef.current === "tilt") {
+        camState.current.localCurrentTurn = targetTurn; // Instant response in mouse & tilt modes!
       } else {
         const smoothing = localInputRef.current.turn === 0 ? (serverSimulation?.turn_idle_smoothing_at_20hz ?? TURN_IDLE_SMOOTHING_AT_20HZ) : (serverSimulation?.turn_active_smoothing_at_20hz ?? TURN_ACTIVE_SMOOTHING_AT_20HZ);
         camState.current.localCurrentTurn += (targetTurn - camState.current.localCurrentTurn) * frameSmoothing(smoothing, dt);
@@ -1533,6 +1547,7 @@ export const GameRenderer = React.memo(({
   localInputRef,
   controlModeRef,
   socketRef,
+  isMobile,
 }: {
   gameStateRef: React.MutableRefObject<GameState | null>;
   lastGameStateRef: React.MutableRefObject<GameState | null>;
@@ -1540,9 +1555,10 @@ export const GameRenderer = React.memo(({
   stateQueueRef: React.MutableRefObject<{ time: number; state: GameState }[]>;
   myIdRef: React.MutableRefObject<string>;
   cameraModeRef: React.MutableRefObject<"2D" | "3D">;
-  localInputRef: React.MutableRefObject<{ turn: number; accelerating: boolean }>;
-  controlModeRef: React.MutableRefObject<"keyboard" | "mouse">;
+  localInputRef: React.MutableRefObject<{ turn: number; accelerating: boolean; touchX?: number | null; tiltX?: number | null }>;
+  controlModeRef: React.MutableRefObject<"keyboard" | "mouse" | "tilt">;
   socketRef: React.MutableRefObject<WebSocket | null>;
+  isMobile?: boolean;
 }) => {
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
@@ -1623,21 +1639,27 @@ export const GameRenderer = React.memo(({
           particlesRef={particlesRef}
           controlModeRef={controlModeRef}
           socketRef={socketRef}
+          isMobile={isMobile}
         />
       </Canvas>
-      <div style={{ 
-        position: 'absolute', 
-        bottom: 20, 
-        right: 20, 
-        zIndex: 50, 
-        pointerEvents: 'none',
-        background: "rgba(20, 22, 28, 0.75)", 
-        border: "1px solid rgba(255, 255, 255, 0.08)", 
-        borderRadius: "16px", 
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-        backdropFilter: "blur(12px)",
-        overflow: "hidden"
-      }}>
+      <div 
+        className="hud-minimap-container"
+        style={{ 
+          position: 'absolute', 
+          top: isMobile ? 72 : 'auto',
+          left: isMobile ? 12 : 'auto',
+          bottom: isMobile ? 'auto' : 20, 
+          right: isMobile ? 'auto' : 20, 
+          zIndex: 50, 
+          pointerEvents: 'none',
+          background: "rgba(20, 22, 28, 0.75)", 
+          border: "1px solid rgba(255, 255, 255, 0.08)", 
+          borderRadius: "16px", 
+          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+          backdropFilter: "blur(12px)",
+          overflow: "hidden"
+        }}
+      >
         <canvas ref={minimapCanvasRef} width={150} height={150} style={{ display: "block" }} />
       </div>
     </div>

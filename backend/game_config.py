@@ -33,9 +33,10 @@ class SnakeConfig:
     base_head_radius: float = 0.2
     score_thickness_scale: float = 0.0005
     camera_zoom_out_coeff: float = 0.002
-    growth_score_per_segment: float = 10.0
+    growth_score_per_segment: str = "10.0"
     min_body_length: int = 9
     safe_spawn_distance: float = 15.0
+    max_growth_score: int = 5000
 
 
 @dataclass
@@ -126,9 +127,10 @@ class GameConfig:
         _require_range("snake.base_head_radius", self.snake.base_head_radius, 0.01, 100)
         _require_range("snake.score_thickness_scale", self.snake.score_thickness_scale, 0, 10)
         _require_range("snake.camera_zoom_out_coeff", self.snake.camera_zoom_out_coeff, 0.0, 1.0)
-        _require_range("snake.growth_score_per_segment", self.snake.growth_score_per_segment, 0.1, 1000000)
+        validate_growth_formula(self.snake.growth_score_per_segment)
         _require_range("snake.min_body_length", self.snake.min_body_length, 1, 10000)
         _require_range("snake.safe_spawn_distance", self.snake.safe_spawn_distance, 0, 10000)
+        _require_range("snake.max_growth_score", self.snake.max_growth_score, 1, 1000000000)
 
         _require_range("boost.min_score", self.boost.min_score, 0, 1000000)
         _require_range("boost.speed_multiplier", self.boost.speed_multiplier, 1, 20)
@@ -183,7 +185,11 @@ def _apply_dataclass_patch(target, patch):
             else:
                 setattr(target, key, value)
         else:
-            setattr(target, key, value)
+            expected_type = hints.get(key)
+            if expected_type is str and not isinstance(value, str):
+                setattr(target, key, str(value))
+            else:
+                setattr(target, key, value)
 
 
 def _require_range(name, value, minimum, maximum):
@@ -191,3 +197,89 @@ def _require_range(name, value, minimum, maximum):
         raise ValueError(f"{name} must be a number")
     if value < minimum or value > maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
+
+
+def validate_growth_formula(formula_str: str) -> None:
+    import ast
+    if not isinstance(formula_str, str):
+        formula_str = str(formula_str)
+    
+    # Try parsing as a raw float/int first. If it's just a number, it's always valid!
+    try:
+        val = float(formula_str)
+        if val < 0.1 or val > 1000000:
+            raise ValueError("Growth segment cost must be between 0.1 and 1,000,000")
+        return
+    except ValueError as e:
+        if "Growth segment cost" in str(e):
+            raise e
+        # Otherwise, proceed with AST formula validation
+        pass
+        
+    try:
+        tree = ast.parse(formula_str, mode="eval")
+    except Exception as e:
+        raise ValueError(f"Syntax error in formula: {str(e)}")
+        
+    allowed_names = {"s", "S", "score", "SCORE", "l", "L", "len", "LEN", "pi", "e"}
+    allowed_funcs = {"log", "log10", "sin", "cos", "tan", "sqrt", "exp", "abs", "min", "max", "pow"}
+    
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Expression):
+            continue
+        elif isinstance(node, ast.BinOp):
+            if not isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow)):
+                raise ValueError(f"Operator '{type(node.op).__name__}' is not allowed in formula")
+        elif isinstance(node, ast.UnaryOp):
+            if not isinstance(node.op, (ast.UAdd, ast.USub)):
+                raise ValueError(f"Unary operator '{type(node.op).__name__}' is not allowed")
+        elif isinstance(node, (ast.Num, ast.Constant)):
+            continue
+        elif isinstance(node, ast.Name):
+            if node.id not in allowed_names and node.id not in allowed_funcs:
+                raise ValueError(f"Variable or math constant '{node.id}' is not allowed. Use s (score) or l (length)")
+        elif isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name) or node.func.id not in allowed_funcs:
+                func_name = node.func.id if isinstance(node.func, ast.Name) else "complex expression"
+                raise ValueError(f"Math function '{func_name}' is not allowed. Allowed: {', '.join(sorted(allowed_funcs))}")
+        elif isinstance(node, ast.Load):
+            continue
+        elif isinstance(node, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow, ast.UAdd, ast.USub)):
+            continue
+        else:
+            raise ValueError(f"Expression type '{type(node).__name__}' is not allowed in formula")
+            
+    # Test evaluation
+    import math
+    safe_env = {
+        "s": 10.0, "S": 10.0, "score": 10.0, "SCORE": 10.0,
+        "l": 9.0, "L": 9.0, "len": 9.0, "LEN": 9.0,
+        "pi": math.pi, "e": math.e,
+        "log": lambda x: math.log(max(0.001, x)),
+        "log10": lambda x: math.log10(max(0.001, x)),
+        "sin": math.sin, "cos": math.cos, "tan": math.tan,
+        "sqrt": lambda x: math.sqrt(max(0.0, x)),
+        "exp": math.exp, "abs": abs, "min": min, "max": max, "pow": pow
+    }
+    
+    try:
+        compiled = compile(tree, "<string>", "eval")
+        # Test 1: baseline
+        res1 = eval(compiled, {"__builtins__": {}}, safe_env)
+        if not isinstance(res1, (int, float)) or math.isnan(res1) or math.isinf(res1):
+            raise ValueError("Formula must evaluate to a valid finite number")
+        if res1 <= 0:
+            raise ValueError("Formula must evaluate to a positive growth cost (greater than 0)")
+        
+        # Test 2: higher values
+        test_env_2 = {**safe_env, "s": 1000.0, "S": 1000.0, "score": 1000.0, "SCORE": 1000.0, "l": 100.0, "L": 100.0, "len": 100.0, "LEN": 100.0}
+        res2 = eval(compiled, {"__builtins__": {}}, test_env_2)
+        if not isinstance(res2, (int, float)) or math.isnan(res2) or math.isinf(res2):
+            raise ValueError("Formula must evaluate to a valid finite number")
+        if res2 <= 0:
+            raise ValueError("Formula must evaluate to a positive growth cost (greater than 0)")
+            
+    except Exception as e:
+        if not isinstance(e, ValueError):
+            raise ValueError(f"Failed to evaluate formula: {str(e)}")
+        raise e

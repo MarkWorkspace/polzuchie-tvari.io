@@ -26,12 +26,13 @@ export function useGameSocket(
   nickname: string,
   skin: string,
   hasJoined: boolean,
-  cameraModeRef: MutableRefObject<"2D" | "3D">
+  cameraModeRef: MutableRefObject<"2D" | "3D">,
+  isMobile?: boolean
 ) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [statusMsg, setStatusMsg] = useState("");
-  const [controlMode, setControlMode] = useState<"keyboard" | "mouse">("keyboard");
-  const controlModeRef = useRef<"keyboard" | "mouse">("keyboard");
+  const [controlMode, setControlMode] = useState<"keyboard" | "mouse" | "tilt">("keyboard");
+  const controlModeRef = useRef<"keyboard" | "mouse" | "tilt">("keyboard");
   const [leaderboard, setLeaderboard] = useState<{ id: string; score: number; kills: number; deaths: number; isMe: boolean }[]>([]);
   const [killFeed, setKillFeed] = useState<{ id: number; killer: string; victim: string; time: number }[]>([]);
   const [scoreFeed, setScoreFeed] = useState<{ id: number; delta: number; time: number }[]>([]);
@@ -44,11 +45,21 @@ export function useGameSocket(
   const stateQueueRef = useRef<{ time: number; state: GameState }[]>([]);
   const myIdRef = useRef<string>("");
   const lastLeaderboardUpdateRef = useRef<number>(0);
-  const localInputRef = useRef({ turn: 0, accelerating: false });
+  const localInputRef = useRef<{ turn: number; accelerating: boolean; touchX?: number | null; tiltX?: number | null }>({ turn: 0, accelerating: false, touchX: null, tiltX: null });
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isCleaningUpRef = useRef(false);
+
+  useEffect(() => {
+    if (isMobile) {
+      setControlMode("mouse");
+      controlModeRef.current = "mouse";
+    } else {
+      setControlMode("keyboard");
+      controlModeRef.current = "keyboard";
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     if (!hasJoined) return;
@@ -432,6 +443,7 @@ export function useGameSocket(
     activePlayersCount,
     controlMode,
     controlModeRef,
+    setControlMode,
     socketRef
   };
 }

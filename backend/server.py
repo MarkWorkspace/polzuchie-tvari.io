@@ -14,7 +14,7 @@ from collections import deque, defaultdict
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from game_config import GameConfig
+from game_config import GameConfig, validate_growth_formula
 
 MAX_CONNECTIONS = 50
 RATE_LIMIT_PER_SECOND = 30
@@ -159,6 +159,31 @@ class GameState:
                     print(f"[Config] Successfully loaded config from {self.config_file_path}")
             except Exception as e:
                 print(f"[Config] Failed to load config from disk: {e}")
+        self._update_compiled_formulas()
+
+    def _update_compiled_formulas(self):
+        formula = self.config.snake.growth_score_per_segment
+        try:
+            if not isinstance(formula, str):
+                formula = str(formula)
+            validate_growth_formula(formula)
+            
+            import math
+            safe_env = {
+                "math": math,
+                "log": lambda x: math.log(max(0.001, x)),
+                "log10": lambda x: math.log10(max(0.001, x)),
+                "sin": math.sin, "cos": math.cos, "tan": math.tan,
+                "sqrt": lambda x: math.sqrt(max(0.0, x)),
+                "exp": math.exp, "abs": abs, "min": min, "max": max, "pow": pow,
+                "pi": math.pi, "e": math.e
+            }
+            expr = f"lambda s, l: {formula}"
+            self.growth_segment_cost_func = eval(compile(expr, "<string>", "eval"), {"__builtins__": {}}, safe_env)
+            print(f"[Config] Compiled growth segment cost function: {expr}")
+        except Exception as e:
+            print(f"[Config] Error compiling growth formula: {e}. Falling back to lambda s, l: 10.0")
+            self.growth_segment_cost_func = lambda s, l: 10.0
 
     def _save_config_to_disk(self):
         try:
@@ -176,6 +201,7 @@ class GameState:
         old_height = self.grid_height
         old_cluster_count = len(self.clusters)
         self.config.apply_patch(patch)
+        self._update_compiled_formulas()
         self._save_config_to_disk()
         self.grid_width = self.config.world.width
         self.grid_height = self.config.world.height
@@ -434,16 +460,23 @@ class GameState:
                 player.body.appendleft(new_head)
                 player.new_heads_this_tick.insert(0, new_head)
 
-                if player.pending_growth >= self.config.snake.growth_score_per_segment:
-                    player.pending_growth -= self.config.snake.growth_score_per_segment
-                else:
+                cost = max(0.1, float(self.growth_segment_cost_func(player.score, len(player.body))))
+
+                if player.score >= self.config.snake.max_growth_score:
+                    player.pending_growth = 0.0
                     if len(player.body) > 0:
                         player.body.pop()
-                    
-                    if player.pending_growth <= -self.config.snake.growth_score_per_segment:
-                        player.pending_growth += self.config.snake.growth_score_per_segment
-                        if len(player.body) > self.config.snake.min_body_length:
+                else:
+                    if player.pending_growth >= cost:
+                        player.pending_growth -= cost
+                    else:
+                        if len(player.body) > 0:
                             player.body.pop()
+                        
+                        if player.pending_growth <= -cost:
+                            player.pending_growth += cost
+                            if len(player.body) > self.config.snake.min_body_length:
+                                player.body.pop()
 
             new_head = player.body[0]
             head_radius = player.head_radius

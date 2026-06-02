@@ -58,9 +58,10 @@ const FIELD_LABELS: Record<string, string> = {
   base_head_radius: "Min Head Radius",
   score_thickness_scale: "Thickness Growth per Score",
   camera_zoom_out_coeff: "Camera Zoom-Out Coeff",
-  growth_score_per_segment: "Score per Growth Segment",
+  growth_score_per_segment: "Score per Growth Segment (Number or Formula)",
   min_body_length: "Min Body Length",
   safe_spawn_distance: "Safe Spawn Distance",
+  max_growth_score: "Snake Max Growth Cap",
   min_score: "Min Boost Score",
   speed_multiplier: "Speed Multiplier",
   drain_interval_seconds: "Mass Drain Interval (s)",
@@ -93,6 +94,8 @@ const FIELD_TOOLTIPS: Record<string, string> = {
   turn_active_smoothing_at_20hz: "Smoothness of entering a turn when turning keys are pressed.",
   score_thickness_scale: "Coefficient for scaling body thickness and head radius relative to score.",
   camera_zoom_out_coeff: "Camera zoom-out factor as the player's score increases.",
+  growth_score_per_segment: "Required score to grow a segment. Can be a number (e.g. 10) or safe math expression using variable s (score) or l (length), e.g. '10 + l * 0.5' or '10 + log(s) * 5'. Evaluated securely on the server.",
+  max_growth_score: "Score limit above which the snake stops growing new body segments (length) but continues to gain score.",
   drain_interval_seconds: "Time interval in seconds at which score is drained during acceleration.",
   food_drop_value: "Value of food particles dropped behind the snake during acceleration.",
   attraction_radius: "Attraction (magnetism) radius within which food flies towards the snake.",
@@ -125,7 +128,8 @@ const FIELD_UNITS: Record<string, string> = {
   base_head_radius: "cells",
   score_thickness_scale: "coeff",
   camera_zoom_out_coeff: "coeff",
-  growth_score_per_segment: "pts/seg",
+  growth_score_per_segment: "formula",
+  max_growth_score: "score",
   min_body_length: "segm",
   safe_spawn_distance: "cells",
   min_score: "points",
@@ -149,7 +153,8 @@ const FIELD_UNITS: Record<string, string> = {
   mouse_sensitivity: "coeff"
 };
 
-const HIDDEN_FIELDS = new Set(["types", "width", "height", "aoi_radius", "aoi_length_padding"]);
+const HIDDEN_FIELDS = new Set(["types", "aoi_radius", "aoi_length_padding"]);
+const FIELDS_TO_HIDE_FROM_LIST = new Set(["types", "width", "height", "aoi_radius", "aoi_length_padding"]);
 
 function adminApiUrl() {
   const host = window.location.hostname || "127.0.0.1";
@@ -375,6 +380,7 @@ export default function AdminPage() {
     ping: null,
   });
   const [simSeed, setSimSeed] = useState(0);
+  const [formulaError, setFormulaError] = useState<string | null>(null);
 
   const simulatedData = useMemo(() => {
     if (!config) return null;
@@ -580,7 +586,11 @@ export default function AdminPage() {
         const original = String(value);
         if (draft !== original) {
           if (!patch[section]) patch[section] = {};
-          patch[section][key] = Number(draft);
+          if (key === "growth_score_per_segment") {
+            patch[section][key] = draft;
+          } else {
+            patch[section][key] = Number(draft);
+          }
         }
       }
     }
@@ -620,9 +630,25 @@ export default function AdminPage() {
       });
       if (!response.ok) {
         const error = (await response.json().catch(() => null)) as { detail?: string } | null;
-        setStatus(error?.detail || `Error saving config: ${response.status}`);
+        const errMsg = error?.detail || `Error saving config: ${response.status}`;
+        setStatus(errMsg);
+        
+        const lowerMsg = errMsg.toLowerCase();
+        if (
+          lowerMsg.includes("formula") || 
+          lowerMsg.includes("syntax") || 
+          lowerMsg.includes("variable") || 
+          lowerMsg.includes("operator") || 
+          lowerMsg.includes("function") || 
+          lowerMsg.includes("math constant") || 
+          lowerMsg.includes("growth_score_per_segment") ||
+          lowerMsg.includes("growth segment cost")
+        ) {
+          setFormulaError(errMsg);
+        }
         return;
       }
+      setFormulaError(null);
       applyLoadedConfig(await response.json() as GameConfig);
       setStatus("✓ Configuration successfully updated in real-time!");
     } catch (e) {
@@ -717,7 +743,7 @@ export default function AdminPage() {
     const list: { section: string; key: string; value: unknown; label: string; dk: string }[] = [];
     for (const [section, values] of Object.entries(config)) {
       for (const [key, value] of Object.entries(values as Record<string, unknown>)) {
-        if (HIDDEN_FIELDS.has(key)) continue;
+        if (FIELDS_TO_HIDE_FROM_LIST.has(key)) continue;
         const label = FIELD_LABELS[key] || key;
         list.push({ section, key, value, label, dk: `${section}.${key}` });
       }
@@ -1173,7 +1199,7 @@ export default function AdminPage() {
                                           borderRadius: 8,
                                           padding: "8px 12px",
                                           position: "absolute",
-                                          zIndex: 10,
+                                          zIndex: 200,
                                           bottom: "125%",
                                           left: "50%",
                                           marginLeft: -120,
@@ -1323,7 +1349,7 @@ export default function AdminPage() {
                                             borderRadius: 8,
                                             padding: "8px 12px",
                                             position: "absolute",
-                                            zIndex: 10,
+                                            zIndex: 200,
                                             bottom: "125%",
                                             left: "50%",
                                             marginLeft: -120,
@@ -1366,38 +1392,71 @@ export default function AdminPage() {
                                     </div>
                                   )}
 
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
-                                    <input
-                                      value={draftVal}
-                                      onChange={(e) => setDrafts(prev => ({ ...prev, [f.dk]: e.target.value }))}
-                                      className="admin-input"
-                                      style={{
-                                        flex: 1,
-                                        width: "100%",
-                                        padding: "10px 12px",
-                                        borderRadius: 8,
-                                        border: `1px solid ${isFieldModified ? "#d97706" : "#3f414a"}`,
-                                        background: "#2b2d34",
-                                        color: "#fafafa",
-                                        fontSize: 14,
-                                        fontWeight: 600
-                                      }}
-                                    />
-                                    {FIELD_UNITS[f.key] && (
-                                      <span style={{
-                                        color: "#a1a1aa",
-                                        fontSize: 12,
-                                        fontWeight: 600,
-                                        background: "#24262c",
-                                        border: "1px solid #3f414a",
-                                        padding: "10px 12px",
-                                        borderRadius: 8,
-                                        whiteSpace: "nowrap",
-                                        minWidth: "60px",
-                                        textAlign: "center"
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, width: "100%" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, position: "relative" }}>
+                                      <input
+                                        value={draftVal}
+                                        onChange={(e) => {
+                                          setDrafts(prev => ({ ...prev, [f.dk]: e.target.value }));
+                                          if (f.key === "growth_score_per_segment") {
+                                            setFormulaError(null);
+                                          }
+                                        }}
+                                        className="admin-input"
+                                        style={{
+                                          flex: 1,
+                                          width: "100%",
+                                          padding: "10px 12px",
+                                          borderRadius: 8,
+                                          border: `1px solid ${
+                                            f.key === "growth_score_per_segment" && formulaError 
+                                              ? "#ef4444" 
+                                              : isFieldModified ? "#d97706" : "#3f414a"
+                                          }`,
+                                          boxShadow: f.key === "growth_score_per_segment" && formulaError 
+                                            ? "0 0 8px rgba(239, 68, 68, 0.2)" 
+                                            : "none",
+                                          background: "#2b2d34",
+                                          color: "#fafafa",
+                                          fontSize: 14,
+                                          fontWeight: 600
+                                        }}
+                                      />
+                                      {FIELD_UNITS[f.key] && (
+                                        <span style={{
+                                          color: "#a1a1aa",
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          background: "#24262c",
+                                          border: "1px solid #3f414a",
+                                          padding: "10px 12px",
+                                          borderRadius: 8,
+                                          whiteSpace: "nowrap",
+                                          minWidth: "60px",
+                                          textAlign: "center"
+                                        }}>
+                                          {FIELD_UNITS[f.key]}
+                                        </span>
+                                      )}
+                                    </div>
+                                    
+                                    {f.key === "growth_score_per_segment" && formulaError && (
+                                      <div style={{
+                                        color: "#f87171",
+                                        fontSize: 11,
+                                        fontWeight: 500,
+                                        background: "rgba(239, 68, 68, 0.08)",
+                                        border: "1px solid rgba(239, 68, 68, 0.2)",
+                                        padding: "8px 12px",
+                                        borderRadius: 6,
+                                        lineHeight: "1.4",
+                                        pointerEvents: "auto"
                                       }}>
-                                        {FIELD_UNITS[f.key]}
-                                      </span>
+                                        ⚠️ <strong>Formula Error:</strong> {formulaError}
+                                        <div style={{ marginTop: 4, color: "#a1a1aa", fontSize: 10 }}>
+                                          Use variables <code>s</code> (score) or <code>l</code> (length). Examples: <code>10</code>, <code>10 + l * 0.5</code>, <code>15 + log(s) * 3</code>.
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
                                 </div>
@@ -1541,14 +1600,53 @@ export default function AdminPage() {
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
                         <span style={{ fontSize: 22 }}>🗺️</span>
-                        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#fafafa" }}>
-                          Map Simulation
-                        </h3>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#fafafa" }}>
+                            Map Simulation
+                          </h3>
+                          <div className="tooltip-container" style={{ position: "relative", display: "inline-block", cursor: "help" }}>
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              background: "#3f414a",
+                              color: "#a1a1aa",
+                              fontSize: 10,
+                              fontWeight: 800,
+                              transition: "all 0.15s ease"
+                            }} className="tooltip-icon">
+                              ?
+                            </span>
+                            <div className="tooltip-text" style={{
+                              visibility: "hidden",
+                              width: 240,
+                              backgroundColor: "#1e2025",
+                              color: "#fafafa",
+                              textAlign: "left",
+                              borderRadius: 8,
+                              padding: "8px 12px",
+                              position: "absolute",
+                              zIndex: 200,
+                              bottom: "125%",
+                              left: "50%",
+                              marginLeft: -120,
+                              opacity: 0,
+                              transition: "opacity 0.2s ease, transform 0.2s ease",
+                              transform: "translateY(4px)",
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                              fontSize: 11,
+                              lineHeight: "1.4",
+                              pointerEvents: "none",
+                              border: "1px solid #3f414a"
+                            }}>
+                              Preview of the food and cluster layout based on your current settings. Updates in real-time as you modify parameters.
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      
-                      <p style={{ margin: "0 0 16px", color: "#a1a1aa", fontSize: 13, lineHeight: "1.5" }}>
-                        Preview of the food and cluster layout based on your current settings. Updates in real-time as you modify parameters.
-                      </p>
 
                       <MapSimulator simulatedData={simulatedData} onResimulate={() => setSimSeed(s => s + 1)} />
 

@@ -1,7 +1,7 @@
 {
     "world": {
-        "width": 100,
-        "height": 100,
+        "width": 140,
+        "height": 70,
         "target_food_count": 250,
         "food_overflow_limit": 150,
         "cluster_count": 8,
@@ -24,9 +24,10 @@
         "base_head_radius": 0.2,
         "score_thickness_scale": 0.00102,
         "camera_zoom_out_coeff": 0.0005,
-        "growth_score_per_segment": 10.0,
+        "growth_score_per_segment": "10.0",
         "min_body_length": 9,
-        "safe_spawn_distance": 15.0
+        "safe_spawn_distance": 15.0,
+        "max_growth_score": 10000
     },
     "boost": {
         "min_score": 15,
