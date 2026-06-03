@@ -416,7 +416,7 @@ interface GameSceneProps {
   localInputRef: React.MutableRefObject<{ turn: number; accelerating: boolean; touchX?: number | null; tiltX?: number | null }>;
   particlesRef: React.MutableRefObject<Particle[]>;
   controlModeRef: React.MutableRefObject<"keyboard" | "mouse" | "tilt">;
-  socketRef: React.MutableRefObject<WebSocket | null>;
+  socketRef: React.MutableRefObject<any>;
   isMobile?: boolean;
 }
 
@@ -479,6 +479,7 @@ const GameScene = ({
   isMobile
 }: GameSceneProps) => {
   const { camera, scene } = useThree();
+  const groundMeshRef = useRef<THREE.Mesh>(null);
   const foodMeshRef = useRef<THREE.InstancedMesh>(null);
   const foodShadowMeshRef = useRef<THREE.InstancedMesh>(null);
   const snakeMeshRef = useRef<THREE.Mesh>(null);
@@ -590,8 +591,31 @@ const GameScene = ({
     }
 
     if (!state) return;
+    const mapW = state.server_world?.width ?? WORLD_WIDTH;
+    const mapH = state.server_world?.height ?? WORLD_HEIGHT;
+
+    // Update ground mesh scale and position dynamically
+    if (groundMeshRef.current) {
+      groundMeshRef.current.position.set((mapW * gridSize) / 2, -(mapH * gridSize) / 2, -2.0);
+      groundMeshRef.current.scale.set(mapW / WORLD_WIDTH, mapH / WORLD_HEIGHT, 1.0);
+    }
+
     const myId = myIdRef.current;
     const myPlayer = state.players[myId];
+
+    let camX = (mapW * gridSize) / 2;
+    let camY = -(mapH * gridSize) / 2;
+
+    if (myPlayer && myPlayer.body && myPlayer.body.length > 0) {
+      const target = myPlayer.body[0];
+      let start = target;
+      const oldBody = lastState?.players[myId]?.body;
+      if (oldBody && oldBody.length > 0) start = oldBody[0];
+      if (Math.abs(target.x - start.x) > mapW / 2 || Math.abs(target.y - start.y) > mapH / 2) start = target;
+
+      camX = (start.x + (target.x - start.x) * progress) * gridSize + gridSize / 2;
+      camY = -((start.y + (target.y - start.y) * progress) * gridSize + gridSize / 2);
+    }
 
     if ((controlModeRef.current === "mouse" || controlModeRef.current === "tilt") && myPlayer) {
       const sensitivity = state.server_visual?.mouse_sensitivity ?? 1.0;
@@ -670,11 +694,34 @@ const GameScene = ({
     }
 
     // Update active players list for React rendering (throttled to 2Hz to prevent GC spikes and re-renders)
+    // We only render nicknames for the closest players (3 on mobile, 8 on desktop) to prevent WebGL Text unmount/mount lags.
     if (time - camState.current.lastPlayerSyncTime > 500) {
       camState.current.lastPlayerSyncTime = time;
-      const currentActiveIds = Object.keys(state.players);
-      if (currentActiveIds.length !== activePlayerIds.length || !currentActiveIds.every(id => activePlayerIds.some((p: any) => p.id === id))) {
-        setActivePlayerIds(currentActiveIds.map(id => ({ id, isMe: id === myId, nickname: state.players[id]?.nickname || "Игрок" })));
+      
+      const allPlayers = Object.entries(state.players);
+      const sortedPlayers = allPlayers
+        .map(([id, p]) => {
+          if (!p.body || p.body.length === 0) return { id, isMe: id === myId, nickname: p.nickname || "Игрок", distSq: Infinity };
+          const h = p.body[0];
+          const wx = h.x * gridSize + gridSize/2;
+          const wy = -(h.y * gridSize + gridSize/2);
+          const distSq = (wx - camX)**2 + (wy - camY)**2;
+          return { id, isMe: id === myId, nickname: p.nickname || "Игрок", distSq };
+        })
+        .sort((a, b) => {
+          if (a.isMe) return -1;
+          if (b.isMe) return 1;
+          return a.distSq - b.distSq;
+        });
+
+      const limit = isMobile ? 4 : 9; // 1 (self) + 3/8 remote players
+      const closestIds = sortedPlayers.slice(0, limit);
+      
+      const hasChanged = closestIds.length !== activePlayerIds.length || 
+                         !closestIds.every((item, idx) => activePlayerIds[idx] && activePlayerIds[idx].id === item.id);
+      
+      if (hasChanged) {
+        setActivePlayerIds(closestIds.map(item => ({ id: item.id, isMe: item.isMe, nickname: item.nickname })));
       }
     }
     const maxTurnSpeedDeg = serverSimulation?.max_turn_speed_deg_per_second ?? MAX_TURN_SPEED_DEG;
@@ -698,8 +745,6 @@ const GameScene = ({
     camState.current.transition += (targetTransition - camState.current.transition) * dt * 6.0;
     if (Math.abs(targetTransition - camState.current.transition) < 0.005) camState.current.transition = targetTransition;
     const cameraTransition = camState.current.transition;
-    let camX = (WORLD_WIDTH * gridSize) / 2;
-    let camY = -(WORLD_HEIGHT * gridSize) / 2;
     let camAngle = 0;
 
     if (myPlayer) {
@@ -738,7 +783,7 @@ const GameScene = ({
       let start = target;
       const oldBody = lastState?.players[myId]?.body;
       if (oldBody && oldBody.length > 0) start = oldBody[0];
-      if (Math.abs(target.x - start.x) > 50 || Math.abs(target.y - start.y) > 50) start = target;
+      if (Math.abs(target.x - start.x) > mapW / 2 || Math.abs(target.y - start.y) > mapH / 2) start = target;
 
       camX = (start.x + (target.x - start.x) * progress) * gridSize + gridSize / 2;
       camY = -((start.y + (target.y - start.y) * progress) * gridSize + gridSize / 2);
@@ -786,14 +831,20 @@ const GameScene = ({
     // UPDATE GROUND FOG SHADER
     groundMaterial.uniforms.uCenter.value.set(camX, camY);
     groundMaterial.uniforms.uRadius.value = fogRadiusWorld;
+    groundMaterial.uniforms.uWorldWidth.value = mapW;
+    groundMaterial.uniforms.uWorldHeight.value = mapH;
 
     // UPDATE SNAKE & SHADOW UNIFORMS
     snakeMat.uniforms.uTime.value = time;
     snakeMat.uniforms.uCenter.value.set(camX, camY);
     snakeMat.uniforms.uRadius.value = fogRadiusWorld;
+    snakeMat.uniforms.uMapWidth.value = mapW * gridSize;
+    snakeMat.uniforms.uMapHeight.value = mapH * gridSize;
 
     shadowMat.uniforms.uCenter.value.set(camX, camY);
     shadowMat.uniforms.uRadius.value = fogRadiusWorld;
+    shadowMat.uniforms.uMapWidth.value = mapW * gridSize;
+    shadowMat.uniforms.uMapHeight.value = mapH * gridSize;
 
     const calcFogAmount = (wx: number, wy: number) => {
       const dist = Math.sqrt((wx - camX)**2 + (wy - camY)**2);
@@ -816,7 +867,7 @@ const GameScene = ({
       if (lastState && lastState.foods) {
         for (let i = 0; i < lastState.foods.length; i++) {
           const lf = lastState.foods[i];
-          lastFoodMap.set(lf.id, { x: lf.x, y: lf.y });
+          lastFoodMap.set(lf.id, lf);
         }
       }
 
@@ -830,12 +881,12 @@ const GameScene = ({
         if (lf) {
           let dx = food.x - lf.x;
           let dy = food.y - lf.y;
-          if (Math.abs(dx) > WORLD_WIDTH / 2) {
+          if (Math.abs(dx) > mapW / 2) {
             fx = food.x;
           } else {
             fx = lf.x + dx * progress;
           }
-          if (Math.abs(dy) > WORLD_HEIGHT / 2) {
+          if (Math.abs(dy) > mapH / 2) {
             fy = food.y;
           } else {
             fy = lf.y + dy * progress;
@@ -964,10 +1015,10 @@ const GameScene = ({
         for (let i = 1; i < logicalX.length; i++) {
           let dx = logicalX[i] - uwLX[i - 1];
           let dy = logicalY[i] - uwLY[i - 1];
-          if (dx > WORLD_WIDTH / 2) dx -= WORLD_WIDTH;
-          else if (dx < -WORLD_WIDTH / 2) dx += WORLD_WIDTH;
-          if (dy > WORLD_HEIGHT / 2) dy -= WORLD_HEIGHT;
-          else if (dy < -WORLD_HEIGHT / 2) dy += WORLD_HEIGHT;
+          if (dx > mapW / 2) dx -= mapW;
+          else if (dx < -mapW / 2) dx += mapW;
+          if (dy > mapH / 2) dy -= mapH;
+          else if (dy < -mapH / 2) dy += mapH;
           uwLX.push(uwLX[i - 1] + dx);
           uwLY.push(uwLY[i - 1] + dy);
         }
@@ -1120,8 +1171,18 @@ const GameScene = ({
         // to keep it independent of the snake's scale as requested by the user.
         const shadowRadius = snakeRadius + 3.2;
 
+        const currentWG = mapW * gridSize;
+        const currentHG = mapH * gridSize;
+        const currentWrapOffsets: [number, number][] = [
+          [0, 0],
+          [currentWG, 0],
+          [-currentWG, 0],
+          [0, currentHG],
+          [0, -currentHG],
+        ];
+
         // Loop over wrapOffsets to handle map boundaries dynamically
-        for (const [ox, oy] of wrapOffsets) {
+        for (const [ox, oy] of currentWrapOffsets) {
           const headX = smoothPoints[numPoints - 1].x + ox;
           const headY = smoothPoints[numPoints - 1].y + oy;
           const distToCam = Math.sqrt((headX - camX) ** 2 + (headY - camY) ** 2);
@@ -1388,10 +1449,10 @@ const GameScene = ({
         // Find shortest path to camera
         let dx = worldX - camX;
         let dy = worldY - camY;
-        if (dx > (WORLD_WIDTH*gridSize)/2) dx -= WORLD_WIDTH*gridSize;
-        else if (dx < -(WORLD_WIDTH*gridSize)/2) dx += WORLD_WIDTH*gridSize;
-        if (dy > (WORLD_HEIGHT*gridSize)/2) dy -= WORLD_HEIGHT*gridSize;
-        else if (dy < -(WORLD_HEIGHT*gridSize)/2) dy += WORLD_HEIGHT*gridSize;
+        if (dx > (mapW*gridSize)/2) dx -= mapW*gridSize;
+        else if (dx < -(mapW*gridSize)/2) dx += mapW*gridSize;
+        if (dy > (mapH*gridSize)/2) dy -= mapH*gridSize;
+        else if (dy < -(mapH*gridSize)/2) dy += mapH*gridSize;
         
         const wX = camX + dx;
         const wY = camY + dy;
@@ -1496,7 +1557,7 @@ const GameScene = ({
       <directionalLight position={[100, 100, 200]} intensity={1.2} />
       
       {/* Custom Infinite Floor with Fog and Grid */}
-      <mesh position={[(WORLD_WIDTH*gridSize)/2, -(WORLD_HEIGHT*gridSize)/2, -1.0]}>
+      <mesh ref={groundMeshRef} position={[(WORLD_WIDTH*gridSize)/2, -(WORLD_HEIGHT*gridSize)/2, -2.0]}>
         <planeGeometry args={[WORLD_WIDTH*gridSize*4, WORLD_HEIGHT*gridSize*4]} />
         <primitive object={groundMaterial} attach="material" />
       </mesh>
@@ -1557,7 +1618,7 @@ export const GameRenderer = React.memo(({
   cameraModeRef: React.MutableRefObject<"2D" | "3D">;
   localInputRef: React.MutableRefObject<{ turn: number; accelerating: boolean; touchX?: number | null; tiltX?: number | null }>;
   controlModeRef: React.MutableRefObject<"keyboard" | "mouse" | "tilt">;
-  socketRef: React.MutableRefObject<WebSocket | null>;
+  socketRef: React.MutableRefObject<any>;
   isMobile?: boolean;
 }) => {
   const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -1586,14 +1647,17 @@ export const GameRenderer = React.memo(({
         // Soft dark overlay to maintain dot contrast without blocking the glassmorphism backdrop blur
         ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         ctx.fillRect(0, 0, 150, 150);
-        const mapScale = 150 / WORLD_WIDTH;
+        const mapW = state.server_world?.width ?? WORLD_WIDTH;
+        const mapH = state.server_world?.height ?? WORLD_HEIGHT;
+        const mapScaleX = 150 / mapW;
+        const mapScaleY = 150 / mapH;
 
         for (let i = 0; i < state.foods.length; i++) {
           const f = state.foods[i];
           ctx.fillStyle = f.color || '#ef4444';
           ctx.globalAlpha = f.value >= 2 ? 0.8 : 0.5;
           const s = f.value >= 50 ? 5 : f.value >= 20 ? 4 : 2;
-          ctx.fillRect(f.x * mapScale - s/2, f.y * mapScale - s/2, s, s);
+          ctx.fillRect(f.x * mapScaleX - s/2, f.y * mapScaleY - s/2, s, s);
         }
         ctx.globalAlpha = 1.0;
 
@@ -1606,7 +1670,7 @@ export const GameRenderer = React.memo(({
           ctx.fillStyle = p.skin === 'zebra' ? '#e2e8f0' : p.skin || '#22c55e';
           const head = p.body[0];
           ctx.beginPath();
-          ctx.arc(head.x * mapScale, head.y * mapScale, dotSize, 0, Math.PI * 2);
+          ctx.arc(head.x * mapScaleX, head.y * mapScaleY, dotSize, 0, Math.PI * 2);
           ctx.fill();
         }
 
@@ -1616,7 +1680,7 @@ export const GameRenderer = React.memo(({
           ctx.fillStyle = '#ffffff';
           const head = myPlayer.body[0];
           ctx.beginPath();
-          ctx.arc(head.x * mapScale, head.y * mapScale, dotSize, 0, Math.PI * 2);
+          ctx.arc(head.x * mapScaleX, head.y * mapScaleY, dotSize, 0, Math.PI * 2);
           ctx.fill();
         }
       }
@@ -1627,7 +1691,12 @@ export const GameRenderer = React.memo(({
 
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#0c0c0f' }}>
-      <Canvas shadows camera={{ fov: 50, near: 15.0, far: 15000.0 }} gl={{ logarithmicDepthBuffer: true }}>
+      <Canvas 
+        shadows={false} 
+        dpr={isMobile ? [1, 1.5] : [1, 2]} 
+        camera={{ fov: 50, near: 15.0, far: 15000.0 }} 
+        gl={{ logarithmicDepthBuffer: !isMobile }}
+      >
         <GameScene 
           gameStateRef={gameStateRef}
           lastGameStateRef={lastGameStateRef}

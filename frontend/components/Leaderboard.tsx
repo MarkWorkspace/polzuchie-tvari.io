@@ -10,17 +10,33 @@ interface LeaderboardEntry {
 }
 
 interface LeaderboardProps {
-  leaderboard: LeaderboardEntry[];
+  leaderboard?: LeaderboardEntry[];
 }
 
 export const Leaderboard: React.FC<LeaderboardProps> = ({ leaderboard }) => {
   const [isOpen, setIsOpen] = React.useState(true);
+  const [localLeaderboard, setLocalLeaderboard] = React.useState<LeaderboardEntry[]>([]);
 
   React.useEffect(() => {
     if (window.innerWidth < 768) {
       setIsOpen(false);
     }
   }, []);
+
+  React.useEffect(() => {
+    if (leaderboard) {
+      setLocalLeaderboard(leaderboard);
+      return;
+    }
+    const handleUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent<LeaderboardEntry[]>;
+      setLocalLeaderboard(customEvent.detail || []);
+    };
+    window.addEventListener("game-leaderboard-update", handleUpdate);
+    return () => {
+      window.removeEventListener("game-leaderboard-update", handleUpdate);
+    };
+  }, [leaderboard]);
 
   return (
     <div style={{ 
@@ -84,7 +100,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ leaderboard }) => {
             paddingRight: "4px"
           }}
         >
-          {leaderboard.slice(0, 10).map((player, index) => {
+          {localLeaderboard.slice(0, 10).map((player, index) => {
             const displayName = player.nickname || player.id;
             return (
               <li key={player.id} style={{ padding: "8px 0", color: player.isMe ? "#4ade80" : "white", fontWeight: player.isMe ? "bold" : "normal", borderBottom: "1px solid rgba(255, 255, 255, 0.08)" }}>
@@ -99,7 +115,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ leaderboard }) => {
               </li>
             );
           })}
-          {leaderboard.length === 0 && <li style={{ color: "rgba(255, 255, 255, 0.4)", textAlign: "center", padding: "10px 0" }}>Ожидание...</li>}
+          {localLeaderboard.length === 0 && <li style={{ color: "rgba(255, 255, 255, 0.4)", textAlign: "center", padding: "10px 0" }}>Ожидание...</li>}
         </ul>
       )}
     </div>

@@ -208,6 +208,23 @@ class GameState:
         self.target_food_count = self.config.world.target_food_count
         if self.grid_width != old_width or self.grid_height != old_height or old_cluster_count != self.config.world.cluster_count:
             self.clusters = self._create_clusters()
+            
+            # Clean up food items that are outside the new map boundaries
+            outside_food_ids = []
+            for fid, f in self.foods.items():
+                if f.x < 0 or f.x >= self.grid_width or f.y < 0 or f.y >= self.grid_height:
+                    f.eaten = True
+                    outside_food_ids.append(fid)
+            for fid in outside_food_ids:
+                self.pending_eaten_foods.append(fid)
+                self.foods.pop(fid, None)
+
+            # Safely wrap player body segment coordinates to fit within the new map boundaries
+            for p in self.players.values():
+                for segment in p.body:
+                    segment["x"] = segment["x"] % self.grid_width
+                    segment["y"] = segment["y"] % self.grid_height
+
         self._trim_food_overflow(defer_events=True)
         return self.get_config()
 
@@ -767,6 +784,7 @@ class GameState:
             state = {
                 "type": "FULL" if is_full else "DELTA",
                 "server_tick_rate": self.config.simulation.tick_rate,
+                "server_world": cfg["world"],
                 "server_simulation": cfg["simulation"],
                 "server_snake": cfg["snake"],
                 "server_visual": cfg["visual"],
@@ -783,6 +801,7 @@ class GameState:
             state = {
                 "type": "FULL" if is_full else "DELTA",
                 "server_tick_rate": self.config.simulation.tick_rate,
+                "server_world": cfg["world"],
                 "server_simulation": cfg["simulation"],
                 "server_snake": cfg["snake"],
                 "server_visual": cfg["visual"],
@@ -994,4 +1013,10 @@ async def websocket_endpoint(websocket: WebSocket, nickname: str = "Игрок",
 if __name__ == "__main__":
     # Запуск сервера. В проде reload=False
     is_dev = os.getenv("ENVIRONMENT") != "production"
-    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=is_dev)
+    uvicorn.run(
+        "server:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=is_dev,
+        reload_excludes=["*venv*", "*__pycache__*"] if is_dev else None
+    )

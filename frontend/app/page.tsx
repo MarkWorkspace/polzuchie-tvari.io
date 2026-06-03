@@ -24,7 +24,7 @@ export default function Home() {
   const [selectedSkin, setSelectedSkin] = useState(SKINS[3].id);
   const [hasJoined, setHasJoined] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(true);
-  const cameraModeRef = useRef<"2D" | "3D">("2D");
+  const cameraModeRef = useRef<"2D" | "3D">("3D");
   const [isMobile, setIsMobile] = useState(false);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
 
@@ -62,17 +62,13 @@ export default function Home() {
   const {
     connectionStatus,
     statusMsg,
-    leaderboard,
     killFeed,
-    scoreFeed,
     gameStateRef,
     lastGameStateRef,
     lastUpdateTimeRef,
     stateQueueRef,
     myIdRef,
     localInputRef,
-    ping,
-    activePlayersCount,
     controlMode,
     controlModeRef,
     setControlMode,
@@ -115,7 +111,7 @@ export default function Home() {
       const touch = e.touches[0];
       if (!touch) return;
  
-      const boostZoneHeight = window.innerHeight * 0.22;
+      const boostZoneHeight = window.innerHeight * 0.11;
       const isTouchInBoostZone = (window.innerHeight - touch.clientY) < boostZoneHeight;
  
       if (isTouchInBoostZone) {
@@ -463,7 +459,7 @@ export default function Home() {
               {controlMode === "mouse" ? (
                 <>
                   <div>• Тяните палец по холсту влево/вправо для плавного руления.</div>
-                  <div>• Нижняя четверть экрана (22%) — зона буста. Ускоряйтесь при удержании.</div>
+                  <div>• Нижняя часть экрана (11%) — зона буста. Ускоряйтесь при удержании.</div>
                 </>
               ) : (
                 <>
@@ -526,7 +522,7 @@ export default function Home() {
 
       {/* Таблица лидеров (Справа сверху) */}
       <div style={{ position: "absolute", top: isMobile ? (isMobile ? 72 : 12) : 20, right: isMobile ? 12 : 20, zIndex: 50 }}>
-        <Leaderboard leaderboard={leaderboard} />
+        <Leaderboard />
       </div>
 
       {/* Bottom-left unified HUD Panel (Score feed + Collapsible Help Panel) */}
@@ -637,15 +633,7 @@ export default function Home() {
         )}
 
         {/* Фид очков еды (Отображается над панелью подсказок/бустом) */}
-        {scoreFeed.length > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {scoreFeed.map(s => (
-              <div key={s.id} style={{ color: s.delta > 0 ? "#4ade80" : "#f87171", fontSize: "20px", fontWeight: "bold", textShadow: "0px 2px 4px rgba(0,0,0,0.8)" }}>
-                {s.delta > 0 ? `+${s.delta}` : s.delta}
-              </div>
-            ))}
-          </div>
-        )}
+        <div id="hud-score-feed" style={{ display: "flex", flexDirection: "column", gap: "4px", pointerEvents: "none" }} />
       </div>
 
       {/* Шкала-индикатор поворота (По центру снизу, прижатая к самому низу) */}
@@ -764,20 +752,21 @@ export default function Home() {
           bottom: 0,
           left: 0,
           right: 0,
-          height: "22%",
-          background: "linear-gradient(to top, rgba(230, 57, 70, 0.16) 0%, rgba(230, 57, 70, 0.0) 100%)",
-          borderTop: "1px dashed rgba(230, 57, 70, 0.3)",
+          height: "11%",
+          background: "linear-gradient(to top, rgba(230, 57, 70, 0.32) 0%, rgba(230, 57, 70, 0.0) 100%)",
+          borderTop: "3px dashed rgba(230, 57, 70, 0.3)",
           pointerEvents: "none",
           zIndex: 40,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "rgba(255, 255, 255, 0.35)",
+          color: "white",
           fontSize: "11px",
           fontWeight: 800,
-          letterSpacing: "0.1em"
+          letterSpacing: "0.1em",
+          textShadow: "0 0 1px #000, 0 1px 1px #000, 0 1px 2px #000, 0 2px 3px #000"
         }}>
-          🔥 ЗОНА УСКОРЕНИЯ (ДЕРЖИТЕ ПАЛЕЦ ЗДЕСЬ) / BOOST ZONE
+          ЗОНА УСКОРЕНИЯ (ДЕРЖИТЕ ПАЛЕЦ ЗДЕСЬ)
         </div>
       )}
 
@@ -847,7 +836,6 @@ export default function Home() {
         </button>
       )}
 
-      {/* Пинг в правом нижнем углу */}
       <div style={{ 
         position: "absolute", 
         bottom: isMobile ? "12px" : "182px", 
@@ -856,26 +844,17 @@ export default function Home() {
         pointerEvents: "none",
         textAlign: "right"
       }}>
-        {connectionStatus === "connected" && ping !== null ? (
-          <span style={{
-            fontSize: "12px",
-            fontWeight: 700,
-            color: ping <= 75 ? "#4ade80" : ping <= 150 ? "#fbbf24" : "#f87171",
-            transition: "color 0.2s ease",
-            textShadow: "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000, 1px 0 0 #000"
-          }}>
-            Ping: {ping} ms
-          </span>
-        ) : (
-          <span style={{
+        <span 
+          id="hud-ping"
+          style={{
             fontSize: "12px",
             fontWeight: 700,
             color: "#f87171",
             textShadow: "-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 -1px 0 #000, 0 1px 0 #000, -1px 0 0 #000, 1px 0 0 #000"
-          }}>
-            offline
-          </span>
-        )}
+          }}
+        >
+          offline
+        </span>
       </div>
 
       <GameRenderer

@@ -1,3 +1,8 @@
+export type ServerWorldConfig = {
+  width: number;
+  height: number;
+};
+
 export type ServerSimulationConfig = {
   tick_rate: number;
   base_speed_per_second: number;
@@ -64,6 +69,7 @@ export type Player = {
 
 export type GameState = {
   server_tick_rate?: number;
+  server_world?: ServerWorldConfig;
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
@@ -90,6 +96,7 @@ export type KillEvent = {
 export type FullGameMessage = {
   type?: "FULL";
   server_tick_rate?: number;
+  server_world?: ServerWorldConfig;
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
@@ -105,6 +112,7 @@ export type FullGameMessage = {
 export type DeltaGameMessage = {
   type: "DELTA";
   server_tick_rate?: number;
+  server_world?: ServerWorldConfig;
   server_simulation?: ServerSimulationConfig;
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;

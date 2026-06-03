@@ -2,7 +2,7 @@
 title Snake AI Development Server
 
 echo Starting Backend (FastAPI)...
-start "Snake AI Backend" cmd /k "cd backend && call .venv\Scripts\activate.bat && pip install -r requirements.txt && python server.py"
+start "Snake AI Backend" cmd /k "cd backend && call .venv\Scripts\activate.bat && pip install -r requirements.txt && uvicorn server:app --host 0.0.0.0 --port 8000 --reload --reload-exclude *venv* --reload-exclude *__pycache__*"
 
 echo Starting Frontend (Next.js)...
 start "Snake AI Frontend" cmd /k "cd frontend && npm run dev"
