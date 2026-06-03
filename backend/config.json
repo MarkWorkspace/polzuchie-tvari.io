@@ -21,18 +21,18 @@
     "snake": {
         "start_length": 9,
         "start_score": 1,
-        "base_head_radius": 0.2,
-        "score_thickness_scale": 0.00102,
-        "camera_zoom_out_coeff": 0.0005,
-        "growth_score_per_segment": "10.0",
+        "base_head_radius": 0.1,
+        "score_thickness_scale": 0.0002,
+        "camera_zoom_out_coeff": 20,
+        "growth_score_per_segment": "6 + 0.0047 * s",
         "min_body_length": 9,
         "safe_spawn_distance": 15.0,
-        "max_growth_score": 10000
+        "max_growth_score": 20000
     },
     "boost": {
         "min_score": 15,
-        "speed_multiplier": 2.0,
-        "drain_interval_seconds": 1.0,
+        "speed_multiplier": 1.7,
+        "drain_interval_seconds": 0.1,
         "drain_per_interval": 1.0,
         "food_drop_value": 1
     },
@@ -69,19 +69,19 @@
                 "color": "#a855f7"
             }
         ],
-        "base_radius": 0.2,
+        "base_radius": 0.1,
         "radius_value_scale": 0.1,
         "death_drop_score_fraction": 0.5,
         "attraction_radius": 3.0,
-        "attraction_speed": 8.0
+        "attraction_speed": 14
     },
     "visual": {
-        "min_fog_radius": 700,
-        "fog_score_expansion_coeff": 0.5,
-        "camera_base_zoom": 2.5,
-        "camera_pitch_angle": 55.0,
+        "min_fog_radius": 600,
+        "fog_score_expansion_coeff": 0.1,
+        "camera_base_zoom": 5,
+        "camera_pitch_angle": 55,
         "camera_z_height": 0.0,
-        "camera_y_offset": 0.25,
-        "mouse_sensitivity": 1.0
+        "camera_y_offset": 0.3,
+        "mouse_sensitivity": 1.5
     }
 }

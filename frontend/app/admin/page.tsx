@@ -93,7 +93,7 @@ const FIELD_TOOLTIPS: Record<string, string> = {
   turn_idle_smoothing_at_20hz: "Smoothness of return to straight motion when turning keys are released.",
   turn_active_smoothing_at_20hz: "Smoothness of entering a turn when turning keys are pressed.",
   score_thickness_scale: "Coefficient for scaling body thickness and head radius relative to score.",
-  camera_zoom_out_coeff: "Camera zoom-out factor as the player's score increases.",
+  camera_zoom_out_coeff: "Camera zoom-out scaling factor as the player's length increases. Normal values are between 0.1 and 100.0 (default is 200.0).",
   growth_score_per_segment: "Required score to grow a segment. Can be a number (e.g. 10) or safe math expression using variable s (score) or l (length), e.g. '10 + l * 0.5' or '10 + log(s) * 5'. Evaluated securely on the server.",
   max_growth_score: "Score limit above which the snake stops growing new body segments (length) but continues to gain score.",
   drain_interval_seconds: "Time interval in seconds at which score is drained during acceleration.",
@@ -187,9 +187,8 @@ type SimulatedData = {
   clusterSpread: number;
 };
 
-function MapSimulator({ simulatedData, onResimulate }: { 
+function MapSimulator({ simulatedData }: { 
   simulatedData: SimulatedData | null;
-  onResimulate: () => void;
 }) {
   const canvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
     if (!canvas || !simulatedData) return;
@@ -199,7 +198,9 @@ function MapSimulator({ simulatedData, onResimulate }: {
     const { width: mapW, height: mapH, clusters, foods, clusterSpread } = simulatedData;
 
     // Fixed width for display, compute height to match map aspect ratio
-    const displayWidth = canvas.parentElement?.clientWidth || 360;
+    // Subtract parent's padding (24px) to ensure no container layout overflow
+    const parentW = canvas.parentElement?.clientWidth || 324;
+    const displayWidth = Math.max(200, parentW - 24);
     const aspectRatio = mapH / mapW;
     
     // Limit height to avoid ultra-long maps breaking UI
@@ -320,45 +321,20 @@ function MapSimulator({ simulatedData, onResimulate }: {
   if (!simulatedData) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{
-        position: "relative",
-        background: "#24262c",
-        border: "1px solid #3f414a",
-        borderRadius: 12,
-        overflow: "hidden",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 12,
-        minHeight: 200,
-        boxShadow: "inset 0 4px 20px rgba(0,0,0,0.4)"
-      }}>
-        <canvas ref={canvasRef} style={{ display: "block", borderRadius: 6 }} />
-      </div>
-      
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 11, color: "#a1a1aa", fontWeight: 500 }}>
-          ⚡ Live simulation of server-side food layout
-        </span>
-        <button
-          type="button"
-          onClick={onResimulate}
-          className="btn-action"
-          style={{
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid #3f414a",
-            color: "#fafafa",
-            borderRadius: 6,
-            padding: "4px 10px",
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: "pointer"
-          }}
-        >
-          🎲 Roll Seed
-        </button>
-      </div>
+    <div style={{
+      position: "relative",
+      background: "#24262c",
+      border: "1px solid #3f414a",
+      borderRadius: 12,
+      overflow: "hidden",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 12,
+      minHeight: 200,
+      boxShadow: "inset 0 4px 20px rgba(0,0,0,0.4)"
+    }}>
+      <canvas ref={canvasRef} style={{ display: "block", borderRadius: 6 }} />
     </div>
   );
 }
@@ -381,6 +357,16 @@ export default function AdminPage() {
   });
   const [simSeed, setSimSeed] = useState(0);
   const [formulaError, setFormulaError] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isAdminSidePanelOpen, setIsAdminSidePanelOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const simulatedData = useMemo(() => {
     if (!config) return null;
@@ -779,14 +765,24 @@ export default function AdminPage() {
   }, [activeTabFields]);
 
   return (
-    <main style={{ 
-      minHeight: "100vh", 
-      background: "#2b2d34", 
-      color: "#fafafa", 
-      padding: "0 24px 48px", 
-      fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" 
-    }}>
+    <main className="admin-main">
       <style>{`
+        .admin-main {
+          min-height: 100vh;
+          background: #2b2d34;
+          color: #fafafa;
+          padding: 0 24px 48px;
+          font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+          overflow-x: hidden;
+        }
+        @media (max-width: 600px) {
+          .admin-main {
+            padding: 0 12px 24px !important;
+          }
+          .standard-panel {
+            padding: 24px 16px !important;
+          }
+        }
         @keyframes pulse-crimson {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.4; transform: scale(0.95); }
@@ -820,11 +816,22 @@ export default function AdminPage() {
         }
         .admin-input {
           transition: all 0.15s ease-in-out;
+          min-width: 0;
         }
         .admin-input:focus {
           border-color: #e63946 !important;
           box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.15);
           outline: none;
+        }
+        @media (max-width: 480px) {
+          .admin-title {
+            font-size: 18px !important;
+          }
+        }
+        @media (max-width: 360px) {
+          .admin-title {
+            font-size: 15px !important;
+          }
         }
         .setting-card {
           transition: all 0.2s ease-in-out;
@@ -873,121 +880,238 @@ export default function AdminPage() {
           background: #e63946 !important;
           color: #ffffff !important;
         }
-        @media (min-width: 1024px) {
-          .admin-content-layout {
-            grid-template-columns: 1fr 360px !important;
-          }
-        }
-        @media (min-width: 1280px) {
-          .admin-content-layout {
-            grid-template-columns: 1fr 400px !important;
-          }
-        }
+
       `}</style>
 
       <div style={{ maxWidth: 1280, margin: "0 auto" }}>
         <header style={{ 
-          display: "flex", justifyContent: "space-between", gap: 20, alignItems: "center", 
-          marginBottom: 32, flexWrap: "wrap", 
+          display: "flex", flexDirection: "column", gap: 12, 
+          marginBottom: 32, 
           position: "sticky", top: 0, zIndex: 100, 
           background: "#2b2d34", 
           padding: "28px 0 16px", borderBottom: "1px solid #3f414a" 
         }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 28 }}>🛠️</span>
-                <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: "-0.025em", background: "linear-gradient(to right, #fafafa, #a1a1aa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                  Snake AI · Balance Console
-                </h1>
-              </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", gap: 20 }}>
+            {/* Title block */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: "1.1em" }}>🛠️</span>
+              <h1 className="admin-title" style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: "-0.025em", background: "linear-gradient(to right, #fafafa, #a1a1aa)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                Balance Console
+              </h1>
+            </div>
 
-              {/* Sleek status summary */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                background: "rgba(48, 50, 58, 0.85)",
-                border: "1px solid rgba(63, 65, 74, 0.6)",
-                padding: "6px 16px",
-                borderRadius: "30px",
-                fontSize: "13px",
-                fontWeight: 600,
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
-                backdropFilter: "blur(4px)",
-                color: "#fafafa"
-              }}>
-                {/* Server status */}
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    backgroundColor: healthData.online ? "#4ade80" : "#f87171",
-                    boxShadow: healthData.online ? "0 0 8px #4ade80" : "0 0 8px #f87171",
-                    display: "inline-block"
-                  }} />
-                  <span>
-                    Server: <span style={{ color: healthData.online ? "#4ade80" : "#f87171" }}>
-                      {healthData.online ? "online" : "offline"}
-                    </span>
-                  </span>
-                </div>
-
-                <span style={{ color: "rgba(255,255,255,0.15)" }}>|</span>
-
-                {/* Active players count */}
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <span style={{ color: "#a1a1aa" }}>Players:</span>
-                  <span style={{ color: "#fafafa" }}>{healthData.players}</span>
-                </div>
-
-                {healthData.online && healthData.ping !== null && (
-                  <>
-                    <span style={{ color: "rgba(255,255,255,0.15)" }}>|</span>
-
-                    {/* Ping */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                      <span style={{ color: "#a1a1aa" }}>Ping:</span>
-                      <span style={{
-                        color: healthData.ping <= 75 ? "#4ade80" : healthData.ping <= 150 ? "#fbbf24" : "#f87171"
-                      }}>
-                        {healthData.ping} ms
-                      </span>
+            {/* Controls (Desktop / Mobile) */}
+            {config && (
+              <div>
+                {!isMobile ? (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {/* Search */}
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type="text"
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="admin-input"
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid #3f414a",
+                          background: "#30323a",
+                          color: "#fafafa",
+                          fontSize: 13,
+                          width: 140,
+                        }}
+                      />
+                      {searchQuery && (
+                        <span 
+                          onClick={() => setSearchQuery("")}
+                          style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#a1a1aa", fontSize: 11 }}
+                        >
+                          ✕
+                        </span>
+                      )}
                     </div>
-                  </>
+
+                    {/* Debug Mode */}
+                    <a
+                      href="/?debug=true"
+                      style={{
+                        textDecoration: "none",
+                        padding: "6px 14px",
+                        borderRadius: 8,
+                        background: "rgba(230, 57, 70, 0.1)",
+                        border: "1px solid #e63946",
+                        color: "#e63946",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        height: "32px",
+                        boxSizing: "border-box"
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(230, 57, 70, 0.2)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(230, 57, 70, 0.1)"; }}
+                    >
+                      Debug Mode
+                    </a>
+
+                    {/* Main Page */}
+                    <a
+                      href="/"
+                      style={{
+                        textDecoration: "none",
+                        padding: "6px 14px",
+                        borderRadius: 8,
+                        background: "rgba(255, 255, 255, 0.06)",
+                        color: "#fafafa",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        transition: "background 0.2s",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        height: "32px",
+                        boxSizing: "border-box"
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)"; }}
+                    >
+                      Main Page
+                    </a>
+
+                    {/* Logout */}
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        window.localStorage.removeItem("snake-admin-password");
+                        setPassword("");
+                        setConfig(null);
+                        setStatus("Session terminated");
+                      }} 
+                      className="btn-action"
+                      style={{ 
+                        padding: "6px 14px", borderRadius: 8, border: "none",
+                        background: "rgba(255, 255, 255, 0.06)", color: "#fafafa", fontWeight: 600, fontSize: 13,
+                        cursor: "pointer",
+                        transition: "background 0.2s",
+                        height: "32px",
+                        boxSizing: "border-box"
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)"; }}
+                    >
+                      Logout
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type="text"
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="admin-input"
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "1px solid #3f414a",
+                          background: "#30323a",
+                          color: "#fafafa",
+                          fontSize: 13,
+                          width: 100,
+                        }}
+                      />
+                      {searchQuery && (
+                        <span 
+                          onClick={() => setSearchQuery("")}
+                          style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#a1a1aa", fontSize: 11 }}
+                        >
+                          ✕
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAdminSidePanelOpen(true)}
+                      style={{ background: "none", border: "none", color: "#fafafa", fontSize: 24, cursor: "pointer", padding: "4px 8px", display: "flex", alignItems: "center" }}
+                      title="Menu"
+                    >
+                      ☰
+                    </button>
+                  </div>
                 )}
               </div>
+            )}
+          </div>
+
+          {/* Server stats and status message row */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+              background: "rgba(48, 50, 58, 0.85)",
+              border: "1px solid rgba(63, 65, 74, 0.6)",
+              padding: "6px 16px",
+              borderRadius: "30px",
+              fontSize: "13px",
+              fontWeight: 600,
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
+              backdropFilter: "blur(4px)",
+              color: "#fafafa",
+              alignSelf: "flex-start"
+            }}>
+              {/* Server status */}
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  backgroundColor: healthData.online ? "#4ade80" : "#f87171",
+                  boxShadow: healthData.online ? "0 0 8px #4ade80" : "0 0 8px #f87171",
+                  display: "inline-block"
+                }} />
+                <span>
+                  Server: <span style={{ color: healthData.online ? "#4ade80" : "#f87171" }}>
+                    {healthData.online ? "online" : "offline"}
+                  </span>
+                </span>
+              </div>
+
+              <span style={{ color: "rgba(255,255,255,0.15)" }}>|</span>
+
+              {/* Active players count */}
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <span style={{ color: "#a1a1aa" }}>Players:</span>
+                <span style={{ color: "#fafafa" }}>{healthData.players}</span>
+              </div>
+
+              {healthData.online && healthData.ping !== null && (
+                <>
+                  <span style={{ color: "rgba(255,255,255,0.15)" }}>|</span>
+
+                  {/* Ping */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <span style={{ color: "#a1a1aa" }}>Ping:</span>
+                    <span style={{
+                      color: healthData.ping <= 75 ? "#4ade80" : healthData.ping <= 150 ? "#fbbf24" : "#f87171"
+                    }}>
+                      {healthData.ping} ms
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
-            <p style={{ margin: "6px 0 0", color: "#a1a1aa", fontSize: 14, fontWeight: 500 }}>
+            
+            <p style={{ margin: "2px 0 0", color: "#a1a1aa", fontSize: 14, fontWeight: 500 }}>
               {status}
             </p>
           </div>
-
-          {config && (
-            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-              <button 
-                type="button" 
-                onClick={() => {
-                  window.localStorage.removeItem("snake-admin-password");
-                  setPassword("");
-                  setConfig(null);
-                  setStatus("Session terminated");
-                }} 
-                className="btn-action"
-                style={{ 
-                  padding: "6px 14px", borderRadius: 8, border: "none",
-                  background: "rgba(255, 255, 255, 0.06)", color: "#fafafa", fontWeight: 600, fontSize: 13,
-                  cursor: "pointer",
-                  transition: "background 0.2s"
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)"; }}
-              >
-                Logout
-              </button>
-            </div>
-          )}
         </header>
 
         {!config ? (
@@ -1001,7 +1125,7 @@ export default function AdminPage() {
             <p style={{ color: "#a1a1aa", fontSize: 14, lineHeight: "1.6", margin: "0 0 24px" }}>
               To manage the game balance, food spawning, snake physics, and visual parameters, please enter the administrator password.
             </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap", width: "100%", maxWidth: 360, margin: "0 auto" }}>
               <input
                 type="password"
                 placeholder="Password"
@@ -1010,7 +1134,7 @@ export default function AdminPage() {
                 className="admin-input"
                 style={{ 
                   padding: "12px 16px", borderRadius: 8, border: "1px solid #3f414a",
-                  background: "#2b2d34", color: "#fafafa", width: 220, fontSize: 14 
+                  background: "#2b2d34", color: "#fafafa", flex: "1 1 180px", minWidth: 0, fontSize: 14 
                 }}
               />
               <button 
@@ -1020,7 +1144,7 @@ export default function AdminPage() {
                 style={{ 
                   padding: "12px 24px", borderRadius: 8, border: "none",
                   background: "#e63946", color: "#fff", fontWeight: 700, fontSize: 14,
-                  boxShadow: "0 4px 12px rgba(230, 57, 70, 0.2)"
+                  boxShadow: "0 4px 12px rgba(230, 57, 70, 0.2)", flex: "1 1 auto"
                 }}
               >
                 Login
@@ -1032,76 +1156,54 @@ export default function AdminPage() {
           </div>
         ) : (
           <div>
-            {/* ТАБЫ & ПОИСК */}
-            <div style={{ 
-              display: "flex", justifyContent: "space-between", alignItems: "center", 
-              gap: 16, marginBottom: 28, flexWrap: "wrap" 
-            }}>
-              {/* Tabs */}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("all")}
-                  className={`admin-tab ${activeTab === "all" ? "active" : ""}`}
-                  style={{ padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer" }}
-                >
-                  🗂️ All Settings
-                  {sectionModifiedCounts.all > 0 && (
-                    <span style={{ background: activeTab === "all" ? "#fff" : "#f59e0b", color: activeTab === "all" ? "#e63946" : "#2b2d34", padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
-                      +{sectionModifiedCounts.all}
-                    </span>
-                  )}
-                </button>
-                {Object.entries(NEW_SECTIONS).map(([secKey, secInfo]) => {
-                  const hasSectionChanges = sectionModifiedCounts[secKey] > 0;
-                  return (
-                    <button
-                      key={secKey}
-                      type="button"
-                      onClick={() => setActiveTab(secKey)}
-                      className={`admin-tab ${activeTab === secKey ? "active" : ""}`}
-                      style={{ padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer" }}
-                    >
-                      <span>{secInfo.icon}</span>
-                      {secInfo.title}
-                      {hasSectionChanges && (
-                        <span style={{ 
-                          background: activeTab === secKey ? "#fff" : "#f59e0b", 
-                          color: activeTab === secKey ? "#e63946" : "#2b2d34", 
-                          padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700 
-                        }}>
-                          +{sectionModifiedCounts[secKey]}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Search */}
-              <div style={{ position: "relative", width: "100%", maxWidth: 300 }}>
-                <input
-                  type="text"
-                  placeholder="🔎 Quick search setting..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="admin-input"
-                  style={{
-                    width: "100%", padding: "10px 14px 10px 32px", borderRadius: 8,
-                    border: "1px solid #3f414a", background: "#30323a", color: "#fafafa",
-                    fontSize: 13
-                  }}
-                />
-                {searchQuery && (
-                  <span 
-                    onClick={() => setSearchQuery("")}
-                    style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#a1a1aa", fontSize: 14 }}
+            {/* ТАБЫ & ПОИСК (Desktop only) */}
+            {!isMobile && (
+              <div style={{ 
+                display: "flex", justifyContent: "flex-start", alignItems: "center", 
+                gap: 16, marginBottom: 28, flexWrap: "wrap" 
+              }}>
+                {/* Tabs */}
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("all")}
+                    className={`admin-tab ${activeTab === "all" ? "active" : ""}`}
+                    style={{ padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer" }}
                   >
-                    ✕
-                  </span>
-                )}
+                    🗂️ All Settings
+                    {sectionModifiedCounts.all > 0 && (
+                      <span style={{ background: activeTab === "all" ? "#fff" : "#f59e0b", color: activeTab === "all" ? "#e63946" : "#2b2d34", padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                        +{sectionModifiedCounts.all}
+                      </span>
+                    )}
+                  </button>
+                  {Object.entries(NEW_SECTIONS).map(([secKey, secInfo]) => {
+                    const hasSectionChanges = sectionModifiedCounts[secKey] > 0;
+                    return (
+                      <button
+                        key={secKey}
+                        type="button"
+                        onClick={() => setActiveTab(secKey)}
+                        className={`admin-tab ${activeTab === secKey ? "active" : ""}`}
+                        style={{ padding: "10px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, border: "none", cursor: "pointer" }}
+                      >
+                        <span>{secInfo.icon}</span>
+                        {secInfo.title}
+                        {hasSectionChanges && (
+                          <span style={{ 
+                            background: activeTab === secKey ? "#fff" : "#f59e0b", 
+                            color: activeTab === secKey ? "#e63946" : "#2b2d34", 
+                            padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700 
+                          }}>
+                            +{sectionModifiedCounts[secKey]}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* MAIN CONTENT */}
             {activeTabFields.length === 0 && searchQuery ? (
@@ -1143,7 +1245,7 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))", gap: 16 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 290px), 1fr))", gap: 16 }}>
                           {config && (secKey === "world_network") && (
                             !searchQuery || 
                             "map size".includes(searchQuery.toLowerCase()) || 
@@ -1465,6 +1567,131 @@ export default function AdminPage() {
                           })}
                         </div>
 
+                        {/* Map Simulator inside World & Network block */}
+                        {secKey === "world_network" && (activeTab === "world_network" || activeTab === "all") && !searchQuery && (
+                          <div style={{ 
+                            marginTop: 12, 
+                            border: "1px solid #3f414a", 
+                            borderRadius: 12, 
+                            padding: 20, 
+                            background: "#30323a" 
+                          }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <span style={{ fontSize: 22 }}>🗺️</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#fafafa" }}>
+                                    Map Simulation
+                                  </h3>
+                                  <div className="tooltip-container" style={{ position: "relative", display: "inline-block", cursor: "help" }}>
+                                    <span style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      width: 16,
+                                      height: 16,
+                                      borderRadius: "50%",
+                                      background: "#3f414a",
+                                      color: "#a1a1aa",
+                                      fontSize: 10,
+                                      fontWeight: 800,
+                                      transition: "all 0.15s ease"
+                                    }} className="tooltip-icon">
+                                      ?
+                                    </span>
+                                    <div className="tooltip-text" style={{
+                                      visibility: "hidden",
+                                      width: 240,
+                                      backgroundColor: "#1e2025",
+                                      color: "#fafafa",
+                                      textAlign: "left",
+                                      borderRadius: 8,
+                                      padding: "8px 12px",
+                                      position: "absolute",
+                                      zIndex: 200,
+                                      bottom: "125%",
+                                      left: "50%",
+                                      marginLeft: -120,
+                                      opacity: 0,
+                                      transition: "opacity 0.2s ease, transform 0.2s ease",
+                                      transform: "translateY(4px)",
+                                      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
+                                      fontSize: 11,
+                                      lineHeight: "1.4",
+                                      pointerEvents: "none",
+                                      border: "1px solid #3f414a"
+                                    }}>
+                                      Preview of the food and cluster layout based on your current settings. Updates in real-time as you modify parameters.
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => setSimSeed(s => s + 1)}
+                                className="btn-action"
+                                style={{
+                                  background: "rgba(255,255,255,0.06)",
+                                  border: "1px solid #3f414a",
+                                  color: "#fafafa",
+                                  borderRadius: 6,
+                                  padding: "6px 12px",
+                                  fontSize: 12,
+                                  fontWeight: 600,
+                                  cursor: "pointer"
+                                }}
+                              >
+                                🎲 Roll Seed
+                              </button>
+                            </div>
+
+                            <MapSimulator simulatedData={simulatedData} />
+
+                            {/* Simulation Stats Panel */}
+                            <div style={{
+                              marginTop: 20,
+                              borderTop: "1px solid #3f414a",
+                              paddingTop: 16,
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                              gap: 12,
+                              fontSize: 12
+                            }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ color: "#a1a1aa" }}>Grid Size:</span>
+                                <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                                  {simulatedData?.width} × {simulatedData?.height} cells
+                                </span>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ color: "#a1a1aa" }}>Simulated Food:</span>
+                                <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                                  {simulatedData?.foods.length} items
+                                </span>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ color: "#a1a1aa" }}>Food Clusters:</span>
+                                <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                                  {simulatedData?.clusters.length} zones
+                                </span>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ color: "#a1a1aa" }}>Cluster Spread:</span>
+                                <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                                  {simulatedData?.clusterSpread.toFixed(1)} cells
+                                </span>
+                              </div>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ color: "#a1a1aa" }}>Cluster Chance:</span>
+                                <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
+                                  {Math.round((Math.max(0, Math.min(1, parseFloat(drafts["world.cluster_spawn_chance"]) ?? (config ? Number(config.world.cluster_spawn_chance) : 0.8))) * 100))}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Special section "Food Types" in tab "Food & Boost" or tab "All" */}
                         {secKey === "food_boost" && (activeTab === "food_boost" || activeTab === "all") && !searchQuery && (
                           <div style={{ 
@@ -1494,7 +1721,7 @@ export default function AdminPage() {
                               </button>
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))", gap: 12 }}>
                               {foodTypes.map((ft, i) => (
                                 <div key={i} className="food-card" style={{ borderRadius: 10, overflow: "hidden" }}>
                                   <div
@@ -1576,124 +1803,10 @@ export default function AdminPage() {
                             </div>
                           </div>
                         )}
-
                       </div>
                     );
                   })}
                 </div>
-
-                {/* RIGHT COLUMN: SIMULATION MINIMAP */}
-                {showMinimap && (
-                  <div style={{
-                    position: "sticky",
-                    top: 110,
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 20
-                  }}>
-                    <div className="standard-panel" style={{
-                      borderRadius: 16,
-                      padding: 24,
-                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
-                      backdropFilter: "blur(8px)",
-                      border: "1px solid #3f414a"
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-                        <span style={{ fontSize: 22 }}>🗺️</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#fafafa" }}>
-                            Map Simulation
-                          </h3>
-                          <div className="tooltip-container" style={{ position: "relative", display: "inline-block", cursor: "help" }}>
-                            <span style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: 16,
-                              height: 16,
-                              borderRadius: "50%",
-                              background: "#3f414a",
-                              color: "#a1a1aa",
-                              fontSize: 10,
-                              fontWeight: 800,
-                              transition: "all 0.15s ease"
-                            }} className="tooltip-icon">
-                              ?
-                            </span>
-                            <div className="tooltip-text" style={{
-                              visibility: "hidden",
-                              width: 240,
-                              backgroundColor: "#1e2025",
-                              color: "#fafafa",
-                              textAlign: "left",
-                              borderRadius: 8,
-                              padding: "8px 12px",
-                              position: "absolute",
-                              zIndex: 200,
-                              bottom: "125%",
-                              left: "50%",
-                              marginLeft: -120,
-                              opacity: 0,
-                              transition: "opacity 0.2s ease, transform 0.2s ease",
-                              transform: "translateY(4px)",
-                              boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                              fontSize: 11,
-                              lineHeight: "1.4",
-                              pointerEvents: "none",
-                              border: "1px solid #3f414a"
-                            }}>
-                              Preview of the food and cluster layout based on your current settings. Updates in real-time as you modify parameters.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <MapSimulator simulatedData={simulatedData} onResimulate={() => setSimSeed(s => s + 1)} />
-
-                      {/* Simulation Stats Panel */}
-                      <div style={{
-                        marginTop: 20,
-                        borderTop: "1px solid #3f414a",
-                        paddingTop: 16,
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 10,
-                        fontSize: 12
-                      }}>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: "#a1a1aa" }}>Grid Size:</span>
-                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
-                            {simulatedData?.width} × {simulatedData?.height} cells
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: "#a1a1aa" }}>Simulated Food:</span>
-                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
-                            {simulatedData?.foods.length} items
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: "#a1a1aa" }}>Food Clusters:</span>
-                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
-                            {simulatedData?.clusters.length} zones
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: "#a1a1aa" }}>Cluster Spread:</span>
-                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
-                            {simulatedData?.clusterSpread.toFixed(1)} cells
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span style={{ color: "#a1a1aa" }}>Cluster Chance:</span>
-                          <span style={{ color: "#fafafa", fontFamily: "monospace", fontWeight: 600 }}>
-                            {Math.round((Math.max(0, Math.min(1, parseFloat(drafts["world.cluster_spawn_chance"]) ?? (config ? Number(config.world.cluster_spawn_chance) : 0.8))) * 100))}%
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -1707,7 +1820,8 @@ export default function AdminPage() {
             style={{
               position: "fixed",
               bottom: 24,
-              right: 24,
+              right: isMobile ? 12 : 24,
+              left: isMobile ? 12 : "auto",
               zIndex: 9999, // Super high z-index to overlay everything on the screen
               background: "rgba(36, 38, 44, 0.98)", // dark high-opacity backdrop
               border: "1px solid #f59e0b",
@@ -1718,7 +1832,7 @@ export default function AdminPage() {
               display: "flex",
               flexDirection: "column",
               gap: 12,
-              maxWidth: 320,
+              maxWidth: isMobile ? "calc(100vw - 24px)" : 320,
               color: "#fafafa",
               pointerEvents: "auto"
             }}
@@ -1760,6 +1874,178 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* Side Panel Drawer Backdrop Overlay (admin) */}
+      {isMobile && isAdminSidePanelOpen && (
+        <div 
+          onClick={() => setIsAdminSidePanelOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(4px)",
+            zIndex: 105,
+            transition: "opacity 0.3s ease"
+          }}
+        />
+      )}
+
+      {/* Side Panel Drawer (admin) */}
+      {isMobile && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: "280px",
+          background: "rgba(30, 32, 40, 0.95)",
+          backdropFilter: "blur(20px)",
+          borderLeft: "1px solid rgba(255, 255, 255, 0.08)",
+          boxShadow: "-10px 0 32px rgba(0, 0, 0, 0.5)",
+          zIndex: 110,
+          transform: isAdminSidePanelOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px 20px",
+          color: "white"
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
+            <span style={{ fontSize: "16px", fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>Navigation</span>
+            <div 
+              onClick={() => setIsAdminSidePanelOpen(false)}
+              style={{ cursor: "pointer", fontSize: "18px", opacity: 0.6, padding: "4px" }}
+            >
+              ✕
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+            <button
+              type="button"
+              onClick={() => { setActiveTab("all"); setIsAdminSidePanelOpen(false); }}
+              className={`admin-tab ${activeTab === "all" ? "active" : ""}`}
+              style={{ padding: "12px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
+            >
+              🗂️ All Settings
+              {sectionModifiedCounts.all > 0 && (
+                <span style={{ marginLeft: "auto", background: activeTab === "all" ? "#fff" : "#f59e0b", color: activeTab === "all" ? "#e63946" : "#2b2d34", padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>
+                  +{sectionModifiedCounts.all}
+                </span>
+              )}
+            </button>
+
+            {Object.entries(NEW_SECTIONS).map(([secKey, secInfo]) => {
+              const hasSectionChanges = sectionModifiedCounts[secKey] > 0;
+              return (
+                <button
+                  key={secKey}
+                  type="button"
+                  onClick={() => { setActiveTab(secKey); setIsAdminSidePanelOpen(false); }}
+                  className={`admin-tab ${activeTab === secKey ? "active" : ""}`}
+                  style={{ padding: "12px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
+                >
+                  <span>{secInfo.icon}</span>
+                  <span style={{ flex: 1 }}>{secInfo.title}</span>
+                  {hasSectionChanges && (
+                    <span style={{ 
+                      background: activeTab === secKey ? "#fff" : "#f59e0b", 
+                      color: activeTab === secKey ? "#e63946" : "#2b2d34", 
+                      padding: "1px 6px", borderRadius: 10, fontSize: 11, fontWeight: 700 
+                    }}>
+                      +{sectionModifiedCounts[secKey]}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+
+            <a
+              href="/?debug=true"
+              style={{
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 16px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                background: "rgba(230, 57, 70, 0.1)",
+                color: "#e63946",
+                border: "1px solid #e63946",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                marginTop: "auto",
+                justifyContent: "center"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(230, 57, 70, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(230, 57, 70, 0.1)";
+              }}
+            >
+              🐛 Debug Mode
+            </a>
+
+            <a
+              href="/"
+              style={{
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 16px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 600,
+                background: "#30323a",
+                color: "#a1a1aa",
+                border: "1px solid #3f414a",
+                cursor: "pointer",
+                transition: "all 0.2s",
+                justifyContent: "center"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#3f414a";
+                e.currentTarget.style.color = "#ffffff";
+                e.currentTarget.style.borderColor = "#52545d";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#30323a";
+                e.currentTarget.style.color = "#a1a1aa";
+                e.currentTarget.style.borderColor = "#3f414a";
+              }}
+            >
+              🎮 Main Page
+            </a>
+
+            {config && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  window.localStorage.removeItem("snake-admin-password");
+                  setPassword("");
+                  setConfig(null);
+                  setStatus("Session terminated");
+                  setIsAdminSidePanelOpen(false);
+                }} 
+                className="btn-action"
+                style={{ 
+                  marginTop: 10,
+                  padding: "12px 14px", borderRadius: 8, border: "none",
+                  background: "#e63946", color: "#fff", fontWeight: 700, fontSize: 14,
+                  cursor: "pointer",
+                  textAlign: "center"
+                }}
+              >
+                Logout
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

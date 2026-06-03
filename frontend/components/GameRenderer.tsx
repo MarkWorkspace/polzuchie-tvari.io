@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Text } from '@react-three/drei';
 import { GameState } from '../types/game';
+import { t } from '../lib/i18n';
 
 const DEFAULT_SERVER_TICK_RATE = 30;
 const MAX_TURN_SPEED_DEG = 290.0;
@@ -10,7 +11,7 @@ const MIN_TURN_RADIUS = 0.5;
 const TURN_RADIUS_THICKNESS_COEFF = 1.0;
 const BASE_HEAD_RADIUS = 0.2;
 const SCORE_THICKNESS_SCALE = 0.0005;
-const CAMERA_ZOOM_OUT_COEFF = 0.002;
+const CAMERA_ZOOM_OUT_COEFF = 200.0;
 const MIN_FOG_RADIUS = 900.0;
 const FOG_SCORE_EXPANSION_COEFF = 0.5;
 const BASE_SPEED_PER_SECOND = 6.0;
@@ -376,6 +377,164 @@ const parseColor = (colorStr: string) => {
   return parsed;
 };
 
+class FormulaParser {
+  private tokens: string[] = [];
+  private pos = 0;
+
+  constructor(expression: string, s: number, l: number) {
+    const regex = /\d+(?:\.\d+)?|[a-z_][a-z0-9_]*|[\+\-\*\/\^,\(\)]/gi;
+    this.tokens = expression.match(regex) || [];
+    this.pos = 0;
+    
+    for (let i = 0; i < this.tokens.length; i++) {
+      const t = this.tokens[i].toLowerCase();
+      if (t === "s" || t === "score") {
+        this.tokens[i] = String(s);
+      } else if (t === "l" || t === "len" || t === "length") {
+        this.tokens[i] = String(l);
+      } else if (t === "pi") {
+        this.tokens[i] = String(Math.PI);
+      } else if (t === "e") {
+        this.tokens[i] = String(Math.E);
+      }
+    }
+  }
+
+  private peek(): string {
+    return this.tokens[this.pos] || "";
+  }
+
+  private consume(expected?: string): string {
+    const token = this.peek();
+    if (expected && token !== expected) {
+      throw new Error(`Expected '${expected}' but got '${token}'`);
+    }
+    if (this.pos < this.tokens.length) {
+      this.pos++;
+    }
+    return token;
+  }
+
+  public parse(): number {
+    try {
+      const val = this.parseExpression();
+      if (this.pos < this.tokens.length) {
+        return 10.0;
+      }
+      return val;
+    } catch (e) {
+      return 10.0;
+    }
+  }
+
+  private parseExpression(): number {
+    let val = this.parseTerm();
+    while (true) {
+      const op = this.peek();
+      if (op === "+" || op === "-") {
+        this.consume();
+        const next = this.parseTerm();
+        val = op === "+" ? val + next : val - next;
+      } else {
+        break;
+      }
+    }
+    return val;
+  }
+
+  private parseTerm(): number {
+    let val = this.parseFactor();
+    while (true) {
+      const op = this.peek();
+      if (op === "*" || op === "/") {
+        this.consume();
+        const next = this.parseFactor();
+        val = op === "*" ? val * next : val / next;
+      } else {
+        break;
+      }
+    }
+    return val;
+  }
+
+  private parseFactor(): number {
+    const val = this.parsePrimary();
+    if (this.peek() === "^") {
+      this.consume();
+      const exponent = this.parseFactor();
+      return Math.pow(val, exponent);
+    }
+    return val;
+  }
+
+  private parsePrimary(): number {
+    const token = this.peek();
+    if (!token) return 0;
+
+    if (token === "-") {
+      this.consume();
+      return -this.parsePrimary();
+    }
+    if (token === "+") {
+      this.consume();
+      return this.parsePrimary();
+    }
+
+    if (token === "(") {
+      this.consume();
+      const val = this.parseExpression();
+      this.consume(")");
+      return val;
+    }
+
+    if (/^\d+(?:\.\d+)?$/.test(token)) {
+      this.consume();
+      return parseFloat(token);
+    }
+
+    if (/^[a-z_][a-z0-9_]*$/i.test(token)) {
+      this.consume();
+      this.consume("(");
+      const args: number[] = [];
+      if (this.peek() !== ")") {
+        args.push(this.parseExpression());
+        while (this.peek() === ",") {
+          this.consume();
+          args.push(this.parseExpression());
+        }
+      }
+      this.consume(")");
+
+      const funcName = token.toLowerCase();
+      switch (funcName) {
+        case "log": return Math.log(args[0] ?? 1);
+        case "log10": return Math.log10(args[0] ?? 1);
+        case "sin": return Math.sin(args[0] ?? 0);
+        case "cos": return Math.cos(args[0] ?? 0);
+        case "tan": return Math.tan(args[0] ?? 0);
+        case "sqrt": return Math.sqrt(args[0] ?? 0);
+        case "exp": return Math.exp(args[0] ?? 0);
+        case "abs": return Math.abs(args[0] ?? 0);
+        case "pow": return Math.pow(args[0] ?? 0, args[1] ?? 0);
+        case "min": return Math.min(...args);
+        case "max": return Math.max(...args);
+        default: return args[0] ?? 0;
+      }
+    }
+
+    throw new Error(`Unexpected token: ${token}`);
+  }
+}
+
+export function evaluateFormula(formula: string | number, score: number, length: number): number {
+  if (typeof formula === "number") return formula;
+  if (!formula || formula === "") return 10.0;
+  const parser = new FormulaParser(formula, score, length);
+  const result = parser.parse();
+  return Math.max(0.1, result);
+}
+
+
 type SmoothPoint = { x: number; y: number; coord: number };
 const smoothPointsPool: SmoothPoint[] = [];
 let smoothPointsPoolSize = 0;
@@ -418,6 +577,7 @@ interface GameSceneProps {
   controlModeRef: React.MutableRefObject<"keyboard" | "mouse" | "tilt">;
   socketRef: React.MutableRefObject<any>;
   isMobile?: boolean;
+  debugMode?: boolean;
 }
 
 function updateDynamicAttribute(
@@ -476,7 +636,8 @@ const GameScene = ({
   particlesRef,
   controlModeRef,
   socketRef,
-  isMobile
+  isMobile,
+  debugMode
 }: GameSceneProps) => {
   const { camera, scene } = useThree();
   const groundMeshRef = useRef<THREE.Mesh>(null);
@@ -510,6 +671,33 @@ const GameScene = ({
   const shadowColorsRef = useRef<number[]>([]);
   const shadowSnakeParamsRef = useRef<number[]>([]);
   const shadowIndicesRef = useRef<number[]>([]);
+
+  const debugGeometryRef = useRef<THREE.BufferGeometry>(null);
+
+  const debugGridLines = useMemo(() => {
+    if (!debugMode || !gameStateRef.current) return null;
+    const mapW = gameStateRef.current.server_world?.width ?? WORLD_WIDTH;
+    const mapH = gameStateRef.current.server_world?.height ?? WORLD_HEIGHT;
+    
+    const points: number[] = [];
+    const step = 10;
+    
+    // Vertical lines
+    for (let x = 0; x <= mapW; x += step) {
+      const wx = x * gridSize;
+      points.push(wx, 0, 0.1);
+      points.push(wx, -mapH * gridSize, 0.1);
+    }
+    
+    // Horizontal lines
+    for (let y = 0; y <= mapH; y += step) {
+      const wy = -y * gridSize;
+      points.push(0, wy, 0.1);
+      points.push(mapW * gridSize, wy, 0.1);
+    }
+    
+    return new Float32Array(points);
+  }, [debugMode, gameStateRef.current?.server_world?.width, gameStateRef.current?.server_world?.height]);
 
   // Camera transition state
   const camState = useRef({
@@ -701,12 +889,12 @@ const GameScene = ({
       const allPlayers = Object.entries(state.players);
       const sortedPlayers = allPlayers
         .map(([id, p]) => {
-          if (!p.body || p.body.length === 0) return { id, isMe: id === myId, nickname: p.nickname || "Игрок", distSq: Infinity };
+          if (!p.body || p.body.length === 0) return { id, isMe: id === myId, nickname: p.nickname || t("game.defaultPlayer"), distSq: Infinity };
           const h = p.body[0];
           const wx = h.x * gridSize + gridSize/2;
           const wy = -(h.y * gridSize + gridSize/2);
           const distSq = (wx - camX)**2 + (wy - camY)**2;
-          return { id, isMe: id === myId, nickname: p.nickname || "Игрок", distSq };
+          return { id, isMe: id === myId, nickname: p.nickname || t("game.defaultPlayer"), distSq };
         })
         .sort((a, b) => {
           if (a.isMe) return -1;
@@ -730,12 +918,16 @@ const GameScene = ({
     const baseSpeedPerSecond = serverSimulation?.base_speed_per_second ?? BASE_SPEED_PER_SECOND;
     const baseHeadRadius = state.server_snake?.base_head_radius ?? BASE_HEAD_RADIUS;
     const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? SCORE_THICKNESS_SCALE;
-    const cameraZoomOutCoeff = state.server_snake?.camera_zoom_out_coeff ?? CAMERA_ZOOM_OUT_COEFF;
+    const cameraZoomOutCoeff = (state.server_snake?.camera_zoom_out_coeff ?? CAMERA_ZOOM_OUT_COEFF) * 1e-5;
+    const startLength = state.server_snake?.start_length ?? 9;
+    
+    const myLength = myPlayer?.body?.length ?? startLength;
+    const myEffectiveLengthGained = Math.max(0, myLength - startLength);
     
     const visual = state.server_visual;
     const minFogRadius = visual?.min_fog_radius ?? MIN_FOG_RADIUS;
     const fogExpansionCoeff = visual?.fog_score_expansion_coeff ?? FOG_SCORE_EXPANSION_COEFF;
-    const fogRadiusWorld = minFogRadius + (myPlayer?.score || 0) * fogExpansionCoeff;
+    const fogRadiusWorld = minFogRadius + (myEffectiveLengthGained * 10.0) * fogExpansionCoeff;
     const cameraBaseZoom = visual?.camera_base_zoom ?? 1.0;
     const cameraPitchAngle = visual?.camera_pitch_angle ?? 55.0;
     const cameraZHeightOffset = visual?.camera_z_height ?? 0.0;
@@ -752,7 +944,7 @@ const GameScene = ({
         camState.current.localAngle = myPlayer.angle;
       }
       
-      const myHeadRadius = baseHeadRadius + (myPlayer.score || 0) * scoreThicknessScale;
+      const myHeadRadius = baseHeadRadius + (myEffectiveLengthGained * 10.0) * scoreThicknessScale;
       const effectiveRadius = minTurnRadius + myHeadRadius * turnRadiusThicknessCoeff;
       const maxTurnFromRadius = baseSpeedPerSecond / Math.max(effectiveRadius, 0.01);
       const turnPerTick = Math.min(maxTurnSpeedDeg * Math.PI / 180, maxTurnFromRadius) / serverTickRate;
@@ -792,7 +984,7 @@ const GameScene = ({
 
     // UPDATE CAMERA
     const zoom2D = 1.0 - camState.current.currentZoomOffset * 0.05;
-    const scoreZoomFactor = 1.0 / (1.0 + (myPlayer?.score || 0) * cameraZoomOutCoeff);
+    const scoreZoomFactor = 1.0 / (1.0 + (myEffectiveLengthGained * 10.0) * cameraZoomOutCoeff);
     const globalScale = (zoom2D + (1 - zoom2D) * cameraTransition) * scoreZoomFactor * cameraBaseZoom;
     
     // In three.js FOV affects visual scale. Let's fix FOV to 50 and use height to zoom.
@@ -993,8 +1185,9 @@ const GameScene = ({
         }
 
         const oldP = lastState?.players[playerId];
-        const score = p.score || 0;
-        const snakeRadius = (baseHeadRadius + score * scoreThicknessScale) * gridSize;
+        const otherLength = p.body?.length ?? startLength;
+        const otherEffectiveLengthGained = Math.max(0, otherLength - startLength);
+        const snakeRadius = (baseHeadRadius + otherEffectiveLengthGained * 10.0 * scoreThicknessScale) * gridSize;
         const skin = p.skin || '#22c55e';
 
         const logicalX: number[] = [];
@@ -1348,8 +1541,9 @@ const GameScene = ({
           const p = state.players[playerId];
           if (!p.body || p.body.length === 0) continue;
           
-          const score = p.score || 0;
-          const snakeRadius = (baseHeadRadius + score * scoreThicknessScale) * gridSize;
+          const otherLength = p.body?.length ?? startLength;
+          const otherEffectiveLengthGained = Math.max(0, otherLength - startLength);
+          const snakeRadius = (baseHeadRadius + otherEffectiveLengthGained * 10.0 * scoreThicknessScale) * gridSize;
           const head = p.body[0];
           
           const oldP = lastState?.players[playerId];
@@ -1457,8 +1651,9 @@ const GameScene = ({
         const wX = camX + dx;
         const wY = camY + dy;
         
-        const score = p.score || 0;
-        const snakeRadius = (baseHeadRadius + score * scoreThicknessScale) * gridSize;
+        const otherLength = p.body?.length ?? startLength;
+        const otherEffectiveLengthGained = Math.max(0, otherLength - startLength);
+        const snakeRadius = (baseHeadRadius + otherEffectiveLengthGained * 10.0 * scoreThicknessScale) * gridSize;
         
         const textObj = textRefs.current[playerId];
         if (textObj) {
@@ -1539,6 +1734,126 @@ const GameScene = ({
         }
       }
     }
+
+    // --- DEBUG HUD AND WEBGL DIAGNOSTICS DRAWING ---
+    const debugVertices: number[] = [];
+    const debugColors: number[] = [];
+
+    if (debugMode && state) {
+      const debugHudEl = document.getElementById("debug-hud");
+      if (debugHudEl) {
+        if (myPlayer && myPlayer.body && myPlayer.body.length > 0) {
+          const head = myPlayer.body[0];
+          const hIdxX = Math.floor(head.x / 10);
+          const hIdxY = Math.floor(head.y / 10);
+          const headingDeg = ((myPlayer.angle * 180 / Math.PI) % 360).toFixed(1);
+          const currentSpeed = (baseSpeedPerSecond * ((localInputRef.current.accelerating || myPlayer.accelerating) ? 2.0 : 1.0)).toFixed(1);
+          let latencyText = document.getElementById("hud-ping")?.textContent || "offline";
+          if (latencyText.startsWith("Ping: ")) {
+            latencyText = latencyText.substring(6);
+          }
+          
+          const growthFormula = state.server_snake?.growth_score_per_segment ?? 10.0;
+          const nextSegCost = evaluateFormula(growthFormula, myPlayer.score, myPlayer.body.length).toFixed(1);
+
+          debugHudEl.innerHTML = `
+            <div style="font-weight: 800; border-bottom: 1px solid rgba(230, 57, 70, 0.4); padding-bottom: 4px; margin-bottom: 6px; color: #e63946; display: flex; align-items: center; gap: 4px;">
+              <span>🐛</span> DEBUG PANELS
+            </div>
+            <div style="display: grid; grid-template-columns: 80px 1fr; gap: 4px; font-family: monospace; font-size: 11px;">
+              <span style="color: #a1a1aa;">My ID:</span> <span style="color: #fff; word-break: break-all;">${myId.substring(0, 8)}...</span>
+              <span style="color: #a1a1aa;">Coords:</span> <span style="color: #4ade80;">X:${head.x.toFixed(2)} Y:${head.y.toFixed(2)}</span>
+              <span style="color: #a1a1aa;">Grid Cell:</span> <span style="color: #fbbf24;">[${hIdxX}, ${hIdxY}]</span>
+              <span style="color: #a1a1aa;">Heading:</span> <span style="color: #60a5fa;">${headingDeg}° (${myPlayer.angle.toFixed(2)} rad)</span>
+              <span style="color: #a1a1aa;">Turn:</span> <span style="color: #c084fc;">${localInputRef.current.turn?.toFixed(2) ?? '0.00'}</span>
+              <span style="color: #a1a1aa;">Speed:</span> <span style="color: #f472b6;">${currentSpeed} units/s</span>
+              <span style="color: #a1a1aa;">Length:</span> <span style="color: #22d3ee;">${myPlayer.body.length}</span>
+              <span style="color: #a1a1aa;">Score:</span> <span id="debug-score-val" data-score="${myPlayer.score}" style="color: #38bdf8; cursor: pointer; text-decoration: underline;" title="Click to edit">${myPlayer.score}</span>
+              <span style="color: #a1a1aa;">Seg Cost:</span> <span style="color: #fb7185;">${nextSegCost}</span>
+              <span style="color: #a1a1aa;">Ping:</span> <span style="color: #f87171;">${latencyText}</span>
+            </div>
+            <div style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; font-size: 10px; color: #a1a1aa; line-height: 1.4;">
+              <strong>Active Config:</strong><br/>
+              Map Size: ${mapW}x${mapH}<br/>
+              Sim Rate: ${serverTickRate}Hz<br/>
+              Base Speed: ${baseSpeedPerSecond}<br/>
+              Min Turn Rad: ${minTurnRadius}<br/>
+              Turn Coeff: ${turnRadiusThicknessCoeff}
+            </div>
+          `;
+        } else {
+          debugHudEl.innerHTML = `
+            <div style="font-weight: 800; border-bottom: 1px solid rgba(230, 57, 70, 0.4); padding-bottom: 4px; margin-bottom: 6px; color: #e63946;">
+              <span>🐛</span> DEBUG PANELS
+            </div>
+            <div style="font-size: 11px; color: #a1a1aa; font-style: italic;">
+              Spectating or not spawned yet...
+            </div>
+          `;
+        }
+      }
+
+      for (const playerId in state.players) {
+        const p = state.players[playerId];
+        if (!p.body || p.body.length === 0) continue;
+
+        const otherLength = p.body.length;
+        const otherEffectiveLengthGained = Math.max(0, otherLength - startLength);
+        const snakeRadius = (baseHeadRadius + otherEffectiveLengthGained * 10.0 * scoreThicknessScale) * gridSize;
+        const head = p.body[0];
+        
+        const oldP = lastState?.players[playerId];
+        let start = head;
+        if (oldP && oldP.body) start = oldP.body[0] || head;
+        if (Math.abs(head.x - start.x) > 50 || Math.abs(head.y - start.y) > 50) start = head;
+        
+        const hx = (start.x + (head.x - start.x) * progress) * gridSize + gridSize/2;
+        const hy = -((start.y + (head.y - start.y) * progress) * gridSize + gridSize/2);
+        
+        const snakeZ = 2.0 + p.body.length * 0.001;
+        const zOffset = snakeZ + 0.3;
+
+        const isMe = playerId === myId;
+        const circleR = isMe ? 0 : 1;
+        const circleG = isMe ? 1 : 0.8;
+        const circleB = isMe ? 1 : 0;
+
+        const segments = 16;
+        for (let i = 0; i < segments; i++) {
+          const a1 = (i / segments) * 2 * Math.PI;
+          const a2 = ((i + 1) / segments) * 2 * Math.PI;
+          
+          const x1 = hx + Math.cos(a1) * snakeRadius;
+          const y1 = hy + Math.sin(a1) * snakeRadius;
+          const x2 = hx + Math.cos(a2) * snakeRadius;
+          const y2 = hy + Math.sin(a2) * snakeRadius;
+          
+          debugVertices.push(x1, y1, zOffset, x2, y2, zOffset);
+          debugColors.push(circleR, circleG, circleB, circleR, circleG, circleB);
+        }
+
+        const visAngle = -p.angle;
+        const dirFx = Math.cos(visAngle);
+        const dirFy = Math.sin(visAngle);
+        const dirLength = snakeRadius * 2.0;
+        
+        const dx = hx + dirFx * dirLength;
+        const dy = hy + dirFy * dirLength;
+        
+        debugVertices.push(hx, hy, zOffset, dx, dy, zOffset);
+        debugColors.push(1, 0, 1, 1, 0, 1);
+      }
+    }
+
+    if (debugGeometryRef.current) {
+      if (debugVertices.length > 0) {
+        updateDynamicAttribute(debugGeometryRef.current, 'position', debugVertices, 3);
+        updateDynamicAttribute(debugGeometryRef.current, 'color', debugColors, 3);
+        debugGeometryRef.current.setDrawRange(0, debugVertices.length / 3);
+      } else {
+        debugGeometryRef.current.setDrawRange(0, 0);
+      }
+    }
   });
 
   // Resource cleanup on unmount
@@ -1548,6 +1863,7 @@ const GameScene = ({
       [planeGeo, flatCircleGeo, pupilGeo, particleGeo].forEach(geo => geo.dispose());
       if (bodyGeometryRef.current) bodyGeometryRef.current.dispose();
       if (shadowGeometryRef.current) shadowGeometryRef.current.dispose();
+      if (debugGeometryRef.current) debugGeometryRef.current.dispose();
     };
   }, []);
 
@@ -1594,6 +1910,25 @@ const GameScene = ({
           </Text>
         );
       })}
+
+      {debugGridLines && (
+        <lineSegments renderOrder={5}>
+          <bufferGeometry>
+            <bufferAttribute
+              attach="attributes-position"
+              args={[debugGridLines, 3]}
+            />
+          </bufferGeometry>
+          <lineBasicMaterial color="#22c55e" opacity={0.35} transparent />
+        </lineSegments>
+      )}
+
+      {debugMode && (
+        <lineSegments renderOrder={10}>
+          <bufferGeometry ref={debugGeometryRef} />
+          <lineBasicMaterial vertexColors depthTest={false} transparent opacity={0.8} />
+        </lineSegments>
+      )}
     </>
   );
 };
@@ -1609,6 +1944,8 @@ export const GameRenderer = React.memo(({
   controlModeRef,
   socketRef,
   isMobile,
+  minimapCanvasRef,
+  debugMode,
 }: {
   gameStateRef: React.MutableRefObject<GameState | null>;
   lastGameStateRef: React.MutableRefObject<GameState | null>;
@@ -1620,18 +1957,16 @@ export const GameRenderer = React.memo(({
   controlModeRef: React.MutableRefObject<"keyboard" | "mouse" | "tilt">;
   socketRef: React.MutableRefObject<any>;
   isMobile?: boolean;
+  minimapCanvasRef?: React.RefObject<HTMLCanvasElement | null>;
+  debugMode?: boolean;
 }) => {
-  const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
+  const localMinimapCanvasRef = useRef<HTMLCanvasElement>(null);
+  const activeMinimapCanvasRef = minimapCanvasRef || localMinimapCanvasRef;
   const particlesRef = useRef<Particle[]>([]);
   // checkDeaths effect was moved into useFrame
 
   // Render Minimap
   useEffect(() => {
-    const canvas = minimapCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
     let animId: number;
     let lastDrawTime = 0;
     const draw = (time: number) => {
@@ -1641,16 +1976,21 @@ export const GameRenderer = React.memo(({
       if (time - lastDrawTime < 66) return;
       lastDrawTime = time;
       
+      const canvas = activeMinimapCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
       const state = gameStateRef.current;
       if (state && state.players && state.foods) {
-        ctx.clearRect(0, 0, 150, 150);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Soft dark overlay to maintain dot contrast without blocking the glassmorphism backdrop blur
         ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-        ctx.fillRect(0, 0, 150, 150);
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         const mapW = state.server_world?.width ?? WORLD_WIDTH;
         const mapH = state.server_world?.height ?? WORLD_HEIGHT;
-        const mapScaleX = 150 / mapW;
-        const mapScaleY = 150 / mapH;
+        const mapScaleX = canvas.width / mapW;
+        const mapScaleY = canvas.height / mapH;
 
         for (let i = 0; i < state.foods.length; i++) {
           const f = state.foods[i];
@@ -1690,7 +2030,14 @@ export const GameRenderer = React.memo(({
   }, [gameStateRef, myIdRef]);
 
   return (
-    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: '#0c0c0f' }}>
+    <div style={{ 
+      position: 'absolute', 
+      top: isMobile ? 190 : 0, 
+      left: 0, 
+      width: '100%', 
+      height: isMobile ? 'calc(100% - 190px - 90px)' : '100%', 
+      backgroundColor: '#0c0c0f' 
+    }}>
       <Canvas 
         shadows={false} 
         dpr={isMobile ? [1, 1.5] : [1, 2]} 
@@ -1709,28 +2056,29 @@ export const GameRenderer = React.memo(({
           controlModeRef={controlModeRef}
           socketRef={socketRef}
           isMobile={isMobile}
+          debugMode={debugMode}
         />
       </Canvas>
-      <div 
-        className="hud-minimap-container"
-        style={{ 
-          position: 'absolute', 
-          top: isMobile ? 72 : 'auto',
-          left: isMobile ? 12 : 'auto',
-          bottom: isMobile ? 'auto' : 20, 
-          right: isMobile ? 'auto' : 20, 
-          zIndex: 50, 
-          pointerEvents: 'none',
-          background: "rgba(20, 22, 28, 0.75)", 
-          border: "1px solid rgba(255, 255, 255, 0.08)", 
-          borderRadius: "16px", 
-          boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
-          backdropFilter: "blur(12px)",
-          overflow: "hidden"
-        }}
-      >
-        <canvas ref={minimapCanvasRef} width={150} height={150} style={{ display: "block" }} />
-      </div>
+      {!isMobile && (
+        <div 
+          className="hud-minimap-container"
+          style={{ 
+            position: 'absolute', 
+            bottom: 20, 
+            right: 20, 
+            zIndex: 50, 
+            pointerEvents: 'none',
+            background: "rgba(20, 22, 28, 0.75)", 
+            border: "1px solid rgba(255, 255, 255, 0.08)", 
+            borderRadius: "16px", 
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4)",
+            backdropFilter: "blur(12px)",
+            overflow: "hidden"
+          }}
+        >
+          <canvas ref={activeMinimapCanvasRef} width={150} height={150} style={{ display: "block" }} />
+        </div>
+      )}
     </div>
   );
 });

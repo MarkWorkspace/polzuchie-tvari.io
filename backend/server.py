@@ -74,7 +74,8 @@ class Player:
         
     @property
     def head_radius(self):
-        return self.config.snake.base_head_radius + self.score * self.config.snake.score_thickness_scale
+        effective_score = max(0, len(self.body) - self.config.snake.start_length) * 10.0
+        return self.config.snake.base_head_radius + effective_score * self.config.snake.score_thickness_scale
         
     def to_dict(self, in_aoi=True, is_full=False):
         data = {
@@ -179,11 +180,59 @@ class GameState:
                 "pi": math.pi, "e": math.e
             }
             expr = f"lambda s, l: {formula}"
-            self.growth_segment_cost_func = eval(compile(expr, "<string>", "eval"), {"__builtins__": {}}, safe_env)
+            safe_globals = {**safe_env, "__builtins__": {}}
+            self.growth_segment_cost_func = eval(compile(expr, "<string>", "eval"), safe_globals)
             print(f"[Config] Compiled growth segment cost function: {expr}")
         except Exception as e:
             print(f"[Config] Error compiling growth formula: {e}. Falling back to lambda s, l: 10.0")
             self.growth_segment_cost_func = lambda s, l: 10.0
+
+    def align_player_growth(self, player):
+        start_score = self.config.snake.start_score
+        start_length = self.config.snake.start_length
+        max_growth_score = self.config.snake.max_growth_score
+        min_body_length = self.config.snake.min_body_length
+
+        if player.score <= start_score:
+            ideal_length = start_length
+            ideal_pending = 0.0
+        else:
+            current_score = start_score
+            current_length = start_length
+            ideal_pending = 0.0
+            
+            max_iter = 10000
+            while max_iter > 0:
+                max_iter -= 1
+                cost = max(0.1, float(self.growth_segment_cost_func(current_score, current_length)))
+                if current_score + cost > player.score:
+                    ideal_pending = player.score - current_score
+                    ideal_length = current_length
+                    break
+                if current_score >= max_growth_score:
+                    ideal_pending = 0.0
+                    ideal_length = current_length
+                    break
+                current_score += cost
+                current_length += 1
+            else:
+                ideal_length = current_length
+                ideal_pending = player.score - current_score
+
+        current_length = len(player.body)
+        score_offset = 0.0
+        if ideal_length > current_length:
+            for l in range(current_length, ideal_length):
+                cost = max(0.1, float(self.growth_segment_cost_func(player.score, l)))
+                score_offset += cost
+            player.pending_growth = ideal_pending + score_offset
+        elif ideal_length < current_length:
+            for l in range(ideal_length, current_length):
+                cost = max(0.1, float(self.growth_segment_cost_func(player.score, l)))
+                score_offset += cost
+            player.pending_growth = ideal_pending - score_offset
+        else:
+            player.pending_growth = ideal_pending
 
     def _save_config_to_disk(self):
         try:
@@ -202,6 +251,8 @@ class GameState:
         old_cluster_count = len(self.clusters)
         self.config.apply_patch(patch)
         self._update_compiled_formulas()
+        for p in self.players.values():
+            self.align_player_growth(p)
         self._save_config_to_disk()
         self.grid_width = self.config.world.width
         self.grid_height = self.config.world.height
@@ -671,10 +722,10 @@ class GameState:
         client_player = self.players.get(client_id)
         if client_player and len(client_player.body) > 0:
             cx, cy = client_player.body[0]["x"], client_player.body[0]["y"]
-            score = client_player.score
+            effective_score = max(0, len(client_player.body) - self.config.snake.start_length) * 10.0
         else:
             cx, cy = self.grid_width / 2, self.grid_height / 2
-            score = 0
+            effective_score = 0
             
         previous_visible = self.client_visibility.get(client_id, set())
         current_visible = set()
@@ -683,7 +734,7 @@ class GameState:
         # Динамический расчет радиуса AoI: радиус тумана клиента + 3% запаса + прибавка за длину цели
         min_fog = self.config.visual.min_fog_radius
         expansion = self.config.visual.fog_score_expansion_coeff
-        fog_radius_world = min_fog + score * expansion
+        fog_radius_world = min_fog + effective_score * expansion
         fog_radius_grid = fog_radius_world / 20.0
         
         # Использование пространственной сетки для игроков (Spatial Partitioning - Item 3)
@@ -992,6 +1043,18 @@ async def websocket_endpoint(websocket: WebSocket, nickname: str = "Игрок",
             if len(msg_timestamps) > RATE_LIMIT_PER_SECOND:
                 continue  # Silently drop excess messages
             
+            if data.startswith("SCORE:"):
+                try:
+                    val = int(data[6:])
+                    if val >= 0:
+                        if client_id in game.players:
+                            p = game.players[client_id]
+                            p.score = val
+                            game.align_player_growth(p)
+                except ValueError:
+                    pass
+                continue
+
             if data.startswith("PING:"):
                 try:
                     await websocket.send_text(f"PONG:{data[5:]}")

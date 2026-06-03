@@ -1,9 +1,11 @@
 import React from "react";
+import { t } from "../lib/i18n";
 
 interface Skin {
   id: string;
   name: string;
   bg: string;
+  key?: string;
 }
 
 interface LoginScreenProps {
@@ -59,7 +61,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           color: "rgba(255, 255, 255, 0.7)", 
           marginBottom: "12px"
         }}>
-          Выберите скин
+          {t("login.selectSkin")}
         </h3>
         <div style={{ 
           display: "flex", 
@@ -88,7 +90,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                   transform: isSelected ? "scale(1.1)" : "scale(1)",
                   transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
                 }}
-                title={skin.name}
+                title={skin.key ? t(skin.key as any) : skin.name}
               />
             );
           })}
@@ -99,7 +101,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       <div style={{ width: "100%", marginBottom: "20px" }}>
         <input
           type="text"
-          placeholder="Ваш никнейм"
+          placeholder={t("login.nickname")}
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onJoin()}
@@ -138,7 +140,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
         }}
       >
-        Играть
+        {t("login.play")}
       </button>
     </div>
   );

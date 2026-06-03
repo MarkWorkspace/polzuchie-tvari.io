@@ -5,18 +5,19 @@ import { useGameSocket } from "../hooks/useGameSocket";
 import { LoginScreen } from "../components/LoginScreen";
 import { Leaderboard } from "../components/Leaderboard";
 import { GameRenderer } from "../components/GameRenderer";
+import { t } from "../lib/i18n";
 
 const SKINS = [
-  { id: "#ef4444", name: "Красный", bg: "#ef4444" },
-  { id: "#3b82f6", name: "Синий", bg: "#3b82f6" },
-  { id: "#eab308", name: "Желтый", bg: "#eab308" },
-  { id: "#22c55e", name: "Зеленый", bg: "#22c55e" },
-  { id: "#ec4899", name: "Розовый", bg: "#ec4899" },
-  { id: "#a855f7", name: "Фиолетовый", bg: "#a855f7" },
-  { id: "zebra", name: "Зебра", bg: "repeating-linear-gradient(45deg, #fff, #fff 10px, #000 10px, #000 20px)" },
-  { id: "tiger", name: "Тигр", bg: "repeating-linear-gradient(45deg, #f97316, #f97316 10px, #000 10px, #000 20px)" },
-  { id: "rainbow", name: "Радуга", bg: "linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)" },
-  { id: "cyberpunk", name: "Киберпанк", bg: "repeating-linear-gradient(45deg, #f0f, #f0f 10px, #0ff 10px, #0ff 20px)" }
+  { id: "#ef4444", name: "Красный", key: "skin.red", bg: "#ef4444" },
+  { id: "#3b82f6", name: "Синий", key: "skin.blue", bg: "#3b82f6" },
+  { id: "#eab308", name: "Желтый", key: "skin.yellow", bg: "#eab308" },
+  { id: "#22c55e", name: "Зеленый", key: "skin.green", bg: "#22c55e" },
+  { id: "#ec4899", name: "Розовый", key: "skin.pink", bg: "#ec4899" },
+  { id: "#a855f7", name: "Фиолетовый", key: "skin.purple", bg: "#a855f7" },
+  { id: "zebra", name: "Зебра", key: "skin.zebra", bg: "repeating-linear-gradient(45deg, #fff, #fff 10px, #000 10px, #000 20px)" },
+  { id: "tiger", name: "Тигр", key: "skin.tiger", bg: "repeating-linear-gradient(45deg, #f97316, #f97316 10px, #000 10px, #000 20px)" },
+  { id: "rainbow", name: "Радуга", key: "skin.rainbow", bg: "linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)" },
+  { id: "cyberpunk", name: "Киберпанк", key: "skin.cyberpunk", bg: "repeating-linear-gradient(45deg, #f0f, #f0f 10px, #0ff 10px, #0ff 20px)" }
 ];
 
 export default function Home() {
@@ -27,6 +28,8 @@ export default function Home() {
   const cameraModeRef = useRef<"2D" | "3D">("3D");
   const [isMobile, setIsMobile] = useState(false);
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false);
+  const minimapCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [debugMode, setDebugMode] = useState(false);
 
   const requestGyroPermission = async () => {
     if (
@@ -39,7 +42,7 @@ export default function Home() {
           setControlMode("tilt");
           controlModeRef.current = "tilt";
         } else {
-          alert("Gyroscope permission denied.");
+          alert(t("alert.gyroDenied"));
         }
       } catch (err) {
         console.error("Gyroscope permission request failed:", err);
@@ -57,6 +60,45 @@ export default function Home() {
     handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("debug") === "true") {
+      const savedPassword = window.localStorage.getItem("snake-admin-password");
+      if (!savedPassword) {
+        window.history.replaceState(null, "", window.location.pathname);
+        return;
+      }
+
+      const verifyAdminSession = async () => {
+        const host = window.location.hostname || "127.0.0.1";
+        const protocol = window.location.protocol;
+        const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
+        const url = isStandardPort 
+          ? `${protocol}//${host}/ws/admin/config` 
+          : `${protocol}//${host}:8000/admin/config`;
+
+        try {
+          const response = await fetch(url, {
+            headers: { "x-admin-password": savedPassword },
+          });
+          if (response.ok) {
+            setDebugMode(true);
+            console.log("Admin verified. Debug Mode active.");
+          } else {
+            console.warn("Invalid admin session. Stripping debug mode.");
+            window.history.replaceState(null, "", window.location.pathname);
+          }
+        } catch (e) {
+          console.error("Failed to verify admin session:", e);
+          window.history.replaceState(null, "", window.location.pathname);
+        }
+      };
+
+      verifyAdminSession();
+    }
   }, []);
 
   const {
@@ -78,11 +120,63 @@ export default function Home() {
   const isSteeringRef = useRef(false);
 
   useEffect(() => {
+    if (!debugMode) return;
+
+    const handleHudClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && target.id === "debug-score-val") {
+        e.preventDefault();
+        const currentScore = parseInt(target.getAttribute("data-score") || "0", 10);
+        const newScoreStr = prompt(t("debug.enterScore"), currentScore.toString());
+        if (newScoreStr !== null) {
+          const val = parseInt(newScoreStr.trim(), 10);
+          if (!isNaN(val) && val >= 0) {
+            const sock = socketRef.current;
+            if (sock && sock.readyState === WebSocket.OPEN) {
+              sock.send(`SCORE:${val}`);
+            }
+          } else {
+            alert(t("debug.invalidScore"));
+          }
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleHudClick, { passive: false });
+    document.addEventListener("touchstart", handleHudClick, { passive: false });
+    return () => {
+      document.removeEventListener("mousedown", handleHudClick);
+      document.removeEventListener("touchstart", handleHudClick);
+    };
+  }, [debugMode, socketRef]);
+
+  useEffect(() => {
     if (!isMobile || !hasJoined) return;
  
     const handleTouch = (e: TouchEvent) => {
-      // In tilt control mode, canvas touch steering is completely bypassed!
+      // In tilt control mode, only allow boost zone touches (no canvas steering)
       if (controlModeRef.current === "tilt") {
+        const touch = e.touches[0];
+        if (!touch) return;
+        const sock = socketRef.current;
+        if (!sock || sock.readyState !== WebSocket.OPEN) return;
+        const boostZoneEl = document.getElementById('mobile-boost-zone');
+        if (boostZoneEl) {
+          const rect = boostZoneEl.getBoundingClientRect();
+          const isTouchInBoostZone = touch.clientY >= rect.top;
+          if (isTouchInBoostZone) {
+            if (e.cancelable) e.preventDefault();
+            if (!localInputRef.current.accelerating) {
+              sock.send("SPACE_DOWN");
+              localInputRef.current.accelerating = true;
+            }
+          } else {
+            if (localInputRef.current.accelerating) {
+              sock.send("SPACE_UP");
+              localInputRef.current.accelerating = false;
+            }
+          }
+        }
         return;
       }
 
@@ -111,8 +205,12 @@ export default function Home() {
       const touch = e.touches[0];
       if (!touch) return;
  
-      const boostZoneHeight = window.innerHeight * 0.11;
-      const isTouchInBoostZone = (window.innerHeight - touch.clientY) < boostZoneHeight;
+      const boostZoneEl = document.getElementById('mobile-boost-zone');
+      let isTouchInBoostZone = false;
+      if (boostZoneEl) {
+        const rect = boostZoneEl.getBoundingClientRect();
+        isTouchInBoostZone = touch.clientY >= rect.top;
+      }
  
       if (isTouchInBoostZone) {
         if (!localInputRef.current.accelerating) {
@@ -133,6 +231,13 @@ export default function Home() {
  
     const handleTouchEnd = (e: TouchEvent) => {
       if (controlModeRef.current === "tilt") {
+        const sock = socketRef.current;
+        if (sock && sock.readyState === WebSocket.OPEN) {
+          if (localInputRef.current.accelerating) {
+            sock.send("SPACE_UP");
+            localInputRef.current.accelerating = false;
+          }
+        }
         return;
       }
 
@@ -219,6 +324,138 @@ export default function Home() {
           setSelectedSkin={setSelectedSkin}
           skins={SKINS}
         />
+
+        {/* Mobile burger button on login screen */}
+        {isMobile && (
+          <div 
+            onClick={() => setIsSidePanelOpen(true)}
+            style={{
+              position: "fixed",
+              top: "12px",
+              right: "12px",
+              cursor: "pointer",
+              color: "white",
+              fontSize: "28px",
+              padding: "4px 8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              userSelect: "none",
+              zIndex: 100
+            }}
+          >
+            ☰
+          </div>
+        )}
+
+        {/* Side Panel Drawer Backdrop Overlay (login) */}
+        {isMobile && isSidePanelOpen && (
+          <div 
+            onClick={() => setIsSidePanelOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0, 0, 0, 0.4)",
+              backdropFilter: "blur(4px)",
+              zIndex: 105,
+              transition: "opacity 0.3s ease"
+            }}
+          />
+        )}
+
+        {/* Side Panel Drawer (login) */}
+        {isMobile && (
+          <div style={{
+            position: "fixed",
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: "280px",
+            background: "rgba(20, 22, 28, 0.9)",
+            backdropFilter: "blur(20px)",
+            borderLeft: "1px solid rgba(255, 255, 255, 0.08)",
+            boxShadow: "-10px 0 32px rgba(0, 0, 0, 0.5)",
+            zIndex: 110,
+            transform: isSidePanelOpen ? "translateX(0)" : "translateX(100%)",
+            transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            display: "flex",
+            flexDirection: "column",
+            padding: "24px 20px",
+            color: "white"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
+              <span style={{ fontSize: "16px", fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>{t("menu.settings")}</span>
+              <div 
+                onClick={() => setIsSidePanelOpen(false)}
+                style={{ cursor: "pointer", fontSize: "18px", opacity: 0.6, padding: "4px" }}
+              >
+                ✕
+              </div>
+            </div>
+
+            {/* Camera Mode */}
+            <div style={{ marginBottom: "24px" }}>
+              <h3 style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.05em" }}>{t("menu.camera")}</h3>
+              <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: "8px", padding: "3px" }}>
+                <div 
+                  onClick={() => { cameraModeRef.current = "2D"; setIsSidePanelOpen(false); }}
+                  style={{ flex: 1, textAlign: "center", padding: "8px 0", fontSize: "13px", fontWeight: 700, borderRadius: "6px", cursor: "pointer", background: cameraModeRef.current === "2D" ? "rgba(255,255,255,0.1)" : "transparent", color: cameraModeRef.current === "2D" ? "white" : "rgba(255,255,255,0.6)" }}
+                >2D</div>
+                <div 
+                  onClick={() => { cameraModeRef.current = "3D"; setIsSidePanelOpen(false); }}
+                  style={{ flex: 1, textAlign: "center", padding: "8px 0", fontSize: "13px", fontWeight: 700, borderRadius: "6px", cursor: "pointer", background: cameraModeRef.current === "3D" ? "rgba(255,255,255,0.1)" : "transparent", color: cameraModeRef.current === "3D" ? "white" : "rgba(255,255,255,0.6)" }}
+                >3D</div>
+              </div>
+            </div>
+
+            {/* Control Mode */}
+            <div style={{ marginBottom: "24px" }}>
+              <h3 style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.05em" }}>{t("menu.controls")}</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div 
+                  onClick={() => { setControlMode("mouse"); controlModeRef.current = "mouse"; setIsSidePanelOpen(false); }}
+                  style={{ padding: "12px", fontSize: "13px", fontWeight: 700, borderRadius: "8px", cursor: "pointer", background: controlMode === "mouse" ? "rgba(59, 130, 246, 0.2)" : "rgba(255,255,255,0.03)", border: controlMode === "mouse" ? "1px solid rgba(59, 130, 246, 0.4)" : "1px solid rgba(255,255,255,0.05)", color: controlMode === "mouse" ? "#60a5fa" : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", gap: "10px" }}
+                >
+                  <span style={{ fontSize: "16px" }}>👆</span>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span>{t("control.touchDrag")}</span>
+                    <span style={{ fontSize: "9px", opacity: 0.6, fontWeight: "normal" }}>{t("control.touchDragDesc")}</span>
+                  </div>
+                </div>
+                <div 
+                  onClick={() => { const np = typeof DeviceOrientationEvent !== "undefined" && typeof (DeviceOrientationEvent as any).requestPermission === "function"; if (np) { requestGyroPermission(); } else { setControlMode("tilt"); controlModeRef.current = "tilt"; } setIsSidePanelOpen(false); }}
+                  style={{ padding: "12px", fontSize: "13px", fontWeight: 700, borderRadius: "8px", cursor: "pointer", background: controlMode === "tilt" ? "rgba(239, 68, 68, 0.15)" : "rgba(255,255,255,0.03)", border: controlMode === "tilt" ? "1px solid rgba(239, 68, 68, 0.4)" : "1px solid rgba(255,255,255,0.05)", color: controlMode === "tilt" ? "#f87171" : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", gap: "10px" }}
+                >
+                  <span style={{ fontSize: "16px" }}>📱</span>
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <span>{t("control.tilt")}</span>
+                    <span style={{ fontSize: "9px", opacity: 0.6, fontWeight: "normal" }}>{t("control.tiltDesc")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin link */}
+            <a 
+              href="/admin"
+              style={{
+                marginTop: "auto",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                paddingTop: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "rgba(255,255,255,0.4)",
+                fontSize: "12px",
+                fontWeight: 600,
+                textDecoration: "none",
+                letterSpacing: "0.03em"
+              }}
+            >
+              <span style={{ fontSize: "14px" }}>⚙️</span> Admin Panel
+            </a>
+          </div>
+        )}
       </div>
     );
   }
@@ -233,47 +470,49 @@ export default function Home() {
           top: 0,
           left: 0,
           right: 0,
-          height: "60px",
-          background: "rgba(20, 22, 28, 0.75)",
-          backdropFilter: "blur(12px)",
+          height: "190px",
+          background: "#0c0c0f",
           borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
           zIndex: 90,
           display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px"
+          alignItems: "flex-start",
+          padding: "8px 12px",
+          gap: "10px",
+          boxSizing: "border-box"
         }}>
-          {/* Burger Menu Button (Left) */}
-          <div 
-            onClick={() => setIsSidePanelOpen(true)}
-            style={{
-              cursor: "pointer",
-              color: "white",
-              fontSize: "24px",
-              padding: "4px 8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              userSelect: "none"
-            }}
-          >
-            ☰
+          {/* Left: Radar Canvas */}
+          <div style={{ width: "160px", height: "160px", flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", marginTop: "4px" }}>
+            <canvas ref={minimapCanvasRef} width={160} height={160} style={{ display: "block" }} />
           </div>
 
-          {/* Centered H1 Header */}
-          <h1 style={{
-            margin: 0,
-            fontSize: "18px",
-            fontWeight: 900,
-            color: "rgba(255, 255, 255, 0.95)",
-            letterSpacing: "-0.01em",
-            textShadow: "0 0 10px rgba(255, 255, 255, 0.15)"
-          }}>
-            Polzuchie-tvari.io
-          </h1>
-
-          {/* Symmetrical placeholder for spacing */}
-          <div style={{ width: "40px" }} />
+          {/* Right: Title row + Player list column */}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", height: "170px" }}>
+            {/* Title "Топ 3" + Burger Menu (same vertical level) */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px", flexShrink: 0 }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px", color: "rgba(255, 255, 255, 0.75)", fontSize: "13px", fontWeight: 800 }}>
+                <span>🏆</span> {t("leaderboard.top")} 3
+              </span>
+              <div 
+                onClick={() => setIsSidePanelOpen(true)}
+                style={{
+                  cursor: "pointer",
+                  color: "white",
+                  fontSize: "28px",
+                  padding: "0 4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  userSelect: "none"
+                }}
+              >
+                ☰
+              </div>
+            </div>
+            {/* Player List */}
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              <Leaderboard limit={3} alwaysOpen={true} noBackground={true} alignLeft={true} hideTitle={true} />
+            </div>
+          </div>
         </div>
       )}
 
@@ -292,20 +531,20 @@ export default function Home() {
         />
       )}
 
-      {/* Side Panel Drawer (Left) */}
+      {/* Side Panel Drawer (Right) */}
       {isMobile && (
         <div style={{
           position: "fixed",
           top: 0,
-          left: 0,
+          right: 0,
           bottom: 0,
           width: "280px",
           background: "rgba(20, 22, 28, 0.9)",
           backdropFilter: "blur(20px)",
-          borderRight: "1px solid rgba(255, 255, 255, 0.08)",
-          boxShadow: "10px 0 32px rgba(0, 0, 0, 0.5)",
+          borderLeft: "1px solid rgba(255, 255, 255, 0.08)",
+          boxShadow: "-10px 0 32px rgba(0, 0, 0, 0.5)",
           zIndex: 110,
-          transform: isSidePanelOpen ? "translateX(0)" : "translateX(-100%)",
+          transform: isSidePanelOpen ? "translateX(0)" : "translateX(100%)",
           transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           display: "flex",
           flexDirection: "column",
@@ -314,7 +553,7 @@ export default function Home() {
         }}>
           {/* Side Drawer Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
-            <span style={{ fontSize: "16px", fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>Меню игры / Menu</span>
+            <span style={{ fontSize: "16px", fontWeight: 800, color: "rgba(255,255,255,0.9)" }}>{t("menu.title")}</span>
             <div 
               onClick={() => setIsSidePanelOpen(false)}
               style={{ cursor: "pointer", fontSize: "18px", opacity: 0.6, padding: "4px" }}
@@ -325,7 +564,7 @@ export default function Home() {
 
           {/* Section 1: Camera Mode */}
           <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.05em" }}>Режим камеры / Camera</h3>
+            <h3 style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.05em" }}>{t("menu.camera")}</h3>
             <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: "8px", padding: "3px" }}>
               <div 
                 onClick={() => {
@@ -370,7 +609,7 @@ export default function Home() {
 
           {/* Section 2: Control Mode */}
           <div style={{ marginBottom: "24px" }}>
-            <h3 style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.05em" }}>Управление / Controls</h3>
+            <h3 style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "10px", letterSpacing: "0.05em" }}>{t("menu.controls")}</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <div 
                 onClick={() => {
@@ -394,8 +633,8 @@ export default function Home() {
               >
                 <span style={{ fontSize: "16px" }}>👆</span>
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span>Сенсорный Драг</span>
-                  <span style={{ fontSize: "9px", opacity: 0.6, fontWeight: "normal" }}>Drag steering + Boost zone</span>
+                  <span>{t("control.touchDrag")}</span>
+                  <span style={{ fontSize: "9px", opacity: 0.6, fontWeight: "normal" }}>{t("control.touchDragDesc")}</span>
                 </div>
               </div>
               
@@ -426,8 +665,8 @@ export default function Home() {
               >
                 <span style={{ fontSize: "16px" }}>📱</span>
                 <div style={{ display: "flex", flexDirection: "column" }}>
-                  <span>Наклон телефона</span>
-                  <span style={{ fontSize: "9px", opacity: 0.6, fontWeight: "normal" }}>Tilt phone + Red Boost Button</span>
+                  <span>{t("control.tilt")}</span>
+                  <span style={{ fontSize: "9px", opacity: 0.6, fontWeight: "normal" }}>{t("control.tiltDesc")}</span>
                 </div>
               </div>
 
@@ -446,36 +685,50 @@ export default function Home() {
                     marginTop: "4px"
                   }}
                 >
-                  ⚙️ Разрешить гироскоп (iOS)
+                  ⚙️ {t("control.gyroPermission")}
                 </div>
               )}
             </div>
           </div>
 
+          {/* Section 2.5: Leaderboard inside Side Panel */}
+          <div style={{ 
+            flex: 1, 
+            display: "flex", 
+            flexDirection: "column", 
+            minHeight: "150px", 
+            marginBottom: "20px",
+            overflow: "hidden" 
+          }}>
+            <div style={{ flex: 1, overflowY: "auto", paddingRight: "4px" }} className="custom-scrollbar">
+              <Leaderboard limit={10} alwaysOpen={true} noBackground={true} />
+            </div>
+          </div>
+ 
           {/* Section 3: Help Instructions */}
           <div style={{ marginTop: "auto", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "20px" }}>
-            <h3 style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "12px", letterSpacing: "0.05em" }}>Подсказки / Guide</h3>
+            <h3 style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.4)", fontWeight: 700, textTransform: "uppercase", marginBottom: "12px", letterSpacing: "0.05em" }}>{t("menu.guide")}</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
               {controlMode === "mouse" ? (
                 <>
-                  <div>• Тяните палец по холсту влево/вправо для плавного руления.</div>
-                  <div>• Нижняя часть экрана (11%) — зона буста. Ускоряйтесь при удержании.</div>
+                  <div>• {t("guide.touchSteer")}</div>
+                  <div>• {t("guide.touchBoost")}</div>
                 </>
               ) : (
                 <>
-                  <div>• Наклоняйте телефон влево/вправо для плавного руления.</div>
-                  <div>• Зажмите круглую красную кнопку внизу по центру для ускорения.</div>
+                  <div>• {t("guide.tiltSteer")}</div>
+                  <div>• {t("guide.tiltBoost")}</div>
                 </>
               )}
-              <div>• Очки собираются за поедание светящихся шариков еды.</div>
-              <div>• Столкновение с телом другого игрока приводит к гибели!</div>
+              <div>• {t("guide.collectFood")}</div>
+              <div>• {t("guide.collision")}</div>
             </div>
           </div>
         </div>
       )}
 
       {/* Left Sidebar Panel (Header HUD + Killfeed) */}
-      <div style={{ position: "absolute", top: isMobile ? 234 : 20, left: isMobile ? 12 : 20, zIndex: 50, pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "12px" }}>
+      <div style={{ position: "absolute", top: isMobile ? 254 : 20, left: isMobile ? 12 : 20, zIndex: 50, pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "12px" }}>
         
         {/* Header HUD Info */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", color: "white", textShadow: "0 2px 4px rgba(0,0,0,0.8)" }}>
@@ -520,10 +773,12 @@ export default function Home() {
         )}
       </div>
 
-      {/* Таблица лидеров (Справа сверху) */}
-      <div style={{ position: "absolute", top: isMobile ? (isMobile ? 72 : 12) : 20, right: isMobile ? 12 : 20, zIndex: 50 }}>
-        <Leaderboard />
-      </div>
+      {/* Таблица лидеров (Справа сверху, только для десктопа) */}
+      {!isMobile && (
+        <div style={{ position: "absolute", top: 20, right: 20, zIndex: 50 }}>
+          <Leaderboard />
+        </div>
+      )}
 
       {/* Bottom-left unified HUD Panel (Score feed + Collapsible Help Panel) */}
       <div style={{ 
@@ -576,7 +831,7 @@ export default function Home() {
               }}
             >
               <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <span>⌨️</span> Управление
+                <span>⌨️</span> {t("help.controls")}
               </span>
               <span style={{ 
                 fontSize: "8px", 
@@ -603,28 +858,28 @@ export default function Home() {
               }}>
                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
-                    {controlMode === "keyboard" ? "A / D / Стрелочки" : "Движение мыши"}
+                    {controlMode === "keyboard" ? t("help.steeringKbd") : t("help.steeringMouse")}
                   </kbd>
-                  <span>— Руление</span>
+                  <span>— {t("help.steering")}</span>
                 </div>
                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
-                    Пробел
+                    {t("help.space")}
                   </kbd>
-                  <span>— Ускорение</span>
+                  <span>— {t("help.boost")}</span>
                 </div>
                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <kbd style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#fafafa" }}>
                     C
                   </kbd>
-                  <span>— Смена камеры (2D / 3D)</span>
+                  <span>— {t("help.cameraSwitch")}</span>
                 </div>
                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                   <kbd style={{ background: "rgba(59, 130, 246, 0.2)", border: "1px solid rgba(59, 130, 246, 0.35)", borderRadius: "4px", padding: "1px 5px", fontSize: "10px", fontWeight: "bold", color: "#60a5fa" }}>
                     T
                   </kbd>
                   <span>
-                    — Режим: <strong style={{ color: "#60a5fa", fontWeight: "normal" }}>{controlMode === "keyboard" ? "клавиатура" : "мышь"}</strong>
+                    — {t("help.mode")}: <strong style={{ color: "#60a5fa", fontWeight: "normal" }}>{controlMode === "keyboard" ? t("help.keyboard") : t("help.mouse")}</strong>
                   </span>
                 </div>
               </div>
@@ -641,7 +896,7 @@ export default function Home() {
         <div 
           style={{
             position: "absolute",
-            bottom: "0px",
+            bottom: isMobile ? "90px" : "0px",
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 50,
@@ -649,13 +904,7 @@ export default function Home() {
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            background: "rgba(20, 22, 28, 0.75)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            borderBottom: "none",
             padding: "8px 24px",
-            borderRadius: "12px 12px 0 0",
-            boxShadow: "0 -4px 24px rgba(0, 0, 0, 0.3)",
-            backdropFilter: "blur(12px)",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
           }}
         >
@@ -745,95 +994,32 @@ export default function Home() {
         </div>
       )}
 
-      {/* Mobile Boost Zone Visual Gradient Indicator (only in touch drag mode) */}
-      {isMobile && controlMode === "mouse" && connectionStatus === "connected" && (
-        <div style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: "11%",
-          background: "linear-gradient(to top, rgba(230, 57, 70, 0.32) 0%, rgba(230, 57, 70, 0.0) 100%)",
-          borderTop: "3px dashed rgba(230, 57, 70, 0.3)",
-          pointerEvents: "none",
-          zIndex: 40,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "white",
-          fontSize: "11px",
-          fontWeight: 800,
-          letterSpacing: "0.1em",
-          textShadow: "0 0 1px #000, 0 1px 1px #000, 0 1px 2px #000, 0 2px 3px #000"
-        }}>
-          ЗОНА УСКОРЕНИЯ (ДЕРЖИТЕ ПАЛЕЦ ЗДЕСЬ)
-        </div>
-      )}
-
-      {/* Mobile Dedicated Red Circular Boost Button (only in tilt steering mode) */}
-      {isMobile && controlMode === "tilt" && connectionStatus === "connected" && (
-        <button
-          onTouchStart={(e) => {
-            if (e.cancelable) e.preventDefault();
-            const sock = socketRef.current;
-            if (sock && sock.readyState === WebSocket.OPEN) {
-              if (!localInputRef.current.accelerating) {
-                sock.send("SPACE_DOWN");
-                localInputRef.current.accelerating = true;
-              }
-            }
-          }}
-          onTouchEnd={(e) => {
-            if (e.cancelable) e.preventDefault();
-            const sock = socketRef.current;
-            if (sock && sock.readyState === WebSocket.OPEN) {
-              if (localInputRef.current.accelerating) {
-                sock.send("SPACE_UP");
-                localInputRef.current.accelerating = false;
-              }
-            }
-          }}
-          onTouchCancel={(e) => {
-            if (e.cancelable) e.preventDefault();
-            const sock = socketRef.current;
-            if (sock && sock.readyState === WebSocket.OPEN) {
-              if (localInputRef.current.accelerating) {
-                sock.send("SPACE_UP");
-                localInputRef.current.accelerating = false;
-              }
-            }
-          }}
+      {/* Mobile Boost Zone (unified for both touch drag and tilt modes, positioned BELOW the game canvas) */}
+      {isMobile && (controlMode === "mouse" || controlMode === "tilt") && connectionStatus === "connected" && (
+        <div 
+          id="mobile-boost-zone"
           style={{
             position: "absolute",
-            bottom: "40px",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 60,
-            width: "90px",
+            bottom: 0,
+            left: 0,
+            right: 0,
             height: "90px",
-            borderRadius: "50%",
-            background: "radial-gradient(circle, #ef4444 0%, #b91c1c 100%)",
-            border: "2px solid rgba(255, 255, 255, 0.25)",
-            boxShadow: "0 0 25px rgba(239, 68, 68, 0.7), inset 0 2px 4px rgba(255, 255, 255, 0.3), 0 8px 32px rgba(0, 0, 0, 0.5)",
+            background: "linear-gradient(to bottom, #e63946 0%, #2b2d34 100%)",
+            borderTop: "3px dashed rgba(230, 57, 70, 0.5)",
+            pointerEvents: "none",
+            zIndex: 40,
             display: "flex",
-            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             color: "white",
-            fontWeight: 900,
             fontSize: "11px",
-            letterSpacing: "0.05em",
-            cursor: "pointer",
-            outline: "none",
-            userSelect: "none",
-            WebkitUserSelect: "none",
-            touchAction: "none"
+            fontWeight: 800,
+            letterSpacing: "0.1em",
+            textShadow: "0 0 1px #000, 0 1px 1px #000, 0 1px 2px #000, 0 2px 3px #000"
           }}
         >
-          <span style={{ fontSize: "20px", marginBottom: "2px" }}>🔥</span>
-          <span>БУСТ</span>
-          <span style={{ fontSize: "7px", opacity: 0.8 }}>BOOST</span>
-        </button>
+          {t("boost.label")}
+        </div>
       )}
 
       <div style={{ 
@@ -857,6 +1043,30 @@ export default function Home() {
         </span>
       </div>
 
+      {/* Debug HUD Overlay */}
+      {debugMode && (
+        <div 
+          id="debug-hud"
+          style={{
+            position: "absolute",
+            top: isMobile ? "200px" : "240px",
+            right: isMobile ? "12px" : "20px",
+            zIndex: 100,
+            width: isMobile ? "180px" : "240px",
+            background: "rgba(20, 22, 28, 0.75)",
+            border: "1px solid rgba(230, 57, 70, 0.25)",
+            borderRadius: "16px",
+            padding: "12px 16px",
+            backdropFilter: "blur(12px)",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.4), 0 0 15px rgba(230, 57, 70, 0.1)",
+            color: "white",
+            fontSize: "12px",
+            pointerEvents: "auto",
+            transition: "all 0.3s ease",
+          }}
+        />
+      )}
+
       <GameRenderer
         gameStateRef={gameStateRef}
         lastGameStateRef={lastGameStateRef}
@@ -868,6 +1078,8 @@ export default function Home() {
         controlModeRef={controlModeRef}
         socketRef={socketRef}
         isMobile={isMobile}
+        minimapCanvasRef={minimapCanvasRef}
+        debugMode={debugMode}
       />
     </div>
   );

@@ -63,7 +63,8 @@ function connect(url: string) {
     ctx.postMessage({ 
       type: "STATUS", 
       status: "reconnecting", 
-      msg: `Соединение потеряно. Переподключение через ${Math.ceil(delay / 1000)}с...` 
+      msgKey: "status.reconnecting",
+      msgParams: { seconds: Math.ceil(delay / 1000) }
     });
 
     reconnectTimer = setTimeout(() => {
@@ -87,7 +88,12 @@ function connect(url: string) {
 
     const parsedState = decode(new Uint8Array(event.data)) as any;
     if (parsedState.type === "SERVER_RESTART") {
-      ctx.postMessage({ type: "STATUS", status: "reconnecting", msg: parsedState.message || "Сервер перезагружается..." });
+      ctx.postMessage({
+        type: "STATUS",
+        status: "reconnecting",
+        msg: parsedState.message || undefined,
+        msgKey: parsedState.message ? undefined : "status.serverRestart"
+      });
       socket?.close(1000, "Server Restart");
       return;
     }
@@ -143,7 +149,7 @@ function connect(url: string) {
           score: 0,
           kills: 0,
           deaths: 0,
-          nickname: "Игрок",
+          nickname: "",
           skin: "default"
         };
         const { body, new_heads, length, ...otherProps } = pData;

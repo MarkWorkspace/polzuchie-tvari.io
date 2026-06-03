@@ -32,7 +32,7 @@ class SnakeConfig:
     start_score: int = 1
     base_head_radius: float = 0.2
     score_thickness_scale: float = 0.0005
-    camera_zoom_out_coeff: float = 0.002
+    camera_zoom_out_coeff: float = 200.0
     growth_score_per_segment: str = "10.0"
     min_body_length: int = 9
     safe_spawn_distance: float = 15.0
@@ -126,7 +126,7 @@ class GameConfig:
         _require_range("snake.start_score", self.snake.start_score, 0, 1000000)
         _require_range("snake.base_head_radius", self.snake.base_head_radius, 0.01, 100)
         _require_range("snake.score_thickness_scale", self.snake.score_thickness_scale, 0, 10)
-        _require_range("snake.camera_zoom_out_coeff", self.snake.camera_zoom_out_coeff, 0.0, 1.0)
+        _require_range("snake.camera_zoom_out_coeff", self.snake.camera_zoom_out_coeff, 0.0, 100000.0)
         validate_growth_formula(self.snake.growth_score_per_segment)
         _require_range("snake.min_body_length", self.snake.min_body_length, 1, 10000)
         _require_range("snake.safe_spawn_distance", self.snake.safe_spawn_distance, 0, 10000)

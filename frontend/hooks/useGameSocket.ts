@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, MutableRefObject } from "react";
 import { GameState, Player, Food } from "../types/game";
+import { t } from "../lib/i18n";
 
 type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -54,12 +55,12 @@ export function useGameSocket(
       const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
       const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
       const wsPort = isStandardPort ? "" : ":8000";
-      const trimmedNickname = nickname.trim() || "Игрок";
+      const trimmedNickname = nickname.trim() || t("game.defaultPlayer");
       return `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmedNickname)}&skin=${encodeURIComponent(skin)}`;
     };
 
     setConnectionStatus("connecting");
-    setStatusMsg("Подключение к серверу...");
+    setStatusMsg(t("status.connecting"));
 
     // Create the worker
     const worker = new Worker(new URL("./game.worker.ts", import.meta.url));
@@ -84,12 +85,22 @@ export function useGameSocket(
         setConnectionStatus(msg.status);
         if (msg.status === "connected") {
           setStatusMsg(controlModeRef.current === "keyboard"
-            ? "A/D/Стрелочки — рулить | Пробел — ускорение | C — камера | T — управление"
-            : "Движение за курсором | Пробел — ускорение | C — камера | T — управление"
+            ? t("status.kbdGuide")
+            : t("status.mouseGuide")
           );
           if (socketRef.current) socketRef.current.readyState = WebSocket.OPEN;
         } else {
-          setStatusMsg(msg.msg);
+          if (msg.msgKey) {
+            let translated = t(msg.msgKey);
+            if (msg.msgParams) {
+              Object.entries(msg.msgParams).forEach(([k, v]) => {
+                translated = translated.replace(`{${k}}`, String(v));
+              });
+            }
+            setStatusMsg(translated);
+          } else {
+            setStatusMsg(msg.msg || "");
+          }
           if (socketRef.current) socketRef.current.readyState = WebSocket.CONNECTING;
         }
       } else if (msg.type === "DISCONNECT") {
@@ -131,7 +142,7 @@ export function useGameSocket(
           const board = Object.entries(playersSource)
             .map(([playerId, p]) => ({
               id: playerId,
-              nickname: p.nickname || "Игрок",
+              nickname: p.nickname || t("game.defaultPlayer"),
               score: p.score || 0,
               kills: p.kills || 0,
               deaths: p.deaths || 0,
@@ -225,7 +236,7 @@ export function useGameSocket(
         // Kill Events Calculation
         if (msg.kill_events && msg.kill_events.length > 0) {
           const extractName = (id: string) => {
-            if (!id) return "Стена";
+            if (!id) return t("status.wall");
             const player = gameStateRef.current?.players[id];
             return player?.nickname || id;
           };
@@ -265,8 +276,8 @@ export function useGameSocket(
         localInputRef.current.turn = 0;
 
         setStatusMsg(next === "keyboard"
-          ? "A/D/Стрелочки — рулить | Пробел — ускорение | C — камера | T — управление"
-          : "Движение за курсором | Пробел — ускорение | C — камера | T — управление"
+          ? t("status.kbdGuide")
+          : t("status.mouseGuide")
         );
         return;
       }
