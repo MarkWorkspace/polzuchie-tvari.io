@@ -32,6 +32,10 @@ export default function Home() {
   const [debugMode, setDebugMode] = useState(false);
 
   const requestGyroPermission = async () => {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      alert(t("alert.gyroSecureRequired"));
+      return;
+    }
     if (
       typeof DeviceOrientationEvent !== "undefined" &&
       typeof (DeviceOrientationEvent as any).requestPermission === "function"
@@ -47,6 +51,20 @@ export default function Home() {
       } catch (err) {
         console.error("Gyroscope permission request failed:", err);
       }
+    } else {
+      setControlMode("tilt");
+      controlModeRef.current = "tilt";
+    }
+  };
+
+  const handleTiltActivation = () => {
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      alert(t("alert.gyroSecureRequired"));
+      return;
+    }
+    const needsPermission = typeof DeviceOrientationEvent !== "undefined" && typeof (DeviceOrientationEvent as any).requestPermission === "function";
+    if (needsPermission) {
+      requestGyroPermission();
     } else {
       setControlMode("tilt");
       controlModeRef.current = "tilt";
@@ -453,7 +471,7 @@ export default function Home() {
                   </div>
                 </div>
                 <div 
-                  onClick={() => { const np = typeof DeviceOrientationEvent !== "undefined" && typeof (DeviceOrientationEvent as any).requestPermission === "function"; if (np) { requestGyroPermission(); } else { setControlMode("tilt"); controlModeRef.current = "tilt"; } setIsSidePanelOpen(false); }}
+                  onClick={() => { handleTiltActivation(); setIsSidePanelOpen(false); }}
                   style={{ padding: "12px", fontSize: "13px", fontWeight: 700, borderRadius: "8px", cursor: "pointer", background: controlMode === "tilt" ? "rgba(239, 68, 68, 0.15)" : "rgba(255,255,255,0.03)", border: controlMode === "tilt" ? "1px solid rgba(239, 68, 68, 0.4)" : "1px solid rgba(255,255,255,0.05)", color: controlMode === "tilt" ? "#f87171" : "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", gap: "10px" }}
                 >
                   <span style={{ fontSize: "16px" }}>📱</span>
@@ -670,13 +688,7 @@ export default function Home() {
               
               <div 
                 onClick={() => {
-                  const needsPermission = typeof DeviceOrientationEvent !== "undefined" && typeof (DeviceOrientationEvent as any).requestPermission === "function";
-                  if (needsPermission) {
-                    requestGyroPermission();
-                  } else {
-                    setControlMode("tilt");
-                    controlModeRef.current = "tilt";
-                  }
+                  handleTiltActivation();
                   setIsSidePanelOpen(false);
                 }}
                 style={{

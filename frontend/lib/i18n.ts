@@ -64,6 +64,7 @@ const translations = {
 
   // Gyro permission alert
   "alert.gyroDenied": { ru: "Доступ к гироскопу отклонён.", en: "Gyroscope permission denied." },
+  "alert.gyroSecureRequired": { ru: "Управление наклоном работает только через безопасное соединение (HTTPS). На HTTP доступ к гироскопу заблокирован браузером.", en: "Tilt controls require a secure connection (HTTPS). On HTTP, sensor access is blocked by the browser." },
 
   // Default player name
   "game.defaultPlayer": { ru: "Игрок", en: "Player" },

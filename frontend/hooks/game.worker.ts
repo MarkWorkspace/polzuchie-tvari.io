@@ -436,7 +436,9 @@ function handleRequestFrame(msg: any) {
     let start = target;
     const oldBody = lastState?.players[myId]?.body;
     if (oldBody && oldBody.length > 0) start = oldBody[0];
-    if (Math.abs(target.x - start.x) > mapW / 2 || Math.abs(target.y - start.y) > mapH / 2) start = target;
+    const camDx = target.x - start.x;
+    const camDy = target.y - start.y;
+    if (camDx * camDx + camDy * camDy > 36.0 || Math.abs(camDx) > mapW / 2 || Math.abs(camDy) > mapH / 2) start = target;
 
     camX = (start.x + (target.x - start.x) * progress) * gridSize + gridSize / 2;
     camY = -((start.y + (target.y - start.y) * progress) * gridSize + gridSize / 2);
@@ -682,14 +684,11 @@ function handleRequestFrame(msg: any) {
         let dx = bx - ax;
         let dy = by - ay;
         
-        if (Math.abs(dx) > mapW / 2) {
+        if (dx * dx + dy * dy > 36.0 || Math.abs(dx) > mapW / 2 || Math.abs(dy) > mapH / 2) {
           bx = ptB.x;
-        } else {
-          bx = ax + dx * progress;
-        }
-        if (Math.abs(dy) > mapH / 2) {
           by = ptB.y;
         } else {
+          bx = ax + dx * progress;
           by = ay + dy * progress;
         }
 
@@ -743,7 +742,8 @@ function handleRequestFrame(msg: any) {
       let dx = curr.x - prev.x;
       let dy = curr.y - prev.y;
       
-      if (Math.abs(dx) > mapW / 2 || Math.abs(dy) > mapH / 2) {
+      const segDistSq = dx * dx + dy * dy;
+      if (segDistSq > 36.0 || Math.abs(dx) > mapW / 2 || Math.abs(dy) > mapH / 2) {
         subPaths.push(currentSubPath);
         currentSubPath = [curr];
       } else {
@@ -1003,7 +1003,9 @@ function handleRequestFrame(msg: any) {
     const head = p.body[0];
     let startHead = head;
     if (oldP && oldP.body) startHead = oldP.body[0] || head;
-    if (Math.abs(head.x - startHead.x) > 50 || Math.abs(head.y - startHead.y) > 50) startHead = head;
+    const headDx = head.x - startHead.x;
+    const headDy = head.y - startHead.y;
+    if (headDx * headDx + headDy * headDy > 36.0) startHead = head;
 
     const hx = (startHead.x + (head.x - startHead.x) * progress) * gridSize + gridSize/2;
     const hy = -((startHead.y + (head.y - startHead.y) * progress) * gridSize + gridSize/2);
