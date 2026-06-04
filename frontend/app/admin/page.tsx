@@ -393,10 +393,14 @@ export default function AdminPage() {
   const [showRestartConfirm, setShowRestartConfirm] = useState(false);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    const checkMobile = () => {
+      const isCoarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+      const isMobileUA = typeof window !== "undefined" && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      setIsMobile(isCoarse || isMobileUA);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   const simulatedData = useMemo(() => {

@@ -15,6 +15,13 @@ export function useGameSocket(
   const [statusMsg, setStatusMsg] = useState("");
   const [controlMode, setControlMode] = useState<"keyboard" | "mouse" | "tilt">("keyboard");
   const controlModeRef = useRef<"keyboard" | "mouse" | "tilt">("keyboard");
+  const isManualControlModeRef = useRef<boolean>(false);
+
+  const changeControlMode = (mode: "keyboard" | "mouse" | "tilt") => {
+    isManualControlModeRef.current = true;
+    controlModeRef.current = mode;
+    setControlMode(mode);
+  };
   const [killFeed, setKillFeed] = useState<{ id: number; killer: string; victim: string; time: number }[]>([]);
   const lastLeaderboardJsonRef = useRef<string>("");
 
@@ -40,6 +47,7 @@ export function useGameSocket(
   const lastScoreFeedElRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (isManualControlModeRef.current) return;
     if (isMobile) {
       setControlMode("mouse");
       controlModeRef.current = "mouse";
@@ -246,8 +254,7 @@ export function useGameSocket(
 
       if (e.code === "KeyT") {
         const next = controlModeRef.current === "keyboard" ? "mouse" : "keyboard";
-        controlModeRef.current = next;
-        setControlMode(next);
+        changeControlMode(next);
 
         if (sock && sock.readyState === WebSocket.OPEN) {
           if (localInputRef.current.turn === -1) sock.send("LEFT_UP");
@@ -348,7 +355,7 @@ export function useGameSocket(
     localInputRef,
     controlMode,
     controlModeRef,
-    setControlMode,
+    setControlMode: changeControlMode,
     socketRef,
     workerRef,
     latestFrameDataRef,

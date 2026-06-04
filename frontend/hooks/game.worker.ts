@@ -1408,11 +1408,6 @@ function connect(url: string) {
           };
         }
 
-        for (const pid in currentPlayers) {
-          if (!nextPlayers[pid] && !parsedState.players[pid]) {
-            nextPlayers[pid] = currentPlayers[pid];
-          }
-        }
 
         if (parsedState.eaten_foods) {
           for (let i = 0; i < parsedState.eaten_foods.length; i++) {

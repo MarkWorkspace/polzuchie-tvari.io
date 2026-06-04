@@ -154,6 +154,8 @@ const GameScene = ({
   const blackHoleCoreMeshRef = useRef<THREE.InstancedMesh>(null);
 
   const textRefs = useRef<Record<string, any>>({});
+  const lastSentTurnRef = useRef(0.0);
+  const lastSentTimeRef = useRef(0);
   const [activePlayerIds, setActivePlayerIds] = useState<{id: string, isMe: boolean, nickname: string}[]>([]);
   
   const debugGeometryRef = useRef<THREE.BufferGeometry>(null);
@@ -188,11 +190,90 @@ const GameScene = ({
   const progressRef = useRef(1.0);
   const lensingCamStateRef = useRef({ camX: 0, camY: 0 });
 
-  useFrame(() => {
+  useFrame((r3fState) => {
     const time = performance.now();
     let dt = (time - camState.current.lastFrameTime) / 1000;
     if (dt > 0.1) dt = 0.1;
     camState.current.lastFrameTime = time;
+
+    // Calculate analog steering turn factor for mouse, touch, and tilt control modes
+    const state = gameStateRef.current;
+    const playerEntity = state?.players[myIdRef.current];
+    if (state && playerEntity && (controlModeRef.current === "mouse" || controlModeRef.current === "tilt")) {
+      const sensitivity = state.server_visual?.mouse_sensitivity ?? 1.0;
+      const targetDeflection = 0.5 * sensitivity;
+
+      let pointerX = 0.0;
+      if (controlModeRef.current === "tilt") {
+        pointerX = (localInputRef.current.tiltX !== undefined && localInputRef.current.tiltX !== null)
+          ? localInputRef.current.tiltX
+          : 0.0;
+      } else if (isMobile) {
+        pointerX = (localInputRef.current.touchX !== undefined && localInputRef.current.touchX !== null)
+          ? localInputRef.current.touchX
+          : 0.0;
+      } else {
+        pointerX = r3fState.pointer.x;
+      }
+
+      let desiredTurnFactor = 0.0;
+      // Small deadzone of 0.02 (1% of screen half-width) to easily travel straight
+      if (Math.abs(pointerX) > 0.02) {
+        desiredTurnFactor = pointerX / targetDeflection;
+        desiredTurnFactor = Math.max(-1.0, Math.min(1.0, desiredTurnFactor));
+      }
+
+      // Direct DOM update of the turn indicator elements for 60FPS fluid lag-free updates
+      const needleEl = document.getElementById("mouse-turn-needle");
+      const fillEl = document.getElementById("mouse-turn-fill");
+      if (needleEl) {
+        // desiredTurnFactor is from -1.0 to 1.0. Map it to percentage: -1.0 -> 0%, 0.0 -> 50%, 1.0 -> 100%.
+        const percent = (desiredTurnFactor + 1) * 50;
+        needleEl.style.left = `${percent}%`;
+        if (Math.abs(desiredTurnFactor) > 0.95) {
+          needleEl.style.backgroundColor = "#e63946";
+          needleEl.style.boxShadow = "0 0 10px #e63946";
+        } else if (Math.abs(desiredTurnFactor) > 0.02) {
+          needleEl.style.backgroundColor = "#3b82f6";
+          needleEl.style.boxShadow = "0 0 8px #3b82f6";
+        } else {
+          needleEl.style.backgroundColor = "#fafafa";
+          needleEl.style.boxShadow = "0 0 6px rgba(255,255,255,0.5)";
+        }
+      }
+      if (fillEl) {
+        // Show fill from center (50%) to the active deflection
+        if (desiredTurnFactor >= 0) {
+          fillEl.style.left = "50%";
+          fillEl.style.width = `${desiredTurnFactor * 50}%`;
+          fillEl.style.background = "linear-gradient(90deg, #3b82f6, #4ade80)";
+        } else {
+          // Negative desiredTurnFactor: fill goes left from center
+          const widthPercent = -desiredTurnFactor * 50;
+          fillEl.style.left = `${50 - widthPercent}%`;
+          fillEl.style.width = `${widthPercent}%`;
+          fillEl.style.background = "linear-gradient(90deg, #f87171, #3b82f6)";
+        }
+      }
+
+      // Update local input ref immediately for smooth visual camera alignment
+      localInputRef.current.turn = desiredTurnFactor;
+
+      // Throttle updates: send at most 20 updates per second (every 50ms),
+      // or instantly when resetting back to 0.0 to prevent drifting.
+      const throttleInterval = 50; 
+      const isSignificantlyDifferent = Math.abs(desiredTurnFactor - lastSentTurnRef.current) > 0.06;
+      const isResetting = desiredTurnFactor === 0 && lastSentTurnRef.current !== 0;
+
+      if (isResetting || (isSignificantlyDifferent && (time - lastSentTimeRef.current > throttleInterval))) {
+        const sock = socketRef.current;
+        if (sock && sock.readyState === WebSocket.OPEN) {
+          sock.send(`TURN:${desiredTurnFactor.toFixed(3)}`);
+          lastSentTurnRef.current = desiredTurnFactor;
+          lastSentTimeRef.current = time;
+        }
+      }
+    }
 
     // 1. Handshake request to background Web Worker for spline interpolation and geometry generation
     if (workerRef?.current && !isWaitingForFrameRef.current) {

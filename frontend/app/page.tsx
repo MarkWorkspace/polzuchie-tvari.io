@@ -54,12 +54,14 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+    const checkMobile = () => {
+      const isCoarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+      const isMobileUA = typeof window !== "undefined" && /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      setIsMobile(isCoarse || isMobileUA);
     };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   useEffect(() => {
@@ -279,18 +281,43 @@ export default function Home() {
 
   // Gyroscope/Accelerometer tilt steering controller
   useEffect(() => {
-    if (!isMobile || !hasJoined || controlMode !== "tilt") {
+    if (!hasJoined || controlMode !== "tilt") {
       localInputRef.current.tiltX = null;
       return;
     }
 
     const handleOrientation = (e: DeviceOrientationEvent) => {
-      // e.gamma is rotation around the Y-axis (left/right tilt when phone is in portrait mode).
-      if (e.gamma === null) return;
+      const beta = e.beta;
+      const gamma = e.gamma;
+      if (beta === null || gamma === null) return;
 
-      const maxTiltAngle = 30;
-      let tiltVal = e.gamma;
+      // Determine screen orientation angle
+      let screenAngle = 0;
+      if (typeof window !== "undefined") {
+        if (window.screen && window.screen.orientation) {
+          screenAngle = window.screen.orientation.angle;
+        } else if (typeof window.orientation !== "undefined") {
+          screenAngle = window.orientation as number;
+        } else {
+          // Fallback if orientation APIs are completely missing
+          screenAngle = window.innerWidth > window.innerHeight ? 90 : 0;
+        }
+      }
 
+      let tiltVal = 0;
+      // Math.abs(screenAngle) === 90 or 270 represents landscape
+      if (Math.abs(screenAngle) === 90 || Math.abs(screenAngle) === 270) {
+        // Landscape mode: tilt left/right corresponds to rotation around the X-axis (beta).
+        // If the screen is rotated 90 degrees clockwise (screenAngle is -90 or 270),
+        // we invert beta to keep the steering direction intuitive.
+        tiltVal = (screenAngle === -90 || screenAngle === 270) ? -beta : beta;
+      } else {
+        // Portrait mode: tilt left/right corresponds to rotation around the Y-axis (gamma).
+        // If the screen is rotated 180 degrees (upside down), we invert gamma.
+        tiltVal = (screenAngle === 180) ? -gamma : gamma;
+      }
+
+      const maxTiltAngle = 30; // 30 degrees deflection for full steer
       // Small deadzone of 3 degrees to easily travel perfectly straight
       let desiredTurnFactor = 0;
       if (Math.abs(tiltVal) > 3) {
@@ -306,7 +333,7 @@ export default function Home() {
       window.removeEventListener("deviceorientation", handleOrientation);
       localInputRef.current.tiltX = null;
     };
-  }, [isMobile, hasJoined, controlMode, localInputRef]);
+  }, [hasJoined, controlMode, localInputRef]);
 
   if (!hasJoined) {
     return (

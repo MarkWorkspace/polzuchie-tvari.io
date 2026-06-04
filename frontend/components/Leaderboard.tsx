@@ -35,7 +35,11 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({
       setIsOpen(true);
       return;
     }
-    if (window.innerWidth < 768) {
+    const isMobileDevice = typeof window !== "undefined" && (
+      window.matchMedia("(pointer: coarse)").matches || 
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    );
+    if (isMobileDevice) {
       setIsOpen(false);
     }
   }, [alwaysOpen]);
