@@ -23,6 +23,8 @@ export function useGameSocket(
   const lastUpdateTimeRef = useRef<number>(0);
   const stateQueueRef = useRef<{ time: number; state: GameState }[]>([]);
   const myIdRef = useRef<string>("");
+  const latestFrameDataRef = useRef<any>(null);
+  const isWaitingForFrameRef = useRef<boolean>(false);
   const lastLeaderboardUpdateRef = useRef<number>(0);
   const localInputRef = useRef<{ turn: number; accelerating: boolean; touchX?: number | null; tiltX?: number | null }>({ turn: 0, accelerating: false, touchX: null, tiltX: null });
   
@@ -121,42 +123,17 @@ export function useGameSocket(
         }
       } else if (msg.type === "YOUR_ID") {
         myIdRef.current = msg.your_id;
-      } else if (msg.type === "STATE") {
+      } else if (msg.type === "FRAME_DATA") {
         lastGameStateRef.current = gameStateRef.current;
-        gameStateRef.current = msg.state;
-        lastUpdateTimeRef.current = performance.now();
-
-        if (gameStateRef.current) {
-          stateQueueRef.current.push({
-            time: lastUpdateTimeRef.current,
-            state: gameStateRef.current,
-          });
-          if (stateQueueRef.current.length > 20) {
-            stateQueueRef.current.shift();
-          }
-        }
+        gameStateRef.current = msg.gameState;
 
         // Leaderboard Calculation
-        const playersSource = gameStateRef.current?.players;
-        if (playersSource && performance.now() - lastLeaderboardUpdateRef.current > 500) {
-          const board = Object.entries(playersSource)
-            .map(([playerId, p]) => ({
-              id: playerId,
-              nickname: p.nickname || t("game.defaultPlayer"),
-              score: p.score || 0,
-              kills: p.kills || 0,
-              deaths: p.deaths || 0,
-              isMe: playerId === myIdRef.current,
-            }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 10);
-          
-          const boardJson = JSON.stringify(board);
+        if (msg.leaderboard) {
+          const boardJson = JSON.stringify(msg.leaderboard);
           if (boardJson !== lastLeaderboardJsonRef.current) {
             lastLeaderboardJsonRef.current = boardJson;
-            window.dispatchEvent(new CustomEvent("game-leaderboard-update", { detail: board }));
+            window.dispatchEvent(new CustomEvent("game-leaderboard-update", { detail: msg.leaderboard }));
           }
-          lastLeaderboardUpdateRef.current = performance.now();
         }
 
         // Score Feed Calculation (Direct DOM with accumulation)
@@ -249,6 +226,9 @@ export function useGameSocket(
           }));
           setKillFeed(prev => [...prev, ...newKills].slice(-5));
         }
+
+        latestFrameDataRef.current = msg;
+        isWaitingForFrameRef.current = false;
       }
     };
 
@@ -369,6 +349,9 @@ export function useGameSocket(
     controlMode,
     controlModeRef,
     setControlMode,
-    socketRef
+    socketRef,
+    workerRef,
+    latestFrameDataRef,
+    isWaitingForFrameRef
   };
 }

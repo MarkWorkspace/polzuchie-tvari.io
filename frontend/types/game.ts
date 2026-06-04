@@ -1,6 +1,16 @@
 export type ServerWorldConfig = {
   width: number;
   height: number;
+  portals_enabled?: number;
+  portals_count?: number;
+  portals_radius?: number;
+  black_holes_enabled?: number;
+  black_holes_count?: number;
+  black_holes_spawn_chance?: number;
+  black_holes_pull_radius?: number;
+  black_holes_pull_force?: number;
+  black_holes_kill_radius?: number;
+  black_holes_growth_time?: number;
 };
 
 export type ServerSimulationConfig = {
@@ -67,6 +77,24 @@ export type Player = {
   nickname?: string;
 };
 
+export type Portal = {
+  id: number;
+  color: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  radius: number;
+};
+
+export type BlackHole = {
+  id: string;
+  x: number;
+  y: number;
+  pull_radius: number;
+  kill_radius: number;
+};
+
 export type GameState = {
   server_tick_rate?: number;
   server_world?: ServerWorldConfig;
@@ -76,6 +104,8 @@ export type GameState = {
   server_food?: ServerFoodConfig;
   players: Record<string, Player>;
   foods: Food[];
+  portals?: Portal[];
+  black_holes?: BlackHole[];
 };
 
 export type NetworkPlayer = Omit<Player, "body"> & {
@@ -107,6 +137,8 @@ export type FullGameMessage = {
   eaten_foods?: number[];
   kill_events?: KillEvent[];
   your_id?: string;
+  portals?: Portal[];
+  black_holes?: BlackHole[];
 };
 
 export type DeltaGameMessage = {
@@ -122,6 +154,9 @@ export type DeltaGameMessage = {
   eaten_foods?: number[];
   moved_foods?: { id: number; x: number; y: number }[];
   kill_events?: KillEvent[];
+  portals?: Portal[];
+  black_holes?: BlackHole[];
 };
 
 export type ServerGameMessage = FullGameMessage | DeltaGameMessage;
+

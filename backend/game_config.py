@@ -13,6 +13,17 @@ class WorldConfig:
     cluster_spawn_chance: float = 0.8
     cluster_spread: float = 5.0
     cluster_move_chance: float = 0.025
+    portals_enabled: int = 1
+    portals_count: int = 2
+    portals_radius: float = 2.5
+    black_holes_enabled: int = 1
+    black_holes_count: int = 2
+    black_holes_spawn_chance: float = 0.5
+    black_holes_pull_radius: float = 12.0
+    black_holes_pull_force: float = 6.0
+    black_holes_kill_radius: float = 1.8
+    black_holes_growth_time: float = 5.0
+
 
 
 @dataclass
@@ -113,6 +124,17 @@ class GameConfig:
         _require_range("world.cluster_spawn_chance", self.world.cluster_spawn_chance, 0, 1)
         _require_range("world.cluster_spread", self.world.cluster_spread, 0.1, 1000)
         _require_range("world.cluster_move_chance", self.world.cluster_move_chance, 0, 1)
+        _require_range("world.portals_enabled", self.world.portals_enabled, 0, 1)
+        _require_range("world.portals_count", self.world.portals_count, 1, 10)
+        _require_range("world.portals_radius", self.world.portals_radius, 0.5, 50.0)
+        _require_range("world.black_holes_enabled", self.world.black_holes_enabled, 0, 1)
+        _require_range("world.black_holes_count", self.world.black_holes_count, 1, 10)
+        _require_range("world.black_holes_spawn_chance", self.world.black_holes_spawn_chance, 0.0, 1.0)
+        _require_range("world.black_holes_pull_radius", self.world.black_holes_pull_radius, 1.0, 100.0)
+        _require_range("world.black_holes_pull_force", self.world.black_holes_pull_force, 0.0, 100.0)
+        _require_range("world.black_holes_kill_radius", self.world.black_holes_kill_radius, 0.1, 50.0)
+        _require_range("world.black_holes_growth_time", self.world.black_holes_growth_time, 0.1, 300.0)
+
 
         _require_range("simulation.tick_rate", self.simulation.tick_rate, 5, 120)
         _require_range("simulation.base_speed_per_second", self.simulation.base_speed_per_second, 0.1, 200)

@@ -81,6 +81,16 @@ const FIELD_LABELS: Record<string, string> = {
   camera_z_height: "Camera Z-Height",
   camera_y_offset: "Camera Y-Offset",
   mouse_sensitivity: "Mouse Sensitivity",
+  portals_enabled: "Portals Enabled",
+  portals_count: "Portal Pairs Count",
+  portals_radius: "Portal Radius",
+  black_holes_enabled: "Black Holes Enabled",
+  black_holes_count: "Black Holes Count",
+  black_holes_spawn_chance: "Black Hole Spawn Chance",
+  black_holes_pull_radius: "Gravity Pull Radius",
+  black_holes_pull_force: "Gravity Pull Force",
+  black_holes_kill_radius: "Event Horizon Radius",
+  black_holes_growth_time: "Black Hole Growth/Shrink Time",
 };
 
 const FIELD_TOOLTIPS: Record<string, string> = {
@@ -104,7 +114,17 @@ const FIELD_TOOLTIPS: Record<string, string> = {
   aoi_length_padding: "Length-based Area of Interest expansion coefficient.",
   min_fog_radius: "Minimum visual fog-of-war radius around the snake's head.",
   fog_score_expansion_coeff: "Fog-of-war expansion coefficient relative to score.",
-  mouse_sensitivity: "Cursor deflection factor from the center of the screen to reach maximum snake turning speed (1.0 - quarter screen, 2.0 - half screen to the edge)."
+  mouse_sensitivity: "Cursor deflection factor from the center of the screen to reach maximum snake turning speed (1.0 - quarter screen, 2.0 - half screen to the edge).",
+  portals_enabled: "Enable or disable spatial teleportation portal pairs on the map (1 = enabled, 0 = disabled).",
+  portals_count: "Number of active portal pairs. Entrance and exit coordinates are generated randomly.",
+  portals_radius: "Radius of the portal area in grid units. Heads entering this area are teleported to the sister portal.",
+  black_holes_enabled: "Enable or disable gravity-well black holes that attract players and food (1 = enabled, 0 = disabled).",
+  black_holes_count: "Number of active black hole slots on the map.",
+  black_holes_spawn_chance: "Probability (0 to 1) checked once per minute for each slot to determine if a black hole should grow at a random location.",
+  black_holes_pull_radius: "Drift/gravity field range. Entities inside this range are pulled towards the center.",
+  black_holes_pull_force: "Gravity pull strength factor in grid units per second.",
+  black_holes_kill_radius: "Event horizon range. Heads touching this zone are instantly destroyed. Food is consumed.",
+  black_holes_growth_time: "Duration in seconds for a black hole to smoothly grow or collapse between zero and its full size."
 };
 
 const FIELD_UNITS: Record<string, string> = {
@@ -150,7 +170,17 @@ const FIELD_UNITS: Record<string, string> = {
   camera_pitch_angle: "°",
   camera_z_height: "cells",
   camera_y_offset: "cells",
-  mouse_sensitivity: "coeff"
+  mouse_sensitivity: "coeff",
+  portals_enabled: "0/1",
+  portals_count: "pairs",
+  portals_radius: "cells",
+  black_holes_enabled: "0/1",
+  black_holes_count: "slots",
+  black_holes_spawn_chance: "chance",
+  black_holes_pull_radius: "cells",
+  black_holes_pull_force: "cells/s",
+  black_holes_kill_radius: "cells",
+  black_holes_growth_time: "sec"
 };
 
 const HIDDEN_FIELDS = new Set(["types", "aoi_radius", "aoi_length_padding"]);
@@ -360,6 +390,7 @@ export default function AdminPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [isAdminSidePanelOpen, setIsAdminSidePanelOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -678,6 +709,31 @@ export default function AdminPage() {
     setFoodTypes(prev => [...prev, { value: "1", weight: "10", color: "#ffffff", expanded: true }]);
   };
 
+  const handleRestartGame = useCallback(async () => {
+    try {
+      const host = window.location.hostname || "127.0.0.1";
+      const protocol = window.location.protocol;
+      const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
+      const restartUrl = isStandardPort
+        ? `${protocol}//${host}/ws/admin/restart`
+        : `${protocol}//${host}:8000/admin/restart`;
+
+      const res = await fetch(restartUrl, {
+        method: "POST",
+        headers: { "x-admin-password": password },
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        setStatus(`Restart failed: ${detail}`);
+      } else {
+        setStatus("✓ Game restarted successfully. All players disconnected.");
+      }
+    } catch (e) {
+      setStatus(`Restart error: ${String(e)}`);
+    }
+    setShowRestartConfirm(false);
+  }, [password]);
+
   // Вычисление измененных полей для вкладок
   const sectionModifiedCounts = useMemo(() => {
     const counts: Record<string, number> = {
@@ -981,6 +1037,32 @@ export default function AdminPage() {
                     >
                       Main Page
                     </a>
+
+                    {/* Restart Game */}
+                    <button
+                      type="button"
+                      onClick={() => setShowRestartConfirm(true)}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 8,
+                        border: "1px solid rgba(245, 158, 11, 0.4)",
+                        background: "rgba(245, 158, 11, 0.1)",
+                        color: "#f59e0b",
+                        fontWeight: 600,
+                        fontSize: 13,
+                        cursor: "pointer",
+                        transition: "all 0.2s",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        height: "32px",
+                        boxSizing: "border-box" as const
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(245, 158, 11, 0.2)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(245, 158, 11, 0.1)"; }}
+                    >
+                      🔄 Restart
+                    </button>
 
                     {/* Logout */}
                     <button 
@@ -2022,6 +2104,24 @@ export default function AdminPage() {
             </a>
 
             {config && (
+              <button
+                type="button"
+                onClick={() => { setShowRestartConfirm(true); setIsAdminSidePanelOpen(false); }}
+                style={{
+                  marginTop: 10,
+                  padding: "12px 14px", borderRadius: 8,
+                  border: "1px solid rgba(245, 158, 11, 0.4)",
+                  background: "rgba(245, 158, 11, 0.1)",
+                  color: "#f59e0b", fontWeight: 700, fontSize: 14,
+                  cursor: "pointer",
+                  textAlign: "center",
+                }}
+              >
+                🔄 Restart Game
+              </button>
+            )}
+
+            {config && (
               <button 
                 type="button" 
                 onClick={() => {
@@ -2043,6 +2143,89 @@ export default function AdminPage() {
                 Logout
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Restart Confirmation Modal */}
+      {showRestartConfirm && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 99999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0, 0, 0, 0.6)",
+            backdropFilter: "blur(6px)",
+          }}
+          onClick={() => setShowRestartConfirm(false)}
+        >
+          <div
+            style={{
+              background: "#1e1f26",
+              borderRadius: 16,
+              border: "1px solid rgba(245, 158, 11, 0.3)",
+              padding: "28px 32px",
+              maxWidth: 420,
+              width: "90%",
+              boxShadow: "0 16px 48px rgba(0, 0, 0, 0.5), 0 0 20px rgba(245, 158, 11, 0.1)",
+              textAlign: "center",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+            <h3 style={{ color: "#f59e0b", fontSize: 18, fontWeight: 800, margin: "0 0 10px" }}>
+              Restart Game?
+            </h3>
+            <p style={{ color: "#a1a1aa", fontSize: 13, lineHeight: 1.6, margin: "0 0 24px" }}>
+              This will disconnect all players and reset the game state.
+              Food will be re-spawned and all scores will be lost.
+              Configuration settings will be preserved.
+            </p>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+              <button
+                type="button"
+                onClick={() => setShowRestartConfirm(false)}
+                style={{
+                  flex: 1,
+                  padding: "10px 20px",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  background: "rgba(255, 255, 255, 0.06)",
+                  color: "#fafafa",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.12)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)"; }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRestartGame}
+                style={{
+                  flex: 1,
+                  padding: "10px 20px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "#e63946",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#c62e3b"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#e63946"; }}
+              >
+                Restart
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -114,7 +114,10 @@ export default function Home() {
     controlMode,
     controlModeRef,
     setControlMode,
-    socketRef
+    socketRef,
+    workerRef,
+    latestFrameDataRef,
+    isWaitingForFrameRef
   } = useGameSocket(nickname, selectedSkin, hasJoined, cameraModeRef, isMobile);
 
   const isSteeringRef = useRef(false);
@@ -1080,6 +1083,9 @@ export default function Home() {
         isMobile={isMobile}
         minimapCanvasRef={minimapCanvasRef}
         debugMode={debugMode}
+        workerRef={workerRef}
+        latestFrameDataRef={latestFrameDataRef}
+        isWaitingForFrameRef={isWaitingForFrameRef}
       />
     </div>
   );
