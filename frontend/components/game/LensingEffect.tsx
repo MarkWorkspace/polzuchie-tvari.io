@@ -184,6 +184,12 @@ export const LensingEffect: React.FC<LensingEffectProps> = ({
       bhCount++;
     }
 
+    if (bhCount === 0) {
+      coreGl.setRenderTarget(null);
+      coreGl.render(scene, camera);
+      return;
+    }
+
     lensingMaterial.uniforms.uBlackHoles.value = bhPositionsArray;
     lensingMaterial.uniforms.uBlackHoleCount.value = bhCount;
     lensingMaterial.uniforms.tDiffuse.value = renderTarget.texture;

@@ -38,12 +38,13 @@ async def patch_admin_config(patch: dict, x_admin_password: str | None = Header(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 async def health_check():
+    health = game.get_health_info()
     return {
         "status": "ok",
-        "players": len(game.players),
+        "players": health["players_count"],
         "connections": len(active_connections),
-        "food_count": len(game.foods),
-        "tick_rate": game.config.simulation.tick_rate
+        "food_count": health["foods_count"],
+        "tick_rate": health["tick_rate"]
     }
 
 async def admin_restart_game(x_admin_password: str | None = Header(default=None, alias="x-admin-password")):
@@ -71,28 +72,7 @@ async def admin_restart_game(x_admin_password: str | None = Header(default=None,
     active_connections.clear()
 
     # Reset game state while preserving configuration
-    game.players.clear()
-    game.client_visibility.clear()
-    game.foods.clear()
-    game.food_id_counter = 0
-    game.new_foods.clear()
-    game.eaten_foods.clear()
-    game.pending_eaten_foods.clear()
-    game.kill_events.clear()
-    game.moved_foods.clear()
-    game.player_grid.clear()
-    game.full_players_dict.clear()
-    game.mini_players_dict.clear()
-    game.cluster_timer = 0.0
-    game._max_player_body_len = 1
-    game.clusters = game._create_clusters()
-    game._generate_portals()
-    game._update_black_hole_slots(force_roll=True)
-
-    # Re-spawn food
-    for _ in range(game.target_food_count):
-        f = game._spawn_food()
-        game.foods[f.id] = f
+    game.reset_state()
 
     print("[Admin] Game state reset complete. Clients will auto-reconnect.")
     return {"status": "ok", "message": "Game restarted"}

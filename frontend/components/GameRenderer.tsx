@@ -56,6 +56,19 @@ interface Particle {
   life: number;
 }
 
+function areActivePlayersEqual(
+  a: { id: string; isMe: boolean; nickname: string }[],
+  b: { id: string; isMe: boolean; nickname: string }[]
+): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id || a[i].isMe !== b[i].isMe || a[i].nickname !== b[i].nickname) {
+      return false;
+    }
+  }
+  return true;
+}
+
 interface GameSceneProps {
   gameStateRef: React.MutableRefObject<GameState | null>;
   lastGameStateRef: React.MutableRefObject<GameState | null>;
@@ -195,6 +208,12 @@ const GameScene = ({
     let dt = (time - camState.current.lastFrameTime) / 1000;
     if (dt > 0.1) dt = 0.1;
     camState.current.lastFrameTime = time;
+
+    // Freeze the view if the socket is not fully connected (open)
+    const isConnected = socketRef?.current && socketRef.current.readyState === WebSocket.OPEN;
+    if (!isConnected) {
+      dt = 0.0;
+    }
 
     // Calculate analog steering turn factor for mouse, touch, and tilt control modes
     const state = gameStateRef.current;
@@ -525,7 +544,7 @@ const GameScene = ({
       }
 
       // 10. Update text nickname labels
-      if (activePlayerIds.length !== msg.activePlayers.length || JSON.stringify(activePlayerIds) !== JSON.stringify(msg.activePlayers)) {
+      if (!areActivePlayersEqual(activePlayerIds, msg.activePlayers)) {
         setActivePlayerIds(msg.activePlayers);
       }
 
@@ -765,7 +784,8 @@ export const GameRenderer = React.memo(({
       if (!ctx) return;
       
       const state = gameStateRef.current;
-      if (state && state.players && state.foods) {
+      const msg = latestFrameDataRef.current;
+      if (state && state.players && msg && msg.foodMinimapData) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -774,12 +794,21 @@ export const GameRenderer = React.memo(({
         const mapScaleX = canvas.width / mapW;
         const mapScaleY = canvas.height / mapH;
 
-        for (let i = 0; i < state.foods.length; i++) {
-          const f = state.foods[i];
-          ctx.fillStyle = f.color || '#ef4444';
-          ctx.globalAlpha = f.value >= 2 ? 0.8 : 0.5;
-          const s = f.value >= 50 ? 5 : f.value >= 20 ? 4 : 2;
-          ctx.fillRect(f.x * mapScaleX - s/2, f.y * mapScaleY - s/2, s, s);
+        const foodCount = msg.foodMinimapData.length / 4;
+        for (let i = 0; i < foodCount; i++) {
+          const fx = msg.foodMinimapData[i * 4 + 0];
+          const fy = msg.foodMinimapData[i * 4 + 1];
+          const fcolorInt = msg.foodMinimapData[i * 4 + 2];
+          const fvalue = msg.foodMinimapData[i * 4 + 3];
+
+          const hexColor = '#' + Math.round(fcolorInt).toString(16).padStart(6, '0');
+          ctx.fillStyle = hexColor;
+          ctx.globalAlpha = isMobile ? 0.85 : (fvalue >= 2 ? 0.8 : 0.5);
+          let s = 1.0;
+          if (fvalue > 1.0) {
+            s = fvalue >= 50 ? 5.0 : fvalue >= 20 ? 4.0 : 2.0;
+          }
+          ctx.fillRect(fx * mapScaleX - s/2, fy * mapScaleY - s/2, s, s);
         }
         ctx.globalAlpha = 1.0;
 
@@ -807,7 +836,7 @@ export const GameRenderer = React.memo(({
     };
     animId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animId);
-  }, [gameStateRef, myIdRef, activeMinimapCanvasRef]);
+  }, [gameStateRef, myIdRef, activeMinimapCanvasRef, latestFrameDataRef, isMobile]);
 
   return (
     <div style={{ 
@@ -820,9 +849,9 @@ export const GameRenderer = React.memo(({
     }}>
       <Canvas 
         shadows={false} 
-        dpr={isMobile ? [1, 1.5] : [1, 2]} 
+        dpr={isMobile ? [1, 2] : [1, 2]} 
         camera={{ fov: 50, near: 15.0, far: 15000.0 }} 
-        gl={{ logarithmicDepthBuffer: !isMobile }}
+        gl={{ antialias: true, powerPreference: "high-performance", logarithmicDepthBuffer: !isMobile }}
       >
         <GameScene 
           gameStateRef={gameStateRef}

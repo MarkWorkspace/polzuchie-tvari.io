@@ -24,7 +24,7 @@ async def game_loop():
     while True:
         start_time = asyncio.get_event_loop().time()
         try:
-            game.tick()
+            await asyncio.to_thread(game.tick)
         except Exception as e:
             traceback.print_exc()
             elapsed = asyncio.get_event_loop().time() - start_time
@@ -38,7 +38,7 @@ async def game_loop():
                 return_visibility=True,
                 serialize_msgpack=True
             )
-            replace_queued_state(connection["queue"], (zlib.compress(state_msgpack, level=6), visible_players))
+            replace_queued_state(connection["queue"], (zlib.compress(state_msgpack, level=1), visible_players))
             
         elapsed = asyncio.get_event_loop().time() - start_time
         await asyncio.sleep(max(0.0, game.tick_interval - elapsed))

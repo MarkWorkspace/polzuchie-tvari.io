@@ -14,6 +14,7 @@ from app.engine.state import GameState
 from app.engine.state import game
 
 active_connections = {}
+pending_disconnects = {}
 
 MAX_CONNECTIONS = 50
 RATE_LIMIT_PER_SECOND = 30
@@ -26,7 +27,7 @@ async def sender_loop(client_id, websocket, queue):
         while True:
             data, visible_players = await queue.get()
             await websocket.send_bytes(data)
-            game.client_visibility[client_id] = visible_players
+            game.set_client_visibility(client_id, visible_players)
     except asyncio.CancelledError:
         raise
     except Exception:
@@ -39,10 +40,25 @@ def replace_queued_state(queue, data):
     with contextlib.suppress(asyncio.QueueFull):
         queue.put_nowait(data)
 
-async def websocket_endpoint(websocket: WebSocket, nickname: str = "Игрок", skin: str = "#22c55e"):
-    client_id = str(uuid.uuid4())
+async def websocket_endpoint(
+    websocket: WebSocket,
+    nickname: str = "Игрок",
+    skin: str = "#22c55e",
+    client_id: str | None = None
+):
+    reconnecting = False
+    if client_id:
+        try:
+            uuid.UUID(client_id)
+            if client_id in game.players:
+                reconnecting = True
+        except ValueError:
+            client_id = None
+
+    if not client_id:
+        client_id = str(uuid.uuid4())
     
-    if len(active_connections) >= MAX_CONNECTIONS:
+    if len(active_connections) >= MAX_CONNECTIONS and not reconnecting:
         await websocket.close(code=4002, reason="Server full")
         return
     
@@ -52,7 +68,22 @@ async def websocket_endpoint(websocket: WebSocket, nickname: str = "Игрок",
         skin = "#22c55e"
     
     await websocket.accept()
-    game.add_player(client_id, nickname, skin)
+
+    # Cancel pending disconnect if reconnecting
+    disconnect_task = pending_disconnects.pop(client_id, None)
+    if disconnect_task:
+        disconnect_task.cancel()
+
+    if reconnecting:
+        old_conn = active_connections.pop(client_id, None)
+        if old_conn:
+            old_conn["task"].cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await old_conn["task"]
+            with contextlib.suppress(Exception):
+                await old_conn["websocket"].close()
+    else:
+        game.add_player(client_id, nickname, skin)
     
     full_state = game.get_full_state(client_id)
     full_state["your_id"] = client_id
@@ -81,10 +112,7 @@ async def websocket_endpoint(websocket: WebSocket, nickname: str = "Игрок",
                 try:
                     val = int(data[6:])
                     if val >= 0:
-                        if client_id in game.players:
-                            p = game.players[client_id]
-                            p.score = val
-                            game.align_player_growth(p)
+                        game.update_player_score(client_id, val)
                 except ValueError:
                     pass
                 continue
@@ -100,9 +128,21 @@ async def websocket_endpoint(websocket: WebSocket, nickname: str = "Игрок",
     except Exception:
         pass
     finally:
-        connection = active_connections.pop(client_id, None)
-        if connection:
-            connection["task"].cancel()
+        conn = active_connections.get(client_id)
+        if conn and conn["websocket"] == websocket:
+            active_connections.pop(client_id, None)
+            conn["task"].cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await connection["task"]
-        game.remove_player(client_id)
+                await conn["task"]
+            
+            game.reset_player_input(client_id)
+
+            async def delayed_remove(cid):
+                try:
+                    await asyncio.sleep(3.0)
+                    game.remove_player(cid)
+                    pending_disconnects.pop(cid, None)
+                except asyncio.CancelledError:
+                    pass
+
+            pending_disconnects[client_id] = asyncio.create_task(delayed_remove(client_id))

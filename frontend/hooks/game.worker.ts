@@ -31,6 +31,8 @@ let myId = "";
 let gameState: GameState | null = null;
 let lastGameState: GameState | null = null;
 const foodMap = new Map<number, Food>();
+const lastFoodMap = new Map<number, Food>();
+const lastBhMap = new Map<string, any>();
 const stateQueue: { time: number; state: GameState }[] = [];
 let workerRenderTime: number | null = null;
 
@@ -70,6 +72,162 @@ function parsePoints(arr: any): { x: number; y: number }[] {
   }
   return arr;
 }
+
+class GrowableFloat32Array {
+  public array: Float32Array;
+  public length = 0;
+
+  constructor(initialCapacity = 65536) {
+    this.array = new Float32Array(initialCapacity);
+  }
+
+  public reset() {
+    this.length = 0;
+  }
+
+  public push2(v1: number, v2: number) {
+    if (this.length + 2 > this.array.length) {
+      this.grow(this.length + 2);
+    }
+    this.array[this.length++] = v1;
+    this.array[this.length++] = v2;
+  }
+
+  public push3(v1: number, v2: number, v3: number) {
+    if (this.length + 3 > this.array.length) {
+      this.grow(this.length + 3);
+    }
+    this.array[this.length++] = v1;
+    this.array[this.length++] = v2;
+    this.array[this.length++] = v3;
+  }
+
+  public push4(v1: number, v2: number, v3: number, v4: number) {
+    if (this.length + 4 > this.array.length) {
+      this.grow(this.length + 4);
+    }
+    this.array[this.length++] = v1;
+    this.array[this.length++] = v2;
+    this.array[this.length++] = v3;
+    this.array[this.length++] = v4;
+  }
+
+  public push6(v1: number, v2: number, v3: number, v4: number, v5: number, v6: number) {
+    if (this.length + 6 > this.array.length) {
+      this.grow(this.length + 6);
+    }
+    this.array[this.length++] = v1;
+    this.array[this.length++] = v2;
+    this.array[this.length++] = v3;
+    this.array[this.length++] = v4;
+    this.array[this.length++] = v5;
+    this.array[this.length++] = v6;
+  }
+
+  private grow(minSize: number) {
+    let newCap = this.array.length * 2;
+    if (newCap < minSize) newCap = minSize;
+    const newArr = new Float32Array(newCap);
+    newArr.set(this.array);
+    this.array = newArr;
+  }
+
+  public slice(): Float32Array {
+    return this.array.slice(0, this.length);
+  }
+}
+
+class GrowableUint32Array {
+  public array: Uint32Array;
+  public length = 0;
+
+  constructor(initialCapacity = 32768) {
+    this.array = new Uint32Array(initialCapacity);
+  }
+
+  public reset() {
+    this.length = 0;
+  }
+
+  public push3(v1: number, v2: number, v3: number) {
+    if (this.length + 3 > this.array.length) {
+      this.grow(this.length + 3);
+    }
+    this.array[this.length++] = v1;
+    this.array[this.length++] = v2;
+    this.array[this.length++] = v3;
+  }
+
+  public push6(v1: number, v2: number, v3: number, v4: number, v5: number, v6: number) {
+    if (this.length + 6 > this.array.length) {
+      this.grow(this.length + 6);
+    }
+    this.array[this.length++] = v1;
+    this.array[this.length++] = v2;
+    this.array[this.length++] = v3;
+    this.array[this.length++] = v4;
+    this.array[this.length++] = v5;
+    this.array[this.length++] = v6;
+  }
+
+  private grow(minSize: number) {
+    let newCap = this.array.length * 2;
+    if (newCap < minSize) newCap = minSize;
+    const newArr = new Uint32Array(newCap);
+    newArr.set(this.array);
+    this.array = newArr;
+  }
+
+  public slice(): Uint32Array {
+    return this.array.slice(0, this.length);
+  }
+}
+
+const bodyVerticesBuf = new GrowableFloat32Array(65536);
+const bodyUVsBuf = new GrowableFloat32Array(65536);
+const bodyColorsBuf = new GrowableFloat32Array(65536);
+const bodySnakeParamsBuf = new GrowableFloat32Array(65536);
+const bodyIndicesBuf = new GrowableUint32Array(32768);
+
+const shadowVerticesBuf = new GrowableFloat32Array(65536);
+const shadowUVsBuf = new GrowableFloat32Array(65536);
+const shadowColorsBuf = new GrowableFloat32Array(65536);
+const shadowSnakeParamsBuf = new GrowableFloat32Array(65536);
+const shadowIndicesBuf = new GrowableUint32Array(32768);
+
+const tempFoodMatrices = new Float32Array(5000 * 16);
+const tempFoodColors = new Float32Array(5000 * 3);
+const tempFoodShadowMatrices = new Float32Array(5000 * 16);
+
+const MAX_SPLINE_POINTS = 16384;
+const t_segX = new Float32Array(MAX_SPLINE_POINTS);
+const t_segY = new Float32Array(MAX_SPLINE_POINTS);
+const t_smoothX = new Float32Array(MAX_SPLINE_POINTS);
+const t_smoothY = new Float32Array(MAX_SPLINE_POINTS);
+const t_smoothCoord = new Float32Array(MAX_SPLINE_POINTS);
+const t_nx = new Float32Array(MAX_SPLINE_POINTS);
+const t_ny = new Float32Array(MAX_SPLINE_POINTS);
+const t_subPathStarts = new Int32Array(100);
+const t_subPathLens = new Int32Array(100);
+
+const t_pathX = new Float32Array(MAX_SPLINE_POINTS);
+const t_pathY = new Float32Array(MAX_SPLINE_POINTS);
+const t_pathNx = new Float32Array(MAX_SPLINE_POINTS);
+const t_pathNy = new Float32Array(MAX_SPLINE_POINTS);
+const t_pathUvY = new Float32Array(MAX_SPLINE_POINTS);
+
+const MAX_EYES = 1000;
+const t_eyeEx = new Float32Array(MAX_EYES);
+const t_eyeEy = new Float32Array(MAX_EYES);
+const t_eyeEz = new Float32Array(MAX_EYES);
+const t_eyeR = new Float32Array(MAX_EYES);
+const t_eyeColor = new Float32Array(MAX_EYES);
+
+const t_pupilPx = new Float32Array(MAX_EYES);
+const t_pupilPy = new Float32Array(MAX_EYES);
+const t_pupilPz = new Float32Array(MAX_EYES);
+const t_pupilR = new Float32Array(MAX_EYES);
+const t_pupilColor = new Float32Array(MAX_EYES);
 
 // Formula evaluation and Color helpers
 const colorCache = new Map<string, number>();
@@ -460,7 +618,7 @@ function handleRequestFrame(msg: any) {
 
   // 1. Food Mesh Matrices
   const foods = state.foods || [];
-  const lastFoodMap = new Map<number, Food>();
+  lastFoodMap.clear();
   if (lastState && lastState.foods) {
     for (let i = 0; i < lastState.foods.length; i++) {
       const lf = lastState.foods[i];
@@ -471,8 +629,10 @@ function handleRequestFrame(msg: any) {
   const baseRadius = state.server_food?.base_radius ?? 0.2;
   const radiusValueScale = state.server_food?.radius_value_scale ?? 0.1;
 
-  const visibleFoodsList: { fx: number, fy: number, r: number, color: number }[] = [];
-  for (let i = 0; i < foods.length; i++) {
+  let visibleFoodCount = 0;
+  const maxFoodsLimit = Math.min(foods.length, 5000);
+
+  for (let i = 0; i < maxFoodsLimit; i++) {
     const food = foods[i];
     let fx = food.x;
     let fy = food.y;
@@ -501,39 +661,60 @@ function handleRequestFrame(msg: any) {
     if (distToCamSq > (fogRadiusWorld * 1.05) ** 2) {
       continue;
     }
-    
-    visibleFoodsList.push({
-      fx: wx,
-      fy: wy,
-      r: foodRadius,
-      color: parseColor(food.color || '#ef4444')
-    });
-  }
 
-  const foodCount = visibleFoodsList.length;
-  const foodMatrices = new Float32Array(foodCount * 16);
-  const foodColors = new Float32Array(foodCount * 3);
-  const foodShadowMatrices = new Float32Array(foodCount * 16);
+    let finalWx = wx;
+    let finalWy = wy;
+    const dist = Math.sqrt(distToCamSq);
 
-  for (let i = 0; i < foodCount; i++) {
-    const f = visibleFoodsList[i];
-    writeMatrix(foodShadowMatrices, i, f.fx, f.fy, 0.2, f.r * 2.4);
-    writeMatrix(foodMatrices, i, f.fx, f.fy, 1.5, f.r * 1.666);
+    if (myPlayer) {
+      const myHeadRadius = (baseHeadRadius + myEffectiveLengthGained * 10.0 * scoreThicknessScale) * gridSize;
+      
+      // 1. Instant eating prediction: if touched, hide the food immediately
+      if (dist < (myHeadRadius + foodRadius)) {
+        continue;
+      }
 
-    const fr = ((f.color >> 16) & 255) / 255;
-    const fg = ((f.color >> 8) & 255) / 255;
-    const fb = (f.color & 255) / 255;
+      // 2. Attraction pull prediction
+      const attractionRadius = (state.server_food?.attraction_radius ?? 3.0) * gridSize;
+      if (dist < attractionRadius) {
+        const attractionSpeed = (state.server_food?.attraction_speed ?? 8.0) * gridSize;
+        const pullDist = attractionSpeed * dt;
+        if (dist > 0.1) {
+          const ratio = Math.min(1.0, pullDist / dist);
+          finalWx -= (wx - camX) * ratio;
+          finalWy -= (wy - camY) * ratio;
+        } else {
+          finalWx = camX;
+          finalWy = camY;
+        }
+      }
+    }
 
-    const fogAmt = calcFogAmount(f.fx, f.fy);
+    writeMatrix(tempFoodShadowMatrices, visibleFoodCount, finalWx, finalWy, 0.2, foodRadius * 2.4);
+    writeMatrix(tempFoodMatrices, visibleFoodCount, finalWx, finalWy, 1.5, foodRadius * 1.666);
+
+    const fcolor = parseColor(food.color || '#ef4444');
+    const fr = ((fcolor >> 16) & 255) / 255;
+    const fg = ((fcolor >> 8) & 255) / 255;
+    const fb = (fcolor & 255) / 255;
+
+    const fogAmt = calcFogAmount(finalWx, finalWy);
     const finalR = fr + (FOG_R - fr) * fogAmt;
     const finalG = fg + (FOG_G - fg) * fogAmt;
     const finalB = fb + (FOG_B - fb) * fogAmt;
 
-    const colorIdx = i * 3;
-    foodColors[colorIdx + 0] = finalR;
-    foodColors[colorIdx + 1] = finalG;
-    foodColors[colorIdx + 2] = finalB;
+    const colorIdx = visibleFoodCount * 3;
+    tempFoodColors[colorIdx + 0] = finalR;
+    tempFoodColors[colorIdx + 1] = finalG;
+    tempFoodColors[colorIdx + 2] = finalB;
+
+    visibleFoodCount++;
   }
+
+  const foodCount = visibleFoodCount;
+  const foodMatrices = tempFoodMatrices.slice(0, foodCount * 16);
+  const foodColors = tempFoodColors.slice(0, foodCount * 3);
+  const foodShadowMatrices = tempFoodShadowMatrices.slice(0, foodCount * 16);
 
   // 2. Portals
   const portals = state.portals || [];
@@ -590,7 +771,7 @@ function handleRequestFrame(msg: any) {
 
   // 3. Black Holes
   const blackHoles = state.black_holes || [];
-  const lastBhMap = new Map<any, any>();
+  lastBhMap.clear();
   if (lastState && lastState.black_holes) {
     for (let i = 0; i < lastState.black_holes.length; i++) {
       const bh = lastState.black_holes[i];
@@ -636,24 +817,24 @@ function handleRequestFrame(msg: any) {
   }
 
   // 4. Snakes
-  const bodyVerticesTemp: number[] = [];
-  const bodyUVsTemp: number[] = [];
-  const bodyColorsTemp: number[] = [];
-  const bodySnakeParamsTemp: number[] = [];
-  const bodyIndicesTemp: number[] = [];
+  bodyVerticesBuf.reset();
+  bodyUVsBuf.reset();
+  bodyColorsBuf.reset();
+  bodySnakeParamsBuf.reset();
+  bodyIndicesBuf.reset();
 
-  const shadowVerticesTemp: number[] = [];
-  const shadowUVsTemp: number[] = [];
-  const shadowColorsTemp: number[] = [];
-  const shadowSnakeParamsTemp: number[] = [];
-  const shadowIndicesTemp: number[] = [];
+  shadowVerticesBuf.reset();
+  shadowUVsBuf.reset();
+  shadowColorsBuf.reset();
+  shadowSnakeParamsBuf.reset();
+  shadowIndicesBuf.reset();
 
   const activePlayers: { id: string; isMe: boolean; nickname: string }[] = [];
   const nicknames: { id: string; nickname: string; x: number; y: number; z: number; rotationX: number; opacity: number }[] = [];
 
   // Temporary arrays for eyes and pupils
-  const tempEyeList: { ex: number, ey: number, ez: number, r: number, color: number }[] = [];
-  const tempPupilList: { px: number, py: number, pz: number, r: number, color: number }[] = [];
+  let tempEyeCount = 0;
+  let tempPupilCount = 0;
 
   const pitchAngle = (state.server_visual?.camera_pitch_angle ?? 55) * Math.PI / 180;
 
@@ -665,7 +846,7 @@ function handleRequestFrame(msg: any) {
     const isSelf = playerId === myId;
     activePlayers.push({ id: playerId, isMe: isSelf, nickname: p.nickname || "Игрок" });
 
-    let segments: { x: number; y: number }[] = [];
+    let segCount = 0;
     const currentLength = p.body.length;
     const effectiveLengthGained = Math.max(0, currentLength - startLength);
     const radius = baseHeadRadius + effectiveLengthGained * 10.0 * scoreThicknessScale;
@@ -673,6 +854,7 @@ function handleRequestFrame(msg: any) {
     if (oldP && oldP.body && oldP.body.length > 0) {
       const count = Math.max(p.body.length, oldP.body.length);
       for (let i = 0; i < count; i++) {
+        if (segCount >= MAX_SPLINE_POINTS) break;
         const ptA = oldP.body[i] || oldP.body[oldP.body.length - 1];
         const ptB = p.body[i] || p.body[p.body.length - 1];
         
@@ -692,15 +874,22 @@ function handleRequestFrame(msg: any) {
           by = ay + dy * progress;
         }
 
-        segments.push({ x: bx, y: by });
+        t_segX[segCount] = bx;
+        t_segY[segCount] = by;
+        segCount++;
       }
     } else {
-      segments = p.body.map(pt => ({ x: pt.x, y: pt.y }));
+      for (let i = 0; i < p.body.length; i++) {
+        if (segCount >= MAX_SPLINE_POINTS) break;
+        t_segX[segCount] = p.body[i].x;
+        t_segY[segCount] = p.body[i].y;
+        segCount++;
+      }
     }
 
-    const headPos = segments[0];
-    const hx_scr = headPos.x * gridSize + gridSize/2;
-    const hy_scr = -(headPos.y * gridSize + gridSize/2);
+    if (segCount === 0) continue;
+    const hx_scr = t_segX[0] * gridSize + gridSize/2;
+    const hy_scr = -(t_segY[0] * gridSize + gridSize/2);
     const distSq = (hx_scr - camX)**2 + (hy_scr - camY)**2;
     if (distSq > (fogRadiusWorld * 1.05) ** 2) {
       continue;
@@ -732,48 +921,62 @@ function handleRequestFrame(msg: any) {
       splineDensity = 1;
     }
 
-    const subPaths: { x: number; y: number }[][] = [];
-    let currentSubPath: { x: number; y: number }[] = [segments[0]];
+    let subPathCount = 0;
+    t_subPathStarts[0] = 0;
+    t_subPathLens[0] = 1;
 
-    for (let i = 1; i < segments.length; i++) {
-      const prev = segments[i - 1];
-      const curr = segments[i];
+    for (let i = 1; i < segCount; i++) {
+      const prevX = t_segX[i - 1];
+      const prevY = t_segY[i - 1];
+      const currX = t_segX[i];
+      const currY = t_segY[i];
       
-      let dx = curr.x - prev.x;
-      let dy = curr.y - prev.y;
+      let dx = currX - prevX;
+      let dy = currY - prevY;
       
       const segDistSq = dx * dx + dy * dy;
       if (segDistSq > 36.0 || Math.abs(dx) > mapW / 2 || Math.abs(dy) > mapH / 2) {
-        subPaths.push(currentSubPath);
-        currentSubPath = [curr];
+        subPathCount++;
+        if (subPathCount < 100) {
+          t_subPathStarts[subPathCount] = i;
+          t_subPathLens[subPathCount] = 1;
+        }
       } else {
-        currentSubPath.push(curr);
+        if (subPathCount < 100) {
+          t_subPathLens[subPathCount]++;
+        }
       }
     }
-    subPaths.push(currentSubPath);
+    subPathCount = Math.min(subPathCount + 1, 100);
 
     const zMultiplier = 0.001;
     const snakeZ = 2.0 + currentLength * zMultiplier;
     const shadowZ = 0.2 + currentLength * zMultiplier;
 
-    for (let pathIdx = 0; pathIdx < subPaths.length; pathIdx++) {
-      const path = subPaths[pathIdx];
-      if (path.length < 2) continue;
+    for (let pathIdx = 0; pathIdx < subPathCount; pathIdx++) {
+      const pathStart = t_subPathStarts[pathIdx];
+      const pathLen = t_subPathLens[pathIdx];
+      if (pathLen < 2) continue;
 
-      const smoothPoints: { x: number; y: number; coord: number }[] = [];
-      const startWx = path[0].x * gridSize + gridSize/2;
-      const startWy = -(path[0].y * gridSize + gridSize/2);
-      smoothPoints.push({ x: startWx, y: startWy, coord: 0.0 });
+      let smoothCount = 0;
+      const startWx = t_segX[pathStart] * gridSize + gridSize/2;
+      const startWy = -(t_segY[pathStart] * gridSize + gridSize/2);
+      
+      t_smoothX[0] = startWx;
+      t_smoothY[0] = startWy;
+      t_smoothCoord[0] = 0.0;
+      smoothCount++;
       
       let accumulatedDistance = 0.0;
-      for (let i = 1; i < path.length; i++) {
-        const prev = path[i - 1];
-        const curr = path[i];
+      for (let i = 1; i < pathLen; i++) {
+        if (smoothCount + 2 >= MAX_SPLINE_POINTS) break;
+        const prevIdx = pathStart + i - 1;
+        const currIdx = pathStart + i;
         
-        const prevWx = prev.x * gridSize + gridSize/2;
-        const prevWy = -(prev.y * gridSize + gridSize/2);
-        const currWx = curr.x * gridSize + gridSize/2;
-        const currWy = -(curr.y * gridSize + gridSize/2);
+        const prevWx = t_segX[prevIdx] * gridSize + gridSize/2;
+        const prevWy = -(t_segY[prevIdx] * gridSize + gridSize/2);
+        const currWx = t_segX[currIdx] * gridSize + gridSize/2;
+        const currWy = -(t_segY[currIdx] * gridSize + gridSize/2);
 
         const segDist = Math.hypot(currWx - prevWx, currWy - prevWy);
         accumulatedDistance += segDist;
@@ -781,47 +984,57 @@ function handleRequestFrame(msg: any) {
         if (splineDensity > 1) {
           const midWx = prevWx + (currWx - prevWx) * 0.5;
           const midWy = prevWy + (currWy - prevWy) * 0.5;
-          smoothPoints.push({ x: midWx, y: midWy, coord: accumulatedDistance - segDist * 0.5 });
+          t_smoothX[smoothCount] = midWx;
+          t_smoothY[smoothCount] = midWy;
+          t_smoothCoord[smoothCount] = accumulatedDistance - segDist * 0.5;
+          smoothCount++;
         }
-        smoothPoints.push({ x: currWx, y: currWy, coord: accumulatedDistance });
+        t_smoothX[smoothCount] = currWx;
+        t_smoothY[smoothCount] = currWy;
+        t_smoothCoord[smoothCount] = accumulatedDistance;
+        smoothCount++;
       }
 
-      const pointsCount = smoothPoints.length;
+      const pointsCount = smoothCount;
       if (pointsCount < 2) continue;
 
-      const baseVIdx = bodyVerticesTemp.length / 3;
-      const baseVIdxShadow = shadowVerticesTemp.length / 3;
+      const baseVIdx = bodyVerticesBuf.length / 3;
+      const baseVIdxShadow = shadowVerticesBuf.length / 3;
 
-      const normals: { x: number; y: number }[] = new Array(pointsCount);
       for (let i = 0; i < pointsCount; i++) {
-        const pt = smoothPoints[i];
+        const ptX = t_smoothX[i];
+        const ptY = t_smoothY[i];
         let nx = 0.0;
         let ny = 0.0;
 
         if (i === 0) {
-          const nextPt = smoothPoints[1];
-          const dx = nextPt.x - pt.x;
-          const dy = nextPt.y - pt.y;
+          const nextPtX = t_smoothX[1];
+          const nextPtY = t_smoothY[1];
+          const dx = nextPtX - ptX;
+          const dy = nextPtY - ptY;
           const len = Math.hypot(dx, dy) || 0.001;
           nx = -dy / len;
           ny = dx / len;
         } else if (i === pointsCount - 1) {
-          const prevPt = smoothPoints[pointsCount - 2];
-          const dx = pt.x - prevPt.x;
-          const dy = pt.y - prevPt.y;
+          const prevPtX = t_smoothX[pointsCount - 2];
+          const prevPtY = t_smoothY[pointsCount - 2];
+          const dx = ptX - prevPtX;
+          const dy = ptY - prevPtY;
           const len = Math.hypot(dx, dy) || 0.001;
           nx = -dy / len;
           ny = dx / len;
         } else {
-          const prevPt = smoothPoints[i - 1];
-          const nextPt = smoothPoints[i + 1];
+          const prevPtX = t_smoothX[i - 1];
+          const prevPtY = t_smoothY[i - 1];
+          const nextPtX = t_smoothX[i + 1];
+          const nextPtY = t_smoothY[i + 1];
           
-          const dx1 = pt.x - prevPt.x;
-          const dy1 = pt.y - prevPt.y;
+          const dx1 = ptX - prevPtX;
+          const dy1 = ptY - prevPtY;
           const len1 = Math.hypot(dx1, dy1) || 0.001;
           
-          const dx2 = nextPt.x - pt.x;
-          const dy2 = nextPt.y - pt.y;
+          const dx2 = nextPtX - ptX;
+          const dy2 = nextPtY - ptY;
           const len2 = Math.hypot(dx2, dy2) || 0.001;
 
           const n1x = -dy1 / len1;
@@ -835,91 +1048,84 @@ function handleRequestFrame(msg: any) {
           nx /= nlen;
           ny /= nlen;
         }
-        normals[i] = { x: nx, y: ny };
+        t_nx[i] = nx;
+        t_ny[i] = ny;
       }
 
-      interface PathNode {
-        x: number;
-        y: number;
-        nx: number;
-        ny: number;
-        uvY: number;
-      }
-      
-      const pathNodes: PathNode[] = [];
+      let nodeCount = 0;
       const totalWidth = radius * gridSize;
       const shadowRadius = totalWidth + 3.2;
-      let shadowHeadExtension: { x: number; y: number; uvY: number } | null = null;
-      let shadowTailExtension: { x: number; y: number; uvY: number } | null = null;
+      let shadowHeadExtensionX = 0, shadowHeadExtensionY = 0, shadowHeadExtensionUvY = 0;
+      let shadowTailExtensionX = 0, shadowTailExtensionY = 0, shadowTailExtensionUvY = 0;
+      let hasShadowHead = false;
+      let hasShadowTail = false;
 
       // 1. Add head extension node if it's the first subpath of the snake (rounded cap)
       if (pathIdx === 0) {
-        const p0 = smoothPoints[0];
-        const p1 = smoothPoints[1];
-        const dx = p0.x - p1.x;
-        const dy = p0.y - p1.y;
+        const p0X = t_smoothX[0];
+        const p0Y = t_smoothY[0];
+        const p1X = t_smoothX[1];
+        const p1Y = t_smoothY[1];
+        const dx = p0X - p1X;
+        const dy = p0Y - p1Y;
         const len = Math.hypot(dx, dy) || 0.001;
         const dirX = dx / len;
         const dirY = dy / len;
-        shadowHeadExtension = {
-          x: p0.x + dirX * shadowRadius,
-          y: p0.y + dirY * shadowRadius,
-          uvY: -shadowRadius
-        };
+        shadowHeadExtensionX = p0X + dirX * shadowRadius;
+        shadowHeadExtensionY = p0Y + dirY * shadowRadius;
+        shadowHeadExtensionUvY = -shadowRadius;
+        hasShadowHead = true;
         
-        pathNodes.push({
-          x: p0.x + dirX * totalWidth,
-          y: p0.y + dirY * totalWidth,
-          nx: normals[0].x,
-          ny: normals[0].y,
-          uvY: -totalWidth
-        });
+        t_pathX[nodeCount] = p0X + dirX * totalWidth;
+        t_pathY[nodeCount] = p0Y + dirY * totalWidth;
+        t_pathNx[nodeCount] = t_nx[0];
+        t_pathNy[nodeCount] = t_ny[0];
+        t_pathUvY[nodeCount] = -totalWidth;
+        nodeCount++;
       }
 
       // 2. Add standard smoothPoints nodes
       for (let i = 0; i < pointsCount; i++) {
-        const pt = smoothPoints[i];
-        pathNodes.push({
-          x: pt.x,
-          y: pt.y,
-          nx: normals[i].x,
-          ny: normals[i].y,
-          uvY: pt.coord
-        });
+        if (nodeCount >= MAX_SPLINE_POINTS) break;
+        t_pathX[nodeCount] = t_smoothX[i];
+        t_pathY[nodeCount] = t_smoothY[i];
+        t_pathNx[nodeCount] = t_nx[i];
+        t_pathNy[nodeCount] = t_ny[i];
+        t_pathUvY[nodeCount] = t_smoothCoord[i];
+        nodeCount++;
       }
 
       // 3. Add tail extension node if it's the last subpath of the snake (rounded cap)
-      if (pathIdx === subPaths.length - 1) {
-        const pLast = smoothPoints[pointsCount - 1];
-        const pPrev = smoothPoints[pointsCount - 2];
-        const dx = pLast.x - pPrev.x;
-        const dy = pLast.y - pPrev.y;
+      if (pathIdx === subPathCount - 1 && nodeCount < MAX_SPLINE_POINTS) {
+        const pLastX = t_smoothX[pointsCount - 1];
+        const pLastY = t_smoothY[pointsCount - 1];
+        const pPrevX = t_smoothX[pointsCount - 2];
+        const pPrevY = t_smoothY[pointsCount - 2];
+        const dx = pLastX - pPrevX;
+        const dy = pLastY - pPrevY;
         const len = Math.hypot(dx, dy) || 0.001;
         const dirX = dx / len;
         const dirY = dy / len;
-        shadowTailExtension = {
-          x: pLast.x + dirX * shadowRadius,
-          y: pLast.y + dirY * shadowRadius,
-          uvY: accumulatedDistance + shadowRadius
-        };
+        shadowTailExtensionX = pLastX + dirX * shadowRadius;
+        shadowTailExtensionY = pLastY + dirY * shadowRadius;
+        shadowTailExtensionUvY = accumulatedDistance + shadowRadius;
+        hasShadowTail = true;
         
-        pathNodes.push({
-          x: pLast.x + dirX * totalWidth,
-          y: pLast.y + dirY * totalWidth,
-          nx: normals[pointsCount - 1].x,
-          ny: normals[pointsCount - 1].y,
-          uvY: accumulatedDistance + totalWidth
-        });
+        t_pathX[nodeCount] = pLastX + dirX * totalWidth;
+        t_pathY[nodeCount] = pLastY + dirY * totalWidth;
+        t_pathNx[nodeCount] = t_nx[pointsCount - 1];
+        t_pathNy[nodeCount] = t_ny[pointsCount - 1];
+        t_pathUvY[nodeCount] = accumulatedDistance + totalWidth;
+        nodeCount++;
       }
 
-      const numNodes = pathNodes.length;
+      const numNodes = nodeCount;
       for (let i = 0; i < numNodes; i++) {
-        const node = pathNodes[i];
-        const wx = node.x;
-        const wy = node.y;
-        const nx = node.nx;
-        const ny = node.ny;
-        const uvY = node.uvY;
+        const wx = t_pathX[i];
+        const wy = t_pathY[i];
+        const nx = t_pathNx[i];
+        const ny = t_pathNy[i];
+        const uvY = t_pathUvY[i];
 
         const pxLeft = wx + nx * totalWidth;
         const pyLeft = wy + ny * totalWidth;
@@ -930,46 +1136,56 @@ function handleRequestFrame(msg: any) {
           : 0.0;
         const bodyZ = snakeZ + zLiftT * 0.08;
 
-        bodyVerticesTemp.push(
+        bodyVerticesBuf.push6(
           pxLeft, pyLeft, bodyZ,
           pxRight, pyRight, bodyZ
         );
 
-        bodyUVsTemp.push(
+        bodyUVsBuf.push4(
           0.0, uvY,
           1.0, uvY
         );
 
-        bodyColorsTemp.push(
+        bodyColorsBuf.push6(
           parsedColorObj.r, parsedColorObj.g, parsedColorObj.b,
           parsedColorObj.r, parsedColorObj.g, parsedColorObj.b
         );
 
-        bodySnakeParamsTemp.push(
+        bodySnakeParamsBuf.push4(
           totalWidth, accumulatedDistance,
           totalWidth, accumulatedDistance
         );
 
         // Shadow caps need their own extension because the shadow is wider than the body.
-        const shadowCap = i === 0 ? shadowHeadExtension : (i === numNodes - 1 ? shadowTailExtension : null);
-        const shadowWx = shadowCap?.x ?? wx;
-        const shadowWy = shadowCap?.y ?? wy;
-        const shadowUvY = shadowCap?.uvY ?? uvY;
+        let shadowWx = wx;
+        let shadowWy = wy;
+        let shadowUvY = uvY;
+        
+        if (i === 0 && hasShadowHead) {
+          shadowWx = shadowHeadExtensionX;
+          shadowWy = shadowHeadExtensionY;
+          shadowUvY = shadowHeadExtensionUvY;
+        } else if (i === numNodes - 1 && hasShadowTail) {
+          shadowWx = shadowTailExtensionX;
+          shadowWy = shadowTailExtensionY;
+          shadowUvY = shadowTailExtensionUvY;
+        }
+
         const shadowLeftX = shadowWx + nx * shadowRadius;
         const shadowLeftY = shadowWy + ny * shadowRadius;
         const shadowRightX = shadowWx - nx * shadowRadius;
         const shadowRightY = shadowWy - ny * shadowRadius;
 
-        shadowVerticesTemp.push(
+        shadowVerticesBuf.push6(
           shadowLeftX, shadowLeftY, shadowZ,
           shadowRightX, shadowRightY, shadowZ
         );
-        shadowUVsTemp.push(
+        shadowUVsBuf.push4(
           0.0, shadowUvY,
           1.0, shadowUvY
         );
-        shadowColorsTemp.push(0, 0, 0, 0, 0, 0);
-        shadowSnakeParamsTemp.push(
+        shadowColorsBuf.push6(0, 0, 0, 0, 0, 0);
+        shadowSnakeParamsBuf.push4(
           shadowRadius, accumulatedDistance,
           shadowRadius, accumulatedDistance
         );
@@ -981,7 +1197,7 @@ function handleRequestFrame(msg: any) {
         const v2 = baseVIdx + (i + 1) * 2;
         const v3 = baseVIdx + (i + 1) * 2 + 1;
 
-        bodyIndicesTemp.push(
+        bodyIndicesBuf.push6(
           v0, v1, v2,
           v2, v1, v3
         );
@@ -991,7 +1207,7 @@ function handleRequestFrame(msg: any) {
         const sv2 = baseVIdxShadow + (i + 1) * 2;
         const sv3 = baseVIdxShadow + (i + 1) * 2 + 1;
 
-        shadowIndicesTemp.push(
+        shadowIndicesBuf.push6(
           sv0, sv1, sv2,
           sv2, sv1, sv3
         );
@@ -1016,7 +1232,8 @@ function handleRequestFrame(msg: any) {
     const sideOffset = snakeRadius * 0.45;
     const zOffset = snakeZ + 0.1;
 
-    const visAngle = -p.angle;
+    const headAngleVal = isSelf ? (camState.localAngle ?? p.angle) : p.angle;
+    const visAngle = -headAngleVal;
     const dirFx = Math.cos(visAngle);
     const dirFy = Math.sin(visAngle);
     const dirRx = Math.cos(visAngle + Math.PI/2);
@@ -1027,11 +1244,27 @@ function handleRequestFrame(msg: any) {
     for (const side of [-1, 1]) {
       const ex = hx + dirFx * forwardOffset + dirRx * sideOffset * side;
       const ey = hy + dirFy * forwardOffset + dirRy * sideOffset * side;
-      tempEyeList.push({ ex, ey, ez: zOffset, r: eyeRadius, color: fogAmt });
+      
+      if (tempEyeCount < MAX_EYES) {
+        t_eyeEx[tempEyeCount] = ex;
+        t_eyeEy[tempEyeCount] = ey;
+        t_eyeEz[tempEyeCount] = zOffset;
+        t_eyeR[tempEyeCount] = eyeRadius;
+        t_eyeColor[tempEyeCount] = fogAmt;
+        tempEyeCount++;
+      }
 
       const px = ex + dirFx * (eyeRadius * 0.3);
       const py = ey + dirFy * (eyeRadius * 0.3);
-      tempPupilList.push({ px, py, pz: zOffset + 0.01, r: pupilRadius, color: fogAmt });
+      
+      if (tempPupilCount < MAX_EYES) {
+        t_pupilPx[tempPupilCount] = px;
+        t_pupilPy[tempPupilCount] = py;
+        t_pupilPz[tempPupilCount] = zOffset + 0.01;
+        t_pupilR[tempPupilCount] = pupilRadius;
+        t_pupilColor[tempPupilCount] = fogAmt;
+        tempPupilCount++;
+      }
     }
 
     // 6. Nicknames Positioning
@@ -1054,7 +1287,7 @@ function handleRequestFrame(msg: any) {
 
     // 7. Particles spawning
     const isAccelerating = p.accelerating;
-    if (isAccelerating && Math.random() < 0.35) {
+    if (isAccelerating && activeParticles.length < 500 && Math.random() < 0.35) {
       const tail = p.body[p.body.length - 1];
       const oldTailPlayer = lastState?.players[playerId];
       let startTail = tail;
@@ -1066,7 +1299,7 @@ function handleRequestFrame(msg: any) {
       const tx = (startTail.x + (tail.x - startTail.x) * progress) * gridSize + gridSize/2;
       const ty = -((startTail.y + (tail.y - startTail.y) * progress) * gridSize + gridSize/2);
 
-      const tailAngle = p.angle + Math.PI;
+      const tailAngle = headAngleVal + Math.PI;
       const angle = tailAngle + randomRange(-0.35, 0.35);
       const speed = (2.0 + Math.random() * 2.0) * gridSize * 0.001 * 40.0;
       
@@ -1086,15 +1319,14 @@ function handleRequestFrame(msg: any) {
   }
 
   // Eye / Pupil TypedArrays creation
-  const eyeCount = tempEyeList.length;
+  const eyeCount = tempEyeCount;
   const eyeMatrices = new Float32Array(eyeCount * 16);
   const eyeColors = new Float32Array(eyeCount * 3);
 
   for (let i = 0; i < eyeCount; i++) {
-    const e = tempEyeList[i];
-    writeMatrix(eyeMatrices, i, e.ex, e.ey, e.ez, e.r);
+    writeMatrix(eyeMatrices, i, t_eyeEx[i], t_eyeEy[i], t_eyeEz[i], t_eyeR[i]);
 
-    const fogAmt = e.color;
+    const fogAmt = t_eyeColor[i];
     const finalR = 1.0 + (FOG_R - 1.0) * fogAmt;
     const finalG = 1.0 + (FOG_G - 1.0) * fogAmt;
     const finalB = 1.0 + (FOG_B - 1.0) * fogAmt;
@@ -1105,15 +1337,14 @@ function handleRequestFrame(msg: any) {
     eyeColors[cIdx + 2] = finalB;
   }
 
-  const pupilCount = tempPupilList.length;
+  const pupilCount = tempPupilCount;
   const pupilMatrices = new Float32Array(pupilCount * 16);
   const pupilColors = new Float32Array(pupilCount * 3);
 
   for (let i = 0; i < pupilCount; i++) {
-    const p = tempPupilList[i];
-    writeMatrix(pupilMatrices, i, p.px, p.py, p.pz, p.r);
+    writeMatrix(pupilMatrices, i, t_pupilPx[i], t_pupilPy[i], t_pupilPz[i], t_pupilR[i]);
 
-    const fogAmt = p.color;
+    const fogAmt = t_pupilColor[i];
     const finalR = 0.0 + (FOG_R - 0.0) * fogAmt;
     const finalG = 0.0 + (FOG_G - 0.0) * fogAmt;
     const finalB = 0.0 + (FOG_B - 0.0) * fogAmt;
@@ -1131,7 +1362,10 @@ function handleRequestFrame(msg: any) {
     part.y += part.vy * dt * 60.0;
     part.life -= dt;
     if (part.life <= 0) {
-      activeParticles.splice(i, 1);
+      if (i < activeParticles.length - 1) {
+        activeParticles[i] = activeParticles[activeParticles.length - 1];
+      }
+      activeParticles.pop();
     }
   }
 
@@ -1158,17 +1392,17 @@ function handleRequestFrame(msg: any) {
   }
 
   // 9. Convert snake body arrays to typed arrays
-  const bodyVertices = new Float32Array(bodyVerticesTemp);
-  const bodyUVs = new Float32Array(bodyUVsTemp);
-  const bodyColors = new Float32Array(bodyColorsTemp);
-  const bodySnakeParams = new Float32Array(bodySnakeParamsTemp);
-  const bodyIndices = new Uint32Array(bodyIndicesTemp);
+  const bodyVertices = bodyVerticesBuf.slice();
+  const bodyUVs = bodyUVsBuf.slice();
+  const bodyColors = bodyColorsBuf.slice();
+  const bodySnakeParams = bodySnakeParamsBuf.slice();
+  const bodyIndices = bodyIndicesBuf.slice();
 
-  const shadowVertices = new Float32Array(shadowVerticesTemp);
-  const shadowUVs = new Float32Array(shadowUVsTemp);
-  const shadowColors = new Float32Array(shadowColorsTemp);
-  const shadowSnakeParams = new Float32Array(shadowSnakeParamsTemp);
-  const shadowIndices = new Uint32Array(shadowIndicesTemp);
+  const shadowVertices = shadowVerticesBuf.slice();
+  const shadowUVs = shadowUVsBuf.slice();
+  const shadowColors = shadowColorsBuf.slice();
+  const shadowSnakeParams = shadowSnakeParamsBuf.slice();
+  const shadowIndices = shadowIndicesBuf.slice();
 
   // 10. Leaderboard calculations
   const board = Object.entries(state.players)
@@ -1185,6 +1419,16 @@ function handleRequestFrame(msg: any) {
 
   const killEventsToSend = [...accumulatedKillEvents];
   accumulatedKillEvents = [];
+
+  const foodMinimapData = new Float32Array(foods.length * 4);
+  for (let i = 0; i < foods.length; i++) {
+    const f = foods[i];
+    const colorInt = parseColor(f.color || '#ef4444');
+    foodMinimapData[i * 4 + 0] = f.x;
+    foodMinimapData[i * 4 + 1] = f.y;
+    foodMinimapData[i * 4 + 2] = colorInt;
+    foodMinimapData[i * 4 + 3] = f.value;
+  }
 
   // Send everything back!
   ctx.postMessage({
@@ -1227,7 +1471,11 @@ function handleRequestFrame(msg: any) {
     fogRadiusWorld,
     nicknames,
     activePlayers,
-    gameState: state,
+    gameState: {
+      ...state,
+      foods: []
+    },
+    foodMinimapData,
     leaderboard: board,
     kill_events: killEventsToSend
   }, [
@@ -1256,18 +1504,27 @@ function handleRequestFrame(msg: any) {
     portalRingColors.buffer,
     blackHoleCoreMatrices.buffer,
     blackHoleRingMatrices.buffer,
-    blackHoleGravityMatrices.buffer
+    blackHoleGravityMatrices.buffer,
+    foodMinimapData.buffer
   ]);
 }
 
 function connect(url: string) {
   if (isCleaningUp) return;
 
-  socket = new WebSocket(url);
+  let connectUrl = url;
+  if (myId) {
+    const separator = url.indexOf("?") !== -1 ? "&" : "?";
+    connectUrl = `${url}${separator}client_id=${myId}`;
+  }
+
+  socket = new WebSocket(connectUrl);
   socket.binaryType = "arraybuffer";
 
   socket.onopen = () => {
     reconnectAttempt = 0;
+    workerRenderTime = null;
+    stateQueue.length = 0;
     ctx.postMessage({ type: "STATUS", status: "connected", msg: "" });
 
     if (pingInterval) clearInterval(pingInterval);
@@ -1334,8 +1591,8 @@ function connect(url: string) {
         ctx.postMessage({ type: "YOUR_ID", your_id: myId });
       }
 
-      const mapW = parsedState.server_world?.width ?? 100;
-      const mapH = parsedState.server_world?.height ?? 100;
+      const mapW = parsedState.server_world?.width ?? (gameState?.server_world?.width ?? 100);
+      const mapH = parsedState.server_world?.height ?? (gameState?.server_world?.height ?? 100);
 
       if (parsedState.type === "FULL" || !parsedState.type) {
         const players: Record<string, Player> = {};
@@ -1499,6 +1756,8 @@ function cleanup() {
     socket.close();
     socket = null;
   }
+  workerRenderTime = null;
+  stateQueue.length = 0;
 }
 
 ctx.onmessage = (e: MessageEvent) => {
