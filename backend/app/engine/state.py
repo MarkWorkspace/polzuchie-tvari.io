@@ -254,6 +254,7 @@ class GameState:
         tick_interval = self.tick_interval
         
         self.food_manager.update_clusters(tick_interval)
+        self.portal_manager.update(tick_interval)
         self.bh_manager.update(tick_interval)
 
         base_speed = self.config.simulation.base_speed_per_second * tick_interval
@@ -284,6 +285,10 @@ class GameState:
         dead_players = set()
 
         for pid, player in self.players.items():
+            # Decrement teleport timer once per tick when player is entering or in transit
+            if player.teleport_state in ("entering", "in_transit"):
+                player.teleport_timer = max(0.0, player.teleport_timer - tick_interval)
+
             is_accelerating = player.is_accelerating_valid
             player.speed_mult = self.config.boost.speed_multiplier if is_accelerating else 1.0
             
@@ -314,21 +319,24 @@ class GameState:
             player.pending_steps -= steps_this_tick
 
             for _ in range(steps_this_tick):
-                target_turn = player.turn * turn_speed
-                if getattr(player, "steered_by_mouse", False):
-                    player.current_turn = target_turn
-                else:
-                    if player.turn == 0:
-                        player.current_turn += (0 - player.current_turn) * idle_turn_smoothing
+                if player.teleport_state in ("none", "exiting"):
+                    target_turn = player.turn * turn_speed
+                    if getattr(player, "steered_by_mouse", False):
+                        player.current_turn = target_turn
                     else:
-                        player.current_turn += (target_turn - player.current_turn) * active_turn_smoothing
-                
-                player.angle += player.current_turn
+                        if player.turn == 0:
+                            player.current_turn += (0 - player.current_turn) * idle_turn_smoothing
+                        else:
+                            player.current_turn += (target_turn - player.current_turn) * active_turn_smoothing
+                    
+                    player.angle += player.current_turn
+                else:
+                    player.current_turn = 0.0
                 head = player.body[0]
                 
-                if player.last_portal_exited is not None:
+                if player.teleport_state == "none" and player.last_portal_exited is not None:
                     portal_id, ep_idx = player.last_portal_exited
-                    target_portal = next((op for op in self.portal_manager.portals if op.id == portal_id), None)
+                    target_portal = next((op for op in self.portal_manager.portal_slots if op is not None and op.id == portal_id), None)
                     if target_portal:
                         ex_x = target_portal.x2 if ep_idx == 1 else target_portal.x1
                         ex_y = target_portal.y2 if ep_idx == 1 else target_portal.y1
@@ -341,15 +349,100 @@ class GameState:
                 bend_angle = self.bh_manager.get_gravity_bend(head, player.angle, tick_interval)
                 player.angle += bend_angle
 
-                dx = math.cos(player.angle) * base_speed
-                dy = math.sin(player.angle) * base_speed
+                if player.teleport_state == "none":
+                    dx = math.cos(player.angle) * base_speed
+                    dy = math.sin(player.angle) * base_speed
+                    
+                    new_head = {
+                        "x": (head["x"] + dx) % self.grid_width,
+                        "y": (head["y"] + dy) % self.grid_height
+                    }
+                    
+                    tp_check = self.portal_manager.check_teleport_start(new_head, player)
+                    if tp_check:
+                        player.teleport_state = "entering"
+                        player.length = len(player.body)  # Record pre-teleport length!
+                        player.teleport_pos = new_head
+                        player.teleport_out_pos = tp_check["out_pos"]
+                        player.last_portal_exited = tp_check["portal_id"]
+                        player.teleport_delay = self.config.world.portals_teleport_delay_ms / 1000.0
+                        player.teleport_timer = player.teleport_delay
+                        
+                elif player.teleport_state == "entering":
+                    if player.teleport_timer <= 0:
+                        player.teleport_state = "exiting"
+                        # Start emerging immediately
+                        ref_x, ref_y = player.teleport_out_pos[0], player.teleport_out_pos[1]
+                        dx = math.cos(player.angle) * base_speed
+                        dy = math.sin(player.angle) * base_speed
+                        new_head = {
+                            "x": (ref_x + dx) % self.grid_width,
+                            "y": (ref_y + dy) % self.grid_height
+                        }
+                        if len(player.body) >= player.length:
+                            if len(player.body) > 0:
+                                player.body.pop()
+                    else:
+                        all_at_portal = all(
+                            math.hypot(pt["x"] - player.teleport_pos["x"], pt["y"] - player.teleport_pos["y"]) < 0.1
+                            for pt in player.body
+                        )
+                        if all_at_portal:
+                            player.teleport_state = "in_transit"
+                            # Process in_transit immediately
+                            new_head = {"x": player.teleport_out_pos[0], "y": player.teleport_out_pos[1]}
+                            player.body.clear()
+                            player.body.appendleft(new_head)
+                            player.new_heads_this_tick.insert(0, new_head)
+                            player.pending_steps -= 1.0
+                            continue
+                        else:
+                            new_head = {"x": player.teleport_pos["x"], "y": player.teleport_pos["y"]}
+                            # Maintain constant length (pop 1 segment as we append 1 at the end of the step)
+                            if len(player.body) > 0:
+                                player.body.pop()
+                        
+                elif player.teleport_state == "in_transit":
+                    new_head = {"x": player.teleport_out_pos[0], "y": player.teleport_out_pos[1]}
+                    player.body.clear()
+                    player.body.appendleft(new_head)
+                    player.new_heads_this_tick.insert(0, new_head)
+                    if player.teleport_timer <= 0:
+                        player.teleport_state = "exiting"
+                    player.pending_steps -= 1.0
+                    continue
+                    
+                elif player.teleport_state == "exiting":
+                    # Determine where head starts emerging from
+                    dist_to_entrance = math.hypot(head["x"] - player.teleport_pos["x"], head["y"] - player.teleport_pos["y"])
+                    if dist_to_entrance < 1.0:
+                        # Use exit portal as reference if head is still at the entrance portal
+                        ref_x, ref_y = player.teleport_out_pos[0], player.teleport_out_pos[1]
+                    else:
+                        ref_x, ref_y = head["x"], head["y"]
 
-                new_head = {
-                    "x": (head["x"] + dx) % self.grid_width,
-                    "y": (head["y"] + dy) % self.grid_height
-                }
+                    dx = math.cos(player.angle) * base_speed
+                    dy = math.sin(player.angle) * base_speed
+                    new_head = {
+                        "x": (ref_x + dx) % self.grid_width,
+                        "y": (ref_y + dy) % self.grid_height
+                    }
+                    
+                    # Exit condition: body is at least player.length, and all segments have cleared the entrance portal
+                    if len(player.body) >= player.length:
+                        all_cleared = all(
+                            math.hypot(pt["x"] - player.teleport_pos["x"], pt["y"] - player.teleport_pos["y"]) >= 1.0
+                            for pt in player.body
+                        )
+                        if all_cleared:
+                            player.teleport_state = "none"
+                            player.teleport_pos = None
+                            player.teleport_out_pos = None
 
-                new_head = self.portal_manager.check_teleport(new_head, player)
+                    # If we have reached full length, pop the tail to maintain length
+                    if len(player.body) >= player.length:
+                        if len(player.body) > 0:
+                            player.body.pop()
 
                 hit_black_hole = self.bh_manager.check_kill(new_head)
                 if hit_black_hole:
@@ -366,23 +459,27 @@ class GameState:
                 player.body.appendleft(new_head)
                 player.new_heads_this_tick.insert(0, new_head)
 
-                cost = max(0.1, float(self.growth_segment_cost_func(player.score, len(player.body))))
-                if player.score >= self.config.snake.max_growth_score:
-                    player.pending_growth = 0.0
-                    if len(player.body) > 0:
-                        player.body.pop()
-                else:
-                    if player.pending_growth >= cost:
-                        player.pending_growth -= cost
-                    else:
+                # Only run growth/shrink logic when not entering or exiting teleportation
+                if player.teleport_state not in ("entering", "exiting"):
+                    cost = max(0.1, float(self.growth_segment_cost_func(player.score, len(player.body))))
+                    if player.score >= self.config.snake.max_growth_score:
+                        player.pending_growth = 0.0
                         if len(player.body) > 0:
                             player.body.pop()
-                        if player.pending_growth <= -cost:
-                            player.pending_growth += cost
-                            if len(player.body) > self.config.snake.min_body_length:
+                    else:
+                        if player.pending_growth >= cost:
+                            player.pending_growth -= cost
+                        else:
+                            if len(player.body) > 0:
                                 player.body.pop()
+                            if player.pending_growth <= -cost:
+                                player.pending_growth += cost
+                                if len(player.body) > self.config.snake.min_body_length:
+                                    player.body.pop()
 
             if pid in dead_players:
+                continue
+            if player.teleport_state == "in_transit":
                 continue
             new_head = player.body[0]
             head_radius = player.head_radius

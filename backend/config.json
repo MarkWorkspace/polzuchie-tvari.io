@@ -11,6 +11,7 @@
         "portals_enabled": 1,
         "portals_count": 2,
         "portals_radius": 2.5,
+        "portals_teleport_delay_ms": 2000,
         "black_holes_enabled": 1,
         "black_holes_count": 2,
         "black_holes_spawn_chance": 0.5,

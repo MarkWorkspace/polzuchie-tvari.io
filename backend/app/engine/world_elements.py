@@ -5,87 +5,168 @@ from app.engine.entities import Portal, BlackHole
 class PortalManager:
     def __init__(self, state):
         self.state = state
-        self.portals = []
+        self.portal_id_counter = 0
+        self.portal_timers = []
+        self.portal_slots = []
         self._cached_portals_list = []
-        self.generate()
+        self.update_slots(force_roll=True)
 
-    def generate(self):
-        self.portals = []
-        if self.state.config.world.portals_enabled == 0:
+    def _spawn_portal(self, slot_idx):
+        self.portal_id_counter += 1
+        pid = self.portal_id_counter
+        radius = self.state.config.world.portals_radius
+        colors = ["#3b82f6", "#f97316", "#a855f7", "#ec4899", "#14b8a6"]
+        color = colors[slot_idx % len(colors)]
+        min_dist = max(self.state.grid_width, self.state.grid_height) * 0.3
+
+        p1 = None
+        p2 = None
+        for _ in range(100):
+            candidate1 = (random.uniform(5, self.state.grid_width - 5), random.uniform(5, self.state.grid_height - 5))
+            too_close = False
+            for op in self.portal_slots:
+                if op is not None and op.state != "dead":
+                    if math.hypot(candidate1[0] - op.x1, candidate1[1] - op.y1) < op.radius * 3 or \
+                       math.hypot(candidate1[0] - op.x2, candidate1[1] - op.y2) < op.radius * 3:
+                        too_close = True
+                        break
+            if not too_close and hasattr(self.state, 'black_hole_manager') and self.state.black_hole_manager:
+                for obh in self.state.black_hole_manager.black_hole_slots:
+                    if obh is not None and obh.state != "dead":
+                        if math.hypot(candidate1[0] - obh.x, candidate1[1] - obh.y) < obh.pull_radius * 1.5:
+                            too_close = True
+                            break
+            if not too_close:
+                p1 = candidate1
+                break
+                
+        if not p1:
+            p1 = (random.uniform(5, self.state.grid_width - 5), random.uniform(5, self.state.grid_height - 5))
+            
+        for _ in range(100):
+            candidate2 = (random.uniform(5, self.state.grid_width - 5), random.uniform(5, self.state.grid_height - 5))
+            if math.hypot(candidate2[0] - p1[0], candidate2[1] - p1[1]) < min_dist:
+                continue
+            too_close = False
+            for op in self.portal_slots:
+                if op is not None and op.state != "dead":
+                    if math.hypot(candidate2[0] - op.x1, candidate2[1] - op.y1) < op.radius * 3 or \
+                       math.hypot(candidate2[0] - op.x2, candidate2[1] - op.y2) < op.radius * 3:
+                        too_close = True
+                        break
+            if not too_close and hasattr(self.state, 'black_hole_manager') and self.state.black_hole_manager:
+                for obh in self.state.black_hole_manager.black_hole_slots:
+                    if obh is not None and obh.state != "dead":
+                        if math.hypot(candidate2[0] - obh.x, candidate2[1] - obh.y) < obh.pull_radius * 1.5:
+                            too_close = True
+                            break
+            if not too_close:
+                p2 = candidate2
+                break
+                
+        if not p2:
+            p2 = ((p1[0] + min_dist) % self.state.grid_width, (p1[1] + min_dist) % self.state.grid_height)
+            
+        return Portal(pid, p1[0], p1[1], p2[0], p2[1], radius, color)
+
+    def update_slots(self, force_roll=False):
+        target_count = self.state.config.world.portals_count
+        while len(self.portal_slots) < target_count:
+            self.portal_slots.append(None)
+        while len(self.portal_slots) > target_count:
+            self.portal_slots.pop()
+        
+        while len(self.portal_timers) < target_count:
+            self.portal_timers.append(random.uniform(0.0, 60.0))
+        while len(self.portal_timers) > target_count:
+            self.portal_timers.pop()
+        
+        if not self.state.config.world.portals_enabled:
+            for i in range(len(self.portal_slots)):
+                self.portal_slots[i] = None
             self._cached_portals_list = []
             return
-        
-        colors = ["#3b82f6", "#f97316", "#a855f7", "#ec4899", "#14b8a6"]
-        min_dist = max(self.state.grid_width, self.state.grid_height) * 0.3
-        portal_count = self.state.config.world.portals_count
-        radius = self.state.config.world.portals_radius
 
-        for i in range(portal_count):
-            color = colors[i % len(colors)]
-            p1 = None
-            p2 = None
-            for _ in range(100):
-                candidate1 = (random.uniform(5, self.state.grid_width - 5), random.uniform(5, self.state.grid_height - 5))
-                too_close = False
-                for op in self.portals:
-                    d1 = math.hypot(candidate1[0] - op.x1, candidate1[1] - op.y1)
-                    d2 = math.hypot(candidate1[0] - op.x2, candidate1[1] - op.y2)
-                    if d1 < radius * 3 or d2 < radius * 3:
-                        too_close = True
-                        break
-                if not too_close:
-                    p1 = candidate1
-                    break
+        if force_roll:
+            self.portal_timers = [random.uniform(0.0, 60.0) for _ in range(target_count)]
+            for i in range(target_count):
+                if random.random() < self.state.config.world.portals_spawn_chance:
+                    self.portal_slots[i] = self._spawn_portal(i)
+                else:
+                    self.portal_slots[i] = None
                     
-            if not p1:
-                p1 = (random.uniform(5, self.state.grid_width - 5), random.uniform(5, self.state.grid_height - 5))
-                
-            for _ in range(100):
-                candidate2 = (random.uniform(5, self.state.grid_width - 5), random.uniform(5, self.state.grid_height - 5))
-                dist_p1 = math.hypot(candidate2[0] - p1[0], candidate2[1] - p1[1])
-                if dist_p1 < min_dist:
-                    continue
-                too_close = False
-                for op in self.portals:
-                    d1 = math.hypot(candidate2[0] - op.x1, candidate2[1] - op.y1)
-                    d2 = math.hypot(candidate2[0] - op.x2, candidate2[1] - op.y2)
-                    if d1 < radius * 3 or d2 < radius * 3:
-                        too_close = True
-                        break
-                if not too_close:
-                    p2 = candidate2
-                    break
-                    
-            if not p2:
-                p2 = ((p1[0] + min_dist) % self.state.grid_width, (p1[1] + min_dist) % self.state.grid_height)
-                
-            self.portals.append(Portal(i, p1[0], p1[1], p2[0], p2[1], radius, color))
+        self._cache_list()
+
+    def update(self, tick_interval):
+        if self.state.config.world.portals_enabled:
+            for i in range(len(self.portal_slots)):
+                self.portal_timers[i] += tick_interval
+                if self.portal_timers[i] >= 60.0:
+                    self.portal_timers[i] = 0.0
+                    should_exist = random.random() < self.state.config.world.portals_spawn_chance
+                    p = self.portal_slots[i]
+                    if should_exist:
+                        if p is None or p.state == "dead" or p.state == "collapsing":
+                            self.portal_slots[i] = self._spawn_portal(i)
+                    else:
+                        if p is not None and p.state != "dead" and p.target_scale == 1.0:
+                            # Safe closing check: Is any player using this portal?
+                            in_use = False
+                            for pid, player in self.state.players.items():
+                                if player.teleport_state != "none" and player.last_portal_exited is not None:
+                                    if player.last_portal_exited[0] == p.id:
+                                        in_use = True
+                                        break
+                            if in_use:
+                                # Wait another cycle or just delay timer slightly
+                                self.portal_timers[i] -= 1.0 # Try again in 1 second
+                            else:
+                                p.target_scale = 0.0
+                                p.state = "collapsing"
             
-        self._cached_portals_list = [p.to_dict() for p in self.portals]
-        
-    def get_cached_list(self):
-        if self.state.config.world.portals_enabled == 1:
-            return self._cached_portals_list
-        return []
+            growth_time = max(0.1, self.state.config.world.portals_growth_time)
+            for i, p in enumerate(self.portal_slots):
+                if p is None or p.state == "dead":
+                    continue
+                if p.target_scale == 1.0 and p.current_scale < 1.0:
+                    p.current_scale = min(1.0, p.current_scale + tick_interval / growth_time)
+                    if p.current_scale >= 1.0:
+                        p.state = "active"
+                elif p.target_scale == 0.0 and p.current_scale > 0.0:
+                    p.current_scale = max(0.0, p.current_scale - tick_interval / growth_time)
+                    if p.current_scale <= 0.0:
+                        p.state = "dead"
+                        self.portal_slots[i] = None
+        else:
+            for i in range(len(self.portal_slots)):
+                self.portal_slots[i] = None
+                
+        self._cache_list()
 
-    def check_teleport(self, new_head, player):
-        if self.state.config.world.portals_enabled == 1 and self.portals:
-            for portal in self.portals:
+    def _cache_list(self):
+        if self.state.config.world.portals_enabled == 1:
+            self._cached_portals_list = [p.to_dict() for p in self.portal_slots if p is not None and p.state != "dead"]
+        else:
+            self._cached_portals_list = []
+            
+    def get_cached_list(self):
+        return self._cached_portals_list
+
+    def check_teleport_start(self, new_head, player):
+        if self.state.config.world.portals_enabled == 1 and self.portal_slots:
+            for portal in self.portal_slots:
+                if portal is None or portal.state == "dead" or portal.current_scale <= 0.01:
+                    continue
+                eff_radius = portal.radius * portal.current_scale
                 dist1 = math.hypot(new_head["x"] - portal.x1, new_head["y"] - portal.y1)
-                if dist1 < portal.radius:
+                if dist1 < eff_radius:
                     if player.last_portal_exited != (portal.id, 0):
-                        new_head["x"] = portal.x2
-                        new_head["y"] = portal.y2
-                        player.last_portal_exited = (portal.id, 1)
-                        return new_head
+                        return {"out_pos": (portal.x2, portal.y2), "portal_id": (portal.id, 1)}
                 dist2 = math.hypot(new_head["x"] - portal.x2, new_head["y"] - portal.y2)
-                if dist2 < portal.radius:
+                if dist2 < eff_radius:
                     if player.last_portal_exited != (portal.id, 1):
-                        new_head["x"] = portal.x1
-                        new_head["y"] = portal.y1
-                        player.last_portal_exited = (portal.id, 0)
-                        return new_head
-        return new_head
+                        return {"out_pos": (portal.x1, portal.y1), "portal_id": (portal.id, 0)}
+        return None
 
 
 class BlackHoleManager:
@@ -108,10 +189,11 @@ class BlackHoleManager:
             x = random.uniform(5, self.state.grid_width - 5)
             y = random.uniform(5, self.state.grid_height - 5)
             too_close = False
-            for op in self.portal_manager.portals:
-                if math.hypot(x - op.x1, y - op.y1) < op.radius * 3 or math.hypot(x - op.x2, y - op.y2) < op.radius * 3:
-                    too_close = True
-                    break
+            for op in self.portal_manager.portal_slots:
+                if op is not None and op.state != "dead":
+                    if math.hypot(x - op.x1, y - op.y1) < op.radius * 3 or math.hypot(x - op.x2, y - op.y2) < op.radius * 3:
+                        too_close = True
+                        break
             for obh in self.black_hole_slots:
                 if obh is not None and obh.state != "dead":
                     if math.hypot(x - obh.x, y - obh.y) < obh.pull_radius * 1.5:

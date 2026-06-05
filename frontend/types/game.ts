@@ -4,6 +4,9 @@ export type ServerWorldConfig = {
   portals_enabled?: number;
   portals_count?: number;
   portals_radius?: number;
+  portals_teleport_delay_ms?: number;
+  portals_spawn_chance?: number;
+  portals_growth_time?: number;
   black_holes_enabled?: number;
   black_holes_count?: number;
   black_holes_spawn_chance?: number;
@@ -75,6 +78,10 @@ export type Player = {
   accelerating?: boolean;
   skin?: string;
   nickname?: string;
+  teleport_state?: string;
+  teleport_out_x?: number;
+  teleport_out_y?: number;
+  teleport_timer_ratio?: number;
 };
 
 export type Portal = {
@@ -85,6 +92,8 @@ export type Portal = {
   x2: number;
   y2: number;
   radius: number;
+  state?: string;
+  current_scale?: number;
 };
 
 export type BlackHole = {
@@ -93,6 +102,8 @@ export type BlackHole = {
   y: number;
   pull_radius: number;
   kill_radius: number;
+  state?: string;
+  current_scale?: number;
 };
 
 export type GameState = {
@@ -102,6 +113,7 @@ export type GameState = {
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
   server_food?: ServerFoodConfig;
+  server_boost?: any;
   players: Record<string, Player>;
   foods: Food[];
   portals?: Portal[];
@@ -110,12 +122,20 @@ export type GameState = {
 
 export type NetworkPlayer = Omit<Player, "body"> & {
   body: Point[] | number[];
+  teleport_state?: string;
+  teleport_out_x?: number;
+  teleport_out_y?: number;
+  teleport_timer_ratio?: number;
 };
 
 export type NetworkPlayerUpdate = Partial<Omit<Player, "body">> & {
   body?: Point[] | number[];
   new_heads?: Point[] | number[];
   length?: number;
+  teleport_state?: string;
+  teleport_out_x?: number;
+  teleport_out_y?: number;
+  teleport_timer_ratio?: number;
 };
 
 export type KillEvent = {
@@ -131,6 +151,7 @@ export type FullGameMessage = {
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
   server_food?: ServerFoodConfig;
+  server_boost?: any;
   players: Record<string, NetworkPlayer>;
   foods: Food[];
   new_foods?: Food[];
@@ -149,6 +170,7 @@ export type DeltaGameMessage = {
   server_snake?: ServerSnakeConfig;
   server_visual?: ServerVisualConfig;
   server_food?: ServerFoodConfig;
+  server_boost?: any;
   players: Record<string, NetworkPlayerUpdate>;
   new_foods?: Food[];
   eaten_foods?: number[];

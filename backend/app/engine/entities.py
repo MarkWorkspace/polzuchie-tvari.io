@@ -29,6 +29,9 @@ class Portal:
         self.y2 = y2
         self.radius = radius
         self.color = color
+        self.current_scale = 0.0
+        self.target_scale = 1.0
+        self.state = "spawning"
 
     def to_dict(self):
         return {
@@ -38,7 +41,8 @@ class Portal:
             "y1": round(self.y1, 2),
             "x2": round(self.x2, 2),
             "y2": round(self.y2, 2),
-            "radius": round(self.radius, 2)
+            "radius": round(self.radius, 2),
+            "current_scale": round(self.current_scale, 2)
         }
 
 class BlackHole:
@@ -87,10 +91,16 @@ class Player:
         self.just_respawned = True
         self.steered_by_mouse = False
         self.last_portal_exited = None
+        self.length = self.config.snake.start_length
+        self.teleport_state = "none"
+        self.teleport_pos = None
+        self.teleport_out_pos = None
+        self.teleport_timer = 0.0
+        self.teleport_delay = 0.0
 
     @property
     def is_accelerating_valid(self):
-        return self.accelerating and self.score > self.config.boost.min_score
+        return self.accelerating and self.score > self.config.boost.min_score and self.teleport_state == "none"
         
     @property
     def head_radius(self):
@@ -105,6 +115,12 @@ class Player:
             "deaths": self.deaths,
             "accelerating": self.is_accelerating_valid if in_aoi else False,
         }
+        if self.teleport_state != "none":
+            data["teleport_state"] = self.teleport_state
+            if self.teleport_out_pos:
+                data["teleport_out_x"] = round(self.teleport_out_pos[0], 2)
+                data["teleport_out_y"] = round(self.teleport_out_pos[1], 2)
+                data["teleport_timer_ratio"] = round(max(0, self.teleport_timer) / max(0.001, self.teleport_delay), 2)
         if is_full:
             data["skin"] = self.skin
             data["nickname"] = self.nickname

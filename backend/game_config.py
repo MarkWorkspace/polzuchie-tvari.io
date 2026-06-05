@@ -16,6 +16,9 @@ class WorldConfig:
     portals_enabled: int = 1
     portals_count: int = 2
     portals_radius: float = 2.5
+    portals_teleport_delay_ms: int = 1500
+    portals_spawn_chance: float = 0.5
+    portals_growth_time: float = 3.0
     black_holes_enabled: int = 1
     black_holes_count: int = 2
     black_holes_spawn_chance: float = 0.5
@@ -127,6 +130,8 @@ class GameConfig:
         _require_range("world.portals_enabled", self.world.portals_enabled, 0, 1)
         _require_range("world.portals_count", self.world.portals_count, 1, 10)
         _require_range("world.portals_radius", self.world.portals_radius, 0.5, 50.0)
+        _require_range("world.portals_spawn_chance", self.world.portals_spawn_chance, 0.0, 1.0)
+        _require_range("world.portals_growth_time", self.world.portals_growth_time, 0.1, 300.0)
         _require_range("world.black_holes_enabled", self.world.black_holes_enabled, 0, 1)
         _require_range("world.black_holes_count", self.world.black_holes_count, 1, 10)
         _require_range("world.black_holes_spawn_chance", self.world.black_holes_spawn_chance, 0.0, 1.0)

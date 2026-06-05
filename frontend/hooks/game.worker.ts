@@ -48,6 +48,9 @@ interface Particle {
 const activeParticles: Particle[] = [];
 let accumulatedKillEvents: any[] = [];
 
+let myVisualOffsetX = 0.0;
+let myVisualOffsetY = 0.0;
+
 async function decompress(bytes: Uint8Array): Promise<ArrayBuffer> {
   const response = new Response(bytes as any);
   if (!response.body) throw new Error("Body is null");
@@ -412,6 +415,8 @@ function writeMatrix(array: Float32Array, index: number, tx: number, ty: number,
 
 const camState = {
   localAngle: null as number | null,
+  localX: null as number | null,
+  localY: null as number | null,
   localCurrentTurn: 0.0,
   currentZoomOffset: 0.0,
 };
@@ -568,20 +573,61 @@ function handleRequestFrame(msg: any) {
     const maxTurnFromRadius = baseSpeedPerSecond / Math.max(effectiveRadius, 0.01);
     const turnPerTick = Math.min(maxTurnSpeedDeg * Math.PI / 180, maxTurnFromRadius) / serverTickRate;
 
-    const targetTurn = localInput.turn * turnPerTick;
-    if (localInput.mode === "mouse" || localInput.mode === "tilt") {
-      camState.localCurrentTurn = targetTurn;
+    if (!myPlayer.teleport_state || myPlayer.teleport_state === "none" || myPlayer.teleport_state === "exiting") {
+      const targetTurn = localInput.turn * turnPerTick;
+      if (localInput.mode === "mouse" || localInput.mode === "tilt") {
+        camState.localCurrentTurn = targetTurn;
+      } else {
+        const smoothing = localInput.turn === 0 ? (serverSimulation?.turn_idle_smoothing_at_20hz ?? TURN_IDLE_SMOOTHING_AT_20HZ) : (serverSimulation?.turn_active_smoothing_at_20hz ?? TURN_ACTIVE_SMOOTHING_AT_20HZ);
+        camState.localCurrentTurn += (targetTurn - camState.localCurrentTurn) * frameSmoothing(smoothing, dt);
+      }
+      camState.localAngle += camState.localCurrentTurn * dt * serverTickRate;
     } else {
-      const smoothing = localInput.turn === 0 ? (serverSimulation?.turn_idle_smoothing_at_20hz ?? TURN_IDLE_SMOOTHING_AT_20HZ) : (serverSimulation?.turn_active_smoothing_at_20hz ?? TURN_ACTIVE_SMOOTHING_AT_20HZ);
-      camState.localCurrentTurn += (targetTurn - camState.localCurrentTurn) * frameSmoothing(smoothing, dt);
+      camState.localCurrentTurn = 0.0;
     }
-    camState.localAngle += camState.localCurrentTurn * dt * serverTickRate;
 
-    const angleDiff = Math.atan2(Math.sin(myPlayer.angle - camState.localAngle), Math.cos(myPlayer.angle - camState.localAngle));
+    let gravityBend = 0.0;
+    if (state.server_world?.black_holes_enabled !== 0 && state.black_holes) {
+      for (let i = 0; i < state.black_holes.length; i++) {
+        const bh = state.black_holes[i];
+        if (!bh || bh.state === "dead" || (bh.current_scale ?? 1.0) <= 0.01) continue;
+        
+        const head = myPlayer.body[0];
+        let bhDx = bh.x - head.x;
+        if (bhDx > mapW / 2) bhDx -= mapW;
+        else if (bhDx < -mapW / 2) bhDx += mapW;
+        
+        let bhDy = bh.y - head.y;
+        if (bhDy > mapH / 2) bhDy -= mapH;
+        else if (bhDy < -mapH / 2) bhDy += mapH;
+        
+        const dist = Math.sqrt(bhDx * bhDx + bhDy * bhDy);
+        const effPullRadius = bh.pull_radius * (bh.current_scale ?? 1.0);
+        
+        if (dist > 0.001 && dist < effPullRadius) {
+          const pullDistFactor = (effPullRadius - dist) / effPullRadius;
+          const targetAngle = Math.atan2(bhDy, bhDx) + Math.PI / 4;
+          const angleDiffBend = Math.atan2(Math.sin(targetAngle - camState.localAngle!), Math.cos(targetAngle - camState.localAngle!));
+          
+          const pullForce = state.server_world?.black_holes_pull_force ?? 6.0;
+          const speedMult = (myPlayer.accelerating || localInput.accelerating) ? 2.0 : 1.0;
+          const bendSpeed = pullForce * (bh.current_scale ?? 1.0) * pullDistFactor * 5.0 * speedMult * dt;
+          
+          if (angleDiffBend > 0) {
+            gravityBend += Math.min(angleDiffBend, bendSpeed);
+          } else {
+            gravityBend += Math.max(angleDiffBend, -bendSpeed);
+          }
+        }
+      }
+    }
+    camState.localAngle! += gravityBend;
+
+    const angleDiff = Math.atan2(Math.sin(myPlayer.angle - camState.localAngle!), Math.cos(myPlayer.angle - camState.localAngle!));
     if (Math.abs(angleDiff) > Math.PI / 2) {
       camState.localAngle = myPlayer.angle;
     } else {
-      camState.localAngle += angleDiff * 0.1;
+      camState.localAngle! += angleDiff * 0.1;
     }
 
     if (myPlayer.accelerating || localInput.accelerating) {
@@ -596,10 +642,78 @@ function handleRequestFrame(msg: any) {
     if (oldBody && oldBody.length > 0) start = oldBody[0];
     const camDx = target.x - start.x;
     const camDy = target.y - start.y;
-    if (camDx * camDx + camDy * camDy > 36.0 || Math.abs(camDx) > mapW / 2 || Math.abs(camDy) > mapH / 2) start = target;
+    
+    let serverX = target.x;
+    let serverY = target.y;
+    if (camDx * camDx + camDy * camDy <= 36.0 && Math.abs(camDx) <= mapW / 2 && Math.abs(camDy) <= mapH / 2) {
+      serverX = start.x + camDx * progress;
+      serverY = start.y + camDy * progress;
+    }
 
-    camX = (start.x + (target.x - start.x) * progress) * gridSize + gridSize / 2;
-    camY = -((start.y + (target.y - start.y) * progress) * gridSize + gridSize / 2);
+    if (camState.localX === null || camState.localY === null) {
+      camState.localX = serverX;
+      camState.localY = serverY;
+    }
+
+    if ((myPlayer.teleport_state === "entering" || myPlayer.teleport_state === "in_transit") && myPlayer.teleport_out_x !== undefined && myPlayer.teleport_out_y !== undefined) {
+      serverX = myPlayer.teleport_out_x;
+      serverY = myPlayer.teleport_out_y;
+      
+      if (Math.abs(camState.localX - serverX) > mapW / 2) {
+        if (camState.localX < serverX) camState.localX += mapW;
+        else camState.localX -= mapW;
+      }
+      if (Math.abs(camState.localY - serverY) > mapH / 2) {
+        if (camState.localY < serverY) camState.localY += mapH;
+        else camState.localY -= mapH;
+      }
+
+      const ratio = Math.max(0.001, myPlayer.teleport_timer_ratio ?? 0.001);
+      const delay = (state.server_world?.portals_teleport_delay_ms ?? 1500) / 1000.0;
+      const timeRemaining = ratio * delay;
+      
+      if (timeRemaining > dt && timeRemaining > 0.05) {
+        const moveRatio = Math.min(1.0, dt / timeRemaining);
+        camState.localX += (serverX - camState.localX) * moveRatio;
+        camState.localY += (serverY - camState.localY) * moveRatio;
+      } else {
+        camState.localX = serverX;
+        camState.localY = serverY;
+      }
+    } else {
+      const speedMult = (myPlayer.accelerating || localInput.accelerating) ? (state.server_boost?.speed_multiplier ?? 2.0) : 1.0;
+      const speed = (state.server_simulation?.base_speed_per_second ?? 6.0) * speedMult;
+      
+      camState.localX += Math.cos(camState.localAngle) * speed * dt;
+      camState.localY += Math.sin(camState.localAngle) * speed * dt;
+
+      if (Math.abs(camState.localX - serverX) > mapW / 2) {
+        if (camState.localX < serverX) camState.localX += mapW;
+        else camState.localX -= mapW;
+      }
+      if (Math.abs(camState.localY - serverY) > mapH / 2) {
+        if (camState.localY < serverY) camState.localY += mapH;
+        else camState.localY -= mapH;
+      }
+
+      camState.localX += (serverX - camState.localX) * 0.15;
+      camState.localY += (serverY - camState.localY) * 0.15;
+    }
+
+    myVisualOffsetX = camState.localX - serverX;
+    myVisualOffsetY = camState.localY - serverY;
+    if (myVisualOffsetX > mapW / 2) myVisualOffsetX -= mapW;
+    else if (myVisualOffsetX < -mapW / 2) myVisualOffsetX += mapW;
+    if (myVisualOffsetY > mapH / 2) myVisualOffsetY -= mapH;
+    else if (myVisualOffsetY < -mapH / 2) myVisualOffsetY += mapH;
+
+    if (camState.localX < 0) camState.localX += mapW;
+    if (camState.localX >= mapW) camState.localX -= mapW;
+    if (camState.localY < 0) camState.localY += mapH;
+    if (camState.localY >= mapH) camState.localY -= mapH;
+
+    camX = camState.localX * gridSize + gridSize / 2;
+    camY = -(camState.localY * gridSize + gridSize / 2);
     camAngle = camState.localAngle;
   }
 
@@ -722,7 +836,10 @@ function handleRequestFrame(msg: any) {
   if (state.server_world?.portals_enabled !== 0) {
     for (let i = 0; i < portals.length; i++) {
       const p = portals[i];
-      const radius = p.radius * gridSize;
+      const scale = p.current_scale !== undefined ? p.current_scale : 1.0;
+      if (scale <= 0.01) continue;
+      
+      const radius = p.radius * scale * gridSize;
       const color = parseColor(p.color || '#38bdf8');
       
       const wx1 = p.x1 * gridSize;
@@ -840,8 +957,15 @@ function handleRequestFrame(msg: any) {
 
   for (const playerId in state.players) {
     const p = state.players[playerId];
+    const startLength = state.server_snake?.start_length ?? 5;
+    const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? 1.0;
+    const baseHeadRadius = state.server_snake?.base_head_radius ?? 0.6;
     const oldP = lastState?.players[playerId];
     if (!p.body || p.body.length === 0) continue;
+
+    if (p.teleport_state === "in_transit") {
+      continue;
+    }
 
     const isSelf = playerId === myId;
     activePlayers.push({ id: playerId, isMe: isSelf, nickname: p.nickname || "Игрок" });
@@ -874,6 +998,15 @@ function handleRequestFrame(msg: any) {
           by = ay + dy * progress;
         }
 
+        if (isSelf) {
+          bx += myVisualOffsetX;
+          by += myVisualOffsetY;
+          if (bx < 0) bx += mapW;
+          else if (bx >= mapW) bx -= mapW;
+          if (by < 0) by += mapH;
+          else if (by >= mapH) by -= mapH;
+        }
+
         t_segX[segCount] = bx;
         t_segY[segCount] = by;
         segCount++;
@@ -881,8 +1014,20 @@ function handleRequestFrame(msg: any) {
     } else {
       for (let i = 0; i < p.body.length; i++) {
         if (segCount >= MAX_SPLINE_POINTS) break;
-        t_segX[segCount] = p.body[i].x;
-        t_segY[segCount] = p.body[i].y;
+        let bx = p.body[i].x;
+        let by = p.body[i].y;
+        
+        if (isSelf) {
+          bx += myVisualOffsetX;
+          by += myVisualOffsetY;
+          if (bx < 0) bx += mapW;
+          else if (bx >= mapW) bx -= mapW;
+          if (by < 0) by += mapH;
+          else if (by >= mapH) by -= mapH;
+        }
+
+        t_segX[segCount] = bx;
+        t_segY[segCount] = by;
         segCount++;
       }
     }
@@ -1216,15 +1361,8 @@ function handleRequestFrame(msg: any) {
 
     // 5. Eyes & Pupils matrix preparation
     const snakeRadius = radius * gridSize;
-    const head = p.body[0];
-    let startHead = head;
-    if (oldP && oldP.body) startHead = oldP.body[0] || head;
-    const headDx = head.x - startHead.x;
-    const headDy = head.y - startHead.y;
-    if (headDx * headDx + headDy * headDy > 36.0) startHead = head;
-
-    const hx = (startHead.x + (head.x - startHead.x) * progress) * gridSize + gridSize/2;
-    const hy = -((startHead.y + (head.y - startHead.y) * progress) * gridSize + gridSize/2);
+    const hx = t_segX[0] * gridSize + gridSize/2;
+    const hy = -(t_segY[0] * gridSize + gridSize/2);
 
     const eyeRadius = snakeRadius * 0.35;
     const pupilRadius = eyeRadius * 0.5;
@@ -1288,16 +1426,8 @@ function handleRequestFrame(msg: any) {
     // 7. Particles spawning
     const isAccelerating = p.accelerating;
     if (isAccelerating && activeParticles.length < 500 && Math.random() < 0.35) {
-      const tail = p.body[p.body.length - 1];
-      const oldTailPlayer = lastState?.players[playerId];
-      let startTail = tail;
-      if (oldTailPlayer && oldTailPlayer.body && oldTailPlayer.body.length > 0) {
-        startTail = oldTailPlayer.body[oldTailPlayer.body.length - 1] || tail;
-      }
-      if (Math.abs(tail.x - startTail.x) > 50 || Math.abs(tail.y - startTail.y) > 50) startTail = tail;
-
-      const tx = (startTail.x + (tail.x - startTail.x) * progress) * gridSize + gridSize/2;
-      const ty = -((startTail.y + (tail.y - startTail.y) * progress) * gridSize + gridSize/2);
+      const tx = t_segX[segCount - 1] * gridSize + gridSize/2;
+      const ty = -(t_segY[segCount - 1] * gridSize + gridSize/2);
 
       const tailAngle = headAngleVal + Math.PI;
       const angle = tailAngle + randomRange(-0.35, 0.35);
