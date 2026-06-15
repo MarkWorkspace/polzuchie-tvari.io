@@ -12,6 +12,7 @@ frontend/
 ├── index.html
 ├── vite.config.ts
 ├── package.json
+├── Dockerfile                      # ROLE: Сборка и запуск фронтенда (Vite) в Docker.
 └── src/
     ├── main.ts                         # ROLE: Точка входа приложения. Не содержит игровой логики.
     ├── game/
