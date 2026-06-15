@@ -1,3 +1,4 @@
+# ROLE: WebSocket endpoint, rate limiting. Не игровая логика.
 import asyncio
 import contextlib
 import re
@@ -17,10 +18,11 @@ active_connections = {}
 pending_disconnects = {}
 
 MAX_CONNECTIONS = 50
-RATE_LIMIT_PER_SECOND = 30
+RATE_LIMIT_PER_SECOND = 50
 VALID_SKINS = frozenset({"zebra", "tiger", "rainbow", "cyberpunk"})
-HEX_COLOR_PATTERN = re.compile(r'^#[0-9a-fA-F]{6}$')
+HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 NICKNAME_MAX_LENGTH = 16
+
 
 async def sender_loop(client_id, websocket, queue):
     try:
@@ -33,6 +35,7 @@ async def sender_loop(client_id, websocket, queue):
     except Exception:
         pass  # Cleanup handled by websocket_endpoint finally block
 
+
 def replace_queued_state(queue, data):
     if queue.full():
         with contextlib.suppress(asyncio.QueueEmpty):
@@ -40,11 +43,12 @@ def replace_queued_state(queue, data):
     with contextlib.suppress(asyncio.QueueFull):
         queue.put_nowait(data)
 
+
 async def websocket_endpoint(
     websocket: WebSocket,
     nickname: str = "Игрок",
     skin: str = "#22c55e",
-    client_id: str | None = None
+    client_id: str | None = None,
 ):
     reconnecting = False
     if client_id:
@@ -57,16 +61,16 @@ async def websocket_endpoint(
 
     if not client_id:
         client_id = str(uuid.uuid4())
-    
+
     if len(active_connections) >= MAX_CONNECTIONS and not reconnecting:
         await websocket.close(code=4002, reason="Server full")
         return
-    
+
     nickname = nickname.strip()[:NICKNAME_MAX_LENGTH] or "Игрок"
-    
+
     if skin not in VALID_SKINS and not HEX_COLOR_PATTERN.match(skin):
         skin = "#22c55e"
-    
+
     await websocket.accept()
 
     # Cancel pending disconnect if reconnecting
@@ -84,37 +88,35 @@ async def websocket_endpoint(
                 await old_conn["websocket"].close()
     else:
         game.add_player(client_id, nickname, skin)
-    
+
     full_state = game.get_full_state(client_id)
     full_state["your_id"] = client_id
     await websocket.send_bytes(zlib.compress(msgpack.packb(full_state)))
 
     send_queue = asyncio.Queue(maxsize=1)
     send_task = asyncio.create_task(sender_loop(client_id, websocket, send_queue))
-    active_connections[client_id] = {"websocket": websocket, "queue": send_queue, "task": send_task}
-    
+    active_connections[client_id] = {
+        "websocket": websocket,
+        "queue": send_queue,
+        "task": send_task,
+    }
+
     msg_timestamps = deque()
-    
+
     try:
         while True:
             data = await websocket.receive_text()
             if len(data) > 20:
                 continue
-            
+
             now = asyncio.get_event_loop().time()
-            msg_timestamps.append(now)
             while msg_timestamps and msg_timestamps[0] < now - 1.0:
                 msg_timestamps.popleft()
-            if len(msg_timestamps) > RATE_LIMIT_PER_SECOND:
+            if len(msg_timestamps) >= RATE_LIMIT_PER_SECOND:
                 continue
-            
+            msg_timestamps.append(now)
+
             if data.startswith("SCORE:"):
-                try:
-                    val = int(data[6:])
-                    if val >= 0:
-                        game.update_player_score(client_id, val)
-                except ValueError:
-                    pass
                 continue
 
             if data.startswith("PING:"):
@@ -123,8 +125,8 @@ async def websocket_endpoint(
                 except Exception:
                     pass
                 continue
-            
-            game.update_direction(client_id, data)
+
+            game.input_queue.append((client_id, data))
     except Exception:
         pass
     finally:
@@ -134,7 +136,7 @@ async def websocket_endpoint(
             conn["task"].cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await conn["task"]
-            
+
             game.reset_player_input(client_id)
 
             async def delayed_remove(cid):
@@ -145,4 +147,6 @@ async def websocket_endpoint(
                 except asyncio.CancelledError:
                     pass
 
-            pending_disconnects[client_id] = asyncio.create_task(delayed_remove(client_id))
+            pending_disconnects[client_id] = asyncio.create_task(
+                delayed_remove(client_id)
+            )

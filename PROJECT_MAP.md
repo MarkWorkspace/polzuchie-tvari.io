@@ -1,0 +1,121 @@
+# PROJECT_MAP.md
+
+> Этот файл поддерживается AI-агентами. Обновляется после каждого структурного изменения.
+> Правила обновления — в `AGENTS.md`
+
+---
+
+## Frontend: `frontend/`
+
+```
+frontend/
+├── index.html
+├── vite.config.ts
+├── package.json
+└── src/
+    ├── main.ts                         # ROLE: Точка входа приложения. Не содержит игровой логики.
+    ├── game/
+    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
+    │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены. Не содержит логики ввода или сети.
+    │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
+    │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
+    │   ├── Camera.ts                   # ROLE: Следование камеры, зум. Не рендеринг.
+    │   └── Config.ts                   # ROLE: Константы (WORLD_WIDTH, GRID_SIZE и др.). Единственная копия констант физики на фронте.
+    ├── lib/
+    │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
+    ├── renderer/
+    │   ├── SceneManager.ts             # ROLE: Инициализация Three.js сцены, свет, рендерер.
+    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, сплайны, тени. Не физика, не HUD.
+    │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
+    │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.
+    │   ├── PortalRenderer.ts           # ROLE: Визуализация порталов.
+    │   ├── BlackHoleRenderer.ts        # ROLE: Визуализация чёрных дыр.
+    │   ├── ParticleRenderer.ts         # ROLE: Система частиц (свечение хвоста).
+    │   ├── PostProcessing.ts           # ROLE: Линзирование, туман.
+    │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
+    │   └── shaders/
+    │       ├── snakeBody.glsl.ts       # ROLE: Шейдер тела змейки (5 скинов, GPU-клиппинг).
+    │       ├── food.glsl.ts            # ROLE: Шейдер еды.
+    │       ├── portal.glsl.ts          # ROLE: Шейдер портала.
+    │       ├── blackHole.glsl.ts       # ROLE: Шейдер чёрной дыры.
+    │       └── ground.glsl.ts          # ROLE: Шейдер бесконечного пола с сеткой и туманом.
+    ├── worker/
+    │   ├── worker.ts                   # ROLE: Точка входа воркера, onmessage-роутер. Не содержит вычислений.
+    │   ├── StateInterpolation.ts       # ROLE: Очередь состояний, интерполяция между тиками.
+    │   ├── SplineComputer.ts           # ROLE: Расчёт 3D-сплайнов змеек.
+    │   ├── MeshBuilder.ts              # ROLE: Сборка vertex/index-буферов из сплайнов.
+    │   ├── CameraPredictor.ts          # ROLE: Клиентское предсказание позиции камеры.
+    │   ├── FoodComputer.ts             # ROLE: Матрицы и цвета инстансов еды.
+    │   ├── PortalComputer.ts           # ROLE: Матрицы инстансов порталов.
+    │   ├── BlackHoleComputer.ts        # ROLE: Матрицы инстансов чёрных дыр.
+    │   ├── ParticleComputer.ts         # ROLE: Симуляция частиц хвоста.
+    │   ├── EyeComputer.ts              # ROLE: Позиции глаз и зрачков змеек.
+    │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера. Не сеть, не интерполяция.
+    │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, реконнект, ping/pong. Не бизнес-логика.
+    │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
+    │   ├── SnakeProcessor.ts           # ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
+    │   └── shared/
+    │       ├── FormulaParser.ts        # ROLE: Парсер формул роста. ЕДИНСТВЕННАЯ копия — импортируется только воркером.
+    │       ├── MathUtils.ts            # ROLE: Тороидальные операции, lerp. ЕДИНСТВЕННАЯ копия математики на фронте.
+    │       ├── GrowableArray.ts        # ROLE: Динамически расширяемые массивы Float32 и Uint32 для буферов геометрии.
+    │       └── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
+    ├── ui/
+    │   ├── LoginScreen.ts              # ROLE: Экран входа.
+    │   ├── HUD.ts                      # ROLE: Score, ping, статус соединения. Не игровая логика.
+    │   ├── Leaderboard.ts              # ROLE: Топ-10 таблица.
+    │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
+    │   ├── KillFeed.ts                 # ROLE: Лента убийств.
+    │   ├── SteeringIndicator.ts        # ROLE: Шкала поворота мыши.
+    │   ├── MobileControls.ts           # ROLE: Мобильные элементы управления.
+    │   └── SettingsPanel.ts            # ROLE: Боковая панель настроек.
+    ├── admin/
+    │   ├── AdminPanel.ts               # ROLE: Точка входа панели администратора, оркестрация событий и здоровья сервера.
+    │   ├── ConfigEditor.ts             # ROLE: Состояние и бизнес-логика конфигурации админ-панели. Без UI.
+    │   ├── ConfigRenderer.ts           # ROLE: Генерация HTML для полей конфигурации и видов еды. Без состояния.
+    │   ├── AdminDashboard.ts           # ROLE: Генерация HTML шаблона панели администратора и модальных окон.
+    │   ├── FoodSimulator.ts            # ROLE: Canvas-симулятор распределения еды. Без UI.
+    │   └── AdminLabels.ts              # ROLE: Метаданные (названия полей, единицы измерения, подсказки) для панели администратора.
+    └── types/
+        └── game.ts                     # ROLE: Типы GameState, Player, Food и др. Только типы, без логики.
+
+styles/
+├── main.css
+├── hud_score.css
+├── hud.css
+├── login.css
+├── admin.css
+├── minimap.css
+└── settings.css
+```
+
+---
+
+## Backend: `backend/`
+
+```
+backend/
+├── server.py                           # ROLE: Точка входа FastAPI. Не содержит игровой логики.
+├── game_config.py                      # ROLE: Конфигурация через датаклассы.
+├── config.json                         # Сохранённая конфигурация (генерируется, не редактировать вручную).
+├── requirements.txt
+└── app/
+    ├── api/
+    │   ├── websocket.py                # ROLE: WebSocket endpoint, rate limiting. Не игровая логика.
+    │   └── admin.py                    # ROLE: Admin REST API.
+    └── engine/
+        ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
+        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка конфигурации, управление игроками. Не содержит игровой логики тика.
+        ├── entities.py                 # ROLE: Датаклассы Player, Food, Portal, BlackHole. Только структуры данных.
+        ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн.
+        ├── world_elements.py           # ROLE: Жизненный цикл порталов и чёрных дыр.
+        └── systems/
+            ├── physics.py              # ROLE: Движение, тороидальное оборачивание. Не коллизии.
+            ├── collision.py            # ROLE: Столкновения змейка-змейка (коэфф. 0.95). Не движение, не еда.
+            ├── teleportation.py        # ROLE: FSM телепортации (5 состояний).
+            ├── gravity.py              # ROLE: Притяжение чёрных дыр.
+            ├── food_eating.py          # ROLE: Поедание и притяжение еды.
+            ├── boost.py                # ROLE: Ускорение, потеря массы, спавн еды при бусте.
+            ├── growth.py               # ROLE: Рост/усыхание, формула сегментов.
+            ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
+            └── serialization.py        # ROLE: MsgPack-упаковка, AoI-фильтрация, placeholder-замена.
+```

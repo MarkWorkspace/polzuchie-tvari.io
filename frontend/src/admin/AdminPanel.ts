@@ -1,0 +1,184 @@
+// ROLE: Точка входа панели администратора, оркестрация событий и здоровья сервера.
+import { ConfigEditor } from "./ConfigEditor";
+import { FoodSimulator } from "./FoodSimulator";
+import { AdminDashboard } from "./AdminDashboard";
+import { ConfigRenderer } from "./ConfigRenderer";
+
+export class AdminPanel {
+  private container: HTMLDivElement;
+  private editor: ConfigEditor | null = null;
+  private simulator: FoodSimulator | null = null;
+  private activeTab = "world_network";
+  private searchQuery = "";
+  private healthData = { online: false, players: 0, ping: 0 };
+  private healthInterval = 0;
+  private simSeed = 42;
+  private formulaError: string | null = null;
+  private showRestartConfirm = false;
+
+  constructor(container: HTMLDivElement) {
+    this.container = container;
+    const pwd = localStorage.getItem("snake-admin-password") || "";
+    if (pwd) {
+      this.editor = new ConfigEditor(pwd);
+      this.initDashboard();
+    } else {
+      this.renderPasswordPrompt();
+    }
+  }
+
+  public destroy(): void { clearInterval(this.healthInterval); }
+
+  private renderPasswordPrompt(): void {
+    this.container.innerHTML = `<div class="login-overlay"><div class="login-card glass-panel"><h2 class="login-logo">Admin Portal</h2><div class="login-form"><input type="password" id="admin-pass" class="input-field" placeholder="Enter Admin Password" autofocus /><button id="admin-auth-btn" class="login-button">Authorize</button><div id="auth-status" style="font-size: 12px; color: var(--text-muted);">Enter password to continue</div></div></div></div>`;
+    const auth = () => {
+      const input = this.container.querySelector("#admin-pass") as HTMLInputElement;
+      localStorage.setItem("snake-admin-password", input.value.trim());
+      this.editor = new ConfigEditor(input.value.trim());
+      this.initDashboard();
+    };
+    this.container.querySelector("#admin-auth-btn")?.addEventListener("click", auth);
+    this.container.querySelector("#admin-pass")?.addEventListener("keydown", (e) => (e as KeyboardEvent).key === "Enter" && auth());
+  }
+
+  private async initDashboard(): Promise<void> {
+    const status = await this.editor!.load();
+    if (status !== "OK") {
+      alert(status);
+      localStorage.removeItem("snake-admin-password");
+      this.renderPasswordPrompt();
+      return;
+    }
+    this.render();
+    this.startHealthPolling();
+    this.bindEvents();
+  }
+
+  private render(): void {
+    const counts = this.editor!.getModifiedCounts();
+    this.container.innerHTML = AdminDashboard.render(this.activeTab, this.searchQuery, this.healthData, counts.all > 0, counts.all, this.showRestartConfirm);
+    const mainView = this.container.querySelector("#admin-main-view") as HTMLElement;
+    if (mainView) {
+      mainView.innerHTML = ConfigRenderer.renderFields(this.editor!.getConfig(), this.editor!.getDrafts(), this.editor!.getFoodTypes(), this.activeTab, this.searchQuery, this.formulaError);
+      this.runSimulation();
+    }
+  }
+
+  private runSimulation(newSeed?: boolean): void {
+    const canvas = this.container.querySelector("#sim-canvas") as HTMLCanvasElement;
+    if (!canvas) return;
+    if (newSeed) this.simSeed = Math.floor(Math.random() * 1000);
+    this.simulator = new FoodSimulator(canvas);
+    const simCfg = this.editor!.getSimConfig();
+    this.simulator.simulateAndDraw(simCfg, this.simSeed);
+    const stats = this.container.querySelector("#sim-stats");
+    if (stats) {
+      stats.innerHTML = `<div>Grid Size: <strong>${simCfg.width}x${simCfg.height}</strong></div><div>Food Count: <strong>${simCfg.target_food_count}</strong></div><div>Clusters: <strong>${simCfg.cluster_count}</strong></div><div>Cluster Spread: <strong>${simCfg.cluster_spread}</strong></div>`;
+    }
+  }
+
+  private bindEvents(): void {
+    this.container.addEventListener("input", (e) => {
+      const el = e.target as HTMLInputElement;
+      if (el.classList.contains("config-input-field")) {
+        this.editor!.setDraft(el.dataset.key!, el.value);
+        if (el.dataset.key === "growth_score_per_segment") this.formulaError = null;
+        this.runSimulation();
+        const counts = this.editor!.getModifiedCounts();
+        const applyBtn = this.container.querySelector("#save-config-btn");
+        if (applyBtn) applyBtn.textContent = `Apply (${counts.all})`;
+      } else if (el.id === "admin-search") {
+        this.searchQuery = el.value;
+        this.render();
+        const searchEl = this.container.querySelector("#admin-search") as HTMLInputElement;
+        searchEl.focus();
+        searchEl.setSelectionRange(el.value.length, el.value.length);
+      } else if (el.classList.contains("food-type-val") || el.classList.contains("food-type-weight") || el.classList.contains("food-type-color") || el.classList.contains("food-type-color-picker")) {
+        const idx = parseInt(el.dataset.idx!);
+        const isColor = el.classList.contains("food-type-color") || el.classList.contains("food-type-color-picker");
+        this.editor!.updateFoodType(idx, el.classList.contains("food-type-val") ? "value" : (isColor ? "color" : "weight"), isColor ? el.value : (Number(el.value) || 0));
+        this.render();
+      }
+    });
+
+    this.container.addEventListener("click", async (e) => {
+      const btn = (e.target as HTMLElement).closest("button, a, span") as HTMLElement;
+      if (!btn) return;
+      if (btn.classList.contains("tab-btn")) {
+        this.activeTab = btn.getAttribute("data-tab")!;
+        this.render();
+      } else if (btn.id === "clear-search-btn") {
+        this.searchQuery = "";
+        this.render();
+      } else if (btn.classList.contains("reset-field-btn")) {
+        btn.getAttribute("data-key")!.split(",").forEach(k => this.editor!.setDraft(k, this.editor!.getConfig()[k.split(".")[0]][k.split(".")[1]]));
+        this.render();
+      } else if (btn.id === "save-config-btn") {
+        const msg = await this.editor!.save();
+        this.formulaError = (msg.includes("Error") || msg.toLowerCase().includes("formula") || msg.toLowerCase().includes("syntax")) ? msg : null;
+        alert(msg);
+        this.render();
+      } else if (btn.id === "reset-config-btn") {
+        this.editor!.resetLocalDrafts();
+        this.formulaError = null;
+        this.render();
+      } else if (btn.id === "regenerate-sim-btn") {
+        this.runSimulation(true);
+      } else if (btn.id === "restart-srv-btn") {
+        this.showRestartConfirm = true;
+        this.render();
+      } else if (btn.id === "cancel-restart-btn") {
+        this.showRestartConfirm = false;
+        this.render();
+      } else if (btn.id === "confirm-restart-btn") {
+        await this.restartServer();
+        this.showRestartConfirm = false;
+        this.render();
+      } else if (btn.id === "add-food-type-btn") {
+        this.editor!.addFoodType();
+        this.render();
+      } else if (btn.classList.contains("remove-food-type-btn")) {
+        this.editor!.removeFoodType(parseInt(btn.dataset.idx!));
+        this.render();
+      } else if (btn.classList.contains("food-card-header")) {
+        const idx = parseInt(btn.dataset.idx!);
+        this.editor!.updateFoodType(idx, "expanded", !this.editor!.getFoodTypes()[idx].expanded);
+        this.render();
+      } else if (btn.id === "exit-admin-btn") {
+        window.location.href = "/";
+      }
+    });
+  }
+
+  private async restartServer(): Promise<void> {
+    try {
+      const host = window.location.hostname || "127.0.0.1";
+      const isStd = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
+      const url = isStd ? `${window.location.protocol}//${host}/ws/admin/restart` : `${window.location.protocol}//${host}:8000/admin/restart`;
+      const res = await fetch(url, { method: "POST", headers: { "x-admin-password": localStorage.getItem("snake-admin-password") || "" } });
+      alert(res.ok ? "Server restarted successfully!" : "Restart failed: " + res.statusText);
+    } catch (e) { alert("Restart error: " + String(e)); }
+  }
+
+  private startHealthPolling(): void {
+    const poll = async () => {
+      const start = performance.now();
+      try {
+        const host = window.location.hostname || "127.0.0.1";
+        const isStd = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
+        const url = isStd ? `${window.location.protocol}//${host}/ws/health` : `${window.location.protocol}//${host}:8000/health`;
+        const res = await fetch(url);
+        const data = await res.json();
+        this.healthData = { online: true, players: data.players || 0, ping: Math.round(performance.now() - start) };
+      } catch {
+        this.healthData = { online: false, players: 0, ping: 0 };
+      }
+      const hEl = this.container.querySelector("#server-health");
+      if (hEl) hEl.innerHTML = this.healthData.online 
+        ? `<span style="color: #4ade80; display: flex; align-items: center; gap: 5px;"><span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px #4ade80; display: inline-block;"></span>Server: online</span><span style="color: var(--text-muted);">|</span><span>Players: ${this.healthData.players}</span><span style="color: var(--text-muted);">|</span><span>Ping: <strong style="color: ${this.healthData.ping <= 75 ? "#4ade80" : this.healthData.ping <= 150 ? "#fbbf24" : "#f87171"};">${this.healthData.ping} ms</strong></span>`
+        : `<span style="color: #f87171; display: flex; align-items: center; gap: 5px;"><span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block;"></span>Server: offline</span>`;
+    };
+    poll();
+    this.healthInterval = window.setInterval(poll, 2000);
+  }
+}

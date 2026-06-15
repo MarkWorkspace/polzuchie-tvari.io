@@ -1,0 +1,108 @@
+/* ROLE: Глобальные стили, переменные, сброс CSS и шрифты. */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --background: #2b2d34;
+  --foreground: #fafafa;
+  --bg-primary: #2b2d34;
+  --bg-secondary: #30323a;
+  --accent: #e63946;
+  --accent-hover: #d62839;
+  --border-color: #3f414a;
+  
+  /* Fallback aliases for existing usage */
+  --bg-dark: var(--background);
+  --bg-panel: rgba(48, 50, 58, 0.7);
+  --border-glow: var(--border-color);
+  --text-primary: var(--foreground);
+  --text-muted: rgba(250, 250, 250, 0.6);
+  --accent-blue: #3b82f6;
+  --accent-cyan: #06b6d4;
+  --accent-purple: #a855f7;
+  --accent-pink: #ec4899;
+  
+  --shadow-premium: 0 16px 48px rgba(0, 0, 0, 0.5);
+  --glass-blur: blur(16px);
+  --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html, body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  touch-action: none;
+}
+
+/* Game Canvas Container */
+.game-canvas-container {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Glassmorphism Panel Template */
+.glass-panel {
+  background: var(--bg-panel);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-glow);
+  border-radius: 16px;
+  box-shadow: var(--shadow-premium);
+  transition: var(--transition-smooth);
+}
+
+.glass-panel:hover {
+  border-color: hsla(225, 15%, 35%, 0.6);
+}
+
+/* Premium Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsla(0, 0%, 100%, 0.15);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsla(0, 0%, 100%, 0.3);
+}
+
+/* Micro-animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px hsla(210, 100%, 50%, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px hsla(210, 100%, 50%, 0.6);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

@@ -1,0 +1,89 @@
+/* ROLE: Стили для контейнера HUD, панели счета, пинга и подсказок. */
+
+.hud-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+  display: grid;
+  grid-template-columns: 300px 1fr 300px;
+  grid-template-rows: auto 1fr auto;
+  padding: 20px;
+  gap: 20px;
+  box-sizing: border-box;
+}
+
+.hud-interactive {
+  pointer-events: auto;
+}
+
+/* Score Panel */
+.score-panel {
+  grid-column: 1;
+  grid-row: 1;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: fit-content;
+  position: relative;
+}
+
+.score-title {
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.score-value {
+  font-size: 36px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--text-primary), var(--accent-cyan));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.score-feed {
+  position: absolute;
+  left: 18px;
+  top: 76px;
+  height: 60px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hud-ping {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.hud-guide {
+  font-size: 11px;
+  color: var(--accent-cyan);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.score-feed-item {
+  font-size: 18px;
+  font-weight: bold;
+  transition: all 0.5s ease-out;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.score-feed-item.positive {
+  color: #4ade80;
+}
+
+.score-feed-item.negative {
+  color: #f87171;
+}
