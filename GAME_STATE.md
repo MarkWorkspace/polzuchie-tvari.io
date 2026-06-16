@@ -95,6 +95,10 @@
   - Устранены ежекадровые аллокации тысяч массивов и вызовов GC за счет добавления `WeakMap` в `FoodComputer.ts` и отказа от spread-операторов в `DeltaDecoder.ts`.
   - Ускорены серверные расчеты AoI в `visibility.py` и `serialization.py` за счет инлайнинга формул расчета дистанций.
   - Устранены периодические "мертвые" фризы браузера (Major GC pauses): медленный и ресурсоемкий асинхронный `DecompressionStream` заменен на сверхбыстрый синхронный `pako.inflate` для распаковки пакетов, а `parsePoints` переписан с преаллокацией памяти.
+- Интеграция процедурной 3D-модели вишни: вместо `cherry.svg` еда с индексом 1 теперь использует процедурную 3D-геометрию из `CherryGeometry.ts` с материалом `MeshStandardMaterial` и vertexColors, что делает самую частую еду полностью трехмерной.
+  - Создана процедурная 3D-геометрия винограда (`GrapeGeometry.ts`), готовая к интеграции в рендерер.
+  - Создана процедурная 3D-геометрия персика (`PeachGeometry.ts`), готовая к интеграции в рендерер.
+- Создана процедурная 3D-геометрия клубники (`StrawberryGeometry.ts`), готовая к интеграции в рендерер.
 3. **Физика движения и управление:**
    - Движение змеек, расчет поворотов и ускорения с потерей очков в [physics.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/physics.py) и [boost.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/boost.py).
    - Поддержка клавиатурного ввода, руления мышью и мобильного тач-управления в [InputManager.ts](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/game/InputManager.ts) и [MobileControls.ts](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/ui/MobileControls.ts). Поддерживается мультитач-управление на мобильных устройствах, предотвращающее залипание и зависание ввода.

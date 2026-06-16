@@ -1,7 +1,7 @@
 // ROLE: Линзирование, AO, туман.
 import * as THREE from "three";
-import { EffectComposer, RenderPass, EffectPass, SSAOEffect, NormalPass, Effect, BlendFunction, EffectAttribute } from "postprocessing";
-import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
+import { EffectComposer, RenderPass, EffectPass, SSAOEffect, NormalPass, Effect, BlendFunction, BloomEffect, ToneMappingEffect, ToneMappingMode } from "postprocessing";
+import { gridSize } from "../game/Config";
 
 const lensingFragmentShader = `
   uniform vec3 uBlackHoles[10];
@@ -74,7 +74,19 @@ export class PostProcessing {
 
     this.lensingEffect = new LensingEffect({ bhPositionsArray: this.bhPositionsArray });
 
-    const effectPass = new EffectPass(camera, ssaoEffect, this.lensingEffect);
+    const bloomEffect = new BloomEffect({
+      intensity: 3.0,
+      luminanceThreshold: 0.7,
+      luminanceSmoothing: 0.6,
+      mipmapBlur: false,
+      resolutionScale: 1.0
+    });
+
+    const toneMappingEffect = new ToneMappingEffect({
+      mode: ToneMappingMode.ACES_FILMIC
+    });
+
+    const effectPass = new EffectPass(camera, ssaoEffect, bloomEffect, toneMappingEffect, this.lensingEffect);
     this.composer.addPass(effectPass);
     
     this.resize(width, height);

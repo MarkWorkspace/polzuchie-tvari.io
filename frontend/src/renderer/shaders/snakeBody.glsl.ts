@@ -106,4 +106,12 @@ export function patchSnakeMaterial(shader: any, uniforms: any) {
     diffuseColor = vec4(finalColor, opacity);
     `
   );
+
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <emissivemap_fragment>',
+    `
+    #include <emissivemap_fragment>
+    totalEmissiveRadiance += diffuseColor.rgb * 2.5;
+    `
+  );
 }

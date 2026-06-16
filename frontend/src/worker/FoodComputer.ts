@@ -227,7 +227,7 @@ function _writeFoodInstance(
   matrices[mIdx + 10] = radius;
   matrices[mIdx + 12] = tx;
   matrices[mIdx + 13] = ty;
-  matrices[mIdx + 14] = 0.65;
+  matrices[mIdx + 14] = radius;
   matrices[mIdx + 15] = 1;
 
   const cIdx = index * 3;

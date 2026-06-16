@@ -34,7 +34,7 @@ export const foodShader = {
       vec3 finalColor = mix(glowColor, bodyColor, body);
       float finalAlpha = max(body, glow);
       
-      gl_FragColor = vec4(finalColor, finalAlpha);
+      gl_FragColor = vec4(finalColor * 1.2, finalAlpha);
     }
   `
 };
