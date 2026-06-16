@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="ag" cx="40%" cy="30%" r="55%">
+      <stop offset="0%" stop-color="#fca5a5"/>
+      <stop offset="25%" stop-color="#ef4444"/>
+      <stop offset="65%" stop-color="#dc2626"/>
+      <stop offset="90%" stop-color="#b91c1c"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </radialGradient>
+    <radialGradient id="al" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </radialGradient>
+  </defs>
+  <!-- Apple body -->
+  <path d="M32 16 Q14 16 12 36 Q10 52 24 58 Q30 60 32 56 Q34 60 40 58 Q54 52 52 36 Q50 16 32 16Z" fill="url(#ag)"/>
+  <!-- Top indent -->
+  <ellipse cx="32" cy="17" rx="5" ry="2" fill="#991b1b" opacity="0.3"/>
+  <!-- Highlight crescent -->
+  <path d="M20 22 Q16 30 18 40 Q14 32 17 22Z" fill="white" opacity="0.45"/>
+  <ellipse cx="21" cy="24" rx="4" ry="6" fill="white" opacity="0.3" transform="rotate(-10 21 24)"/>
+  <circle cx="20" cy="22" r="2" fill="white" opacity="0.55"/>
+  <!-- Stem -->
+  <rect x="30.2" y="6" width="3" height="11" rx="1.5" fill="#78350f"/>
+  <rect x="30.5" y="6.5" width="1.2" height="10" rx="0.6" fill="#92400e" opacity="0.5"/>
+  <!-- Leaf -->
+  <path d="M33 10 Q42 4 48 8 Q42 14 33 10Z" fill="url(#al)"/>
+  <path d="M34 10 Q42 6 46 8.5" fill="none" stroke="#16a34a" stroke-width="0.6" opacity="0.6"/>
+  <!-- Bottom shadow -->
+  <ellipse cx="32" cy="58" rx="12" ry="2" fill="#7f1d1d" opacity="0.1"/>
+</svg>

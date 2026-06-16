@@ -4,12 +4,13 @@ from collections import deque
 
 
 class Food:
-    def __init__(self, fid, x, y, value, config, color="#ef4444"):
+    def __init__(self, fid, x, y, value, config, color="#ef4444", image=""):
         self.id = fid
         self.x = x
         self.y = y
         self.value = value
         self.color = color
+        self.image = image
         self.eaten = False
         self.radius = (
             config.food.base_radius + math.sqrt(value) * config.food.radius_value_scale
@@ -18,13 +19,16 @@ class Food:
         self.vy = 0.0
 
     def to_dict(self):
-        return {
+        d = {
             "id": self.id,
             "x": round(self.x, 2),
             "y": round(self.y, 2),
             "value": self.value,
             "color": self.color,
         }
+        if self.image:
+            d["image"] = self.image
+        return d
 
 
 class Portal:

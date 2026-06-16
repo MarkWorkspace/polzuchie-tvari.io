@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="pBody" cx="0.45" cy="0.35" r="0.6">
+      <stop offset="0%" stop-color="#eab308"/>
+      <stop offset="50%" stop-color="#d4a017"/>
+      <stop offset="100%" stop-color="#a16207"/>
+    </radialGradient>
+    <radialGradient id="pGreen" cx="0.5" cy="0.2" r="0.5">
+      <stop offset="0%" stop-color="#65a30d" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#65a30d" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pHigh" cx="0.35" cy="0.3" r="0.25">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pShadow" cx="0.5" cy="0.95" r="0.4">
+      <stop offset="0%" stop-color="#78350f" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#78350f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Stem -->
+  <path d="M32 6 C32 6 31 3 30 2 C30 2 32 3 33 2 C33 2 33 6 32 8" fill="#78350f"/>
+  <path d="M30 8 Q31 4 32 2 Q33 4 34 8 Z" fill="#5c2d0e" opacity="0.7"/>
+  <!-- Small leaf at stem -->
+  <path d="M33 5 Q38 2 40 4 Q37 6 33 7 Z" fill="#65a30d"/>
+  <path d="M33 5.5 Q37 3.5 39 4.5" fill="none" stroke="#4d7c0f" stroke-width="0.4"/>
+  <!-- Pear body — wide bottom, narrow top -->
+  <path d="M32 8 C26 8 23 13 22 18 C20 24 18 30 18 36 C18 44 22 52 28 56 C30 57.5 34 57.5 36 56 C42 52 46 44 46 36 C46 30 44 24 42 18 C41 13 38 8 32 8 Z" fill="url(#pBody)"/>
+  <!-- Green tinge overlay -->
+  <path d="M32 8 C26 8 23 13 22 18 C20 24 18 30 18 36 C18 44 22 52 28 56 C30 57.5 34 57.5 36 56 C42 52 46 44 46 36 C46 30 44 24 42 18 C41 13 38 8 32 8 Z" fill="url(#pGreen)"/>
+  <!-- Bottom shadow -->
+  <path d="M32 8 C26 8 23 13 22 18 C20 24 18 30 18 36 C18 44 22 52 28 56 C30 57.5 34 57.5 36 56 C42 52 46 44 46 36 C46 30 44 24 42 18 C41 13 38 8 32 8 Z" fill="url(#pShadow)"/>
+  <!-- White highlight -->
+  <ellipse cx="28" cy="22" rx="6" ry="9" fill="url(#pHigh)"/>
+  <!-- Subtle rim light -->
+  <path d="M25 14 C22 18 20 26 20 34 C20 40 22 47 26 52" fill="none" stroke="#fef9c3" stroke-width="0.5" opacity="0.3"/>
+  <!-- Bottom dimple -->
+  <ellipse cx="32" cy="56" rx="3" ry="1" fill="#8b6914" opacity="0.4"/>
+</svg>

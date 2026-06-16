@@ -9,7 +9,7 @@
   pointer-events: none;
   z-index: 100;
   display: grid;
-  grid-template-columns: 300px 1fr 300px;
+  grid-template-columns: 150px 1fr 300px;
   grid-template-rows: auto 1fr auto;
   padding: 20px;
   gap: 20px;
@@ -33,7 +33,7 @@
 }
 
 .score-title {
-  font-size: 14px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--text-muted);
@@ -41,7 +41,7 @@
 }
 
 .score-value {
-  font-size: 36px;
+  font-size: 24px;
   font-weight: 800;
   background: linear-gradient(135deg, var(--text-primary), var(--accent-cyan));
   -webkit-background-clip: text;
@@ -50,8 +50,8 @@
 
 .score-feed {
   position: absolute;
-  left: 18px;
-  top: 76px;
+  left: 20px;
+  bottom: 20px;
   height: 60px;
   pointer-events: none;
   display: flex;
@@ -60,9 +60,14 @@
 }
 
 .hud-ping {
+  position: absolute;
+  right: 20px;
+  bottom: 10px;
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 4px;
+  text-align: right;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  z-index: 105;
 }
 
 .hud-guide {

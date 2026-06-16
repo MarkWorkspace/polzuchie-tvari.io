@@ -12,12 +12,14 @@
         "portals_count": 2,
         "portals_radius": 2.5,
         "portals_teleport_delay_ms": 2000,
+        "portals_spawn_chance": 0.5,
+        "portals_growth_time": 3.0,
         "black_holes_enabled": 1,
         "black_holes_count": 2,
         "black_holes_spawn_chance": 0.5,
-        "black_holes_pull_radius": 12.0,
+        "black_holes_pull_radius": 16,
         "black_holes_pull_force": 1,
-        "black_holes_kill_radius": 1.8,
+        "black_holes_kill_radius": 1.2,
         "black_holes_growth_time": 5.0
     },
     "simulation": {
@@ -51,33 +53,69 @@
         "types": [
             {
                 "value": 1,
-                "weight": 50,
-                "color": "#ef4444"
+                "weight": 500,
+                "color": "#ef4444",
+                "image": "cherry.svg"
             },
             {
                 "value": 2,
-                "weight": 25,
-                "color": "#f97316"
+                "weight": 250,
+                "color": "#f43f5e",
+                "image": "strawberry.svg"
+            },
+            {
+                "value": 3,
+                "weight": 150,
+                "color": "#8b5cf6",
+                "image": "grape.svg"
             },
             {
                 "value": 5,
-                "weight": 15,
-                "color": "#fbbf24"
+                "weight": 60,
+                "color": "#f97316",
+                "image": "mandarin.svg"
             },
             {
-                "value": 10,
-                "weight": 6,
-                "color": "#4ade80"
+                "value": 12,
+                "weight": 30,
+                "color": "#ea580c",
+                "image": "persimmon.svg"
             },
             {
                 "value": 20,
-                "weight": 3,
-                "color": "#3b82f6"
+                "weight": 20,
+                "color": "#dc2626",
+                "image": "apple.svg"
+            },
+            {
+                "value": 30,
+                "weight": 10,
+                "color": "#ca8a04",
+                "image": "pear.svg"
             },
             {
                 "value": 50,
+                "weight": 4,
+                "color": "#f472b6",
+                "image": "peach.svg"
+            },
+            {
+                "value": 100,
+                "weight": 3,
+                "color": "#eab308",
+                "image": "pineapple.svg"
+            },
+            {
+                "value": 200,
+                "weight": 2,
+                "color": "#22c55e",
+                "image": "melon.svg"
+            },
+            {
+                "value": 300,
                 "weight": 1,
-                "color": "#a855f7"
+                "color": "#15803d",
+                "image": "watermelon.svg"
             }
         ],
         "base_radius": 0.1,
@@ -87,9 +125,9 @@
         "attraction_speed": 14
     },
     "visual": {
-        "min_fog_radius": 600,
+        "min_fog_radius": 500,
         "fog_score_expansion_coeff": 0.1,
-        "camera_base_zoom": 5,
+        "camera_base_zoom": 7,
         "camera_pitch_angle": 55,
         "camera_z_height": 0.0,
         "camera_y_offset": 0.3,

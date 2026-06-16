@@ -1,11 +1,12 @@
 // ROLE: Меши змеек, сплайны, тени. Не физика, не HUD.
 import * as THREE from "three";
-import { snakeBodyShader } from "./shaders/snakeBody.glsl";
+import { patchSnakeMaterial } from "./shaders/snakeBody.glsl";
 import { WORLD_WIDTH, WORLD_HEIGHT, gridSize, wrapOffsets } from "../game/Config";
+import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class SnakeRenderer {
   private scene: THREE.Scene;
-  private bodyMaterial!: THREE.ShaderMaterial;
+  private bodyMaterial!: THREE.MeshStandardMaterial;
   private eyeMaterial!: THREE.MeshBasicMaterial;
   private pupilMaterial!: THREE.MeshBasicMaterial;
 
@@ -38,11 +39,11 @@ export class SnakeRenderer {
     const mapH = msg.gameState?.server_world?.height ?? WORLD_HEIGHT;
 
     [this.bodyMaterial].forEach((mat) => {
-      mat.uniforms.uTime.value = performance.now();
-      mat.uniforms.uCenter.value.set(msg.camX, msg.camY);
-      mat.uniforms.uRadius.value = msg.fogRadiusWorld;
-      mat.uniforms.uMapWidth.value = mapW * gridSize;
-      mat.uniforms.uMapHeight.value = mapH * gridSize;
+      if (mat.userData.uniforms) {
+        mat.userData.uniforms.uTime.value = performance.now();
+        mat.userData.uniforms.uMapWidth.value = mapW * gridSize;
+        mat.userData.uniforms.uMapHeight.value = mapH * gridSize;
+      }
     });
   }
 
@@ -87,17 +88,23 @@ export class SnakeRenderer {
   }
 
   private initMaterials(): void {
-    const fogColor = new THREE.Color(12 / 255, 12 / 255, 15 / 255);
     const uInit = {
-      uTime: { value: 0.0 }, uCenter: { value: new THREE.Vector2(0, 0) }, uRadius: { value: 900.0 }, uFogColor: { value: fogColor },
-      uMapWidth: { value: WORLD_WIDTH * gridSize }, uMapHeight: { value: WORLD_HEIGHT * gridSize }
+      uTime: { value: 0.0 },
+      uMapWidth: { value: WORLD_WIDTH * gridSize }, 
+      uMapHeight: { value: WORLD_HEIGHT * gridSize }
     };
 
-    this.bodyMaterial = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: true, side: THREE.DoubleSide,
-      uniforms: THREE.UniformsUtils.clone(uInit),
-      vertexShader: snakeBodyShader.vertexShader, fragmentShader: snakeBodyShader.fragmentShader
+    this.bodyMaterial = new THREE.MeshStandardMaterial({
+      roughness: 0.8,
+      metalness: 0.2,
+      transparent: true,
+      depthWrite: true,
+      side: THREE.DoubleSide
     });
+    this.bodyMaterial.userData.uniforms = uInit;
+    this.bodyMaterial.onBeforeCompile = (shader) => {
+      patchSnakeMaterial(shader, uInit);
+    };
 
     this.eyeMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
     this.pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
@@ -109,9 +116,7 @@ export class SnakeRenderer {
     this.bodyMesh = new THREE.InstancedMesh(geom, this.bodyMaterial, 9);
     geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1000000);
     geom.computeBoundingSphere = () => { /* no-op */ };
-    this.bodyMesh.frustumCulled = false;
-    this.bodyMesh.renderOrder = 2;
-    this.bodyMesh.castShadow = true;
+    RenderConfig.configureMesh(this.bodyMesh, RenderLayer.SnakeBody, { castShadow: true });
     for (let i = 0; i < 9; i++) {
       const mat = new THREE.Matrix4().makeTranslation(wrapOffsets[i][0], wrapOffsets[i][1], 0);
       this.bodyMesh.setMatrixAt(i, mat);
@@ -124,13 +129,11 @@ export class SnakeRenderer {
     pupilGeom.rotateX(Math.PI / 2.0);
 
     this.eyeMesh = new THREE.InstancedMesh(circleGeom, this.eyeMaterial, 2000);
-    this.eyeMesh.frustumCulled = false;
-    this.eyeMesh.renderOrder = 3;
+    RenderConfig.configureMesh(this.eyeMesh, RenderLayer.SnakeEyes);
     this.scene.add(this.eyeMesh);
 
     this.pupilMesh = new THREE.InstancedMesh(pupilGeom, this.pupilMaterial, 2000);
-    this.pupilMesh.frustumCulled = false;
-    this.pupilMesh.renderOrder = 4;
+    RenderConfig.configureMesh(this.pupilMesh, RenderLayer.SnakePupils);
     this.scene.add(this.pupilMesh);
   }
 

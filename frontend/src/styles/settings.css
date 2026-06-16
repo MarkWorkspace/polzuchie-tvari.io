@@ -44,8 +44,8 @@
 
 .settings-trigger {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: 32px;
+  right: 36px;
   cursor: pointer;
   color: white;
   font-size: 28px;
@@ -233,5 +233,9 @@
 @media (max-width: 768px) {
   .settings-drawer {
     padding: calc(24px + env(safe-area-inset-top, 0px)) 20px 24px;
+  }
+  .settings-trigger {
+    top: 12px;
+    right: 12px;
   }
 }

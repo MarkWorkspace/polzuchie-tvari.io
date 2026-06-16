@@ -1,6 +1,7 @@
 // ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
 import * as THREE from "three";
 import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
+import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class DebugRenderer {
   private scene: THREE.Scene;
@@ -66,7 +67,7 @@ export class DebugRenderer {
     const mat = new THREE.LineBasicMaterial({ color: 0x22c55e, opacity: 0.35, transparent: true });
     
     this.gridMesh = new THREE.LineSegments(geom, mat);
-    this.gridMesh.renderOrder = 5;
+    RenderConfig.configureMesh(this.gridMesh, RenderLayer.DebugGrid);
     this.scene.add(this.gridMesh);
     this.isGridCreated = true;
   }
@@ -132,7 +133,7 @@ export class DebugRenderer {
       const geom = new THREE.BufferGeometry();
       const mat = new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true, opacity: 0.8 });
       this.collisionMesh = new THREE.LineSegments(geom, mat);
-      this.collisionMesh.renderOrder = 10;
+      RenderConfig.configureMesh(this.collisionMesh, RenderLayer.DebugCollision);
       this.scene.add(this.collisionMesh);
     }
 

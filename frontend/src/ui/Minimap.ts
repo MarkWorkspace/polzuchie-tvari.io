@@ -127,17 +127,11 @@ export class Minimap {
         s = fvalue >= 50.0 ? 6.0 : fvalue >= 20.0 ? 4.0 : 2.5;
       }
       
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const rx = baseRx + dx * mapW;
-          const ry = baseRy + dy * mapH;
-          const sx = rx * scale;
-          const sy = ry * scale;
-          
-          if (Math.abs(sx) <= radarRadius && Math.abs(sy) <= radarRadius) {
-            ctx.fillRect(sx - s / 2.0, sy - s / 2.0, s, s);
-          }
-        }
+      const sx = baseRx * scale;
+      const sy = baseRy * scale;
+      
+      if (Math.abs(sx) <= radarRadius && Math.abs(sy) <= radarRadius) {
+        ctx.fillRect(sx - s / 2.0, sy - s / 2.0, s, s);
       }
     }
     ctx.globalAlpha = 1.0;
@@ -170,19 +164,13 @@ export class Minimap {
       if (baseRy > mapH / 2) baseRy -= mapH;
       else if (baseRy < -mapH / 2) baseRy += mapH;
 
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          const rx = baseRx + dx * mapW;
-          const ry = baseRy + dy * mapH;
-          const sx = rx * scale;
-          const sy = ry * scale;
-          
-          if (Math.abs(sx) <= radarRadius && Math.abs(sy) <= radarRadius) {
-            ctx.beginPath();
-            ctx.arc(sx, sy, dotSize, 0, Math.PI * 2.0);
-            ctx.fill();
-          }
-        }
+      const sx = baseRx * scale;
+      const sy = baseRy * scale;
+      
+      if (Math.abs(sx) <= radarRadius && Math.abs(sy) <= radarRadius) {
+        ctx.beginPath();
+        ctx.arc(sx, sy, dotSize, 0, Math.PI * 2.0);
+        ctx.fill();
       }
     }
 

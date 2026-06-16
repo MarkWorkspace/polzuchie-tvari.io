@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="piBody" cx="0.45" cy="0.35" r="0.55">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="60%" stop-color="#eab308"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </radialGradient>
+    <radialGradient id="piHigh" cx="0.35" cy="0.3" r="0.2">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="piShadow" cx="0.5" cy="0.9" r="0.35">
+      <stop offset="0%" stop-color="#78350f" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#78350f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="piLeaf" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#15803d"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+  <!-- Body (oval) -->
+  <ellipse cx="32" cy="40" rx="14" ry="19" fill="url(#piBody)"/>
+  <!-- Diamond cross-hatch pattern -->
+  <g stroke="#a16207" stroke-width="0.6" opacity="0.5" fill="none">
+    <!-- Diagonal lines going right -->
+    <line x1="20" y1="30" x2="32" y2="58"/>
+    <line x1="24" y1="24" x2="38" y2="58"/>
+    <line x1="30" y1="22" x2="44" y2="52"/>
+    <line x1="36" y1="22" x2="46" y2="42"/>
+    <line x1="40" y1="26" x2="46" y2="36"/>
+    <!-- Diagonal lines going left -->
+    <line x1="44" y1="30" x2="32" y2="58"/>
+    <line x1="40" y1="24" x2="26" y2="58"/>
+    <line x1="34" y1="22" x2="20" y2="52"/>
+    <line x1="28" y1="22" x2="18" y2="42"/>
+    <line x1="24" y1="26" x2="18" y2="36"/>
+  </g>
+  <!-- Diamond dot accents -->
+  <g fill="#92400e" opacity="0.4">
+    <circle cx="27" cy="30" r="0.8"/>
+    <circle cx="37" cy="30" r="0.8"/>
+    <circle cx="24" cy="37" r="0.8"/>
+    <circle cx="32" cy="35" r="0.8"/>
+    <circle cx="40" cy="37" r="0.8"/>
+    <circle cx="27" cy="43" r="0.8"/>
+    <circle cx="37" cy="43" r="0.8"/>
+    <circle cx="32" cy="49" r="0.8"/>
+    <circle cx="24" cy="49" r="0.8"/>
+    <circle cx="40" cy="49" r="0.8"/>
+    <circle cx="29" cy="55" r="0.8"/>
+    <circle cx="35" cy="55" r="0.8"/>
+  </g>
+  <!-- Shadow -->
+  <ellipse cx="32" cy="40" rx="14" ry="19" fill="url(#piShadow)"/>
+  <!-- Highlight -->
+  <ellipse cx="27" cy="32" rx="5" ry="8" fill="url(#piHigh)"/>
+  <!-- Crown leaves -->
+  <g fill="url(#piLeaf)">
+    <!-- Center leaf -->
+    <path d="M32 22 Q33 12 32 4 Q31 12 32 22 Z" fill="#22c55e"/>
+    <path d="M32 22 Q34 14 35 6 Q32 14 31 22 Z" fill="#16a34a"/>
+    <!-- Left leaves -->
+    <path d="M30 23 Q25 14 20 8 Q26 14 30 23 Z" fill="#22c55e"/>
+    <path d="M28 24 Q22 16 17 12 Q23 17 28 24 Z" fill="#15803d"/>
+    <path d="M27 25 Q20 20 15 18 Q21 21 27 25 Z" fill="#16a34a" opacity="0.8"/>
+    <!-- Right leaves -->
+    <path d="M34 23 Q39 14 44 8 Q38 14 34 23 Z" fill="#22c55e"/>
+    <path d="M36 24 Q42 16 47 12 Q41 17 36 24 Z" fill="#15803d"/>
+    <path d="M37 25 Q44 20 49 18 Q43 21 37 25 Z" fill="#16a34a" opacity="0.8"/>
+  </g>
+  <!-- Leaf highlights -->
+  <path d="M32 20 Q32.5 14 32 6" fill="none" stroke="#4ade80" stroke-width="0.4" opacity="0.6"/>
+  <path d="M29 23 Q24 15 21 10" fill="none" stroke="#4ade80" stroke-width="0.3" opacity="0.5"/>
+  <path d="M35 23 Q40 15 43 10" fill="none" stroke="#4ade80" stroke-width="0.3" opacity="0.5"/>
+</svg>

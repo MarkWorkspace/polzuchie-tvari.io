@@ -1,7 +1,7 @@
 // ROLE: Расчет 3D-сплайнов змеек.
 
 import type { Player } from "../types/game";
-import { toroidalLerp } from "./shared/MathUtils";
+import { toroidalLerp, toroidalDelta } from "./shared/MathUtils";
 
 export interface SplineSubPath {
   x: Float32Array;
@@ -45,86 +45,87 @@ export function computeSplinePaths(
   return result;
 }
 
-function _interpolateSegments(
-  p: Player,
-  oldP: Player | null,
+function _getInterpolatedSegment(
+  ptB: { x: number; y: number },
+  oldPt: { x: number; y: number } | undefined,
+  useInterpolation: boolean,
   progress: number,
   mapW: number,
-  mapH: number,
-  visualX: number,
-  visualY: number,
-  isSelf: boolean,
-  outX: number[],
-  outY: number[]
+  mapH: number
+): { x: number; y: number } {
+  if (!useInterpolation || !oldPt) return { x: ptB.x, y: ptB.y };
+  const dx = ptB.x - oldPt.x, dy = ptB.y - oldPt.y;
+  if (dx * dx + dy * dy > 36.0) return { x: ptB.x, y: ptB.y };
+  return {
+    x: toroidalLerp(oldPt.x, ptB.x, progress, mapW),
+    y: toroidalLerp(oldPt.y, ptB.y, progress, mapH)
+  };
+}
+
+function _interpolateSegments(
+  p: Player, oldP: Player | null, progress: number,
+  mapW: number, mapH: number, visualX: number, visualY: number,
+  isSelf: boolean, outX: number[], outY: number[]
 ) {
   const count = p.body.length;
-  const useInterpolation = oldP && oldP.body && oldP.body.length > 0;
+  const useInterp = !!(oldP && oldP.body && oldP.body.length > 0);
 
   for (let i = 0; i < count; i++) {
     const ptB = p.body[i];
-    let bx = ptB.x;
-    let by = ptB.y;
-
-    if (useInterpolation) {
-      const ptA = oldP!.body[i] || oldP!.body[oldP!.body.length - 1];
-      const dx = bx - ptA.x;
-      const dy = by - ptA.y;
-      if (dx * dx + dy * dy <= 36.0) {
-        bx = toroidalLerp(ptA.x, ptB.x, progress, mapW);
-        by = toroidalLerp(ptA.y, ptB.y, progress, mapH);
-      }
-    }
+    const oldPt = oldP ? (oldP.body[i] || oldP.body[oldP.body.length - 1]) : undefined;
+    let { x, y } = _getInterpolatedSegment(ptB, oldPt, useInterp, progress, mapW, mapH);
 
     if (isSelf) {
-      bx += visualX;
-      by += visualY;
-      if (bx < 0) bx += mapW; else if (bx >= mapW) bx -= mapW;
-      if (by < 0) by += mapH; else if (by >= mapH) by -= mapH;
+      x += visualX; y += visualY;
+      if (x < 0) x += mapW; else if (x >= mapW) x -= mapW;
+      if (y < 0) y += mapH; else if (y >= mapH) y -= mapH;
     }
-
-    outX.push(bx);
-    outY.push(by);
+    outX.push(x);
+    outY.push(y);
   }
 }
 
+function _handleWrapAround(
+  dx: number, dy: number, mapW: number, mapH: number,
+  prevX: number, prevY: number, currX: number, currY: number,
+  newSegX: number[], newSegY: number[], subPaths: { start: number; len: number }[],
+  subCount: number
+): number {
+  let gx_prev = currX, gy_prev = currY;
+  if (dx > mapW / 2) gx_prev -= mapW; else if (dx < -mapW / 2) gx_prev += mapW;
+  if (dy > mapH / 2) gy_prev -= mapH; else if (dy < -mapH / 2) gy_prev += mapH;
+
+  newSegX.push(gx_prev);
+  newSegY.push(gy_prev);
+  subPaths[subCount].len++;
+
+  let gx_next = prevX, gy_next = prevY;
+  if (-dx > mapW / 2) gx_next -= mapW; else if (-dx < -mapW / 2) gx_next += mapW;
+  if (-dy > mapH / 2) gy_next -= mapH; else if (-dy < -mapH / 2) gy_next += mapH;
+
+  subPaths.push({ start: newSegX.length, len: 2 });
+  newSegX.push(gx_next, currX);
+  newSegY.push(gy_next, currY);
+  return subCount + 1;
+}
+
 function _splitSubPaths(segX: number[], segY: number[], mapW: number, mapH: number): { start: number; len: number }[] {
-  // We don't use object-based return, because we modify the flat array directly!
-  // Actually, instead of modifying the array directly (which we can't if we don't return it),
-  // we can just return { start, len } and let _generateSmoothSpline handle ghost points!
-  // Wait! The easiest way is to add the ghost points to segX and segY directly and return new splits!
-  const newSegX: number[] = [segX[0]];
-  const newSegY: number[] = [segY[0]];
-  const subPaths: { start: number; len: number }[] = [{ start: 0, len: 1 }];
+  const newSegX = [segX[0]], newSegY = [segY[0]];
+  const subPaths = [{ start: 0, len: 1 }];
   let subCount = 0;
 
   for (let i = 1; i < segX.length; i++) {
-    const dx = segX[i] - segX[i - 1];
-    const dy = segY[i] - segY[i - 1];
-    const segDistSq = dx * dx + dy * dy;
+    const dx = segX[i] - segX[i - 1], dy = segY[i] - segY[i - 1];
+    const [adjDx, adjDy] = toroidalDelta(segX[i - 1], segY[i - 1], segX[i], segY[i], mapW, mapH);
+    const adjDistSq = adjDx * adjDx + adjDy * adjDy;
 
-    if (segDistSq > 36.0 || Math.abs(dx) > mapW / 2 || Math.abs(dy) > mapH / 2) {
-      let gx_prev = segX[i];
-      let gy_prev = segY[i];
-      if (dx > mapW / 2) gx_prev -= mapW;
-      else if (dx < -mapW / 2) gx_prev += mapW;
-      if (dy > mapH / 2) gy_prev -= mapH;
-      else if (dy < -mapH / 2) gy_prev += mapH;
-
-      newSegX.push(gx_prev);
-      newSegY.push(gy_prev);
-      subPaths[subCount].len++;
-
+    if (adjDistSq > 36.0) {
       subCount++;
-      let gx_next = segX[i - 1];
-      let gy_next = segY[i - 1];
-      if (-dx > mapW / 2) gx_next -= mapW;
-      else if (-dx < -mapW / 2) gx_next += mapW;
-      if (-dy > mapH / 2) gy_next -= mapH;
-      else if (-dy < -mapH / 2) gy_next += mapH;
-
-      subPaths.push({ start: newSegX.length, len: 2 });
-      newSegX.push(gx_next, segX[i]);
-      newSegY.push(gy_next, segY[i]);
+      subPaths.push({ start: newSegX.length, len: 1 });
+      newSegX.push(segX[i]);
+      newSegY.push(segY[i]);
+    } else if (dx * dx + dy * dy > 36.0) {
+      subCount = _handleWrapAround(dx, dy, mapW, mapH, segX[i - 1], segY[i - 1], segX[i], segY[i], newSegX, newSegY, subPaths, subCount);
     } else {
       newSegX.push(segX[i]);
       newSegY.push(segY[i]);
@@ -132,12 +133,8 @@ function _splitSubPaths(segX: number[], segY: number[], mapW: number, mapH: numb
     }
   }
 
-  // Update original arrays
-  segX.length = 0;
-  segY.length = 0;
-  segX.push(...newSegX);
-  segY.push(...newSegY);
-
+  segX.length = 0; segY.length = 0;
+  segX.push(...newSegX); segY.push(...newSegY);
   return subPaths;
 }
 

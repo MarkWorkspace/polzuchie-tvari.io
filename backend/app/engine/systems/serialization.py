@@ -17,7 +17,6 @@ def prepare_cache(state) -> None:
         p.clear_cache()
 
     _cache_player_dicts(state)
-    _rebuild_player_grid(state)
 
     for p in state.players.values():
         p.just_respawned = False
@@ -32,22 +31,6 @@ def _cache_player_dicts(state) -> None:
     }
 
 
-def _rebuild_player_grid(state) -> None:
-    state.player_grid = defaultdict(list)
-    state._grid_width_cells = max(1, math.ceil(state.grid_width / CELL_SIZE))
-    state._grid_height_cells = max(1, math.ceil(state.grid_height / CELL_SIZE))
-    state._max_player_body_len = 1
-
-    for pid, p in state.players.items():
-        if not p.body:
-            continue
-        cx = int(p.head_x / CELL_SIZE) % state._grid_width_cells
-        cy = int(p.head_y / CELL_SIZE) % state._grid_height_cells
-        state.player_grid[(cx, cy)].append((pid, p))
-
-        p_len = p.body_len
-        if p_len > state._max_player_body_len:
-            state._max_player_body_len = p_len
 
 
 def get_delta_state(
@@ -64,7 +47,7 @@ def get_delta_state(
     players_data = _serialize_players_data(
         state, candidates, curr_visible, prev_visible, is_full
     )
-    final_dict = _assemble_final_dict(state, players_data, is_full)
+    final_dict = _assemble_final_dict(state, players_data, is_full, client_id)
 
     final_state = msgpack.packb(final_dict) if serialize_msgpack else final_dict
 
@@ -105,15 +88,42 @@ def _serialize_players_data(
     return data
 
 
-def _assemble_final_dict(state, players_data: dict, is_full: bool) -> dict:
+def _assemble_final_dict(state, players_data: dict, is_full: bool, client_id: str = None) -> dict:
+    from app.engine.systems.math_utils import toroidal_delta
+
     cfg = getattr(state, "_cached_config_dict", None) or state.config.to_dict()
+
+    moved_foods_list = list(state.food_manager.moved_foods.values())
+    if client_id and client_id in state.players:
+        client_player = state.players[client_id]
+        if client_player.body_len > 0:
+            cx, cy = client_player.head_x, client_player.head_y
+            eff_score = max(0, client_player.body_len - state.config.snake.start_length) * 10.0
+        else:
+            cx, cy = state.grid_width / 2, state.grid_height / 2
+            eff_score = 0
+            
+        fog_r_world = (
+            state.config.visual.min_fog_radius
+            + eff_score * state.config.visual.fog_score_expansion_coeff
+        )
+        fog_r_grid = fog_r_world / 20.0
+        aoi_sq = (fog_r_grid * 1.5) ** 2
+        
+        filtered_moved_foods = []
+        for f in moved_foods_list:
+            dx, dy = toroidal_delta(cx, cy, f['x'], f['y'], state.grid_width, state.grid_height)
+            if (dx * dx + dy * dy) < aoi_sq:
+                filtered_moved_foods.append(f)
+        moved_foods_list = filtered_moved_foods
+
     final_dict = {
         "type": "FULL" if is_full else "DELTA",
         "server_tick_rate": state.config.simulation.tick_rate,
         "players": players_data,
         "new_foods": state.food_manager.new_foods,
         "eaten_foods": state.food_manager.eaten_foods,
-        "moved_foods": state.food_manager.moved_foods,
+        "moved_foods": moved_foods_list,
         "kill_events": state.kill_events,
         "tombstones": state.tombstones,
         "portals": state.portal_manager.get_cached_list(),

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="sg" cx="45%" cy="30%" r="55%">
+      <stop offset="0%" stop-color="#fb7185"/>
+      <stop offset="40%" stop-color="#f43f5e"/>
+      <stop offset="85%" stop-color="#e11d48"/>
+      <stop offset="100%" stop-color="#9f1239"/>
+    </radialGradient>
+    <radialGradient id="lg" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </radialGradient>
+  </defs>
+  <!-- Berry body -->
+  <path d="M32 14 Q48 22 48 38 Q48 54 32 58 Q16 54 16 38 Q16 22 32 14Z" fill="url(#sg)"/>
+  <!-- Highlight -->
+  <ellipse cx="26" cy="24" rx="5" ry="6" fill="white" opacity="0.35" transform="rotate(-15 26 24)"/>
+  <circle cx="25" cy="22" r="2.2" fill="white" opacity="0.55"/>
+  <!-- Seeds -->
+  <ellipse cx="26" cy="32" rx="1.2" ry="1.6" fill="#fde047" opacity="0.8" transform="rotate(-10 26 32)"/>
+  <ellipse cx="38" cy="32" rx="1.2" ry="1.6" fill="#fde047" opacity="0.8" transform="rotate(10 38 32)"/>
+  <ellipse cx="32" cy="38" rx="1.2" ry="1.6" fill="#fde047" opacity="0.8"/>
+  <ellipse cx="24" cy="42" rx="1.2" ry="1.6" fill="#fde047" opacity="0.8" transform="rotate(-5 24 42)"/>
+  <ellipse cx="40" cy="42" rx="1.2" ry="1.6" fill="#fde047" opacity="0.8" transform="rotate(5 40 42)"/>
+  <ellipse cx="28" cy="48" rx="1.1" ry="1.4" fill="#fde047" opacity="0.7"/>
+  <ellipse cx="36" cy="48" rx="1.1" ry="1.4" fill="#fde047" opacity="0.7"/>
+  <ellipse cx="32" cy="28" rx="1.2" ry="1.6" fill="#fde047" opacity="0.7"/>
+  <!-- Leaf cap -->
+  <ellipse cx="26" cy="15" rx="7" ry="4" fill="url(#lg)" transform="rotate(-20 26 15)"/>
+  <ellipse cx="38" cy="15" rx="7" ry="4" fill="url(#lg)" transform="rotate(20 38 15)"/>
+  <ellipse cx="32" cy="13" rx="5" ry="4.5" fill="url(#lg)" transform="rotate(0 32 13)"/>
+  <!-- Stem -->
+  <rect x="30.5" y="6" width="3" height="8" rx="1.5" fill="#16a34a"/>
+</svg>

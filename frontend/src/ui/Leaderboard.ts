@@ -24,20 +24,22 @@ export class Leaderboard {
   private isOpen: boolean;
   private options: LeaderboardOptions;
   private currentData: LeaderboardEntry[] = [];
+  private isMobile: boolean = false;
 
   constructor(container: HTMLDivElement, options: LeaderboardOptions = {}) {
     this.container = container;
     this.options = options;
     this.limit = options.limit || 10;
     
+    this.isMobile = typeof window !== "undefined" && (
+      window.matchMedia("(pointer: coarse)").matches || 
+      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    );
+
     if (options.alwaysOpen) {
       this.isOpen = true;
     } else {
-      const isMobile = typeof window !== "undefined" && (
-        window.matchMedia("(pointer: coarse)").matches || 
-        /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      );
-      this.isOpen = !isMobile;
+      this.isOpen = !this.isMobile;
     }
 
     this.render();
@@ -67,7 +69,8 @@ export class Leaderboard {
     if (!this.options.hideHeader) {
       const header = document.createElement("div");
       header.className = "leaderboard-header";
-      if (!this.options.alwaysOpen) header.style.cursor = "pointer";
+      const canCollapse = !this.options.alwaysOpen && this.isMobile;
+      if (canCollapse) header.style.cursor = "pointer";
       header.style.display = "flex";
       header.style.justifyContent = "space-between";
       header.style.alignItems = "center";
@@ -77,7 +80,7 @@ export class Leaderboard {
       titleSpan.innerHTML = `🏆 ${t("leaderboard.top")} ${this.limit}`;
       header.appendChild(titleSpan);
       
-      if (!this.options.alwaysOpen) {
+      if (canCollapse) {
         const arrowSpan = document.createElement("span");
         arrowSpan.className = "leaderboard-arrow";
         arrowSpan.style.fontSize = "10px";

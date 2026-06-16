@@ -1,12 +1,17 @@
 // ROLE: Парсер формул роста. ЕДИНСТВЕННАЯ копия — импортируется только воркером.
 
+const tokenCache = new Map<string, string[]>();
+
 export class FormulaParser {
   private tokens: string[] = [];
   private pos = 0;
 
   constructor(expression: string, s: number, l: number) {
-    const regex = /\d+(?:\.\d+)?|[a-z_][a-z0-9_]*|[\+\-\*\/\^,\(\)]/gi;
-    this.tokens = expression.match(regex) || [];
+    if (!tokenCache.has(expression)) {
+      const regex = /\d+(?:\.\d+)?|[a-z_][a-z0-9_]*|[\+\-\*\/\^,\(\)]/gi;
+      tokenCache.set(expression, expression.match(regex) || []);
+    }
+    this.tokens = [...tokenCache.get(expression)!];
     this.pos = 0;
     
     for (let i = 0; i < this.tokens.length; i++) {

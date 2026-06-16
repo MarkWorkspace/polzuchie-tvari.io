@@ -3,10 +3,16 @@ import re
 import math
 
 
+_TOKEN_CACHE = {}
+
+
 class FormulaParser:
     def __init__(self, expression: str, s: float, l: float):
-        regex = r"\d+(?:\.\d+)?|[a-z_][a-z0-9_]*|[\+\-\*\/\^,\(\)]"
-        self.tokens = re.findall(regex, expression, re.IGNORECASE)
+        if expression not in _TOKEN_CACHE:
+            regex = r"\d+(?:\.\d+)?|[a-z_][a-z0-9_]*|[\+\-\*\/\^,\(\)]"
+            _TOKEN_CACHE[expression] = re.findall(regex, expression, re.IGNORECASE)
+        
+        self.tokens = list(_TOKEN_CACHE[expression])
         self.pos = 0
 
         for i in range(len(self.tokens)):

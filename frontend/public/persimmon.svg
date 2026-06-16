@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="pg" cx="42%" cy="32%" r="55%">
+      <stop offset="0%" stop-color="#fdba74"/>
+      <stop offset="30%" stop-color="#f97316"/>
+      <stop offset="70%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </radialGradient>
+    <radialGradient id="pg2" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </radialGradient>
+  </defs>
+  <!-- Body — slightly squat rounded shape -->
+  <ellipse cx="32" cy="38" rx="23" ry="20" fill="url(#pg)"/>
+  <!-- Subtle horizontal groove -->
+  <path d="M10 38 Q32 42 54 38" fill="none" stroke="#c2410c" stroke-width="0.6" opacity="0.2"/>
+  <!-- Highlight -->
+  <ellipse cx="23" cy="28" rx="7" ry="9" fill="white" opacity="0.3" transform="rotate(-12 23 28)"/>
+  <ellipse cx="21" cy="26" rx="3.5" ry="5" fill="white" opacity="0.45" transform="rotate(-12 21 26)"/>
+  <!-- Bottom indent -->
+  <ellipse cx="32" cy="57" rx="5" ry="1.5" fill="#9a3412" opacity="0.25"/>
+  <!-- Calyx leaves (4 leaves radiating from top) -->
+  <path d="M32 18 Q24 10 20 14 Q24 20 32 18Z" fill="url(#pg2)"/>
+  <path d="M32 18 Q40 10 44 14 Q40 20 32 18Z" fill="url(#pg2)"/>
+  <path d="M32 18 Q26 8 28 4 Q34 8 32 18Z" fill="#15803d"/>
+  <path d="M32 18 Q38 8 36 4 Q30 8 32 18Z" fill="#166534" opacity="0.8"/>
+  <!-- Center knob -->
+  <circle cx="32" cy="18" r="2" fill="#15803d"/>
+  <circle cx="32" cy="17.5" r="0.8" fill="#4ade80" opacity="0.5"/>
+</svg>

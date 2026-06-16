@@ -85,24 +85,60 @@ export class AdminPanel {
         if (el.dataset.key === "growth_score_per_segment") this.formulaError = null;
         this.runSimulation();
         const counts = this.editor!.getModifiedCounts();
+        
+        const floatingPanel = this.container.querySelector("#floating-action-panel") as HTMLElement;
+        if (floatingPanel) {
+          floatingPanel.style.display = counts.all > 0 ? "block" : "none";
+        }
+        
         const applyBtn = this.container.querySelector("#save-config-btn");
         if (applyBtn) applyBtn.textContent = `Apply (${counts.all})`;
+        
+        const tabBtn = this.container.querySelector(`.tab-btn[data-tab="all"]`);
+        if (tabBtn && counts.all > 0) {
+          if (!tabBtn.querySelector("span:nth-child(2)")) {
+            tabBtn.innerHTML += `<span style="background: ${this.activeTab === "all" ? "#fff" : "#f59e0b"}; color: ${this.activeTab === "all" ? "var(--accent)" : "#1e2025"}; padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-left: 6px;">+${counts.all}</span>`;
+          } else {
+            const badge = tabBtn.querySelector("span:nth-child(2)") as HTMLElement;
+            badge.textContent = `+${counts.all}`;
+          }
+        }
       } else if (el.id === "admin-search") {
         this.searchQuery = el.value;
         this.render();
         const searchEl = this.container.querySelector("#admin-search") as HTMLInputElement;
         searchEl.focus();
         searchEl.setSelectionRange(el.value.length, el.value.length);
-      } else if (el.classList.contains("food-type-val") || el.classList.contains("food-type-weight") || el.classList.contains("food-type-color") || el.classList.contains("food-type-color-picker")) {
+      } else if (el.classList.contains("food-type-val") || el.classList.contains("food-type-weight") || el.classList.contains("food-type-color") || el.classList.contains("food-type-color-picker") || el.classList.contains("food-type-image")) {
         const idx = parseInt(el.dataset.idx!);
         const isColor = el.classList.contains("food-type-color") || el.classList.contains("food-type-color-picker");
-        this.editor!.updateFoodType(idx, el.classList.contains("food-type-val") ? "value" : (isColor ? "color" : "weight"), isColor ? el.value : (Number(el.value) || 0));
+        const isImage = el.classList.contains("food-type-image");
+        const key = el.classList.contains("food-type-val") ? "value" : (isColor ? "color" : (isImage ? "image" : "weight"));
+        this.editor!.updateFoodType(idx, key, (isColor || isImage) ? el.value : (Number(el.value) || 0));
+        
+        // Save selection state before rendering
+        let selectionStart = 0, selectionEnd = 0, className = "";
+        if (!el.classList.contains("food-type-color-picker")) {
+            selectionStart = el.selectionStart || 0;
+            selectionEnd = el.selectionEnd || 0;
+            className = Array.from(el.classList).find(c => c.startsWith("food-type-")) || "";
+        }
+        
         this.render();
+        
+        // Restore focus
+        if (className) {
+            const restoredEl = this.container.querySelector(`.${className}[data-idx="${idx}"]`) as HTMLInputElement;
+            if (restoredEl) {
+                restoredEl.focus();
+                restoredEl.setSelectionRange(selectionStart, selectionEnd);
+            }
+        }
       }
     });
 
     this.container.addEventListener("click", async (e) => {
-      const btn = (e.target as HTMLElement).closest("button, a, span") as HTMLElement;
+      const btn = (e.target as HTMLElement).closest("button, a, .tab-btn, .food-card-header, #clear-search-btn") as HTMLElement;
       if (!btn) return;
       if (btn.classList.contains("tab-btn")) {
         this.activeTab = btn.getAttribute("data-tab")!;
@@ -175,8 +211,8 @@ export class AdminPanel {
       }
       const hEl = this.container.querySelector("#server-health");
       if (hEl) hEl.innerHTML = this.healthData.online 
-        ? `<span style="color: #4ade80; display: flex; align-items: center; gap: 5px;"><span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px #4ade80; display: inline-block;"></span>Server: online</span><span style="color: var(--text-muted);">|</span><span>Players: ${this.healthData.players}</span><span style="color: var(--text-muted);">|</span><span>Ping: <strong style="color: ${this.healthData.ping <= 75 ? "#4ade80" : this.healthData.ping <= 150 ? "#fbbf24" : "#f87171"};">${this.healthData.ping} ms</strong></span>`
-        : `<span style="color: #f87171; display: flex; align-items: center; gap: 5px;"><span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block;"></span>Server: offline</span>`;
+        ? `<span style="display: flex; align-items: center; gap: 5px;"><span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px #4ade80; display: inline-block;"></span>Server: <strong style="color: #4ade80; font-weight: 500;">online</strong></span><span style="color: var(--text-muted);">|</span><span>Players: ${this.healthData.players}</span><span style="color: var(--text-muted);">|</span><span>Ping: <strong style="color: ${this.healthData.ping <= 75 ? "#4ade80" : this.healthData.ping <= 150 ? "#fbbf24" : "#f87171"};">${this.healthData.ping} ms</strong></span>`
+        : `<span style="display: flex; align-items: center; gap: 5px;"><span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block;"></span>Server: <strong style="color: #f87171; font-weight: 500;">offline</strong></span>`;
     };
     poll();
     this.healthInterval = window.setInterval(poll, 2000);

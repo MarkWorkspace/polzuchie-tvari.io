@@ -149,7 +149,7 @@ def _attract_single_food(
         if (pdx * pdx + pdy * pdy) <= eff_eat_r * eff_eat_r:
             _eat_attracted_food(state, player, f, attracted_ids)
         else:
-            state.food_manager.moved_foods.append({"id": f.id, "x": f.x, "y": f.y})
+            state.food_manager.moved_foods[f.id] = {"id": f.id, "x": f.x, "y": f.y}
 
 
 def _eat_attracted_food(state, player, f, attracted_ids: set) -> None:

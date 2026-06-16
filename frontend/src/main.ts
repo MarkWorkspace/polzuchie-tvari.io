@@ -29,7 +29,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!app) return;
 
   const urlParams = new URLSearchParams(window.location.search);
-  const isAdmin = urlParams.has("admin") || window.location.pathname.startsWith("/admin");
+  const isAdmin = urlParams.has("admin") || 
+                  window.location.pathname.startsWith("/admin") ||
+                  window.location.hash.startsWith("#admin") ||
+                  window.location.hash.startsWith("#/admin");
 
   if (isAdmin) {
     new AdminPanel(app);

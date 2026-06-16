@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="mg" cx="42%" cy="35%" r="52%">
+      <stop offset="0%" stop-color="#fdba74"/>
+      <stop offset="35%" stop-color="#fb923c"/>
+      <stop offset="75%" stop-color="#ea580c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </radialGradient>
+    <radialGradient id="ml" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#16a34a"/>
+    </radialGradient>
+  </defs>
+  <!-- Body -->
+  <ellipse cx="32" cy="36" rx="24" ry="22" fill="url(#mg)"/>
+  <!-- Texture segment lines -->
+  <path d="M32 14 Q32 36 32 58" fill="none" stroke="#c2410c" stroke-width="0.6" opacity="0.3"/>
+  <path d="M18 16 Q28 36 18 56" fill="none" stroke="#c2410c" stroke-width="0.5" opacity="0.25"/>
+  <path d="M46 16 Q36 36 46 56" fill="none" stroke="#c2410c" stroke-width="0.5" opacity="0.25"/>
+  <!-- Highlight -->
+  <ellipse cx="24" cy="26" rx="8" ry="10" fill="white" opacity="0.3" transform="rotate(-15 24 26)"/>
+  <ellipse cx="22" cy="24" rx="4" ry="5" fill="white" opacity="0.4" transform="rotate(-15 22 24)"/>
+  <!-- Navel dimple at top -->
+  <ellipse cx="32" cy="15" rx="4" ry="2" fill="#c2410c" opacity="0.3"/>
+  <!-- Stem -->
+  <rect x="30.5" y="8" width="3" height="7" rx="1.5" fill="#78350f"/>
+  <!-- Leaf -->
+  <path d="M33 10 Q42 4 46 8 Q42 14 33 10Z" fill="url(#ml)"/>
+  <path d="M34 10 Q41 7 44 9" fill="none" stroke="#15803d" stroke-width="0.5" opacity="0.6"/>
+  <!-- Bottom shadow -->
+  <ellipse cx="32" cy="56" rx="14" ry="2.5" fill="#9a3412" opacity="0.12"/>
+</svg>

@@ -1,8 +1,5 @@
 // ROLE: Следование камеры, зум. Не рендеринг.
 import * as THREE from "three";
-import {
-  CAMERA_ZOOM_OUT_COEFF
-} from "./Config";
 
 export class GameCamera {
   private currentFov = 50.0;
@@ -34,8 +31,11 @@ export class GameCamera {
     const cameraZHeightOffset = serverVisual?.camera_z_height ?? 0.0;
     const cameraYOffset = serverVisual?.camera_y_offset ?? 0.25;
 
+    const serverSnake = msg.gameState?.server_snake;
+    const cameraZoomOutCoeff = serverSnake?.camera_zoom_out_coeff ?? 200.0;
+    
     const myEffectiveLength = this.getMyEffectiveLength(msg, myId);
-    const scoreZoomFactor = 1.0 / (1.0 + myEffectiveLength * 10.0 * (CAMERA_ZOOM_OUT_COEFF * 1e-5));
+    const scoreZoomFactor = 1.0 / (1.0 + myEffectiveLength * 10.0 * (cameraZoomOutCoeff * 1e-5));
     const globalScale = scoreZoomFactor * cameraBaseZoom;
 
     const distance = (1500.0 / globalScale) + cameraZHeightOffset;

@@ -68,18 +68,24 @@ class FoodTypeConfig:
     value: int = 1
     weight: int = 50
     color: str = "#ef4444"
+    image: str = ""
 
 
 @dataclass
 class FoodConfig:
     types: list[FoodTypeConfig] = field(
         default_factory=lambda: [
-            FoodTypeConfig(value=1, weight=50, color="#ef4444"),
-            FoodTypeConfig(value=2, weight=25, color="#f97316"),
-            FoodTypeConfig(value=5, weight=15, color="#fbbf24"),
-            FoodTypeConfig(value=10, weight=6, color="#4ade80"),
-            FoodTypeConfig(value=20, weight=3, color="#3b82f6"),
-            FoodTypeConfig(value=50, weight=1, color="#a855f7"),
+            FoodTypeConfig(value=1, weight=50, color="#ef4444", image="cherry.svg"),
+            FoodTypeConfig(value=2, weight=25, color="#f43f5e", image="strawberry.svg"),
+            FoodTypeConfig(value=5, weight=15, color="#8b5cf6", image="grape.svg"),
+            FoodTypeConfig(value=10, weight=6, color="#f97316", image="mandarin.svg"),
+            FoodTypeConfig(value=20, weight=3, color="#ea580c", image="persimmon.svg"),
+            FoodTypeConfig(value=40, weight=2, color="#dc2626", image="apple.svg"),
+            FoodTypeConfig(value=80, weight=1, color="#ca8a04", image="pear.svg"),
+            FoodTypeConfig(value=150, weight=1, color="#f472b6", image="peach.svg"),
+            FoodTypeConfig(value=300, weight=1, color="#eab308", image="pineapple.svg"),
+            FoodTypeConfig(value=600, weight=1, color="#22c55e", image="melon.svg"),
+            FoodTypeConfig(value=1200, weight=1, color="#15803d", image="watermelon.svg"),
         ]
     )
     base_radius: float = 0.2

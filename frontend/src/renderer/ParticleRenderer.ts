@@ -1,5 +1,6 @@
 // ROLE: Система частиц (свечение хвоста).
 import * as THREE from "three";
+import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class ParticleRenderer {
   private scene: THREE.Scene;
@@ -20,8 +21,7 @@ export class ParticleRenderer {
 
     const geom = new THREE.PlaneGeometry(1, 1);
     this.mesh = new THREE.InstancedMesh(geom, this.material, this.maxInstances);
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 2; // Render above ground and food
+    RenderConfig.configureMesh(this.mesh, RenderLayer.Particle);
     this.scene.add(this.mesh);
   }
 

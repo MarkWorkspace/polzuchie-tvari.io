@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <radialGradient id="peBase" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="60%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </radialGradient>
+    <radialGradient id="peBlush" cx="0.55" cy="0.4" r="0.5">
+      <stop offset="0%" stop-color="#ec4899" stop-opacity="0.9"/>
+      <stop offset="50%" stop-color="#fda4af" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#fda4af" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="peHigh" cx="0.35" cy="0.3" r="0.2">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="peFuzz" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.05"/>
+      <stop offset="80%" stop-color="#fff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="peShadow" cx="0.5" cy="0.85" r="0.3">
+      <stop offset="0%" stop-color="#92400e" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#92400e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Left half of peach -->
+  <ellipse cx="28" cy="34" rx="16" ry="18" fill="url(#peBase)"/>
+  <!-- Right half of peach -->
+  <ellipse cx="36" cy="34" rx="16" ry="18" fill="url(#peBase)"/>
+  <!-- Blush overlay -->
+  <ellipse cx="28" cy="34" rx="16" ry="18" fill="url(#peBlush)"/>
+  <ellipse cx="36" cy="34" rx="16" ry="18" fill="url(#peBlush)"/>
+  <!-- Cleft/groove -->
+  <path d="M32 16 C31 22 30.5 28 30.5 34 C30.5 40 31 46 32 52" fill="none" stroke="#c2410c" stroke-width="1.2" opacity="0.35"/>
+  <path d="M32 16 C33 22 33.5 28 33.5 34 C33.5 40 33 46 32 52" fill="none" stroke="#fbbf24" stroke-width="0.6" opacity="0.3"/>
+  <!-- Fuzzy texture overlay -->
+  <ellipse cx="32" cy="34" rx="20" ry="18" fill="url(#peFuzz)"/>
+  <!-- Shadow at bottom -->
+  <ellipse cx="32" cy="34" rx="20" ry="18" fill="url(#peShadow)"/>
+  <!-- Main highlight -->
+  <ellipse cx="24" cy="26" rx="7" ry="8" fill="url(#peHigh)"/>
+  <!-- Stem -->
+  <path d="M32 16 Q31 12 30 9 Q30.5 8 32 9 Q32 12 32 16 Z" fill="#78350f"/>
+  <!-- Leaf -->
+  <path d="M31 10 Q24 5 20 7 Q22 10 28 12 Z" fill="#16a34a"/>
+  <path d="M30 10 Q25 7.5 22 8" fill="none" stroke="#15803d" stroke-width="0.5"/>
+  <!-- Secondary small leaf -->
+  <path d="M33 10 Q37 7 39 9 Q36 11 33 11 Z" fill="#22c55e" opacity="0.7"/>
+  <!-- Rim light -->
+  <path d="M16 28 C14 34 15 42 20 48" fill="none" stroke="#fef3c7" stroke-width="0.5" opacity="0.4"/>
+</svg>

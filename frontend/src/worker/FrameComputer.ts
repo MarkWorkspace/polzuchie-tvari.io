@@ -49,12 +49,14 @@ function _buildFoodMinimap(foods: any[]): Float32Array {
   foodMinimapBuffer.reset();
   for (let i = 0; i < foods.length; i++) {
     const f = foods[i];
-    foodMinimapBuffer.push4(
-      f.x,
-      f.y,
-      f.value,
-      parseColor(f.color || "#ef4444")
-    );
+    if (f.value >= 10.0) {
+      foodMinimapBuffer.push4(
+        f.x,
+        f.y,
+        f.value,
+        parseColor(f.color || "#ef4444")
+      );
+    }
   }
   return foodMinimapBuffer.slice();
 }
@@ -73,6 +75,7 @@ function _buildFrameResult(
   partBufs: any,
   tempFoodMatrices: Float32Array,
   tempFoodColors: Float32Array,
+  tempFoodImageIndices: Int32Array,
   nicknames: any[],
   activePlayers: any[],
   leaderboard: any[],
@@ -87,6 +90,7 @@ function _buildFrameResult(
 
   const fMatrices = tempFoodMatrices.slice(0, foodCount * 16);
   const fColors = tempFoodColors.slice(0, foodCount * 3);
+  const fImageIndices = tempFoodImageIndices.slice(0, foodCount);
 
   const payload = {
     type: "FRAME_DATA",
@@ -96,6 +100,7 @@ function _buildFrameResult(
     particleMatrices: partBufs.particleMatrices, particleColors: partBufs.particleColors, particleCount: partBufs.particleCount,
     foodMatrices: fMatrices,
     foodColors: fColors,
+    foodImageIndices: fImageIndices,
     foodCount,
     portalDiskMatrices: portals.portalDiskMatrices, portalDiskColors: portals.portalDiskColors,
     portalRingMatrices: portals.portalRingMatrices, portalRingColors: portals.portalRingColors, portalCount: portals.portalCount,
@@ -136,6 +141,7 @@ function _buildFrameResult(
 
   maybeTransfer(fMatrices.buffer);
   maybeTransfer(fColors.buffer);
+  maybeTransfer(fImageIndices.buffer);
 
   maybeTransfer(portals.portalDiskMatrices.buffer);
   maybeTransfer(portals.portalDiskColors.buffer);
@@ -163,7 +169,8 @@ export function computeFrame(
   accumulatedKillEvents: any[],
   bodyBufs: GeometryBuffers,
   tempFoodMatrices: Float32Array,
-  tempFoodColors: Float32Array
+  tempFoodColors: Float32Array,
+  tempFoodImageIndices: Int32Array
 ): FrameResult {
   const cam = camera.predict(dt, myId, localInput, state, lastState, progress, gridSize);
   const myPlayer = state.players[myId];
@@ -179,7 +186,7 @@ export function computeFrame(
 
   const foodCount = computeFood(
     state, lastState, progress, myPlayer, cam.camX, cam.camY, fogRadiusWorld, dt, gridSize,
-    tempFoodMatrices, tempFoodColors
+    tempFoodMatrices, tempFoodColors, tempFoodImageIndices
   );
 
   const portals = computePortals(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, calcFog, FOG_R, FOG_G, FOG_B);
@@ -204,7 +211,7 @@ export function computeFrame(
 
   return _buildFrameResult(
     state, cam, fogRadiusWorld, foodCount, portals, blackHoles, bodyBufs, eyeBufs, eyes.eyeCount,
-    eyes.pupilCount, partBufs, tempFoodMatrices, tempFoodColors, nicknames, activePlayers,
+    eyes.pupilCount, partBufs, tempFoodMatrices, tempFoodColors, tempFoodImageIndices, nicknames, activePlayers,
     leaderboard, accumulatedKillEvents, foodMinimapData
   );
 }

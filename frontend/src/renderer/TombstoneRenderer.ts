@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import type { Tombstone } from "../types/game";
 import { gridSize } from "../game/Config";
+import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class TombstoneRenderer {
   private mesh: THREE.InstancedMesh | null = null;
@@ -20,11 +21,7 @@ export class TombstoneRenderer {
   private initMesh() {
     this.tombstoneGeometry = new THREE.DodecahedronGeometry(1.2 * gridSize, 0);
     // Gray stone with roughness
-    this.tombstoneMaterial = new THREE.MeshStandardMaterial({
-      color: 0x888888,
-      roughness: 0.8,
-      metalness: 0.1
-    });
+    this.tombstoneMaterial = RenderConfig.createOpaqueMaterial(0x888888, 0.8, 0.1);
 
     this.mesh = new THREE.InstancedMesh(
       this.tombstoneGeometry,
@@ -32,13 +29,10 @@ export class TombstoneRenderer {
       this.MAX_INSTANCES
     );
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.mesh.frustumCulled = false;
-    this.mesh.castShadow = true;
+    RenderConfig.configureMesh(this.mesh, RenderLayer.Opaque);
+    
     // Move up so it sits on the ground
     this.mesh.position.z = 0.4 * gridSize;
-    
-    // We render them higher than ground but lower than snake body
-    this.mesh.renderOrder = 1.0; 
     
     this.scene.add(this.mesh);
   }

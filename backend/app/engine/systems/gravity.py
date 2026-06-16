@@ -91,6 +91,6 @@ def _apply_bh_pull_on_single_food(
         pull_mag *= 12.0  # Compensation multiplier
         f.x = (f.x + (fdx / dist) * pull_mag) % state.grid_width
         f.y = (f.y + (fdy / dist) * pull_mag) % state.grid_height
-        state.food_manager.moved_foods.append(
+        state.food_manager.moved_foods[f.id] = (
             {"id": f.id, "x": round(f.x, 2), "y": round(f.y, 2)}
         )

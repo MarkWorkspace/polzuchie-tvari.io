@@ -14,7 +14,7 @@ class FoodManager:
         self.new_foods = []
         self.eaten_foods = []
         self.pending_eaten_foods = []
-        self.moved_foods = []
+        self.moved_foods = {}
 
         for _ in range(self.state.target_food_count):
             f = self._spawn_food()
@@ -119,7 +119,8 @@ class FoodManager:
         y = max(1, min(self.state.grid_height - 1, y))
 
         return Food(
-            self.food_id_counter, x, y, chosen.value, self.state.config, chosen.color
+            self.food_id_counter, x, y, chosen.value, self.state.config,
+            chosen.color, chosen.image
         )
 
     def get_food_color(self, value):
@@ -131,6 +132,16 @@ class FoodManager:
                 self.state.config.food.types, key=lambda ft: abs(ft.value - value)
             ).color
         return "#ef4444"
+
+    def get_food_image(self, value):
+        for ft in self.state.config.food.types:
+            if ft.value == value:
+                return ft.image
+        if self.state.config.food.types:
+            return min(
+                self.state.config.food.types, key=lambda ft: abs(ft.value - value)
+            ).image
+        return ""
 
     def trim_overflow(self, defer_events=False):
         max_food_count = (
@@ -154,6 +165,7 @@ class FoodManager:
             value,
             self.state.config,
             self.get_food_color(value),
+            self.get_food_image(value),
         )
         self.foods[new_f.id] = new_f
         self.new_foods.append(new_f.to_dict())
@@ -213,7 +225,7 @@ class FoodManager:
             if f.vx != 0.0 or f.vy != 0.0:
                 f.x = (f.x + f.vx * tick_interval) % self.state.grid_width
                 f.y = (f.y + f.vy * tick_interval) % self.state.grid_height
-                self.moved_foods.append(
+                self.moved_foods[f.id] = (
                     {"id": f.id, "x": round(f.x, 2), "y": round(f.y, 2)}
                 )
 
@@ -262,7 +274,7 @@ class FoodManager:
         self.new_foods = []
         self.eaten_foods = self.pending_eaten_foods
         self.pending_eaten_foods = []
-        self.moved_foods = []
+        self.moved_foods = {}
 
     def ensure_target_count(self):
         for fid in self.eaten_foods:

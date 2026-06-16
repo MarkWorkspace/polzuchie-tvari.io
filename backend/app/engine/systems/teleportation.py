@@ -76,12 +76,12 @@ def _process_entering(state, player, base_speed: float) -> None:
         player.new_heads_this_tick.append(new_head_x)
     else:
         all_at_portal = True
-        for i in range(0, len(player.body), 2):
-            pt_x, pt_y = player.body[i], player.body[i + 1]
+        if len(player.body) >= 2:
+            tail_x, tail_y = player.body[-2], player.body[-1]
             if (
                 toroidal_distance(
-                    pt_x,
-                    pt_y,
+                    tail_x,
+                    tail_y,
                     player.teleport_pos["x"],
                     player.teleport_pos["y"],
                     state.grid_width,
@@ -90,7 +90,6 @@ def _process_entering(state, player, base_speed: float) -> None:
                 >= 0.1
             ):
                 all_at_portal = False
-                break
 
         if all_at_portal:
             player.teleport_state = "in_transit"
@@ -147,12 +146,12 @@ def _process_exiting(state, player, base_speed: float) -> None:
 
     if player.body_len >= player.length:
         all_cleared = True
-        for i in range(0, len(player.body), 2):
-            pt_x, pt_y = player.body[i], player.body[i + 1]
+        if len(player.body) >= 2:
+            tail_x, tail_y = player.body[-2], player.body[-1]
             if (
                 toroidal_distance(
-                    pt_x,
-                    pt_y,
+                    tail_x,
+                    tail_y,
                     player.teleport_pos["x"],
                     player.teleport_pos["y"],
                     state.grid_width,
@@ -161,7 +160,6 @@ def _process_exiting(state, player, base_speed: float) -> None:
                 < 1.0
             ):
                 all_cleared = False
-                break
 
         if all_cleared:
             player.teleport_state = "none"

@@ -3,6 +3,13 @@
 import type { GameState, Food } from "../types/game";
 import { parseColor } from "./shared/ColorUtils";
 
+const FRUIT_IMAGE_MAP: Record<string, number> = {
+  "cherry.svg": 1, "strawberry.svg": 2, "grape.svg": 3,
+  "mandarin.svg": 4, "persimmon.svg": 5, "apple.svg": 6,
+  "pear.svg": 7, "peach.svg": 8, "pineapple.svg": 9,
+  "melon.svg": 10, "watermelon.svg": 11,
+};
+
 export function computeFood(
   state: GameState,
   lastState: GameState | null,
@@ -14,7 +21,8 @@ export function computeFood(
   dt: number,
   gridSize: number,
   tempFoodMatrices: Float32Array,
-  tempFoodColors: Float32Array
+  tempFoodColors: Float32Array,
+  tempFoodImageIndices: Int32Array
 ): number {
   const foods = state.foods || [];
   const mapW = state.server_world?.width ?? 100;
@@ -49,9 +57,11 @@ export function computeFood(
     }
 
     const colorHex = parseColor(food.color);
+    const imgIdx = food.image ? (FRUIT_IMAGE_MAP[food.image] ?? 0) : 0;
+    const theta = Math.sin(food.id) * Math.PI * 2;
     _writeFoodInstance(
-      visibleCount, attractionResult.x, attractionResult.y, foodRadius, colorHex,
-      tempFoodMatrices, tempFoodColors
+      visibleCount, attractionResult.x, attractionResult.y, foodRadius, theta, colorHex,
+      imgIdx, tempFoodMatrices, tempFoodColors, tempFoodImageIndices
     );
     visibleCount++;
   }
@@ -178,33 +188,32 @@ function _writeFoodInstance(
   tx: number,
   ty: number,
   radius: number,
+  theta: number,
   colorHex: number,
+  imageIndex: number,
   matrices: Float32Array,
-  colors: Float32Array
+  colors: Float32Array,
+  imageIndices: Int32Array
 ) {
   const mIdx = index * 16;
-  matrices[mIdx + 0] = radius;
-  matrices[mIdx + 1] = 0;
-  matrices[mIdx + 2] = 0;
-  matrices[mIdx + 3] = 0;
-  matrices[mIdx + 4] = 0;
-  matrices[mIdx + 5] = radius;
-  matrices[mIdx + 6] = 0;
-  matrices[mIdx + 7] = 0;
-  matrices[mIdx + 8] = 0;
-  matrices[mIdx + 9] = 0;
+  matrices.fill(0, mIdx, mIdx + 16);
+  
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  
+  matrices[mIdx + 0] = radius * cos;
+  matrices[mIdx + 1] = radius * sin;
+  matrices[mIdx + 4] = -radius * sin;
+  matrices[mIdx + 5] = radius * cos;
   matrices[mIdx + 10] = radius;
-  matrices[mIdx + 11] = 0;
   matrices[mIdx + 12] = tx;
   matrices[mIdx + 13] = ty;
-  matrices[mIdx + 14] = 1.5;
+  matrices[mIdx + 14] = 0.65;
   matrices[mIdx + 15] = 1;
 
-  const r = ((colorHex >> 16) & 255) / 255;
-  const g = ((colorHex >> 8) & 255) / 255;
-  const b = (colorHex & 255) / 255;
   const cIdx = index * 3;
-  colors[cIdx + 0] = r;
-  colors[cIdx + 1] = g;
-  colors[cIdx + 2] = b;
+  colors[cIdx + 0] = ((colorHex >> 16) & 255) / 255;
+  colors[cIdx + 1] = ((colorHex >> 8) & 255) / 255;
+  colors[cIdx + 2] = (colorHex & 255) / 255;
+  imageIndices[index] = imageIndex;
 }

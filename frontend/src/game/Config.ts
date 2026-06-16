@@ -6,7 +6,6 @@ export const MIN_TURN_RADIUS = 0.5;
 export const TURN_RADIUS_THICKNESS_COEFF = 1.0;
 export const BASE_HEAD_RADIUS = 0.2;
 export const SCORE_THICKNESS_SCALE = 0.0005;
-export const CAMERA_ZOOM_OUT_COEFF = 200.0;
 export const MIN_FOG_RADIUS = 900.0;
 export const FOG_SCORE_EXPANSION_COEFF = 0.5;
 export const BASE_SPEED_PER_SECOND = 6.0;

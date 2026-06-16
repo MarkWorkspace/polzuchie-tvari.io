@@ -65,13 +65,29 @@ export const blackHoleGravityShader = {
       float d = length(center) * 2.0;
       if (d > 1.0) discard;
       
+      // 1. Black background darkening from center to very edges
+      float bgAlpha = 1.0 - smoothstep(0.0, 1.0, d);
+      vec4 c = vec4(0.0, 0.0, 0.0, bgAlpha * 0.95);
+      
+      // 2. Orange glow from the center outward to illuminate nearby objects
+      float glowFalloff = exp(-d * 5.0);
+      vec4 glowLayer = vec4(1.0, 0.45, 0.0, glowFalloff * 0.8);
+      
+      c.rgb = mix(c.rgb, glowLayer.rgb, glowLayer.a);
+      c.a = c.a + glowLayer.a * (1.0 - c.a);
+      
+      // 3. Purple gravity pulse
       float pulse = fract(d * 4.0 + uTime * 1.5);
       float wave = 1.0 - smoothstep(0.0, 0.15, abs(pulse - 0.5));
       
-      vec3 col = mix(vec3(0.3, 0.0, 0.8), vec3(0.9, 0.1, 0.7), wave * 0.5);
-      float fade = (1.0 - d) * (0.15 + 0.25 * wave);
+      vec3 waveCol = mix(vec3(0.3, 0.0, 0.8), vec3(0.9, 0.1, 0.7), wave * 0.5);
+      float waveAlpha = (1.0 - d) * (0.15 + 0.25 * wave);
+      vec4 waveLayer = vec4(waveCol, waveAlpha);
       
-      gl_FragColor = vec4(col, fade);
+      c.rgb = mix(c.rgb, waveLayer.rgb, waveLayer.a);
+      c.a = c.a + waveLayer.a * (1.0 - c.a);
+      
+      gl_FragColor = c;
     }
   `
 };

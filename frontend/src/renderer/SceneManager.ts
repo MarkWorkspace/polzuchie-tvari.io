@@ -1,8 +1,9 @@
 // ROLE: Инициализация Three.js сцены, свет, рендерер.
 import * as THREE from "three";
 import { PostProcessing } from "./PostProcessing";
-import { groundShader } from "./shaders/ground.glsl";
+import { patchGroundMaterial } from "./shaders/ground.glsl";
 import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
+import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class SceneManager {
   private container: HTMLDivElement;
@@ -13,9 +14,9 @@ export class SceneManager {
 
   private ambientLight!: THREE.AmbientLight;
   private dirLight!: THREE.DirectionalLight;
-  private groundMaterial!: THREE.ShaderMaterial;
+  private groundMaterial!: THREE.MeshStandardMaterial;
   private groundMesh!: THREE.Mesh;
-  private shadowMesh!: THREE.Mesh;
+
 
   constructor(container: HTMLDivElement) {
     this.container = container;
@@ -41,6 +42,7 @@ export class SceneManager {
       15.0,
       15000.0
     );
+    // No native fog, we use Post-Processing radial fog
 
     // 3. Init Lighting & Ground
     this.setupLighting();
@@ -49,6 +51,8 @@ export class SceneManager {
     // 4. Init Post Processing
     this.postProcessing = new PostProcessing(
       this.renderer,
+      this.scene,
+      this.camera,
       this.container.clientWidth,
       this.container.clientHeight
     );
@@ -61,10 +65,6 @@ export class SceneManager {
     this.postProcessing.destroy();
     this.groundMesh.geometry.dispose();
     this.groundMaterial.dispose();
-    if (this.shadowMesh) {
-        this.shadowMesh.geometry.dispose();
-        (this.shadowMesh.material as THREE.Material).dispose();
-    }
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
   }
@@ -138,41 +138,37 @@ export class SceneManager {
   }
 
   private setupGround(): void {
-    const fogColor = new THREE.Color(12 / 255, 12 / 255, 15 / 255);
-    this.groundMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        uFogColor: { value: fogColor },
-        uGroundColor: { value: new THREE.Color(0xfafafa) },
-        uGridColor: { value: new THREE.Color(0xe5e5e5) },
-        uCenter: { value: new THREE.Vector2(0, 0) },
-        uRadius: { value: 900.0 },
-        uGridSize: { value: 20.0 },
-        uWorldWidth: { value: WORLD_WIDTH },
-        uWorldHeight: { value: WORLD_HEIGHT },
-      },
-      vertexShader: groundShader.vertexShader,
-      fragmentShader: groundShader.fragmentShader
+    const uniforms = {
+      uGroundColor: { value: new THREE.Color(0x9a8c84) },
+      uGridColor: { value: new THREE.Color(0x7a6e66) },
+      uGridSize: { value: 20.0 },
+      uWorldWidth: { value: WORLD_WIDTH },
+      uWorldHeight: { value: WORLD_HEIGHT },
+    };
+
+    this.groundMaterial = new THREE.MeshStandardMaterial({
+      color: 0x9a8c84,
+      roughness: 1.0,
+      metalness: 0.0,
     });
+    this.groundMaterial.userData.uniforms = uniforms;
+    this.groundMaterial.onBeforeCompile = (shader) => {
+      patchGroundMaterial(shader, uniforms);
+    };
 
     const geom = new THREE.PlaneGeometry(
       WORLD_WIDTH * gridSize * 4,
       WORLD_HEIGHT * gridSize * 4
     );
     this.groundMesh = new THREE.Mesh(geom, this.groundMaterial);
+    RenderConfig.configureMesh(this.groundMesh, RenderLayer.Ground);
     this.groundMesh.position.set(
       (WORLD_WIDTH * gridSize) / 2,
       -(WORLD_HEIGHT * gridSize) / 2,
       -2.0
     );
+    this.groundMesh.receiveShadow = true;
     this.scene.add(this.groundMesh);
-    
-    // Add shadow catcher plane slightly above ground
-    const shadowMat = new THREE.ShadowMaterial({ opacity: 0.15 });
-    this.shadowMesh = new THREE.Mesh(geom, shadowMat);
-    this.shadowMesh.position.copy(this.groundMesh.position);
-    this.shadowMesh.position.z = -1.9; // Just slightly above ground mesh
-    this.shadowMesh.receiveShadow = true;
-    this.scene.add(this.shadowMesh);
   }
 
   private updateGround(msg: any): void {
@@ -181,15 +177,14 @@ export class SceneManager {
 
     this.groundMesh.position.set((mapW * gridSize) / 2, -(mapH * gridSize) / 2, -2.0);
     this.groundMesh.scale.set(mapW / WORLD_WIDTH, mapH / WORLD_HEIGHT, 1.0);
-    
-    this.shadowMesh.position.set((mapW * gridSize) / 2, -(mapH * gridSize) / 2, -1.9);
-    this.shadowMesh.scale.set(mapW / WORLD_WIDTH, mapH / WORLD_HEIGHT, 1.0);
 
-    const uniforms = this.groundMaterial.uniforms;
-    uniforms.uCenter.value.set(msg.camX, msg.camY);
-    uniforms.uRadius.value = msg.fogRadiusWorld;
-    uniforms.uWorldWidth.value = mapW;
-    uniforms.uWorldHeight.value = mapH;
+    const uniforms = this.groundMaterial.userData.uniforms;
+    if (uniforms) {
+      uniforms.uWorldWidth.value = mapW;
+      uniforms.uWorldHeight.value = mapH;
+    }
+    
+    // Fog radius is now passed to PostProcessing in render()
   }
 
   private handleResize = (): void => {

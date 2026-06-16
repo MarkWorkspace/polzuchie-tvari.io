@@ -5,7 +5,7 @@ export class ConfigEditor {
   private password = "";
   private config: any = null;
   private drafts: Record<string, string> = {};
-  private foodTypes: { value: number; weight: number; color: string; expanded?: boolean }[] = [];
+  private foodTypes: { value: number; weight: number; color: string; image: string; expanded?: boolean }[] = [];
 
   constructor(password: string) {
     this.password = password;
@@ -65,12 +65,13 @@ export class ConfigEditor {
       value: ft.value,
       weight: ft.weight,
       color: ft.color,
+      image: ft.image || "",
       expanded: false
     }));
   }
 
   public addFoodType(): void {
-    this.foodTypes.push({ value: 1, weight: 10, color: "#ffffff", expanded: true });
+    this.foodTypes.push({ value: 1, weight: 10, color: "#ffffff", image: "", expanded: true });
   }
 
   public removeFoodType(idx: number): void {
@@ -96,7 +97,7 @@ export class ConfigEditor {
         }
       }
     }
-    const cleanTypes = this.foodTypes.map(t => ({ value: Number(t.value), weight: Number(t.weight), color: t.color }));
+    const cleanTypes = this.foodTypes.map(t => ({ value: Number(t.value), weight: Number(t.weight), color: t.color, image: t.image }));
     if (JSON.stringify(cleanTypes) !== JSON.stringify(this.config.food?.types || [])) {
       counts.food_boost += 1;
       total++;
@@ -131,7 +132,7 @@ export class ConfigEditor {
         }
       }
     }
-    const cleanTypes = this.foodTypes.map(t => ({ value: Number(t.value), weight: Number(t.weight), color: t.color }));
+    const cleanTypes = this.foodTypes.map(t => ({ value: Number(t.value), weight: Number(t.weight), color: t.color, image: t.image }));
     if (JSON.stringify(cleanTypes) !== JSON.stringify(this.config.food?.types || [])) {
       patch.food = patch.food || {};
       patch.food.types = cleanTypes;

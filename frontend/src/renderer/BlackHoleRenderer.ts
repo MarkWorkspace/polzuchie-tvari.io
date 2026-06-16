@@ -5,6 +5,7 @@ import {
   blackHoleRingShader,
   blackHoleGravityShader
 } from "./shaders/blackHole.glsl";
+import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class BlackHoleRenderer {
   private scene: THREE.Scene;
@@ -55,18 +56,15 @@ export class BlackHoleRenderer {
     const geom = new THREE.CircleGeometry(1, 32);
 
     this.gravityMesh = new THREE.InstancedMesh(geom, this.gravityMaterial, this.maxInstances);
-    this.gravityMesh.frustumCulled = false;
-    this.gravityMesh.renderOrder = 2;
+    RenderConfig.configureMesh(this.gravityMesh, RenderLayer.GravityMesh);
     this.scene.add(this.gravityMesh);
 
     this.ringMesh = new THREE.InstancedMesh(geom, this.ringMaterial, this.maxInstances);
-    this.ringMesh.frustumCulled = false;
-    this.ringMesh.renderOrder = 3;
+    RenderConfig.configureMesh(this.ringMesh, RenderLayer.BlackHoleRing);
     this.scene.add(this.ringMesh);
 
     this.coreMesh = new THREE.InstancedMesh(geom, this.coreMaterial, this.maxInstances);
-    this.coreMesh.frustumCulled = false;
-    this.coreMesh.renderOrder = 4;
+    RenderConfig.configureMesh(this.coreMesh, RenderLayer.BlackHoleCore);
     this.scene.add(this.coreMesh);
   }
 

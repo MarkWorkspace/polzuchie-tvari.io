@@ -35,6 +35,7 @@ const bodyBufs: GeometryBuffers = {
 
 const tempFoodMatrices = new Float32Array(5000 * 16);
 const tempFoodColors = new Float32Array(5000 * 3);
+const tempFoodImageIndices = new Int32Array(5000);
 
 ctx.onmessage = (e: MessageEvent) => {
   try {
@@ -118,7 +119,7 @@ function _handleRequestFrame(msg: any) {
   try {
     const frame = computeFrame(
       dt, localInput, gridSize, state, lastState, progress, myId, camera, particles, eyes, accumulatedKillEvents,
-      bodyBufs, tempFoodMatrices, tempFoodColors
+      bodyBufs, tempFoodMatrices, tempFoodColors, tempFoodImageIndices
     );
 
     accumulatedKillEvents = [];

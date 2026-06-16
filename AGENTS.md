@@ -13,7 +13,7 @@
 Каждый файл делает ровно одну вещь. Название файла полностью описывает содержимое. God files запрещены.
 
 ### 3. Стек — без отклонений
-**Frontend:** Vite + TypeScript + чистый Three.js. Стили — только `styles/*.css`. Inline-стили объектами в JS/TS запрещены — допустимо только `el.style.opacity = value` для анимации.
+**Frontend:** Vite + TypeScript + Three.js. Стили — только `styles/*.css`. Inline-стили объектами в JS/TS запрещены — допустимо только `el.style.opacity = value` для анимации.
 
 **Backend:** Python + FastAPI. Новая механика — новый файл в `engine/systems/`.
 

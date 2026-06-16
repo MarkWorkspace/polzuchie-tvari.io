@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Base melon rind gradient (light source from top-left) -->
+    <radialGradient id="melonRind" cx="35%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="#bbf7d0"/>
+      <stop offset="40%" stop-color="#86efac"/>
+      <stop offset="80%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </radialGradient>
+
+    <!-- Glossy highlight gradient -->
+    <linearGradient id="glossGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Inner shadow for spherical depth -->
+    <radialGradient id="shadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="70%" stop-color="#14532d" stop-opacity="0" />
+      <stop offset="100%" stop-color="#14532d" stop-opacity="0.4" />
+    </radialGradient>
+  </defs>
+
+  <!-- Bottom shadow (projected on the ground) -->
+  <ellipse cx="32" cy="58" rx="22" ry="4" fill="#000000" opacity="0.2" />
+
+  <!-- Base whole melon shape -->
+  <circle cx="32" cy="32" r="26" fill="url(#melonRind)" />
+  
+  <!-- Subtle net pattern to represent melon rind texture -->
+  <g stroke="#16a34a" stroke-width="0.8" opacity="0.4" fill="none" stroke-linecap="round">
+    <!-- Horizontal-ish curves -->
+    <path d="M 10,22 Q 32,28 54,22" />
+    <path d="M 8,32 Q 32,38 56,32" />
+    <path d="M 12,42 Q 32,48 52,42" />
+    <path d="M 18,50 Q 32,54 46,50" />
+    <!-- Vertical-ish curves -->
+    <path d="M 22,10 Q 28,32 22,54" />
+    <path d="M 32,8 Q 38,32 32,56" />
+    <path d="M 42,10 Q 48,32 42,54" />
+    <!-- Diagonal-ish curves to make it a net -->
+    <path d="M 16,14 Q 32,32 48,50" />
+    <path d="M 48,14 Q 32,32 16,50" />
+    <path d="M 26,10 Q 32,32 20,48" />
+    <path d="M 38,10 Q 32,32 44,48" />
+  </g>
+
+  <!-- Spherical depth shadow on edges -->
+  <circle cx="32" cy="32" r="26" fill="url(#shadowGrad)" />
+
+  <!-- Glossy overlay to make it look premium and round -->
+  <circle cx="32" cy="32" r="26" fill="url(#glossGrad)" />
+
+  <!-- Sharp glossy highlight on the top left -->
+  <ellipse cx="22" cy="18" rx="6" ry="3" fill="#ffffff" opacity="0.6" transform="rotate(-30 22 18)" />
+  <ellipse cx="17" cy="23" rx="2.5" ry="1.5" fill="#ffffff" opacity="0.4" transform="rotate(-45 17 23)" />
+
+  <!-- A small stem/nub on the top right side -->
+  <ellipse cx="44" cy="12" rx="3.5" ry="2" fill="#78350f" opacity="0.8" transform="rotate(30 44 12)" />
+  <ellipse cx="44.5" cy="11.5" rx="1.5" ry="1" fill="#a16207" opacity="0.6" transform="rotate(30 44.5 11.5)" />
+
+</svg>

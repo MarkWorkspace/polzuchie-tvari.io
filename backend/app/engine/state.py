@@ -47,7 +47,7 @@ class GameState:
         self.full_players_packed = {}
         self.mini_players_packed = {}
 
-        self.player_grid = defaultdict(list)
+
         self.collision_grid = defaultdict(list)
         self.kill_events = []
         self.tombstones = []
@@ -314,7 +314,7 @@ class GameState:
         self.players.clear()
         self.client_visibility.clear()
         self.kill_events.clear()
-        self.player_grid.clear()
+
         self.full_players_dict.clear()
         self.mini_players_dict.clear()
         self.collision_grid.clear()

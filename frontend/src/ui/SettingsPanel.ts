@@ -70,7 +70,7 @@ export class SettingsPanel {
     // Trigger button
     this.triggerBtn = document.createElement("div");
     this.triggerBtn.className = "settings-trigger";
-    this.triggerBtn.innerHTML = this.isMobile ? "☰" : "⚙️";
+    this.triggerBtn.innerHTML = "☰";
     this.triggerBtn.addEventListener("click", () => this.togglePanel(true));
     this.container.appendChild(this.triggerBtn);
   }

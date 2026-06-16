@@ -69,6 +69,7 @@ export type Food = {
   y: number;
   value: number;
   color: string;
+  image?: string;
   radius?: number;
   eaten?: boolean;
 };

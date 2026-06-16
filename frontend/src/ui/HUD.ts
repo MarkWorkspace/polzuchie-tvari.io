@@ -4,6 +4,8 @@ import { t } from "../lib/i18n";
 export class HUD {
   private container: HTMLDivElement;
   private hudElement: HTMLDivElement | null = null;
+  private feedElement: HTMLDivElement | null = null;
+  private pingElement: HTMLDivElement | null = null;
 
   constructor(container: HTMLDivElement) {
     this.container = container;
@@ -19,6 +21,14 @@ export class HUD {
       this.hudElement.remove();
       this.hudElement = null;
     }
+    if (this.feedElement) {
+      this.feedElement.remove();
+      this.feedElement = null;
+    }
+    if (this.pingElement) {
+      this.pingElement.remove();
+      this.pingElement = null;
+    }
   }
 
   private render(): void {
@@ -27,11 +37,20 @@ export class HUD {
     this.hudElement.innerHTML = `
       <span class="score-title">Score</span>
       <span class="score-value" id="hud-score">0</span>
-      <div id="hud-score-feed" class="score-feed"></div>
-      <div id="hud-ping" class="hud-ping">offline</div>
       <div id="hud-guide" class="hud-guide">${t("status.connecting")}</div>
     `;
     this.container.appendChild(this.hudElement);
+
+    this.feedElement = document.createElement("div");
+    this.feedElement.id = "hud-score-feed";
+    this.feedElement.className = "score-feed";
+    this.container.appendChild(this.feedElement);
+
+    this.pingElement = document.createElement("div");
+    this.pingElement.id = "hud-ping";
+    this.pingElement.className = "hud-ping";
+    this.pingElement.innerHTML = `Ping: <span style="color: #f87171;">offline</span>`;
+    this.container.appendChild(this.pingElement);
   }
 
   private bindEvents(): void {
@@ -72,10 +91,12 @@ export class HUD {
     if (!pingEl) return;
 
     const latency = e.detail;
-    pingEl.textContent = `Ping: ${Math.round(latency)} ms`;
-    if (latency <= 75) pingEl.style.color = "#4ade80";
-    else if (latency <= 150) pingEl.style.color = "#fbbf24";
-    else pingEl.style.color = "#f87171";
+    let color = "#4ade80";
+    if (latency > 150) color = "#f87171";
+    else if (latency > 75) color = "#fbbf24";
+
+    pingEl.style.color = "var(--text-muted)";
+    pingEl.innerHTML = `Ping: <span style="color: ${color};">${Math.round(latency)} ms</span>`;
   };
 
   private handleScoreEvent = (e: CustomEvent): void => {

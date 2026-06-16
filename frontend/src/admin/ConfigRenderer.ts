@@ -120,7 +120,7 @@ export class ConfigRenderer {
   }
 
   private static renderFoodTypesEditor(foodTypes: any[], originalTypes: any[]): string {
-    const isMody = JSON.stringify(foodTypes.map(t => ({ value: t.value, weight: t.weight, color: t.color }))) !== JSON.stringify(originalTypes);
+    const isMody = JSON.stringify(foodTypes.map(t => ({ value: t.value, weight: t.weight, color: t.color, image: t.image }))) !== JSON.stringify(originalTypes);
     let html = `<div class="config-card" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div>
@@ -141,7 +141,7 @@ export class ConfigRenderer {
         <div class="food-card-header" data-idx="${i}" style="display: flex; align-items: center; gap: 10px; padding: 12px; cursor: pointer; background: rgba(255,255,255,0.02); user-select: none;">
           <span style="width: 14px; height: 14px; border-radius: 50%; background: ${ft.color}; border: 1.5px solid rgba(255,255,255,0.25);"></span>
           <div style="flex: 1;">
-            <div style="font-size: 13px; font-weight: 600; color: #fff;">Value: ${ft.value} pts</div>
+            <div style="font-size: 13px; font-weight: 600; color: #fff;">Value: ${ft.value} pts ${ft.image ? `(🖼️ ${ft.image})` : ""}</div>
             <div style="font-size: 11px; color: var(--text-muted);">Spawn weight: ${ft.weight}</div>
           </div>
           <button class="remove-food-type-btn" data-idx="${i}" style="background: none; border: none; color: #e63946; cursor: pointer; font-size: 16px; padding: 0 4px;">✕</button>
@@ -162,6 +162,11 @@ export class ConfigRenderer {
               <input type="color" value="${ft.color}" class="food-type-color-picker" data-idx="${i}" style="width: 36px; height: 34px; border: 1px solid var(--border-glow); border-radius: 6px; cursor: pointer; background: transparent; padding: 0;" />
               <input value="${ft.color}" class="input-field food-type-color" data-idx="${i}" style="flex: 1; padding: 8px; font-family: monospace;" />
             </div>
+          </label>
+          <label style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="color: var(--text-muted); font-size: 11px;">Image (SVG filename)</span>
+            <input value="${ft.image || ""}" class="input-field food-type-image" data-idx="${i}" placeholder="e.g. apple.svg" style="padding: 8px;" />
+            ${ft.image ? `<div style="display: flex; align-items: center; margin-top: 4px; padding: 4px; border-radius: 4px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-glow); width: fit-content;"><img src="/${ft.image}" style="width: 32px; height: 32px; object-fit: contain;" /></div>` : ""}
           </label>
         </div>` : ""}
       </div>`;

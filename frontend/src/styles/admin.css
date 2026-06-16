@@ -129,7 +129,7 @@
 }
 
 .tooltip-container:hover .tooltip-icon {
-  background: var(--accent-pink) !important;
+  background: var(--accent) !important;
   color: #fff !important;
 }
 
