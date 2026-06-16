@@ -26,7 +26,8 @@ function _processSingleSnake(
   scoreThicknessScale: number,
   pitchAngle: number
 ): void {
-  activePlayers.push({ id: playerId, isMe: isSelf, nickname: p.nickname || "Игрок" });
+  const activePlayerObj: any = { id: playerId, isMe: isSelf, nickname: p.nickname || "Игрок" };
+  activePlayers.push(activePlayerObj);
   const mapW = state.server_world?.width ?? 100;
   const mapH = state.server_world?.height ?? 100;
 
@@ -41,10 +42,31 @@ function _processSingleSnake(
   appendSnakeMesh(subPaths, p.skin || "default", pRadius, gridSize, snakeZ, bodyBufs);
 
   if (subPaths.length > 0 && subPaths[0].pointsCount > 0) {
-    const hx = subPaths[0].x[0];
-    const hy = subPaths[0].y[0];
+    let hx = subPaths[0].x[0];
+    let hy = subPaths[0].y[0];
+
+    // Wrap hx and hy relative to camera position to keep eyes/nicknames aligned across borders
+    const mapW_geo = mapW * gridSize;
+    const mapH_geo = mapH * gridSize;
+    const camX = camera.localX * gridSize + gridSize / 2;
+    const camY = -(camera.localY * gridSize + gridSize / 2);
+
+    let dx = hx - camX;
+    if (dx > mapW_geo / 2) dx -= mapW_geo;
+    else if (dx < -mapW_geo / 2) dx += mapW_geo;
+    hx = camX + dx;
+
+    let dy = hy - camY;
+    if (dy > mapH_geo / 2) dy -= mapH_geo;
+    else if (dy < -mapH_geo / 2) dy += mapH_geo;
+    hy = camY + dy;
+
     const fogAmt = calcFog(hx, hy);
     const headAngle = isSelf ? (camera.localAngle ?? p.angle) : p.angle;
+
+    activePlayerObj.hx = hx;
+    activePlayerObj.hy = hy;
+    activePlayerObj.radius = pRadius;
 
     eyes.addEyes(hx, hy, pRadius * gridSize, snakeZ, headAngle, fogAmt);
 
@@ -80,7 +102,8 @@ export function processSnakes(
   bodyBufs: GeometryBuffers,
   calcFog: (wx: number, wy: number) => number,
   activePlayers: any[],
-  nicknames: any[]
+  nicknames: any[],
+  fogRadiusWorld: number
 ): void {
   const baseHeadRadius = state.server_snake?.base_head_radius ?? 0.2;
   const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? 0.0005;
@@ -92,6 +115,37 @@ export function processSnakes(
     if (p.is_dead || !p.body || p.body.length === 0 || p.teleport_state === "in_transit") continue;
 
     const isSelf = playerId === myId;
+    
+    if (!isSelf) {
+      const pLength = p.body.length;
+      const mapW = state.server_world?.width ?? 100;
+      const mapH = state.server_world?.height ?? 100;
+      const mapW_geo = mapW * gridSize;
+      const mapH_geo = mapH * gridSize;
+      
+      const camX = camera.localX * gridSize + gridSize / 2;
+      const camY = -(camera.localY * gridSize + gridSize / 2);
+      
+      let hx = p.body[0].x * gridSize + gridSize / 2;
+      let hy = -(p.body[0].y * gridSize + gridSize / 2);
+      
+      let dx = hx - camX;
+      if (dx > mapW_geo / 2) dx -= mapW_geo;
+      else if (dx < -mapW_geo / 2) dx += mapW_geo;
+      
+      let dy = hy - camY;
+      if (dy > mapH_geo / 2) dy -= mapH_geo;
+      else if (dy < -mapH_geo / 2) dy += mapH_geo;
+      
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const safeRadius = fogRadiusWorld * 1.1 + (pLength * gridSize * 0.6);
+      
+      if (dist > safeRadius) {
+        activePlayers.push({ id: playerId, isMe: false, nickname: p.nickname || "Игрок" });
+        continue;
+      }
+    }
+
     _processSingleSnake(
       playerId, p, oldP, isSelf, state, progress, gridSize, startLength, camera,
       particles, eyes, bodyBufs, calcFog, activePlayers, nicknames,

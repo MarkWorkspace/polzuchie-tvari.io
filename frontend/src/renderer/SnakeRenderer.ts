@@ -13,6 +13,8 @@ export class SnakeRenderer {
   private bodyMesh!: THREE.InstancedMesh;
   private eyeMesh!: THREE.InstancedMesh;
   private pupilMesh!: THREE.InstancedMesh;
+  private glowMesh!: THREE.InstancedMesh;
+  private glowMaterial!: THREE.ShaderMaterial;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -27,11 +29,11 @@ export class SnakeRenderer {
   }
 
   public destroy(): void {
-    [this.bodyMesh, this.eyeMesh, this.pupilMesh].forEach((mesh) => {
+    [this.bodyMesh, this.eyeMesh, this.pupilMesh, this.glowMesh].forEach((mesh) => {
       this.scene.remove(mesh);
       mesh.geometry.dispose();
     });
-    [this.bodyMaterial, this.eyeMaterial, this.pupilMaterial].forEach((mat) => mat.dispose());
+    [this.bodyMaterial, this.eyeMaterial, this.pupilMaterial, this.glowMaterial].forEach((mat) => mat.dispose());
   }
 
   private updateUniforms(msg: any): void {
@@ -85,6 +87,27 @@ export class SnakeRenderer {
       this.eyeMesh.count = 0;
       this.pupilMesh.count = 0;
     }
+
+    const activePlayers = msg.activePlayers || [];
+    let glowCount = 0;
+    const baseGlowRadius = msg.gameState?.server_visual?.head_glow_radius ?? 3.0;
+
+    if (baseGlowRadius > 0.0) {
+      const dummy = new THREE.Object3D();
+      for (let i = 0; i < activePlayers.length; i++) {
+        const ap = activePlayers[i];
+        if (ap.hx !== undefined && ap.hy !== undefined) {
+          const finalRadius = ap.radius * gridSize + baseGlowRadius * gridSize;
+          dummy.position.set(ap.hx, ap.hy, -0.1);
+          dummy.scale.set(finalRadius, finalRadius, 1.0);
+          dummy.updateMatrix();
+          this.glowMesh.setMatrixAt(glowCount, dummy.matrix);
+          glowCount++;
+        }
+      }
+      this.glowMesh.instanceMatrix.needsUpdate = true;
+    }
+    this.glowMesh.count = glowCount;
   }
 
   private initMaterials(): void {
@@ -108,6 +131,33 @@ export class SnakeRenderer {
 
     this.eyeMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
     this.pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+    this.glowMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uColor: { value: new THREE.Color(1.0, 0.6, 0.1) } // Warm orange glow
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uColor;
+        varying vec2 vUv;
+        void main() {
+          float dist = length(vUv - 0.5) * 2.0;
+          float alpha = smoothstep(1.0, 0.0, dist);
+          alpha = pow(alpha, 1.5) * 0.2; 
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(uColor, alpha);
+        }
+      `,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
   }
 
   private initMeshes(): void {
@@ -135,6 +185,11 @@ export class SnakeRenderer {
     this.pupilMesh = new THREE.InstancedMesh(pupilGeom, this.pupilMaterial, 2000);
     RenderConfig.configureMesh(this.pupilMesh, RenderLayer.SnakePupils);
     this.scene.add(this.pupilMesh);
+
+    const glowGeom = new THREE.PlaneGeometry(2, 2);
+    this.glowMesh = new THREE.InstancedMesh(glowGeom, this.glowMaterial, 1000);
+    RenderConfig.configureMesh(this.glowMesh, RenderLayer.Shadow);
+    this.scene.add(this.glowMesh);
   }
 
   private updateDynamicAttr(geom: THREE.BufferGeometry, name: string, data: Float32Array, itemSize: number): void {

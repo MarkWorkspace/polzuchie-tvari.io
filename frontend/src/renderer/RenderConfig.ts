@@ -24,6 +24,7 @@ export const RenderLayer = {
   BlackHoleCore: 11,
   DebugGrid: 20,
   DebugCollision: 21,
+  FogOverlay: 30,
 } as const;
 
 export type RenderLayer = typeof RenderLayer[keyof typeof RenderLayer];

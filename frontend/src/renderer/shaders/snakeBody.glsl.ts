@@ -72,13 +72,9 @@ export function patchSnakeMaterial(shader: any, uniforms: any) {
       d_dist = abs(x) / r;
     }
     
-    // Clip parts outside the map boundaries, except for the head when near the boundary
-    bool isInsideMap = (vWorldPosition.x >= 0.0 && vWorldPosition.x <= uMapWidth &&
-                        vWorldPosition.y <= 0.0 && vWorldPosition.y >= -uMapHeight);
-    bool isHead = (y >= L - r * 1.5);
-    bool isNearMap = (vWorldPosition.x >= -r * 2.0 && vWorldPosition.x <= uMapWidth + r * 2.0 &&
-                      vWorldPosition.y <= r * 2.0 && vWorldPosition.y >= -uMapHeight - r * 2.0);
-    if (!isInsideMap && !(isHead && isNearMap)) discard;
+    
+    // We no longer discard parts outside the map boundaries because we use 9 instanced copies 
+    // to render the seamless toroidal world. Discarding here would clip the copies and hide the tail.
     
     float skinType = vCustomColor.r;
     vec3 baseColor;

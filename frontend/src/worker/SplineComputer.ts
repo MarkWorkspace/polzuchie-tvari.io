@@ -85,50 +85,31 @@ function _interpolateSegments(
   }
 }
 
-function _handleWrapAround(
-  dx: number, dy: number, mapW: number, mapH: number,
-  prevX: number, prevY: number, currX: number, currY: number,
-  newSegX: number[], newSegY: number[], subPaths: { start: number; len: number }[],
-  subCount: number
-): number {
-  let gx_prev = currX, gy_prev = currY;
-  if (dx > mapW / 2) gx_prev -= mapW; else if (dx < -mapW / 2) gx_prev += mapW;
-  if (dy > mapH / 2) gy_prev -= mapH; else if (dy < -mapH / 2) gy_prev += mapH;
-
-  newSegX.push(gx_prev);
-  newSegY.push(gy_prev);
-  subPaths[subCount].len++;
-
-  let gx_next = prevX, gy_next = prevY;
-  if (-dx > mapW / 2) gx_next -= mapW; else if (-dx < -mapW / 2) gx_next += mapW;
-  if (-dy > mapH / 2) gy_next -= mapH; else if (-dy < -mapH / 2) gy_next += mapH;
-
-  subPaths.push({ start: newSegX.length, len: 2 });
-  newSegX.push(gx_next, currX);
-  newSegY.push(gy_next, currY);
-  return subCount + 1;
-}
-
 function _splitSubPaths(segX: number[], segY: number[], mapW: number, mapH: number): { start: number; len: number }[] {
-  const newSegX = [segX[0]], newSegY = [segY[0]];
+  const newSegX = [segX[0]];
+  const newSegY = [segY[0]];
   const subPaths = [{ start: 0, len: 1 }];
   let subCount = 0;
 
   for (let i = 1; i < segX.length; i++) {
-    const dx = segX[i] - segX[i - 1], dy = segY[i] - segY[i - 1];
+    const prevX = newSegX[newSegX.length - 1];
+    const prevY = newSegY[newSegY.length - 1];
+    
+    // Calculate shortest path to the next point
     const [adjDx, adjDy] = toroidalDelta(segX[i - 1], segY[i - 1], segX[i], segY[i], mapW, mapH);
     const adjDistSq = adjDx * adjDx + adjDy * adjDy;
 
     if (adjDistSq > 36.0) {
+      // Portal jump! We MUST split the subpath.
       subCount++;
       subPaths.push({ start: newSegX.length, len: 1 });
       newSegX.push(segX[i]);
       newSegY.push(segY[i]);
-    } else if (dx * dx + dy * dy > 36.0) {
-      subCount = _handleWrapAround(dx, dy, mapW, mapH, segX[i - 1], segY[i - 1], segX[i], segY[i], newSegX, newSegY, subPaths, subCount);
     } else {
-      newSegX.push(segX[i]);
-      newSegY.push(segY[i]);
+      // Normal movement or Map Border Crossing.
+      // We UNWRAP the coordinate by adding the delta to our continuous sequence.
+      newSegX.push(prevX + adjDx);
+      newSegY.push(prevY + adjDy);
       subPaths[subCount].len++;
     }
   }

@@ -1,7 +1,7 @@
 {
     "world": {
-        "width": 140,
-        "height": 70,
+        "width": 100,
+        "height": 100,
         "target_food_count": 250,
         "food_overflow_limit": 150,
         "cluster_count": 8,

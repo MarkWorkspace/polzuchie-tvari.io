@@ -23,6 +23,11 @@ export function computeBlackHoles(
   const lastBhMap = _buildLastBhMap(lastState);
   const visibleBlackHoles: { wx: number; wy: number; pullRadius: number; killRadius: number }[] = [];
 
+  const mapW = state.server_world?.width ?? 100;
+  const mapH = state.server_world?.height ?? 100;
+  const worldW = mapW * gridSize;
+  const worldH = mapH * gridSize;
+
   if (state.server_world?.black_holes_enabled !== 0) {
     for (const bh of blackHoles) {
       const scale = bh.current_scale ?? 1.0;
@@ -39,8 +44,18 @@ export function computeBlackHoles(
         killRadius *= progress;
       }
 
-      const wx = bh.x * gridSize;
-      const wy = -bh.y * gridSize;
+      let wx = bh.x * gridSize;
+      let wy = -bh.y * gridSize;
+
+      let dx = wx - camX;
+      if (dx > worldW / 2) dx -= worldW;
+      else if (dx < -worldW / 2) dx += worldW;
+      wx = camX + dx;
+
+      let dy = wy - camY;
+      if (dy > worldH / 2) dy -= worldH;
+      else if (dy < -worldH / 2) dy += worldH;
+      wy = camY + dy;
 
       if ((wx - camX) ** 2 + (wy - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
         visibleBlackHoles.push({ wx, wy, pullRadius, killRadius });

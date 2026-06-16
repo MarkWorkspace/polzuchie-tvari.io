@@ -1,27 +1,27 @@
 // ROLE: Декодирование delta-стейтов с сервера. Не сеть, не интерполяция.
 
 import type { GameState, Player, Food } from "../types/game";
+import pako from "pako";
 
-export async function decompress(bytes: Uint8Array): Promise<ArrayBuffer> {
-  const response = new Response(bytes as any);
-  if (!response.body) throw new Error("Body is null");
-  const decompressedStream = response.body.pipeThrough(new DecompressionStream("deflate"));
-  return new Response(decompressedStream).arrayBuffer();
+export function decompress(bytes: Uint8Array): Uint8Array {
+  return pako.inflate(bytes);
 }
 
 export function parsePoints(arr: any): { x: number; y: number }[] {
   if (!arr) return [];
   if (arr.length === 0) return [];
   if (typeof arr[0] === 'number') {
-    const points: { x: number; y: number }[] = [];
     const len = arr.length;
+    const points = new Array(Math.floor(len / 2));
+    let idx = 0;
     for (let i = 0; i < len - 1; i += 2) {
       const px = arr[i];
       const py = arr[i+1];
       if (typeof px === 'number' && typeof py === 'number' && !isNaN(px) && !isNaN(py)) {
-        points.push({ x: px, y: py });
+        points[idx++] = { x: px, y: py };
       }
     }
+    if (idx < points.length) points.length = idx;
     return points;
   }
   return arr;
@@ -79,23 +79,31 @@ export function decodeDeltaState(
       nickname: "",
       skin: "default"
     };
-    const { body, new_heads, length, ...otherProps } = pData;
+    const { body, new_heads, length, teleport_state, ...otherProps } = pData;
     let newBody: { x: number; y: number }[] = [];
 
     if (body) {
       newBody = parsePoints(body);
     } else if (oldPlayer && oldPlayer.body) {
       const addedHeads = parsePoints(new_heads);
-      newBody = [...addedHeads, ...oldPlayer.body];
       const targetLen = length ?? oldPlayer.body.length;
-      if (newBody.length > targetLen) {
-        newBody = newBody.slice(0, targetLen);
+      
+      newBody = new Array(targetLen);
+      const headsCount = addedHeads.length;
+      
+      for (let i = 0; i < headsCount && i < targetLen; i++) {
+        newBody[i] = addedHeads[i];
+      }
+      
+      for (let i = headsCount; i < targetLen; i++) {
+        newBody[i] = oldPlayer.body[i - headsCount];
       }
     }
 
     nextPlayers[pid] = {
       ...defaultPlayer,
       ...oldPlayer,
+      teleport_state: teleport_state || "none",
       ...otherProps,
       body: newBody,
     };

@@ -17,6 +17,9 @@ export class SceneManager {
   private groundMaterial!: THREE.MeshStandardMaterial;
   private groundMesh!: THREE.Mesh;
 
+  private fogMaterial!: THREE.ShaderMaterial;
+  private fogMesh!: THREE.Mesh;
+
 
   constructor(container: HTMLDivElement) {
     this.container = container;
@@ -29,7 +32,7 @@ export class SceneManager {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-    this.renderer.setClearColor(0x0c0c0f, 1.0);
+    this.renderer.setClearColor(0x050506, 1.0);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.container.appendChild(this.renderer.domElement);
@@ -44,9 +47,10 @@ export class SceneManager {
     );
     // No native fog, we use Post-Processing radial fog
 
-    // 3. Init Lighting & Ground
+    // 3. Init Lighting, Ground & Fog
     this.setupLighting();
     this.setupGround();
+    this.setupFog();
 
     // 4. Init Post Processing
     this.postProcessing = new PostProcessing(
@@ -63,6 +67,8 @@ export class SceneManager {
   public destroy(): void {
     window.removeEventListener("resize", this.handleResize);
     this.postProcessing.destroy();
+    this.fogMesh.geometry.dispose();
+    this.fogMaterial.dispose();
     this.groundMesh.geometry.dispose();
     this.groundMaterial.dispose();
     this.renderer.dispose();
@@ -88,6 +94,7 @@ export class SceneManager {
   public render(msg: any): void {
     if (msg) {
       this.updateGround(msg);
+      this.updateFog(msg);
       // Update light target to follow camera so shadows are always centered
       this.dirLight.position.set(msg.camX + 0.1, msg.camY + 0.1, 300);
       this.dirLight.target.position.set(msg.camX, msg.camY, 0);
@@ -184,7 +191,71 @@ export class SceneManager {
       uniforms.uWorldHeight.value = mapH;
     }
     
-    // Fog radius is now passed to PostProcessing in render()
+    // Fog radius is now passed to FogOverlay in updateFog()
+  }
+
+  private setupFog(): void {
+    const uniforms = {
+      uHeadPos: { value: new THREE.Vector2(0, 0) },
+      uRadius: { value: 300.0 },
+      uFogColor: { value: new THREE.Color(5 / 255, 5 / 255, 6 / 255) }, // Almost black
+    };
+
+    const vertexShader = `
+      varying vec2 vWorldPos;
+      void main() {
+        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+        vWorldPos = worldPosition.xy;
+        gl_Position = projectionMatrix * viewMatrix * worldPosition;
+      }
+    `;
+
+    const fragmentShader = `
+      uniform vec2 uHeadPos;
+      uniform float uRadius;
+      uniform vec3 uFogColor;
+      varying vec2 vWorldPos;
+
+      void main() {
+        float dist = length(vWorldPos - uHeadPos);
+        float alpha = smoothstep(uRadius * 0.7, uRadius, dist);
+        gl_FragColor = vec4(uFogColor, alpha);
+      }
+    `;
+
+    this.fogMaterial = new THREE.ShaderMaterial({
+      uniforms,
+      vertexShader,
+      fragmentShader,
+      transparent: true,
+      depthWrite: false,
+      depthTest: true,
+    });
+
+    // Make the plane large enough to cover the world
+    const geom = new THREE.PlaneGeometry(WORLD_WIDTH * gridSize * 4, WORLD_HEIGHT * gridSize * 4);
+    this.fogMesh = new THREE.Mesh(geom, this.fogMaterial);
+    
+    RenderConfig.configureMesh(this.fogMesh, RenderLayer.FogOverlay);
+    
+    // Position it above the ground and snakes, but below the camera
+    this.fogMesh.position.set((WORLD_WIDTH * gridSize) / 2, -(WORLD_HEIGHT * gridSize) / 2, 50.0);
+    this.scene.add(this.fogMesh);
+  }
+
+  private updateFog(msg: any): void {
+    const camX = msg.camX || 0;
+    const camY = msg.camY || 0;
+
+    // Follow the camera perfectly so the plane never goes out of view
+    this.fogMesh.position.set(camX, camY, 5.0);
+
+    const uniforms = this.fogMaterial.uniforms;
+    uniforms.uHeadPos.value.set(camX, camY);
+    
+    // For debugging: if the user can't see the fog, we force it to be visible by reducing radius slightly
+    // But msg.fogRadiusWorld should be accurate.
+    uniforms.uRadius.value = msg.fogRadiusWorld || 300.0;
   }
 
   private handleResize = (): void => {

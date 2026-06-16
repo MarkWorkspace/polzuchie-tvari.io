@@ -198,7 +198,7 @@ export function computeFrame(
 
   const activePlayers: any[] = [];
   const nicknames: any[] = [];
-  processSnakes(state, lastState, progress, myId, gridSize, startLength, camera, particles, eyes, bodyBufs, calcFog, activePlayers, nicknames);
+  processSnakes(state, lastState, progress, myId, gridSize, startLength, camera, particles, eyes, bodyBufs, calcFog, activePlayers, nicknames, fogRadiusWorld);
 
   particles.update(dt);
   const partBufs = particles.buildBuffers(FOG_R, FOG_G, FOG_B, calcFog);

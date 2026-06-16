@@ -41,6 +41,20 @@ export function computeFood(
     let wx = interpolatedPos.x * gridSize + gridSize / 2;
     let wy = -(interpolatedPos.y * gridSize + gridSize / 2);
 
+    // Wrap wx and wy relative to camera position to handle boundary rendering
+    const worldW = mapW * gridSize;
+    const worldH = mapH * gridSize;
+
+    let dx = wx - camX;
+    if (dx > worldW / 2) dx -= worldW;
+    else if (dx < -worldW / 2) dx += worldW;
+    wx = camX + dx;
+
+    let dy = wy - camY;
+    if (dy > worldH / 2) dy -= worldH;
+    else if (dy < -worldH / 2) dy += worldH;
+    wy = camY + dy;
+
     const distToCamSq = (wx - camX) ** 2 + (wy - camY) ** 2;
     if (distToCamSq > (fogRadiusWorld * 1.05) ** 2) {
       continue;
@@ -69,17 +83,22 @@ export function computeFood(
   return visibleCount;
 }
 
-const reusableFoodMap = new Map<number, Food>();
+const lastStateFoodCache = new WeakMap<GameState, Map<number, Food>>();
 
 function _buildLastFoodMap(lastState: GameState | null): Map<number, Food> {
-  reusableFoodMap.clear();
-  if (lastState && lastState.foods) {
-    for (let i = 0; i < lastState.foods.length; i++) {
-      const lf = lastState.foods[i];
-      reusableFoodMap.set(lf.id, lf);
-    }
+  if (!lastState || !lastState.foods) return new Map();
+  
+  let map = lastStateFoodCache.get(lastState);
+  if (map) return map;
+
+  map = new Map<number, Food>();
+  for (let i = 0; i < lastState.foods.length; i++) {
+    const lf = lastState.foods[i];
+    map.set(lf.id, lf);
   }
-  return reusableFoodMap;
+  
+  lastStateFoodCache.set(lastState, map);
+  return map;
 }
 
 function _interpolateFoodPosition(food: Food, lastFoodMap: Map<number, Food>, progress: number, mapW: number, mapH: number): { x: number; y: number } {

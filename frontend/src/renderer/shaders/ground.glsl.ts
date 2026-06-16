@@ -39,14 +39,7 @@ export function patchGroundMaterial(shader: any, uniforms: any) {
     float gridY = step(0.95, fract(vWorldPosition.y / (uGridSize * 2.0)));
     float isGrid = max(gridX, gridY);
     
-    float isOut = 0.0;
-    if (vWorldPosition.x < 0.0 || vWorldPosition.x > uWorldWidth * uGridSize ||
-        vWorldPosition.y > 0.0 || vWorldPosition.y < -uWorldHeight * uGridSize) {
-        isOut = 1.0;
-    }
-                  
     vec3 finalColor = mix(uGroundColor, uGridColor, isGrid);
-    if (isOut > 0.0) finalColor = vec3(0.0);
     
     diffuseColor = vec4(finalColor, opacity);
     `

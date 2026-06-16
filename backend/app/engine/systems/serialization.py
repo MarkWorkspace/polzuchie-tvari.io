@@ -111,8 +111,17 @@ def _assemble_final_dict(state, players_data: dict, is_full: bool, client_id: st
         aoi_sq = (fog_r_grid * 1.5) ** 2
         
         filtered_moved_foods = []
+        gw = state.grid_width
+        gh = state.grid_height
+        gw2 = gw / 2.0
+        gh2 = gh / 2.0
+        
         for f in moved_foods_list:
-            dx, dy = toroidal_delta(cx, cy, f['x'], f['y'], state.grid_width, state.grid_height)
+            dx = abs(cx - f['x'])
+            if dx > gw2: dx = gw - dx
+            dy = abs(cy - f['y'])
+            if dy > gh2: dy = gh - dy
+            
             if (dx * dx + dy * dy) < aoi_sq:
                 filtered_moved_foods.append(f)
         moved_foods_list = filtered_moved_foods

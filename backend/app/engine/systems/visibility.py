@@ -21,15 +21,22 @@ def get_visible_players(state, client_id):
     fog_r_grid = fog_r_world / 20.0
 
     current_visible = set()
+    gw2 = state.grid_width / 2.0
+    gh2 = state.grid_height / 2.0
     for pid, p in state.players.items():
         if p.body_len > 0:
             if pid == client_id:
                 current_visible.add(pid)
                 continue
 
-            dist = toroidal_distance(
-                cx, cy, p.head_x, p.head_y, state.grid_width, state.grid_height
-            )
+            dx = abs(cx - p.head_x)
+            if dx > gw2:
+                dx = state.grid_width - dx
+            dy = abs(cy - p.head_y)
+            if dy > gh2:
+                dy = state.grid_height - dy
+                
+            dist = (dx * dx + dy * dy) ** 0.5
             safe_r = (fog_r_grid + p.body_len * 0.5) * 1.03
             if dist < safe_r:
                 current_visible.add(pid)

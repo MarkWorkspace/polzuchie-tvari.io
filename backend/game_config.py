@@ -104,6 +104,7 @@ class VisualConfig:
     camera_z_height: float = 0.0
     camera_y_offset: float = 0.25
     mouse_sensitivity: float = 1.0
+    head_glow_radius: float = 3.0
 
 
 @dataclass
@@ -289,6 +290,9 @@ class GameConfig:
         _require_range("visual.camera_y_offset", self.visual.camera_y_offset, -1.0, 1.0)
         _require_range(
             "visual.mouse_sensitivity", self.visual.mouse_sensitivity, 0.1, 10.0
+        )
+        _require_range(
+            "visual.head_glow_radius", self.visual.head_glow_radius, 0.0, 50.0
         )
 
 

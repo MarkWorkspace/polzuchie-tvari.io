@@ -8,7 +8,7 @@ export class StateInterpolator {
 
   public pushState(state: GameState, timestamp: number = Date.now()) {
     this.queue.push({ time: timestamp, state });
-    if (this.queue.length > 4) {
+    if (this.queue.length > 20) {
       this.queue.shift();
     }
   }

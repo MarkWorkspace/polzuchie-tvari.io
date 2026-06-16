@@ -40,14 +40,15 @@ export type ServerSnakeConfig = {
   max_growth_score: number;
 };
 
-export type ServerVisualConfig = {
-  min_fog_radius: number;
-  fog_score_expansion_coeff: number;
-  camera_base_zoom: number;
-  camera_pitch_angle: number;
-  camera_z_height: number;
-  camera_y_offset: number;
+export interface ServerVisualConfig {
+  min_fog_radius?: number;
+  fog_score_expansion_coeff?: number;
+  camera_base_zoom?: number;
+  camera_pitch_angle?: number;
+  camera_z_height?: number;
+  camera_y_offset?: number;
   mouse_sensitivity?: number;
+  head_glow_radius?: number;
 };
 
 export type ServerFoodConfig = {

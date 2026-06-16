@@ -62,8 +62,8 @@ export class PortalRenderer {
           #else
             vColor = vec3(1.0);
           #endif
-          // Scale up the glow radius by 5.0 to illuminate everything nearby
-          vec4 localPos = vec4(position * 5.0, 1.0);
+          // Scale up the glow radius by 3.3 to illuminate everything nearby (reduced by 1.5x)
+          vec4 localPos = vec4(position * 3.3, 1.0);
           vec4 worldPos = modelMatrix * instanceMatrix * localPos;
           gl_Position = projectionMatrix * viewMatrix * worldPos;
         }

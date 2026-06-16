@@ -40,64 +40,11 @@ class LensingEffect extends Effect {
   }
 }
 
-const radialFogFragmentShader = `
-  uniform vec2 uHeadWorldPos;
-  uniform float uRadiusWorld;
-  uniform vec2 uWorldSize;
-  uniform mat4 uCameraMatrixWorld;
-  uniform mat4 uProjectionMatrixInverse;
-  uniform vec3 uFogColor;
 
-  void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth, out vec4 outputColor) {
-    if (depth >= 0.99999) {
-      outputColor = vec4(uFogColor, 1.0);
-      return;
-    }
-
-    vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
-    vec4 viewPos = uProjectionMatrixInverse * ndc;
-    viewPos /= viewPos.w;
-    vec4 worldPos = uCameraMatrixWorld * viewPos;
-
-    float dx = worldPos.x - uHeadWorldPos.x;
-    float dy = worldPos.y - uHeadWorldPos.y;
-
-    if (dx > uWorldSize.x / 2.0) dx -= uWorldSize.x;
-    else if (dx < -uWorldSize.x / 2.0) dx += uWorldSize.x;
-
-    if (dy > uWorldSize.y / 2.0) dy -= uWorldSize.y;
-    else if (dy < -uWorldSize.y / 2.0) dy += uWorldSize.y;
-
-    float dist = sqrt(dx * dx + dy * dy);
-    float start = uRadiusWorld * 0.70;
-    float end = uRadiusWorld * 1.0;
-    float fogAmount = smoothstep(start, end, dist);
-
-    outputColor = vec4(mix(inputColor.rgb, uFogColor, fogAmount), 1.0);
-  }
-`;
-
-class RadialFogEffect extends Effect {
-  constructor() {
-    super('RadialFogEffect', radialFogFragmentShader, {
-      attributes: EffectAttribute.DEPTH,
-      blendFunction: BlendFunction.NORMAL,
-      uniforms: new Map<string, any>([
-        ['uHeadWorldPos', new THREE.Uniform(new THREE.Vector2(0, 0))],
-        ['uRadiusWorld', new THREE.Uniform(300.0)],
-        ['uWorldSize', new THREE.Uniform(new THREE.Vector2(2000, 2000))],
-        ['uCameraMatrixWorld', new THREE.Uniform(new THREE.Matrix4())],
-        ['uProjectionMatrixInverse', new THREE.Uniform(new THREE.Matrix4())],
-        ['uFogColor', new THREE.Uniform(new THREE.Color(12 / 255, 12 / 255, 15 / 255))]
-      ])
-    });
-  }
-}
 
 export class PostProcessing {
   private composer: EffectComposer;
   private lensingEffect: LensingEffect;
-  private radialFogEffect: RadialFogEffect;
   private normalPass: NormalPass;
 
   private bhPositionsArray = new Float32Array(30);
@@ -126,9 +73,8 @@ export class PostProcessing {
     });
 
     this.lensingEffect = new LensingEffect({ bhPositionsArray: this.bhPositionsArray });
-    this.radialFogEffect = new RadialFogEffect();
 
-    const effectPass = new EffectPass(camera, ssaoEffect, this.lensingEffect, this.radialFogEffect);
+    const effectPass = new EffectPass(camera, ssaoEffect, this.lensingEffect);
     this.composer.addPass(effectPass);
     
     this.resize(width, height);
@@ -154,15 +100,6 @@ export class PostProcessing {
     
     camera.updateMatrixWorld();
     camera.updateProjectionMatrix();
-
-    const mapW = state?.server_world?.width ?? WORLD_WIDTH;
-    const mapH = state?.server_world?.height ?? WORLD_HEIGHT;
-
-    this.radialFogEffect.uniforms.get('uHeadWorldPos')!.value.set(msg.camX || 0, msg.camY || 0);
-    this.radialFogEffect.uniforms.get('uRadiusWorld')!.value = msg.fogRadiusWorld || 300.0;
-    this.radialFogEffect.uniforms.get('uWorldSize')!.value.set(mapW * gridSize, mapH * gridSize);
-    this.radialFogEffect.uniforms.get('uCameraMatrixWorld')!.value.copy(camera.matrixWorld);
-    this.radialFogEffect.uniforms.get('uProjectionMatrixInverse')!.value.copy(camera.projectionMatrixInverse);
 
     this.composer.render();
     return true; // We now ALWAYS render via postprocessing because of SSAO

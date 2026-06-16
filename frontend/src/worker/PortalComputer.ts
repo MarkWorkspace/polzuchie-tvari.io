@@ -29,6 +29,11 @@ export function computePortals(
   const lastPortalMap = _buildLastPortalMap(lastState);
   const visiblePortals: { wx: number; wy: number; r: number; color: number }[] = [];
 
+  const mapW = state.server_world?.width ?? 100;
+  const mapH = state.server_world?.height ?? 100;
+  const worldW = mapW * gridSize;
+  const worldH = mapH * gridSize;
+
   if (state.server_world?.portals_enabled !== 0) {
     for (const p of portals) {
       const scale = _interpolatePortalScale(p, lastPortalMap, progress);
@@ -37,14 +42,36 @@ export function computePortals(
       const radius = p.radius * scale * gridSize;
       const color = parseColor(p.color || '#38bdf8');
 
-      const wx1 = p.x1 * gridSize;
-      const wy1 = -p.y1 * gridSize;
+      let wx1 = p.x1 * gridSize;
+      let wy1 = -p.y1 * gridSize;
+
+      let dx1 = wx1 - camX;
+      if (dx1 > worldW / 2) dx1 -= worldW;
+      else if (dx1 < -worldW / 2) dx1 += worldW;
+      wx1 = camX + dx1;
+
+      let dy1 = wy1 - camY;
+      if (dy1 > worldH / 2) dy1 -= worldH;
+      else if (dy1 < -worldH / 2) dy1 += worldH;
+      wy1 = camY + dy1;
+
       if ((wx1 - camX) ** 2 + (wy1 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
         visiblePortals.push({ wx: wx1, wy: wy1, r: radius, color });
       }
 
-      const wx2 = p.x2 * gridSize;
-      const wy2 = -p.y2 * gridSize;
+      let wx2 = p.x2 * gridSize;
+      let wy2 = -p.y2 * gridSize;
+
+      let dx2 = wx2 - camX;
+      if (dx2 > worldW / 2) dx2 -= worldW;
+      else if (dx2 < -worldW / 2) dx2 += worldW;
+      wx2 = camX + dx2;
+
+      let dy2 = wy2 - camY;
+      if (dy2 > worldH / 2) dy2 -= worldH;
+      else if (dy2 < -worldH / 2) dy2 += worldH;
+      wy2 = camY + dy2;
+
       if ((wx2 - camX) ** 2 + (wy2 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
         visiblePortals.push({ wx: wx2, wy: wy2, r: radius, color });
       }

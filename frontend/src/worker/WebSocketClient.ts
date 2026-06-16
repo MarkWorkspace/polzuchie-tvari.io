@@ -88,7 +88,7 @@ export class WebSocketClient {
     }, 2000);
   }
 
-  private async _handleMessage(event: MessageEvent) {
+  private _handleMessage(event: MessageEvent) {
     if (typeof event.data === "string") {
       if (event.data.startsWith("PONG:")) {
         const timestamp = parseFloat(event.data.substring(5));
@@ -99,8 +99,8 @@ export class WebSocketClient {
     }
 
     try {
-      const decompressedBuffer = await decompress(new Uint8Array(event.data));
-      const parsedState = decode(new Uint8Array(decompressedBuffer)) as any;
+      const decompressedBuffer = decompress(new Uint8Array(event.data));
+      const parsedState = decode(decompressedBuffer) as any;
       
       if (parsedState.type === "SERVER_RESTART") {
         this.statusCallbacks.forEach(cb => cb("reconnecting", {
