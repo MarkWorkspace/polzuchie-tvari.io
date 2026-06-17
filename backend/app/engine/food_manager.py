@@ -2,8 +2,7 @@
 import math
 import random
 from app.engine.entities import Food
-
-
+from app.engine.systems.math_utils import toroidal_distance
 class FoodManager:
     def __init__(self, state):
         self.state = state
@@ -86,6 +85,21 @@ class FoodManager:
         cells_range: int,
         safe_dist_sq: float,
     ) -> bool:
+        if hasattr(self.state, "bh_manager") and self.state.bh_manager:
+            for bh in self.state.bh_manager.black_hole_slots:
+                if bh is not None and bh.state != "dead":
+                    dist = toroidal_distance(x, y, bh.x, bh.y, self.state.grid_width, self.state.grid_height)
+                    if dist < bh.pull_radius * 1.5:
+                        return False
+
+        if hasattr(self.state, "portal_manager") and self.state.portal_manager:
+            for p in self.state.portal_manager.portal_slots:
+                if p is not None and p.state != "dead":
+                    dist1 = toroidal_distance(x, y, p.x1, p.y1, self.state.grid_width, self.state.grid_height)
+                    dist2 = toroidal_distance(x, y, p.x2, p.y2, self.state.grid_width, self.state.grid_height)
+                    if dist1 < p.radius * 3 or dist2 < p.radius * 3:
+                        return False
+
         grid_x = int(x / cell_size) % max(1, grid_w)
         grid_y = int(y / cell_size) % max(1, grid_h)
         for dx in range(-cells_range, cells_range + 1):

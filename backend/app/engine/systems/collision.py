@@ -1,7 +1,7 @@
 # ROLE: Столкновения змейка-змейка (коэфф. 0.95). Не движение, не еда.
 
 import math
-from app.engine.systems.math_utils import toroidal_delta
+from app.engine.systems.math_utils import toroidal_delta, toroidal_distance
 from game_config import CELL_SIZE
 
 
@@ -85,7 +85,18 @@ def _process_player_death(state, pid: str, player, killer_pid: str | None) -> No
     state.kill_events.append({"killer": killer_pid, "victim": pid})
     state.food_manager.drop_food_on_death(player)
 
-    if player.body:
+    spawn_tombstone = True
+    if hasattr(state, "portal_manager") and state.portal_manager:
+        for p in state.portal_manager.portal_slots:
+            if p is not None and p.state != "dead":
+                eff_radius = p.radius * p.current_scale
+                dist1 = toroidal_distance(player.head_x, player.head_y, p.x1, p.y1, state.grid_width, state.grid_height)
+                dist2 = toroidal_distance(player.head_x, player.head_y, p.x2, p.y2, state.grid_width, state.grid_height)
+                if dist1 < eff_radius or dist2 < eff_radius:
+                    spawn_tombstone = False
+                    break
+
+    if player.body and spawn_tombstone:
         state.tombstones.append(
             {
                 "id": f"tomb_{pid}_{len(state.kill_events)}",

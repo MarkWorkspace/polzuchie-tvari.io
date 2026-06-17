@@ -24,21 +24,21 @@ export class InputManager {
   }
 
   private bindEvents(): void {
-    window.addEventListener("keydown", this.handleKeyDown);
-    window.addEventListener("keyup", this.handleKeyUp);
-    window.addEventListener("mousemove", this.handleMouseMove);
-    window.addEventListener("blur", this.handleWindowBlur);
+    window.addEventListener("keydown", this.handleKeyDown, true);
+    window.addEventListener("keyup", this.handleKeyUp, true);
+    window.addEventListener("mousemove", this.handleMouseMove, true);
+    window.addEventListener("blur", this.handleWindowBlur, true);
     if (window.DeviceOrientationEvent) {
-      window.addEventListener("deviceorientation", this.handleDeviceOrientation);
+      window.addEventListener("deviceorientation", this.handleDeviceOrientation, true);
     }
   }
 
   public destroy(): void {
-    window.removeEventListener("keydown", this.handleKeyDown);
-    window.removeEventListener("keyup", this.handleKeyUp);
-    window.removeEventListener("mousemove", this.handleMouseMove);
-    window.removeEventListener("blur", this.handleWindowBlur);
-    window.removeEventListener("deviceorientation", this.handleDeviceOrientation);
+    window.removeEventListener("keydown", this.handleKeyDown, true);
+    window.removeEventListener("keyup", this.handleKeyUp, true);
+    window.removeEventListener("mousemove", this.handleMouseMove, true);
+    window.removeEventListener("blur", this.handleWindowBlur, true);
+    window.removeEventListener("deviceorientation", this.handleDeviceOrientation, true);
   }
 
   public setCallbacks(callbacks: {
@@ -87,6 +87,11 @@ export class InputManager {
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
+    const activeEl = document.activeElement;
+    const isInputActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
+    if (isInputActive) return;
+    e.stopPropagation();
+
     if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
       e.preventDefault();
     }
@@ -105,6 +110,11 @@ export class InputManager {
   };
 
   private handleKeyUp = (e: KeyboardEvent): void => {
+    const activeEl = document.activeElement;
+    const isInputActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
+    if (isInputActive) return;
+    e.stopPropagation();
+
     if (this.controlMode === "keyboard" && ["ArrowLeft", "KeyA", "ArrowRight", "KeyD"].includes(e.code)) {
       this.pressedKeys.delete(e.code);
       this.recalculateTurn();
@@ -144,6 +154,7 @@ export class InputManager {
 
   private handleMouseMove = (e: MouseEvent): void => {
     if (this.controlMode !== "mouse" || this.isMobile) return;
+    e.stopPropagation();
     const normX = (e.clientX / window.innerWidth) * 2 - 1;
     const targetDeflection = 0.5 * this.mouseSensitivity;
     this.turn = Math.max(-1.0, Math.min(1.0, normX / targetDeflection));
