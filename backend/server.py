@@ -38,7 +38,7 @@ async def process_client(client_id, connection):
         return_visibility=True,
         serialize_msgpack=True,
     )
-    compressed = zlib.compress(state_msgpack, 1)
+    compressed = await asyncio.to_thread(zlib.compress, state_msgpack, 1)
     replace_queued_state(connection["queue"], (compressed, visible_players))
 
 

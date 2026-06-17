@@ -54,6 +54,29 @@ ctx.onmessage = (e: MessageEvent) => {
   }
 };
 
+function _handleWebSocketMessage(parsedState: any) {
+  try {
+    const mapW = parsedState.server_world?.width ?? (currentGameState?.server_world?.width ?? 100);
+    const mapH = parsedState.server_world?.height ?? (currentGameState?.server_world?.height ?? 100);
+
+    if (parsedState.type === "FULL" || !parsedState.type) {
+      currentGameState = decodeFullState(parsedState, mapW, mapH);
+    } else if (parsedState.type === "DELTA" && currentGameState) {
+      currentGameState = decodeDeltaState(parsedState, currentGameState, mapW, mapH);
+    }
+
+    if (parsedState.kill_events) {
+      accumulatedKillEvents.push(...parsedState.kill_events);
+    }
+
+    if (currentGameState) {
+      interpolator.pushState(currentGameState, performance.now());
+    }
+  } catch (error) {
+    console.error("[Worker] Error decoding state:", error);
+  }
+}
+
 function _handleConnect(url: string) {
   _handleClose();
   client = new WebSocketClient(url);
@@ -66,28 +89,7 @@ function _handleConnect(url: string) {
     ctx.postMessage({ type: "YOUR_ID", your_id: id });
   });
 
-  client.onMessage((parsedState) => {
-    try {
-      const mapW = parsedState.server_world?.width ?? (currentGameState?.server_world?.width ?? 100);
-      const mapH = parsedState.server_world?.height ?? (currentGameState?.server_world?.height ?? 100);
-
-      if (parsedState.type === "FULL" || !parsedState.type) {
-        currentGameState = decodeFullState(parsedState, mapW, mapH);
-      } else if (parsedState.type === "DELTA" && currentGameState) {
-        currentGameState = decodeDeltaState(parsedState, currentGameState, mapW, mapH);
-      }
-
-      if (parsedState.kill_events) {
-        accumulatedKillEvents.push(...parsedState.kill_events);
-      }
-
-      if (currentGameState) {
-        interpolator.pushState(currentGameState, performance.now());
-      }
-    } catch (error) {
-      console.error("[Worker] Error decoding state:", error);
-    }
-  });
+  client.onMessage(_handleWebSocketMessage);
 
   client.connect();
 }
@@ -106,6 +108,11 @@ function _handleClose() {
 }
 
 function _handleRequestFrame(msg: any) {
+  if (typeof msg.sentTime === "number" && performance.now() - msg.sentTime > 100) {
+    ctx.postMessage({ type: "FRAME_DATA", eyeCount: 0, pupilCount: 0, particleCount: 0, foodCount: 0, portalCount: 0, blackHoleCount: 0 });
+    return;
+  }
+
   const { dt, localInput, gridSize } = msg;
   const tickRate = currentGameState?.server_simulation?.tick_rate ?? 30;
 

@@ -57,7 +57,8 @@ export class NetworkManager {
       dt,
       myId,
       gridSize,
-      localInput: input
+      localInput: input,
+      sentTime: performance.now()
     });
   }
 

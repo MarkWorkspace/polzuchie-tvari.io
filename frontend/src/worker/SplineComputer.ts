@@ -46,19 +46,20 @@ export function computeSplinePaths(
 }
 
 function _getInterpolatedSegment(
-  ptB: { x: number; y: number },
-  oldPt: { x: number; y: number } | undefined,
+  bx: number, by: number,
+  ox: number | undefined, oy: number | undefined,
   useInterpolation: boolean,
   progress: number,
   mapW: number,
   mapH: number
 ): { x: number; y: number } {
-  if (!useInterpolation || !oldPt) return { x: ptB.x, y: ptB.y };
-  const dx = ptB.x - oldPt.x, dy = ptB.y - oldPt.y;
-  if (dx * dx + dy * dy > 36.0) return { x: ptB.x, y: ptB.y };
+  if (ox === undefined || oy === undefined) return { x: bx, y: by };
+  if (!useInterpolation) return { x: bx, y: by };
+  const dx = bx - ox, dy = by - oy;
+  if (dx * dx + dy * dy > 36.0) return { x: bx, y: by };
   return {
-    x: toroidalLerp(oldPt.x, ptB.x, progress, mapW),
-    y: toroidalLerp(oldPt.y, ptB.y, progress, mapH)
+    x: toroidalLerp(ox, bx, progress, mapW),
+    y: toroidalLerp(oy, by, progress, mapH)
   };
 }
 
@@ -67,13 +68,26 @@ function _interpolateSegments(
   mapW: number, mapH: number, visualX: number, visualY: number,
   isSelf: boolean, outX: number[], outY: number[]
 ) {
-  const count = p.body.length;
+  const count = Math.floor(p.body.length / 2);
   const useInterp = !!(oldP && oldP.body && oldP.body.length > 0);
 
   for (let i = 0; i < count; i++) {
-    const ptB = p.body[i];
-    const oldPt = oldP ? (oldP.body[i] || oldP.body[oldP.body.length - 1]) : undefined;
-    let { x, y } = _getInterpolatedSegment(ptB, oldPt, useInterp, progress, mapW, mapH);
+    const bx = p.body[2 * i];
+    const by = p.body[2 * i + 1];
+    
+    let ox: number | undefined;
+    let oy: number | undefined;
+    
+    if (useInterp && oldP && oldP.body) {
+       const oldLen = Math.floor(oldP.body.length / 2);
+       if (oldLen > 0) {
+           const oldIdx = i < oldLen ? i : oldLen - 1;
+           ox = oldP.body[2 * oldIdx];
+           oy = oldP.body[2 * oldIdx + 1];
+       }
+    }
+
+    let { x, y } = _getInterpolatedSegment(bx, by, ox, oy, useInterp, progress, mapW, mapH);
 
     if (isSelf) {
       x += visualX; y += visualY;

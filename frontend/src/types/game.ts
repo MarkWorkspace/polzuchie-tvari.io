@@ -76,7 +76,7 @@ export type Food = {
 };
 
 export type Player = {
-  body: Point[];
+  body: number[];
   angle: number;
   score: number;
   kills: number;
@@ -138,7 +138,7 @@ export type GameState = {
 };
 
 export type NetworkPlayer = Omit<Player, "body"> & {
-  body: Point[] | number[];
+  body: number[];
   teleport_state?: string;
   teleport_out_x?: number;
   teleport_out_y?: number;
@@ -146,8 +146,8 @@ export type NetworkPlayer = Omit<Player, "body"> & {
 };
 
 export type NetworkPlayerUpdate = Partial<Omit<Player, "body">> & {
-  body?: Point[] | number[];
-  new_heads?: Point[] | number[];
+  body?: number[];
+  new_heads?: number[];
   length?: number;
   teleport_state?: string;
   teleport_out_x?: number;

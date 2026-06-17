@@ -7,24 +7,21 @@ export function decompress(bytes: Uint8Array): Uint8Array {
   return pako.inflate(bytes);
 }
 
-export function parsePoints(arr: any): { x: number; y: number }[] {
+export function ensureFlatArray(arr: any): number[] {
   if (!arr) return [];
   if (arr.length === 0) return [];
   if (typeof arr[0] === 'number') {
-    const len = arr.length;
-    const points = new Array(Math.floor(len / 2));
-    let idx = 0;
-    for (let i = 0; i < len - 1; i += 2) {
-      const px = arr[i];
-      const py = arr[i+1];
-      if (typeof px === 'number' && typeof py === 'number' && !isNaN(px) && !isNaN(py)) {
-        points[idx++] = { x: px, y: py };
-      }
-    }
-    if (idx < points.length) points.length = idx;
-    return points;
+    return arr as number[];
   }
-  return arr;
+  if (arr[0] && typeof arr[0] === 'object' && 'x' in arr[0]) {
+    const res = new Array(arr.length * 2);
+    for (let i = 0; i < arr.length; i++) {
+      res[i * 2] = arr[i].x;
+      res[i * 2 + 1] = arr[i].y;
+    }
+    return res;
+  }
+  return [];
 }
 
 export function decodeFullState(parsedState: any, mapW: number, mapH: number): GameState {
@@ -34,7 +31,7 @@ export function decodeFullState(parsedState: any, mapW: number, mapH: number): G
       const netPlayer = player as any;
       players[pid] = {
         ...netPlayer,
-        body: parsePoints(netPlayer.body),
+        body: ensureFlatArray(netPlayer.body),
       };
     }
   }
@@ -71,7 +68,7 @@ export function decodeDeltaState(
   for (const [pid, pData] of Object.entries(parsedState.players as Record<string, any>)) {
     const oldPlayer = currentPlayers[pid];
     const defaultPlayer = {
-      body: [] as { x: number; y: number }[],
+      body: [] as number[],
       angle: 0,
       score: 0,
       kills: 0,
@@ -80,23 +77,23 @@ export function decodeDeltaState(
       skin: "default"
     };
     const { body, new_heads, length, teleport_state, ...otherProps } = pData;
-    let newBody: { x: number; y: number }[] = [];
+    let newBody: number[] = [];
 
     if (body) {
-      newBody = parsePoints(body);
+      newBody = ensureFlatArray(body);
     } else if (oldPlayer && oldPlayer.body) {
-      const addedHeads = parsePoints(new_heads);
-      const targetLen = length ?? oldPlayer.body.length;
+      const addedHeads = ensureFlatArray(new_heads);
+      const targetLen = length ?? Math.floor(oldPlayer.body.length / 2);
       
-      newBody = new Array(targetLen);
-      const headsCount = addedHeads.length;
+      newBody = new Array(targetLen * 2);
+      const headsCountNumbers = addedHeads.length;
       
-      for (let i = 0; i < headsCount && i < targetLen; i++) {
+      for (let i = 0; i < headsCountNumbers && i < targetLen * 2; i++) {
         newBody[i] = addedHeads[i];
       }
       
-      for (let i = headsCount; i < targetLen; i++) {
-        newBody[i] = oldPlayer.body[i - headsCount];
+      for (let i = headsCountNumbers; i < targetLen * 2; i++) {
+        newBody[i] = oldPlayer.body[i - headsCountNumbers];
       }
     }
 

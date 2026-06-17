@@ -47,8 +47,8 @@ export class CameraPredictor {
 
     if (!this.isInitialized) {
       this.localAngle = myPlayer.angle;
-      this.localX = myPlayer.body && myPlayer.body[0] ? myPlayer.body[0].x : 0.0;
-      this.localY = myPlayer.body && myPlayer.body[0] ? myPlayer.body[0].y : 0.0;
+      this.localX = myPlayer.body && myPlayer.body.length >= 2 ? myPlayer.body[0] : 0.0;
+      this.localY = myPlayer.body && myPlayer.body.length >= 2 ? myPlayer.body[1] : 0.0;
       this.isInitialized = true;
     }
 
@@ -89,7 +89,7 @@ export class CameraPredictor {
     const baseHeadRadius = state.server_snake?.base_head_radius ?? 0.2;
     const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? 0.0005;
     const startLength = state.server_snake?.start_length ?? 5;
-    const myLength = myPlayer.body ? myPlayer.body.length : startLength;
+    const myLength = myPlayer.body ? Math.floor(myPlayer.body.length / 2) : startLength;
     const myGained = Math.max(0, myLength - startLength);
 
     const minTurnRadius = state.server_simulation?.min_turn_radius ?? 0.5;
@@ -123,18 +123,19 @@ export class CameraPredictor {
 
   private _applyGravityBending(dt: number, myPlayer: any, state: GameState, mapW: number, mapH: number) {
     if (state.server_world?.black_holes_enabled === 0 || !state.black_holes || !myPlayer.body) return;
-    const head = myPlayer.body[0];
+    const headX = myPlayer.body[0];
+    const headY = myPlayer.body[1];
     let gravityBend = 0.0;
 
     for (let i = 0; i < state.black_holes.length; i++) {
       const bh = state.black_holes[i];
       if (!bh || bh.state === "dead" || (bh.current_scale ?? 1.0) <= 0.01) continue;
 
-      let bhDx = bh.x - head.x;
+      let bhDx = bh.x - headX;
       if (bhDx > mapW / 2) bhDx -= mapW;
       else if (bhDx < -mapW / 2) bhDx += mapW;
 
-      let bhDy = bh.y - head.y;
+      let bhDy = bh.y - headY;
       if (bhDy > mapH / 2) bhDy -= mapH;
       else if (bhDy < -mapH / 2) bhDy += mapH;
 
@@ -172,19 +173,24 @@ export class CameraPredictor {
       this.currentZoomOffset = Math.max(0, this.currentZoomOffset - 3.0 * dt);
     }
 
-    const target = myPlayer.body[0];
-    let start = target;
+    const targetX = myPlayer.body[0];
+    const targetY = myPlayer.body[1];
+    let startX = targetX;
+    let startY = targetY;
     const oldBody = lastState?.players[myId]?.body;
-    if (oldBody && oldBody.length > 0) start = oldBody[0];
+    if (oldBody && oldBody.length >= 2) {
+      startX = oldBody[0];
+      startY = oldBody[1];
+    }
 
-    const camDx = target.x - start.x;
-    const camDy = target.y - start.y;
-    let serverX = target.x;
-    let serverY = target.y;
+    const camDx = targetX - startX;
+    const camDy = targetY - startY;
+    let serverX = targetX;
+    let serverY = targetY;
 
     if (camDx * camDx + camDy * camDy <= 36.0) {
-      serverX = toroidalLerp(start.x, target.x, progress, mapW);
-      serverY = toroidalLerp(start.y, target.y, progress, mapH);
+      serverX = toroidalLerp(startX, targetX, progress, mapW);
+      serverY = toroidalLerp(startY, targetY, progress, mapH);
     }
 
     if ((myPlayer.teleport_state === "entering" || myPlayer.teleport_state === "in_transit") && myPlayer.teleport_out_x !== undefined && myPlayer.teleport_out_y !== undefined) {

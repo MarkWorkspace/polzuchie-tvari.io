@@ -31,7 +31,7 @@ function _processSingleSnake(
   const mapW = state.server_world?.width ?? 100;
   const mapH = state.server_world?.height ?? 100;
 
-  const pLength = p.body.length;
+  const pLength = Math.floor(p.body.length / 2);
   const pRadius = baseHeadRadius + Math.max(0, pLength - startLength) * 10.0 * scoreThicknessScale;
 
   const subPaths = computeSplinePaths(
@@ -117,7 +117,7 @@ export function processSnakes(
     const isSelf = playerId === myId;
     
     if (!isSelf) {
-      const pLength = p.body.length;
+      const pLength = Math.floor(p.body.length / 2);
       const mapW = state.server_world?.width ?? 100;
       const mapH = state.server_world?.height ?? 100;
       const mapW_geo = mapW * gridSize;
@@ -126,8 +126,8 @@ export function processSnakes(
       const camX = camera.localX * gridSize + gridSize / 2;
       const camY = -(camera.localY * gridSize + gridSize / 2);
       
-      let hx = p.body[0].x * gridSize + gridSize / 2;
-      let hy = -(p.body[0].y * gridSize + gridSize / 2);
+      let hx = p.body[0] * gridSize + gridSize / 2;
+      let hy = -(p.body[1] * gridSize + gridSize / 2);
       
       let dx = hx - camX;
       if (dx > mapW_geo / 2) dx -= mapW_geo;

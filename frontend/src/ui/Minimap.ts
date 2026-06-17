@@ -157,6 +157,9 @@ export class Minimap {
 
       ctx.fillStyle = p.skin === "zebra" ? "#e2e8f0" : p.skin || "#22c55e";
       const head = p.body[0];
+      if (!head || typeof head.x !== "number" || typeof head.y !== "number" || isNaN(head.x) || isNaN(head.y)) {
+        continue;
+      }
       let baseRx = head.x - px;
       let baseRy = head.y - py;
       if (baseRx > mapW / 2) baseRx -= mapW;
