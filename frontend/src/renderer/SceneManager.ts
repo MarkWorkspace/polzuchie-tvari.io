@@ -42,8 +42,13 @@ export class SceneManager {
   private fogMaterial!: THREE.ShaderMaterial;
   private fogMesh!: THREE.Mesh;
 
+  private currentWidth: number = 0;
+  private currentHeight: number = 0;
+
   constructor(container: HTMLDivElement) {
     this.container = container;
+    this.currentWidth = this.container.clientWidth;
+    this.currentHeight = this.container.clientHeight;
     this.initRenderer();
     this.initSceneAndCamera();
     this.setupLighting();
@@ -60,7 +65,7 @@ export class SceneManager {
       logarithmicDepthBuffer: false
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+    this.renderer.setSize(this.currentWidth, this.currentHeight);
     this.renderer.setClearColor(0x050506, 1.0);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -71,7 +76,7 @@ export class SceneManager {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
       50,
-      this.container.clientWidth / this.container.clientHeight,
+      this.currentWidth / this.currentHeight,
       15.0,
       15000.0
     );
@@ -82,8 +87,8 @@ export class SceneManager {
       this.renderer,
       this.scene,
       this.camera,
-      this.container.clientWidth,
-      this.container.clientHeight
+      this.currentWidth,
+      this.currentHeight
     );
   }
 
@@ -108,6 +113,14 @@ export class SceneManager {
 
   public getRenderer(): THREE.WebGLRenderer {
     return this.renderer;
+  }
+
+  public getWidth(): number {
+    return this.currentWidth;
+  }
+
+  public getHeight(): number {
+    return this.currentHeight;
   }
 
   public resize(): void {
@@ -247,13 +260,13 @@ export class SceneManager {
   }
 
   private handleResize = (): void => {
-    const width = this.container.clientWidth;
-    const height = this.container.clientHeight;
+    this.currentWidth = this.container.clientWidth;
+    this.currentHeight = this.container.clientHeight;
 
-    this.camera.aspect = width / height;
+    this.camera.aspect = this.currentWidth / this.currentHeight;
     this.camera.updateProjectionMatrix();
 
-    this.renderer.setSize(width, height);
-    this.postProcessing.resize(width, height);
+    this.renderer.setSize(this.currentWidth, this.currentHeight);
+    this.postProcessing.resize(this.currentWidth, this.currentHeight);
   };
 }

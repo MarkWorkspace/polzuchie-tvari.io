@@ -50,10 +50,8 @@ export class RenderOrchestrator {
     gameCamera: GameCamera
   ): void {
     const camera = this.sceneManager.getCamera();
-    const renderer = this.sceneManager.getRenderer();
-    const width = renderer.domElement.clientWidth;
-    const height = renderer.domElement.clientHeight;
-
+    const width = this.sceneManager.getWidth();
+    const height = this.sceneManager.getHeight();
     frame.myId = myId; // Attach myId for overlay queries
 
     gameCamera.update(camera, frame, dt, myId, isAccelerating);
