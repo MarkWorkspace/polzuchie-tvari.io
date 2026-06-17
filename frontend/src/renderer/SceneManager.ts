@@ -5,12 +5,34 @@ import { patchGroundMaterial } from "./shaders/ground.glsl";
 import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
 
+const FOG_VERTEX_SHADER = `
+  varying vec2 vWorldPos;
+  void main() {
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vWorldPos = worldPosition.xy;
+    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  }
+`;
+
+const FOG_FRAGMENT_SHADER = `
+  uniform vec2 uHeadPos;
+  uniform float uRadius;
+  uniform vec3 uFogColor;
+  varying vec2 vWorldPos;
+
+  void main() {
+    float dist = length(vWorldPos - uHeadPos);
+    float alpha = smoothstep(uRadius * 0.7, uRadius, dist);
+    gl_FragColor = vec4(uFogColor, alpha);
+  }
+`;
+
 export class SceneManager {
   private container: HTMLDivElement;
-  private renderer: THREE.WebGLRenderer;
-  private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  private postProcessing: PostProcessing;
+  private renderer!: THREE.WebGLRenderer;
+  private scene!: THREE.Scene;
+  private camera!: THREE.PerspectiveCamera;
+  private postProcessing!: PostProcessing;
 
   private ambientLight!: THREE.AmbientLight;
   private dirLight!: THREE.DirectionalLight;
@@ -20,11 +42,18 @@ export class SceneManager {
   private fogMaterial!: THREE.ShaderMaterial;
   private fogMesh!: THREE.Mesh;
 
-
   constructor(container: HTMLDivElement) {
     this.container = container;
+    this.initRenderer();
+    this.initSceneAndCamera();
+    this.setupLighting();
+    this.setupGround();
+    this.setupFog();
+    this.initPostProcessing();
+    window.addEventListener("resize", this.handleResize);
+  }
 
-    // 1. Create Renderer
+  private initRenderer(): void {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
@@ -34,10 +63,11 @@ export class SceneManager {
     this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
     this.renderer.setClearColor(0x050506, 1.0);
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.container.appendChild(this.renderer.domElement);
+  }
 
-    // 2. Create Scene & Camera
+  private initSceneAndCamera(): void {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
       50,
@@ -45,14 +75,9 @@ export class SceneManager {
       15.0,
       15000.0
     );
-    // No native fog, we use Post-Processing radial fog
+  }
 
-    // 3. Init Lighting, Ground & Fog
-    this.setupLighting();
-    this.setupGround();
-    this.setupFog();
-
-    // 4. Init Post Processing
+  private initPostProcessing(): void {
     this.postProcessing = new PostProcessing(
       this.renderer,
       this.scene,
@@ -60,8 +85,6 @@ export class SceneManager {
       this.container.clientWidth,
       this.container.clientHeight
     );
-
-    window.addEventListener("resize", this.handleResize);
   }
 
   public destroy(): void {
@@ -159,21 +182,14 @@ export class SceneManager {
       metalness: 0.0,
     });
     this.groundMaterial.userData.uniforms = uniforms;
-    this.groundMaterial.onBeforeCompile = (shader) => {
-      patchGroundMaterial(shader, uniforms);
-    };
+    this.groundMaterial.onBeforeCompile = (shader) => patchGroundMaterial(shader, uniforms);
 
-    const geom = new THREE.PlaneGeometry(
-      WORLD_WIDTH * gridSize * 4,
-      WORLD_HEIGHT * gridSize * 4
-    );
+    const sizeX = WORLD_WIDTH * gridSize * 4;
+    const sizeY = WORLD_HEIGHT * gridSize * 4;
+    const geom = new THREE.PlaneGeometry(sizeX, sizeY);
     this.groundMesh = new THREE.Mesh(geom, this.groundMaterial);
     RenderConfig.configureMesh(this.groundMesh, RenderLayer.Ground);
-    this.groundMesh.position.set(
-      (WORLD_WIDTH * gridSize) / 2,
-      -(WORLD_HEIGHT * gridSize) / 2,
-      -2.0
-    );
+    this.groundMesh.position.set((WORLD_WIDTH * gridSize) / 2, -(WORLD_HEIGHT * gridSize) / 2, -2.0);
     this.groundMesh.receiveShadow = true;
     this.scene.add(this.groundMesh);
   }
@@ -190,8 +206,6 @@ export class SceneManager {
       uniforms.uWorldWidth.value = mapW;
       uniforms.uWorldHeight.value = mapH;
     }
-    
-    // Fog radius is now passed to FogOverlay in updateFog()
   }
 
   private setupFog(): void {
@@ -201,44 +215,21 @@ export class SceneManager {
       uFogColor: { value: new THREE.Color(5 / 255, 5 / 255, 6 / 255) }, // Almost black
     };
 
-    const vertexShader = `
-      varying vec2 vWorldPos;
-      void main() {
-        vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-        vWorldPos = worldPosition.xy;
-        gl_Position = projectionMatrix * viewMatrix * worldPosition;
-      }
-    `;
-
-    const fragmentShader = `
-      uniform vec2 uHeadPos;
-      uniform float uRadius;
-      uniform vec3 uFogColor;
-      varying vec2 vWorldPos;
-
-      void main() {
-        float dist = length(vWorldPos - uHeadPos);
-        float alpha = smoothstep(uRadius * 0.7, uRadius, dist);
-        gl_FragColor = vec4(uFogColor, alpha);
-      }
-    `;
-
     this.fogMaterial = new THREE.ShaderMaterial({
       uniforms,
-      vertexShader,
-      fragmentShader,
+      vertexShader: FOG_VERTEX_SHADER,
+      fragmentShader: FOG_FRAGMENT_SHADER,
       transparent: true,
       depthWrite: false,
       depthTest: true,
     });
 
-    // Make the plane large enough to cover the world
-    const geom = new THREE.PlaneGeometry(WORLD_WIDTH * gridSize * 4, WORLD_HEIGHT * gridSize * 4);
+    const sizeX = WORLD_WIDTH * gridSize * 4;
+    const sizeY = WORLD_HEIGHT * gridSize * 4;
+    const geom = new THREE.PlaneGeometry(sizeX, sizeY);
     this.fogMesh = new THREE.Mesh(geom, this.fogMaterial);
     
     RenderConfig.configureMesh(this.fogMesh, RenderLayer.FogOverlay);
-    
-    // Position it above the ground and snakes, but below the camera
     this.fogMesh.position.set((WORLD_WIDTH * gridSize) / 2, -(WORLD_HEIGHT * gridSize) / 2, 50.0);
     this.scene.add(this.fogMesh);
   }
@@ -252,9 +243,6 @@ export class SceneManager {
 
     const uniforms = this.fogMaterial.uniforms;
     uniforms.uHeadPos.value.set(camX, camY);
-    
-    // For debugging: if the user can't see the fog, we force it to be visible by reducing radius slightly
-    // But msg.fogRadiusWorld should be accurate.
     uniforms.uRadius.value = msg.fogRadiusWorld || 300.0;
   }
 
@@ -269,4 +257,3 @@ export class SceneManager {
     this.postProcessing.resize(width, height);
   };
 }
-
