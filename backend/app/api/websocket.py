@@ -37,19 +37,17 @@ async def sender_loop(client_id, websocket, queue):
 
 
 def replace_queued_state(queue, data):
+    skipped = False
     if queue.full():
         with contextlib.suppress(asyncio.QueueEmpty):
             queue.get_nowait()
+            skipped = True
     with contextlib.suppress(asyncio.QueueFull):
         queue.put_nowait(data)
+    return skipped
 
 
-async def websocket_endpoint(
-    websocket: WebSocket,
-    nickname: str = "Игрок",
-    skin: str = "#22c55e",
-    client_id: str | None = None,
-):
+def _validate_client(client_id: str | None) -> tuple[str, bool]:
     reconnecting = False
     if client_id:
         try:
@@ -61,19 +59,19 @@ async def websocket_endpoint(
 
     if not client_id:
         client_id = str(uuid.uuid4())
+    return client_id, reconnecting
 
-    if len(active_connections) >= MAX_CONNECTIONS and not reconnecting:
-        await websocket.close(code=4002, reason="Server full")
-        return
 
+def _clean_profile(nickname: str, skin: str) -> tuple[str, str]:
     nickname = nickname.strip()[:NICKNAME_MAX_LENGTH] or "Игрок"
-
     if skin not in VALID_SKINS and not HEX_COLOR_PATTERN.match(skin):
         skin = "#22c55e"
+    return nickname, skin
 
-    await websocket.accept()
 
-    # Cancel pending disconnect if reconnecting
+async def _handle_reconnection(
+    client_id: str, reconnecting: bool, nickname: str, skin: str, websocket: WebSocket
+):
     disconnect_task = pending_disconnects.pop(client_id, None)
     if disconnect_task:
         disconnect_task.cancel()
@@ -89,6 +87,8 @@ async def websocket_endpoint(
     else:
         game.add_player(client_id, nickname, skin)
 
+
+async def _initialize_connection(client_id: str, websocket: WebSocket) -> asyncio.Queue:
     full_state = game.get_full_state(client_id)
     full_state["your_id"] = client_id
     await websocket.send_bytes(zlib.compress(msgpack.packb(full_state)))
@@ -99,54 +99,82 @@ async def websocket_endpoint(
         "websocket": websocket,
         "queue": send_queue,
         "task": send_task,
+        "needs_full_sync": False,
     }
+    return send_queue
 
+
+async def _run_receive_loop(client_id: str, websocket: WebSocket):
     msg_timestamps = deque()
+    while True:
+        data = await websocket.receive_text()
+        if len(data) > 20:
+            continue
+
+        now = asyncio.get_event_loop().time()
+        while msg_timestamps and msg_timestamps[0] < now - 1.0:
+            msg_timestamps.popleft()
+        if len(msg_timestamps) >= RATE_LIMIT_PER_SECOND:
+            continue
+        msg_timestamps.append(now)
+
+        if data.startswith("SCORE:"):
+            continue
+
+        if data.startswith("PING:"):
+            try:
+                await websocket.send_text(f"PONG:{data[5:]}")
+            except Exception:
+                pass
+            continue
+
+        game.input_queue.append((client_id, data))
+
+
+async def _cleanup_connection(client_id: str, websocket: WebSocket):
+    conn = active_connections.get(client_id)
+    if conn and conn["websocket"] == websocket:
+        active_connections.pop(client_id, None)
+        conn["task"].cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await conn["task"]
+
+        game.reset_player_input(client_id)
+
+        async def delayed_remove(cid):
+            try:
+                await asyncio.sleep(3.0)
+                game.remove_player(cid)
+                pending_disconnects.pop(cid, None)
+            except asyncio.CancelledError:
+                pass
+
+        pending_disconnects[client_id] = asyncio.create_task(
+            delayed_remove(client_id)
+        )
+
+
+async def websocket_endpoint(
+    websocket: WebSocket,
+    nickname: str = "Игрок",
+    skin: str = "#22c55e",
+    client_id: str | None = None,
+):
+    client_id, reconnecting = _validate_client(client_id)
+    if len(active_connections) >= MAX_CONNECTIONS and not reconnecting:
+        await websocket.close(code=4002, reason="Server full")
+        return
+
+    nickname, skin = _clean_profile(nickname, skin)
+    await websocket.accept()
+
+    await _handle_reconnection(client_id, reconnecting, nickname, skin, websocket)
+    await _initialize_connection(client_id, websocket)
 
     try:
-        while True:
-            data = await websocket.receive_text()
-            if len(data) > 20:
-                continue
-
-            now = asyncio.get_event_loop().time()
-            while msg_timestamps and msg_timestamps[0] < now - 1.0:
-                msg_timestamps.popleft()
-            if len(msg_timestamps) >= RATE_LIMIT_PER_SECOND:
-                continue
-            msg_timestamps.append(now)
-
-            if data.startswith("SCORE:"):
-                continue
-
-            if data.startswith("PING:"):
-                try:
-                    await websocket.send_text(f"PONG:{data[5:]}")
-                except Exception:
-                    pass
-                continue
-
-            game.input_queue.append((client_id, data))
+        await _run_receive_loop(client_id, websocket)
     except Exception:
         pass
     finally:
-        conn = active_connections.get(client_id)
-        if conn and conn["websocket"] == websocket:
-            active_connections.pop(client_id, None)
-            conn["task"].cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await conn["task"]
+        await _cleanup_connection(client_id, websocket)
 
-            game.reset_player_input(client_id)
-
-            async def delayed_remove(cid):
-                try:
-                    await asyncio.sleep(3.0)
-                    game.remove_player(cid)
-                    pending_disconnects.pop(cid, None)
-                except asyncio.CancelledError:
-                    pass
-
-            pending_disconnects[client_id] = asyncio.create_task(
-                delayed_remove(client_id)
-            )

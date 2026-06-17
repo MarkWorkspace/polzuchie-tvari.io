@@ -32,14 +32,29 @@ from app.api.admin import (
 
 
 async def process_client(client_id, connection):
-    state_msgpack, visible_players = game.get_delta_state(
-        client_id,
-        update_visibility=False,
-        return_visibility=True,
-        serialize_msgpack=True,
-    )
+    if connection.get("needs_full_sync", False):
+        final_dict, visible_players = game.get_delta_state(
+            client_id,
+            is_full=True,
+            update_visibility=False,
+            return_visibility=True,
+            serialize_msgpack=False,
+        )
+        final_dict["foods"] = [f.to_dict() for f in game.food_manager.foods.values()]
+        state_msgpack = msgpack.packb(final_dict)
+        connection["needs_full_sync"] = False
+    else:
+        state_msgpack, visible_players = game.get_delta_state(
+            client_id,
+            update_visibility=False,
+            return_visibility=True,
+            serialize_msgpack=True,
+        )
     compressed = await asyncio.to_thread(zlib.compress, state_msgpack, 1)
-    replace_queued_state(connection["queue"], (compressed, visible_players))
+    skipped = replace_queued_state(connection["queue"], (compressed, visible_players))
+    if skipped:
+        connection["needs_full_sync"] = True
+
 
 
 async def game_loop():
