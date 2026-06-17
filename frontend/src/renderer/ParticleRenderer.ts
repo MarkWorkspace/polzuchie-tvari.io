@@ -21,6 +21,7 @@ export class ParticleRenderer {
 
     const geom = new THREE.PlaneGeometry(1, 1);
     this.mesh = new THREE.InstancedMesh(geom, this.material, this.maxInstances);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.mesh, RenderLayer.Particle);
     this.scene.add(this.mesh);
   }
@@ -42,13 +43,19 @@ export class ParticleRenderer {
 
   private updateParticleBuffers(msg: any, count: number): void {
     this.mesh.instanceMatrix.array.set(msg.particleMatrices);
+    this.mesh.instanceMatrix.clearUpdateRanges();
+    this.mesh.instanceMatrix.addUpdateRange(0, count * 16);
     this.mesh.instanceMatrix.needsUpdate = true;
 
     if (!this.mesh.instanceColor) {
       const colorArray = new Float32Array(this.maxInstances * 3);
-      this.mesh.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
+      const attr = new THREE.InstancedBufferAttribute(colorArray, 3);
+      attr.setUsage(THREE.DynamicDrawUsage);
+      this.mesh.instanceColor = attr;
     }
     this.mesh.instanceColor.array.set(msg.particleColors);
+    this.mesh.instanceColor.clearUpdateRanges();
+    this.mesh.instanceColor.addUpdateRange(0, count * 3);
     this.mesh.instanceColor.needsUpdate = true;
     this.mesh.count = count;
   }

@@ -109,6 +109,7 @@ export class FoodRenderer {
 
   private _createMesh(material: THREE.Material, geometry: THREE.BufferGeometry): THREE.InstancedMesh {
     const mesh = new THREE.InstancedMesh(geometry, material, this.maxInstances);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(mesh, RenderLayer.Food, { castShadow: true, receiveShadow: true });
     this.scene.add(mesh);
     return mesh;
@@ -147,11 +148,12 @@ export class FoodRenderer {
     }
 
     this.colorMesh.count = counts[0];
-    this._markDirty(this.colorMesh, true);
+    this._markDirty(this.colorMesh, counts[0], true);
     
     for (let t = 0; t < this.totalFruitTypes; t++) {
-      this.fruitMeshes[t].count = counts[t + 1];
-      this._markDirty(this.fruitMeshes[t], false);
+      const mesh = this.fruitMeshes[t];
+      mesh.count = counts[t + 1];
+      this._markDirty(mesh, counts[t + 1], false);
     }
   }
 
@@ -173,14 +175,23 @@ export class FoodRenderer {
 
   private _ensureInstanceColor(mesh: THREE.InstancedMesh): void {
     if (!mesh.instanceColor) {
-      mesh.instanceColor = new THREE.InstancedBufferAttribute(
+      const attr = new THREE.InstancedBufferAttribute(
         new Float32Array(this.maxInstances * 3), 3
       );
+      attr.setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceColor = attr;
     }
   }
 
-  private _markDirty(mesh: THREE.InstancedMesh, hasColor: boolean): void {
+  private _markDirty(mesh: THREE.InstancedMesh, count: number, hasColor: boolean): void {
+    if (count === 0) return;
+    mesh.instanceMatrix.clearUpdateRanges();
+    mesh.instanceMatrix.addUpdateRange(0, count * 16);
     mesh.instanceMatrix.needsUpdate = true;
-    if (hasColor && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    if (hasColor && mesh.instanceColor) {
+      mesh.instanceColor.clearUpdateRanges();
+      mesh.instanceColor.addUpdateRange(0, count * 3);
+      mesh.instanceColor.needsUpdate = true;
+    }
   }
 }

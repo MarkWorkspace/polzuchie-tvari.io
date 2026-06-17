@@ -9,61 +9,53 @@ import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class BlackHoleRenderer {
   private scene: THREE.Scene;
-  private coreMaterial: THREE.ShaderMaterial;
-  private ringMaterial: THREE.ShaderMaterial;
-  private gravityMaterial: THREE.ShaderMaterial;
+  private coreMaterial!: THREE.ShaderMaterial;
+  private ringMaterial!: THREE.ShaderMaterial;
+  private gravityMaterial!: THREE.ShaderMaterial;
 
-  private coreMesh: THREE.InstancedMesh;
-  private ringMesh: THREE.InstancedMesh;
-  private gravityMesh: THREE.InstancedMesh;
+  private coreMesh!: THREE.InstancedMesh;
+  private ringMesh!: THREE.InstancedMesh;
+  private gravityMesh!: THREE.InstancedMesh;
   private maxInstances = 100;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+    this._initMaterials();
+    this._initMeshes();
+  }
 
-    // 1. Create Materials
+  private _initMaterials(): void {
     this.coreMaterial = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      vertexShader: blackHoleCoreShader.vertexShader,
-      fragmentShader: blackHoleCoreShader.fragmentShader
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      vertexShader: blackHoleCoreShader.vertexShader, fragmentShader: blackHoleCoreShader.fragmentShader
     });
-
     this.ringMaterial = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0.0 }
-      },
-      vertexShader: blackHoleRingShader.vertexShader,
-      fragmentShader: blackHoleRingShader.fragmentShader
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { uTime: { value: 0.0 } },
+      vertexShader: blackHoleRingShader.vertexShader, fragmentShader: blackHoleRingShader.fragmentShader
     });
-
     this.gravityMaterial = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0.0 }
-      },
-      vertexShader: blackHoleGravityShader.vertexShader,
-      fragmentShader: blackHoleGravityShader.fragmentShader
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      uniforms: { uTime: { value: 0.0 } },
+      vertexShader: blackHoleGravityShader.vertexShader, fragmentShader: blackHoleGravityShader.fragmentShader
     });
+  }
 
-    // 2. Create Instanced Meshes
+  private _initMeshes(): void {
     const geom = new THREE.CircleGeometry(1, 32);
 
     this.gravityMesh = new THREE.InstancedMesh(geom, this.gravityMaterial, this.maxInstances);
+    this.gravityMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.gravityMesh, RenderLayer.GravityMesh);
     this.scene.add(this.gravityMesh);
 
     this.ringMesh = new THREE.InstancedMesh(geom, this.ringMaterial, this.maxInstances);
+    this.ringMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.ringMesh, RenderLayer.BlackHoleRing);
     this.scene.add(this.ringMesh);
 
     this.coreMesh = new THREE.InstancedMesh(geom, this.coreMaterial, this.maxInstances);
+    this.coreMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.coreMesh, RenderLayer.BlackHoleCore);
     this.scene.add(this.coreMesh);
   }
@@ -93,16 +85,16 @@ export class BlackHoleRenderer {
   }
 
   private updateBlackHoleBuffers(msg: any, count: number): void {
-    this.gravityMesh.instanceMatrix.array.set(msg.blackHoleGravityMatrices);
-    this.gravityMesh.instanceMatrix.needsUpdate = true;
-    this.gravityMesh.count = count;
+    this._updateMesh(this.gravityMesh, msg.blackHoleGravityMatrices, count);
+    this._updateMesh(this.ringMesh, msg.blackHoleRingMatrices, count);
+    this._updateMesh(this.coreMesh, msg.blackHoleCoreMatrices, count);
+  }
 
-    this.ringMesh.instanceMatrix.array.set(msg.blackHoleRingMatrices);
-    this.ringMesh.instanceMatrix.needsUpdate = true;
-    this.ringMesh.count = count;
-
-    this.coreMesh.instanceMatrix.array.set(msg.blackHoleCoreMatrices);
-    this.coreMesh.instanceMatrix.needsUpdate = true;
-    this.coreMesh.count = count;
+  private _updateMesh(mesh: THREE.InstancedMesh, matrices: Float32Array, count: number): void {
+    mesh.instanceMatrix.array.set(matrices);
+    mesh.instanceMatrix.clearUpdateRanges();
+    mesh.instanceMatrix.addUpdateRange(0, count * 16);
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.count = count;
   }
 }

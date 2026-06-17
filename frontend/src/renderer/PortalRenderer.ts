@@ -5,97 +5,86 @@ import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class PortalRenderer {
   private scene: THREE.Scene;
-  private diskMaterial: THREE.ShaderMaterial;
-  private ringMaterial: THREE.ShaderMaterial;
-  private glowMaterial: THREE.ShaderMaterial;
+  private diskMaterial!: THREE.ShaderMaterial;
+  private ringMaterial!: THREE.ShaderMaterial;
+  private glowMaterial!: THREE.ShaderMaterial;
 
-  private diskMesh: THREE.InstancedMesh;
-  private ringMesh: THREE.InstancedMesh;
-  private glowMesh: THREE.InstancedMesh;
+  private diskMesh!: THREE.InstancedMesh;
+  private ringMesh!: THREE.InstancedMesh;
+  private glowMesh!: THREE.InstancedMesh;
   private maxInstances = 100;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+    this._initDiskAndRingMaterials();
+    this._initGlowMaterial();
+    this._initMeshes();
+  }
 
-    // 1. Create Materials
+  private _initDiskAndRingMaterials(): void {
     this.diskMaterial = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      vertexColors: true,
-      uniforms: {
-        uTime: { value: 0.0 }
-      },
-      vertexShader: portalDiskShader.vertexShader,
-      fragmentShader: portalDiskShader.fragmentShader
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, vertexColors: true,
+      uniforms: { uTime: { value: 0.0 } },
+      vertexShader: portalDiskShader.vertexShader, fragmentShader: portalDiskShader.fragmentShader
     });
-
     this.ringMaterial = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      vertexColors: true,
-      uniforms: {
-        uTime: { value: 0.0 }
-      },
-      vertexShader: portalRingShader.vertexShader,
-      fragmentShader: portalRingShader.fragmentShader
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, vertexColors: true,
+      uniforms: { uTime: { value: 0.0 } },
+      vertexShader: portalRingShader.vertexShader, fragmentShader: portalRingShader.fragmentShader
     });
+  }
 
+  private _initGlowMaterial(): void {
+    const vs = `
+      varying vec2 vUv;
+      varying vec3 vColor;
+      void main() {
+        vUv = uv;
+        #ifdef USE_INSTANCING_COLOR
+          vColor = instanceColor;
+        #else
+          vColor = vec3(1.0);
+        #endif
+        vec4 localPos = vec4(position * 3.3, 1.0);
+        vec4 worldPos = modelMatrix * instanceMatrix * localPos;
+        gl_Position = projectionMatrix * viewMatrix * worldPos;
+      }
+    `;
+    const fs = `
+      varying vec2 vUv;
+      varying vec3 vColor;
+      uniform float uTime;
+      void main() {
+        float d = length(vUv - vec2(0.5)) * 2.0;
+        if (d > 1.0) discard;
+        float intensity = pow(1.0 - d, 2.5) * 1.2;
+        intensity *= 0.85 + 0.15 * sin(uTime * 4.0);
+        gl_FragColor = vec4(vColor, intensity);
+      }
+    `;
     this.glowMaterial = new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      depthTest: false,
-      blending: THREE.AdditiveBlending,
-      side: THREE.DoubleSide,
-      vertexColors: true,
-      uniforms: {
-        uTime: { value: 0.0 }
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        varying vec3 vColor;
-        void main() {
-          vUv = uv;
-          #ifdef USE_INSTANCING_COLOR
-            vColor = instanceColor;
-          #else
-            vColor = vec3(1.0);
-          #endif
-          // Scale up the glow radius by 3.3 to illuminate everything nearby (reduced by 1.5x)
-          vec4 localPos = vec4(position * 3.3, 1.0);
-          vec4 worldPos = modelMatrix * instanceMatrix * localPos;
-          gl_Position = projectionMatrix * viewMatrix * worldPos;
-        }
-      `,
-      fragmentShader: `
-        varying vec2 vUv;
-        varying vec3 vColor;
-        uniform float uTime;
-        void main() {
-          float d = length(vUv - vec2(0.5)) * 2.0;
-          if (d > 1.0) discard;
-          // Soft exponential falloff for real light glow
-          float intensity = pow(1.0 - d, 2.5) * 1.2;
-          // Add a slow pulsation
-          intensity *= 0.85 + 0.15 * sin(uTime * 4.0);
-          gl_FragColor = vec4(vColor, intensity);
-        }
-      `
+      transparent: true, depthWrite: false, depthTest: false,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide, vertexColors: true,
+      uniforms: { uTime: { value: 0.0 } },
+      vertexShader: vs, fragmentShader: fs
     });
+  }
 
-    // 2. Create Instanced Meshes
+  private _initMeshes(): void {
     const geom = new THREE.CircleGeometry(1, 32);
 
     this.diskMesh = new THREE.InstancedMesh(geom, this.diskMaterial, this.maxInstances);
+    this.diskMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.diskMesh, RenderLayer.PortalDisk);
     this.scene.add(this.diskMesh);
 
     this.ringMesh = new THREE.InstancedMesh(geom, this.ringMaterial, this.maxInstances);
+    this.ringMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.ringMesh, RenderLayer.PortalRing);
     this.scene.add(this.ringMesh);
 
     this.glowMesh = new THREE.InstancedMesh(geom, this.glowMaterial, this.maxInstances);
+    this.glowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.glowMesh, RenderLayer.PortalGlow);
     this.scene.add(this.glowMesh);
   }
@@ -125,38 +114,27 @@ export class PortalRenderer {
     this.glowMaterial.dispose();
   }
 
+  private _updateSinglePortalMesh(mesh: THREE.InstancedMesh, matrices: Float32Array, colors: Float32Array, count: number): void {
+    mesh.instanceMatrix.array.set(matrices);
+    mesh.instanceMatrix.clearUpdateRanges();
+    mesh.instanceMatrix.addUpdateRange(0, count * 16);
+    mesh.instanceMatrix.needsUpdate = true;
+    if (!mesh.instanceColor) {
+      const colorArray = new Float32Array(this.maxInstances * 3);
+      const attr = new THREE.InstancedBufferAttribute(colorArray, 3);
+      attr.setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceColor = attr;
+    }
+    mesh.instanceColor.array.set(colors);
+    mesh.instanceColor.clearUpdateRanges();
+    mesh.instanceColor.addUpdateRange(0, count * 3);
+    mesh.instanceColor.needsUpdate = true;
+    mesh.count = count;
+  }
+
   private updatePortalBuffers(msg: any, count: number): void {
-    // Disk Mesh
-    this.diskMesh.instanceMatrix.array.set(msg.portalDiskMatrices);
-    this.diskMesh.instanceMatrix.needsUpdate = true;
-    if (!this.diskMesh.instanceColor) {
-      const colorArray = new Float32Array(this.maxInstances * 3);
-      this.diskMesh.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
-    }
-    this.diskMesh.instanceColor.array.set(msg.portalDiskColors);
-    this.diskMesh.instanceColor.needsUpdate = true;
-    this.diskMesh.count = count;
-
-    // Ring Mesh
-    this.ringMesh.instanceMatrix.array.set(msg.portalRingMatrices);
-    this.ringMesh.instanceMatrix.needsUpdate = true;
-    if (!this.ringMesh.instanceColor) {
-      const colorArray = new Float32Array(this.maxInstances * 3);
-      this.ringMesh.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
-    }
-    this.ringMesh.instanceColor.array.set(msg.portalRingColors);
-    this.ringMesh.instanceColor.needsUpdate = true;
-    this.ringMesh.count = count;
-
-    // Glow Mesh (reuses disk matrices/colors)
-    this.glowMesh.instanceMatrix.array.set(msg.portalDiskMatrices);
-    this.glowMesh.instanceMatrix.needsUpdate = true;
-    if (!this.glowMesh.instanceColor) {
-      const colorArray = new Float32Array(this.maxInstances * 3);
-      this.glowMesh.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
-    }
-    this.glowMesh.instanceColor.array.set(msg.portalDiskColors);
-    this.glowMesh.instanceColor.needsUpdate = true;
-    this.glowMesh.count = count;
+    this._updateSinglePortalMesh(this.diskMesh, msg.portalDiskMatrices, msg.portalDiskColors, count);
+    this._updateSinglePortalMesh(this.ringMesh, msg.portalRingMatrices, msg.portalRingColors, count);
+    this._updateSinglePortalMesh(this.glowMesh, msg.portalDiskMatrices, msg.portalDiskColors, count);
   }
 }

@@ -39,37 +39,31 @@ export class TombstoneRenderer {
 
   public update(frame: any): void {
     if (!this.mesh) return;
-
     const tombstones: Tombstone[] = frame.tombstones || [];
-    
-    if (tombstones.length === 0) {
-      this.mesh.count = 0;
-      return;
-    }
-
     const count = Math.min(tombstones.length, this.MAX_INSTANCES);
     this.mesh.count = count;
+    if (count === 0) return;
 
     for (let i = 0; i < count; i++) {
-      const tomb = tombstones[i];
-      const tx = tomb.x * gridSize + gridSize / 2;
-      const ty = -(tomb.y * gridSize + gridSize / 2);
-      this.dummy.position.set(tx, ty, 0);
-      
-      // Slightly sink the tombstone into the ground over time? Or just static.
-      // Let's do static.
-      this.dummy.rotation.x = Math.PI / 2; // Stand upright
-      // Add slight random rotation based on ID so they don't look perfectly aligned
-      const hash = tomb.id.split('').reduce((a, b) => { a = ((a << 5) - a) + b.charCodeAt(0); return a & a }, 0);
-      this.dummy.rotation.y = (hash % 100) / 100.0 * 0.4 - 0.2; 
-      
-      this.dummy.scale.set(1, 1, 1);
-      this.dummy.updateMatrix();
-      
-      this.mesh.setMatrixAt(i, this.dummy.matrix);
+      this._updateInstance(tombstones[i], i);
     }
     
+    this.mesh.instanceMatrix.clearUpdateRanges();
+    this.mesh.instanceMatrix.addUpdateRange(0, count * 16);
     this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  private _updateInstance(tomb: Tombstone, i: number): void {
+    if (!this.mesh) return;
+    const tx = tomb.x * gridSize + gridSize / 2;
+    const ty = -(tomb.y * gridSize + gridSize / 2);
+    this.dummy.position.set(tx, ty, 0);
+    this.dummy.rotation.x = Math.PI / 2;
+    const hash = tomb.id.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
+    this.dummy.rotation.y = (hash % 100) / 100.0 * 0.4 - 0.2; 
+    this.dummy.scale.set(1, 1, 1);
+    this.dummy.updateMatrix();
+    this.mesh.setMatrixAt(i, this.dummy.matrix);
   }
 
   public destroy(): void {
