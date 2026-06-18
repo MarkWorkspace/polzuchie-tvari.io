@@ -47,8 +47,8 @@ export class SceneManager {
 
   constructor(container: HTMLDivElement) {
     this.container = container;
-    this.currentWidth = this.container.clientWidth;
-    this.currentHeight = this.container.clientHeight;
+    this.currentWidth = Math.max(1, this.container.clientWidth);
+    this.currentHeight = Math.max(1, this.container.clientHeight);
     this.initRenderer();
     this.initSceneAndCamera();
     this.setupLighting();
@@ -136,8 +136,8 @@ export class SceneManager {
       this.dirLight.target.position.set(msg.camX, msg.camY, 0);
       this.dirLight.target.updateMatrixWorld();
 
-      // Dynamic shadow frustum matching fog radius
-      const d = msg.fogRadiusWorld ?? 300;
+      // Dynamic shadow frustum matching fog radius, but clamped for spectator
+      const d = Math.min(msg.fogRadiusWorld ?? 300, 2000.0);
       const cam = this.dirLight.shadow.camera;
       if (cam.left !== -d || cam.right !== d || cam.top !== d || cam.bottom !== -d) {
         cam.left = -d;
@@ -210,9 +210,12 @@ export class SceneManager {
   private updateGround(msg: any): void {
     const mapW = msg.gameState?.server_world?.width ?? WORLD_WIDTH;
     const mapH = msg.gameState?.server_world?.height ?? WORLD_HEIGHT;
+    const isSpectator = msg.myId === "spectator_id";
+
+    const multiplier = isSpectator ? 1 : 4;
 
     this.groundMesh.position.set((mapW * gridSize) / 2, -(mapH * gridSize) / 2, -2.0);
-    this.groundMesh.scale.set(mapW / WORLD_WIDTH, mapH / WORLD_HEIGHT, 1.0);
+    this.groundMesh.scale.set((mapW / WORLD_WIDTH) * (multiplier / 4), (mapH / WORLD_HEIGHT) * (multiplier / 4), 1.0);
 
     const uniforms = this.groundMaterial.userData.uniforms;
     if (uniforms) {
@@ -250,18 +253,23 @@ export class SceneManager {
   private updateFog(msg: any): void {
     const camX = msg.camX || 0;
     const camY = msg.camY || 0;
+    const isSpectator = msg.myId === "spectator_id";
 
-    // Follow the camera perfectly so the plane never goes out of view
-    this.fogMesh.position.set(camX, camY, 5.0);
+    this.fogMesh.visible = !isSpectator;
 
-    const uniforms = this.fogMaterial.uniforms;
-    uniforms.uHeadPos.value.set(camX, camY);
-    uniforms.uRadius.value = msg.fogRadiusWorld || 300.0;
+    if (!isSpectator) {
+      // Follow the camera perfectly so the plane never goes out of view
+      this.fogMesh.position.set(camX, camY, 5.0);
+
+      const uniforms = this.fogMaterial.uniforms;
+      uniforms.uHeadPos.value.set(camX, camY);
+      uniforms.uRadius.value = msg.fogRadiusWorld || 300.0;
+    }
   }
 
   private handleResize = (): void => {
-    this.currentWidth = this.container.clientWidth;
-    this.currentHeight = this.container.clientHeight;
+    this.currentWidth = Math.max(1, this.container.clientWidth);
+    this.currentHeight = Math.max(1, this.container.clientHeight);
 
     this.camera.aspect = this.currentWidth / this.currentHeight;
     this.camera.updateProjectionMatrix();

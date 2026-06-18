@@ -1,16 +1,9 @@
 # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
 
-from app.engine.systems import (
-    physics,
-    collision,
-    teleportation,
-    gravity,
-    food_eating,
-    boost,
-    growth,
-    serialization,
-)
+from app.engine.registry import registry
 
+# Auto-discover all systems inside app.engine.systems
+registry.autodiscover()
 
 def tick(state) -> None:
     """
@@ -26,18 +19,9 @@ def tick(state) -> None:
     state.food_manager.update_moving_food(tick_interval)
     state.food_manager.update_clusters(tick_interval)
     state.portal_manager.update(tick_interval)
+    state.bh_manager.update(tick_interval)
 
-    # Run the systems sequentially as per Rule 6
-    physics.update(state)
-    collision.check(state)
-    teleportation.update(state)
-
-    state.food_grid = food_eating.build_food_grid(state)
-
-    gravity.update(state)
-    food_eating.update(state)
-    boost.update(state)
-    growth.update(state)
+    # Run the systems sequentially using the registry
+    registry.update_all(state)
 
     state.food_manager.ensure_target_count()
-    serialization.prepare_cache(state)

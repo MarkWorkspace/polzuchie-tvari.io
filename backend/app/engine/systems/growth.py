@@ -39,3 +39,13 @@ def _process_growth_step(state, player) -> None:
                 if player.body_len > state.config.snake.min_body_length:
                     player.body.pop()
                     player.body.pop()
+
+
+class GrowthSystem:
+    name = "growth"
+    order = 70
+    
+    def update(self, world):
+        update(world)
+
+system = GrowthSystem()

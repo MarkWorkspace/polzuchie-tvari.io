@@ -6,15 +6,11 @@ from game_config import CELL_SIZE
 
 
 def check(state) -> None:
-    state.collision_grid.clear()
-
     active_players = []
     for pid, player in state.players.items():
         if not player.body or player.teleport_state == "in_transit" or player.is_dead:
             continue
         active_players.append((pid, player))
-
-    _populate_collision_grid(state, active_players)
 
     dead_players = set()
     for pid, player in active_players:
@@ -32,23 +28,7 @@ def check(state) -> None:
         t["time_left"] -= dt
 
 
-def _populate_collision_grid(state, active_players) -> None:
-    for tomb in state.tombstones:
-        # Arming time: don't become solid for the first 1.5 seconds
-        # so the survivor has time to slither away from the death site.
-        if tomb["time_left"] > 58.5:
-            continue
-        cx = int(tomb["x"] / CELL_SIZE) % state._grid_width_cells
-        cy = int(tomb["y"] / CELL_SIZE) % state._grid_height_cells
-        state.collision_grid[(cx, cy)].append(("tombstone", tomb["x"], tomb["y"], 1.2))
 
-    for pid, player in active_players:
-        radius = player.head_radius
-        for i in range(0, len(player.body), 2):
-            pt_x, pt_y = player.body[i], player.body[i + 1]
-            cx = int(pt_x / CELL_SIZE) % state._grid_width_cells
-            cy = int(pt_y / CELL_SIZE) % state._grid_height_cells
-            state.collision_grid[(cx, cy)].append((pid, pt_x, pt_y, radius))
 
 
 def _check_collision_for_player(
@@ -65,9 +45,12 @@ def _check_collision_for_player(
                 (gcx + dx) % state._grid_width_cells,
                 (gcy + dy) % state._grid_height_cells,
             )
-            if cell not in state.collision_grid:
+            if cell not in state.spatial_grid:
                 continue
-            for other_pid, seg_x, seg_y, other_radius in state.collision_grid[cell]:
+                
+            cell_data = state.spatial_grid[cell]
+            # Check players and tombstones
+            for other_pid, seg_x, seg_y, other_radius in cell_data["players"] + cell_data["tombstones"]:
                 if other_pid == pid or other_pid in dead_players:
                     continue
                 fdx, fdy = toroidal_delta(
@@ -83,7 +66,7 @@ def _process_player_death(state, pid: str, player, killer_pid: str | None) -> No
         state.players[killer_pid].kills += 1
     player.deaths += 1
     state.kill_events.append({"killer": killer_pid, "victim": pid})
-    state.food_manager.drop_food_on_death(player)
+    state.events.emit("player_died", player=player, killer_pid=killer_pid)
 
     spawn_tombstone = True
     if hasattr(state, "portal_manager") and state.portal_manager:
@@ -109,3 +92,13 @@ def _process_player_death(state, pid: str, player, killer_pid: str | None) -> No
 
     player.is_dead = True
     player.body.clear()
+
+
+class CollisionSystem:
+    name = "collision"
+    order = 20
+    
+    def update(self, world):
+        check(world)
+
+system = CollisionSystem()

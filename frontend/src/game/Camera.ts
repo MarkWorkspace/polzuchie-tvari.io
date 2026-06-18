@@ -19,7 +19,7 @@ export class GameCamera {
   }
 
   private checkAcceleration(msg: any, myId: string, isLocalAccelerating: boolean): boolean {
-    const myPlayer = msg.gameState?.players[myId];
+    const myPlayer = msg.gameState?.players?.[myId];
     return !!(myPlayer?.accelerating || isLocalAccelerating);
   }
 
@@ -63,9 +63,9 @@ export class GameCamera {
     const serverSnakeConfig = msg.gameState?.server_snake;
     const startLength = serverSnakeConfig?.start_length ?? 5;
     let myLength = startLength;
-    const myPlayer = msg.gameState?.players[myId];
-    if (myPlayer && myPlayer.body) {
-      myLength = myPlayer.body.length;
+    const myPlayer = msg.gameState?.players?.[myId];
+    if (myPlayer) {
+      myLength = myPlayer.body_len || 0;
     }
     return Math.max(0, myLength - startLength);
   }

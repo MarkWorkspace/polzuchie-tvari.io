@@ -64,17 +64,24 @@ function _processSingleSnake(
     const fogAmt = calcFog(hx, hy);
     const headAngle = isSelf ? (camera.localAngle ?? p.angle) : p.angle;
 
-    activePlayerObj.hx = hx;
-    activePlayerObj.hy = hy;
+    let finalHx = hx;
+    let finalHy = hy;
+    if (subPaths.length > 0 && subPaths[0].pointsCount > 0) {
+      finalHx = subPaths[0].x[0];
+      finalHy = subPaths[0].y[0];
+    }
+
+    activePlayerObj.hx = finalHx;
+    activePlayerObj.hy = finalHy;
     activePlayerObj.radius = pRadius;
 
-    eyes.addEyes(hx, hy, pRadius * gridSize, snakeZ, headAngle, fogAmt);
+    eyes.addEyes(finalHx, finalHy, pRadius * gridSize, snakeZ, headAngle, fogAmt);
 
     nicknames.push({
       id: playerId,
       nickname: p.nickname || "Игрок",
-      x: hx,
-      y: hy + pRadius * gridSize * 1.5,
+      x: finalHx,
+      y: finalHy + pRadius * gridSize * 1.5,
       z: snakeZ + 0.5,
       rotationX: pitchAngle,
       opacity: 1.0 - fogAmt,

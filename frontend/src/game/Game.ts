@@ -5,6 +5,7 @@ import type { ControlMode } from "./InputManager";
 import { NetworkManager } from "./NetworkManager";
 import { GameCamera } from "./Camera";
 import { RenderOrchestrator } from "./RenderOrchestrator";
+import Stats from "stats.js";
 
 export class Game {
   private sceneManager: SceneManager;
@@ -16,6 +17,7 @@ export class Game {
   private myId = "";
   private isConnected = false;
   private debugMode = false;
+  private stats: Stats | null = null;
 
   private latestFrame: any = null;
   private lastTime = performance.now();
@@ -30,6 +32,23 @@ export class Game {
     this.networkManager = new NetworkManager();
     this.gameCamera = new GameCamera();
     this.renderOrchestrator = new RenderOrchestrator(this.sceneManager);
+
+    // Setup performance monitoring via stats.js
+    this.stats = new Stats();
+    this.stats.showPanel(0); // 0: fps, 1: ms, 2: mb, 3+: custom
+    this.stats.dom.style.position = "absolute";
+    this.stats.dom.style.left = "190px";
+    this.stats.dom.style.top = "20px";
+    this.stats.dom.style.zIndex = "1000";
+
+    // Prevent mouse/touch events from propagating to game canvas
+    this.stats.dom.addEventListener("mousedown", (e) => e.stopPropagation());
+    this.stats.dom.addEventListener("touchstart", (e) => e.stopPropagation());
+    this.stats.dom.addEventListener("click", (e) => e.stopPropagation());
+
+    const showFps = localStorage.getItem("snake-show-fps") === "true";
+    this.stats.dom.style.display = showFps ? "block" : "none";
+    container.appendChild(this.stats.dom);
 
     this.setupInputCallbacks();
     this.setupNetworkCallbacks();
@@ -48,10 +67,19 @@ export class Game {
     this.inputManager.destroy();
     this.renderOrchestrator.destroy();
     this.sceneManager.destroy();
+    if (this.stats) {
+      this.stats.dom.remove();
+    }
   }
 
   public toggleDebug(): void {
     this.debugMode = !this.debugMode;
+  }
+
+  public setStatsEnabled(enabled: boolean): void {
+    if (this.stats) {
+      this.stats.dom.style.display = enabled ? "block" : "none";
+    }
   }
 
   public getInputManager(): InputManager {
@@ -162,6 +190,10 @@ export class Game {
   private tick = (): void => {
     this.animFrameId = requestAnimationFrame(this.tick);
 
+    if (this.stats) {
+      this.stats.begin();
+    }
+
     const now = performance.now();
     let dt = (now - this.lastTime) / 1000;
     if (dt > 0.1) dt = 0.1;
@@ -181,6 +213,10 @@ export class Game {
         dt, now, this.latestFrame, this.myId,
         this.inputManager.isAccelerating(), this.debugMode, this.gameCamera
       );
+    }
+
+    if (this.stats) {
+      this.stats.end();
     }
   };
 }

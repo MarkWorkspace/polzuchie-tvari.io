@@ -23,6 +23,9 @@ export class SnakeRenderer {
   }
 
   public update(msg: any, _camera?: THREE.PerspectiveCamera, _width?: number, _height?: number): void {
+    const isSpectator = msg.myId === "spectator_id";
+    this.bodyMesh.count = isSpectator ? 1 : 9;
+
     this.updateUniforms(msg);
     this.updateGeometries(msg);
     this.updateInstancedParts(msg);
@@ -51,7 +54,7 @@ export class SnakeRenderer {
 
   private updateGeometries(msg: any): void {
     const bodyGeom = this.bodyMesh.geometry;
-    if (msg.bodyVertices.length > 0) {
+    if (msg.bodyVertices && msg.bodyVertices.length > 0) {
       this.updateDynamicAttr(bodyGeom, "position", msg.bodyVertices, 3);
       this.updateDynamicAttr(bodyGeom, "uv", msg.bodyUVs, 2);
       this.updateDynamicAttr(bodyGeom, "customColor", msg.bodyColors, 3);

@@ -18,6 +18,11 @@ class FoodManager:
         for _ in range(self.state.target_food_count):
             f = self._spawn_food()
             self.foods[f.id] = f
+            
+        self.state.events.subscribe("player_died", self._on_player_died)
+        
+    def _on_player_died(self, player, killer_pid) -> None:
+        self.drop_food_on_death(player)
 
     def clear(self):
         self.foods.clear()

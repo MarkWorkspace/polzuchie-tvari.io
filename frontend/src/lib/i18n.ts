@@ -27,6 +27,8 @@ const translations = {
   "menu.controls": { ru: "Управление", en: "Controls" },
   "menu.guide": { ru: "Подсказки", en: "Guide" },
   "menu.admin": { ru: "Админ-панель", en: "Admin Panel" },
+  "menu.showFps": { ru: "Показать FPS", en: "Show FPS" },
+  "menu.showFpsDesc": { ru: "Отображать счетчик кадров и пинг", en: "Display frame rate and performance stats" },
 
   // Control modes
   "control.touchDrag": { ru: "Сенсорный Драг", en: "Touch Drag" },

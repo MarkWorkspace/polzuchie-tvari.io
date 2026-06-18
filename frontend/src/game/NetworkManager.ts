@@ -22,7 +22,7 @@ export class NetworkManager {
 
   constructor() {}
 
-  public connect(nickname: string, skin: string): void {
+  public connect(nickname: string, skin: string, role: string = "player"): void {
     if (this.worker) {
       this.close();
     }
@@ -35,7 +35,7 @@ export class NetworkManager {
 
     this.worker.onmessage = this.handleWorkerMessage;
 
-    const wsUrl = this.buildWsUrl(nickname, skin);
+    const wsUrl = this.buildWsUrl(nickname, skin, role);
     this.worker.postMessage({ type: "CONNECT", url: wsUrl });
   }
 
@@ -43,19 +43,19 @@ export class NetworkManager {
     this.worker?.postMessage({ type: "SEND", data: msg });
   }
 
-  public requestFrame(dt: number, myId: string, input: FrameInput): void {
+  public requestFrame(dt: number, myId: string, input: any): void {
     if (!this.worker || this.isWaitingForFrame) return;
 
     this.isWaitingForFrame = true;
-    if (this.frameTimeoutId !== null) window.clearTimeout(this.frameTimeoutId);
     this.frameTimeoutId = window.setTimeout(() => {
       this.isWaitingForFrame = false;
-    }, 500);
+    }, 100);
 
     this.worker.postMessage({
       type: "REQUEST_FRAME",
       dt,
       myId,
+      isSpectator: myId === "spectator_id",
       gridSize,
       localInput: input,
       sentTime: performance.now()
@@ -97,13 +97,13 @@ export class NetworkManager {
     this.isWaitingForFrame = false;
   }
 
-  private buildWsUrl(nickname: string, skin: string): string {
+  private buildWsUrl(nickname: string, skin: string, role: string): string {
     const host = window.location.hostname || "127.0.0.1";
     const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
     const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
     const wsPort = isStandardPort ? "" : ":8000";
     const trimmed = nickname.trim() || "Snake";
-    let url = `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmed)}&skin=${encodeURIComponent(skin)}`;
+    let url = `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmed)}&skin=${encodeURIComponent(skin)}&role=${encodeURIComponent(role)}`;
     
     const savedId = localStorage.getItem("snake_client_id");
     if (savedId) {

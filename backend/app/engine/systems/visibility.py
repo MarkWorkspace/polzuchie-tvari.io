@@ -4,6 +4,9 @@ from app.engine.systems.math_utils import toroidal_distance
 
 
 def get_visible_players(state, client_id):
+    if client_id in state.spectators:
+        return set(state.players.keys()), state.players
+
     client_player = state.players.get(client_id)
     if client_player and client_player.body_len > 0:
         cx, cy = client_player.head_x, client_player.head_y

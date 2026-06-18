@@ -148,3 +148,13 @@ def get_full_state(state, client_id):
     full_state = get_delta_state(state, client_id, is_full=True)
     full_state["foods"] = [f.to_dict() for f in state.food_manager.foods.values()]
     return full_state
+
+
+class SerializationSystem:
+    name = "serialization"
+    order = 80
+    
+    def update(self, world):
+        prepare_cache(world)
+
+system = SerializationSystem()

@@ -21,7 +21,10 @@ export interface FrameResult {
   transferables: ArrayBuffer[];
 }
 
-function _calcFogRadius(state: GameState, myPlayer: any, startLength: number): number {
+function _calcFogRadius(state: GameState, myPlayer: any, startLength: number, isSpectator: boolean): number {
+  if (isSpectator || myPlayer?.is_dead) {
+    return 1000000.0; // Infinite fog for spectators and dead players
+  }
   const myLength = myPlayer && myPlayer.body ? myPlayer.body.length : startLength;
   const minFog = state.server_visual?.min_fog_radius ?? 900.0;
   const fogExpansion = state.server_visual?.fog_score_expansion_coeff ?? 0.5;
@@ -92,6 +95,20 @@ function _buildFrameResult(
   const fColors = tempFoodColors.slice(0, foodCount * 3);
   const fImageIndices = tempFoodImageIndices.slice(0, foodCount);
 
+  const lightweightPlayers: Record<string, any> = {};
+  for (const pid in state.players) {
+    const p = state.players[pid];
+    lightweightPlayers[pid] = {
+      nickname: p.nickname,
+      skin: p.skin,
+      score: p.score,
+      accelerating: p.accelerating,
+      body_len: p.body ? Math.floor(p.body.length / 2) : 0,
+      head_x: p.body && p.body.length >= 2 ? p.body[0] : 0,
+      head_y: p.body && p.body.length >= 2 ? p.body[1] : 0,
+    };
+  }
+
   const payload = {
     type: "FRAME_DATA",
     bodyVertices: bVerts, bodyUVs: bUVs, bodyColors: bColors, bodySnakeParams: bParams, bodyIndices: bIndices,
@@ -119,7 +136,7 @@ function _buildFrameResult(
       server_visual: state.server_visual,
       server_food: state.server_food,
       server_boost: state.server_boost,
-      players: state.players,
+      players: lightweightPlayers,
       foods: [],
       portals: state.portals,
       black_holes: state.black_holes,
@@ -163,6 +180,7 @@ export function computeFrame(
   lastState: GameState | null,
   progress: number,
   myId: string,
+  isSpectator: boolean,
   camera: CameraPredictor,
   particles: ParticleComputer,
   eyes: EyeComputer,
@@ -175,7 +193,7 @@ export function computeFrame(
   const cam = camera.predict(dt, myId, localInput, state, lastState, progress, gridSize);
   const myPlayer = state.players[myId];
   const startLength = state.server_snake?.start_length ?? 5;
-  const fogRadiusWorld = _calcFogRadius(state, myPlayer, startLength);
+  const fogRadiusWorld = _calcFogRadius(state, myPlayer, startLength, isSpectator);
 
   const calcFog = (wx: number, wy: number) => {
     const dist = Math.sqrt((wx - cam.camX) ** 2 + (wy - cam.camY) ** 2);

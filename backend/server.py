@@ -15,8 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
-
-from app.engine.state import game
+from app.engine.state import World
 from app.api.websocket import (
     active_connections,
     websocket_endpoint,
@@ -28,63 +27,74 @@ from app.api.admin import (
     health_check,
     admin_restart_game,
     require_admin,
+    admin_login,
 )
 
 
-async def process_client(client_id, connection):
-    if connection.get("needs_full_sync", False):
-        final_dict, visible_players = game.get_delta_state(
+async def process_client(client_id, connection, world):
+    is_full_sync = connection.get("needs_full_sync", False)
+    
+    # If the queue is full and we need a full sync, do not waste CPU generating
+    # a massive payload that will just replace another frame and likely overflow again.
+    if is_full_sync and connection["queue"].full():
+        return
+
+    if is_full_sync:
+        final_dict, visible_players = world.get_delta_state(
             client_id,
             is_full=True,
             update_visibility=False,
             return_visibility=True,
             serialize_msgpack=False,
         )
-        final_dict["foods"] = [f.to_dict() for f in game.food_manager.foods.values()]
+        final_dict["foods"] = [f.to_dict() for f in world.food_manager.foods.values()]
         state_msgpack = msgpack.packb(final_dict)
         connection["needs_full_sync"] = False
     else:
-        state_msgpack, visible_players = game.get_delta_state(
+        state_msgpack, visible_players = world.get_delta_state(
             client_id,
             update_visibility=False,
             return_visibility=True,
             serialize_msgpack=True,
         )
+        
     compressed = await asyncio.to_thread(zlib.compress, state_msgpack, 1)
-    skipped = replace_queued_state(connection["queue"], (compressed, visible_players))
+    skipped = replace_queued_state(connection["queue"], (compressed, visible_players, is_full_sync))
     if skipped:
         connection["needs_full_sync"] = True
 
 
 
-async def game_loop():
+async def game_loop(world):
     """Global game loop executing physics ticks and broadcasting states"""
     while True:
         start_time = asyncio.get_event_loop().time()
         try:
-            for cid, data in game.input_queue:
-                game.update_direction(cid, data)
-            game.input_queue.clear()
-            game.tick()
+            for cid, data in world.input_queue:
+                world.update_direction(cid, data)
+            world.input_queue.clear()
+            world.tick()
         except Exception as e:
             traceback.print_exc()
             elapsed = asyncio.get_event_loop().time() - start_time
-            await asyncio.sleep(max(0.0, game.tick_interval - elapsed))
+            await asyncio.sleep(max(0.0, world.tick_interval - elapsed))
             continue
 
         tasks = [
-            process_client(cid, conn) for cid, conn in list(active_connections.items())
+            process_client(cid, conn, world) for cid, conn in list(active_connections.items())
         ]
         if tasks:
             await asyncio.gather(*tasks)
 
         elapsed = asyncio.get_event_loop().time() - start_time
-        await asyncio.sleep(max(0.0, game.tick_interval - elapsed))
+        await asyncio.sleep(max(0.0, world.tick_interval - elapsed))
 
 
 @asynccontextmanager
 async def lifespan(app):
-    task = asyncio.create_task(game_loop())
+    world = World()
+    app.state.world = world
+    task = asyncio.create_task(game_loop(world))
     yield
     print("[Server] Graceful shutdown initiated...")
     shutdown_message = zlib.compress(
@@ -97,7 +107,7 @@ async def lifespan(app):
     )
     for client_id, connection in list(active_connections.items()):
         try:
-            replace_queued_state(connection["queue"], (shutdown_message, set()))
+            replace_queued_state(connection["queue"], (shutdown_message, set(), True))
             await asyncio.sleep(0.01)
         except Exception:
             pass
@@ -129,6 +139,8 @@ else:
     )
 
 # REST endpoints routing (mapped to handlers in app/api/admin.py)
+app.post("/admin/login")(admin_login)
+
 admin_router = APIRouter(dependencies=[Depends(require_admin)])
 admin_router.get("/admin/config")(get_admin_config)
 admin_router.get("/ws/admin/config")(get_admin_config)

@@ -33,3 +33,13 @@ def _apply_boost_drain(state, player, tick_interval: float, boost_cfg) -> None:
             ty = (player.body[-1] + random.uniform(-0.5, 0.5)) % state.grid_height
             state.food_manager.spawn_specific_food(tx, ty, boost_cfg.food_drop_value)
             state.food_manager.trim_overflow()
+
+
+class BoostSystem:
+    name = "boost"
+    order = 60
+    
+    def update(self, world):
+        update(world)
+
+system = BoostSystem()

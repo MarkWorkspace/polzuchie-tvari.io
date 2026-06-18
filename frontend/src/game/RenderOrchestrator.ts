@@ -47,14 +47,16 @@ export class RenderOrchestrator {
     myId: string,
     isAccelerating: boolean,
     debugMode: boolean,
-    gameCamera: GameCamera
+    gameCamera?: GameCamera | null
   ): void {
     const camera = this.sceneManager.getCamera();
     const width = this.sceneManager.getWidth();
     const height = this.sceneManager.getHeight();
     frame.myId = myId; // Attach myId for overlay queries
 
-    gameCamera.update(camera, frame, dt, myId, isAccelerating);
+    if (gameCamera) {
+      gameCamera.update(camera, frame, dt, myId, isAccelerating);
+    }
     this.foodRenderer.update(frame);
     this.portalRenderer.update(frame, now / 1000.0);
     this.blackHoleRenderer.update(frame, now / 1000.0);

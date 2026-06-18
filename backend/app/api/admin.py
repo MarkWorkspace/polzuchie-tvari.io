@@ -5,9 +5,8 @@ import msgpack
 import math
 import random
 import zlib
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Response, Cookie, Request
 
-from app.engine.state import game
 from app.engine.entities import Food
 from app.api.websocket import (
     active_connections,
@@ -28,23 +27,45 @@ def admin_password():
     return None
 
 
+from pydantic import BaseModel
+
+class LoginRequest(BaseModel):
+    password: str
+
+async def admin_login(req: LoginRequest, response: Response):
+    expected_password = admin_password()
+    if not expected_password:
+        raise HTTPException(status_code=403, detail="ADMIN_PASSWORD is not configured")
+    if not hmac.compare_digest(req.password, expected_password):
+        raise HTTPException(status_code=401, detail="Invalid admin password")
+    
+    response.set_cookie(
+        key="admin_token",
+        value=req.password,
+        httponly=True,
+        samesite="strict",
+        max_age=86400 * 30
+    )
+    return {"status": "ok"}
+
+
 def require_admin(
-    x_admin_password: str | None = Header(default=None, alias="x-admin-password")
+    admin_token: str | None = Cookie(default=None)
 ):
     expected_password = admin_password()
     if not expected_password:
         raise HTTPException(status_code=403, detail="ADMIN_PASSWORD is not configured")
-    if not hmac.compare_digest(x_admin_password or "", expected_password):
+    if not admin_token or not hmac.compare_digest(admin_token, expected_password):
         raise HTTPException(status_code=401, detail="Invalid admin password")
 
 
-async def get_admin_config():
-    return game.get_config()
+async def get_admin_config(request: Request):
+    return request.app.state.world.get_config()
 
 
-async def patch_admin_config(patch: dict):
+async def patch_admin_config(patch: dict, request: Request):
     try:
-        return game.update_config(patch)
+        return request.app.state.world.update_config(patch)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -53,7 +74,7 @@ async def health_check():
     return {"status": "ok"}
 
 
-async def admin_restart_game():
+async def admin_restart_game(request: Request):
     print("[Admin] Game restart requested. Notifying all clients...")
 
     shutdown_message = zlib.compress(
@@ -85,7 +106,7 @@ async def admin_restart_game():
     pending_disconnects.clear()
 
     # Reset game state while preserving configuration
-    game.reset_state()
+    request.app.state.world.reset_state()
 
     print("[Admin] Game state reset complete. Clients will auto-reconnect.")
     return {"status": "ok", "message": "Game restarted"}

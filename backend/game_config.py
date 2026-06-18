@@ -39,7 +39,7 @@ class SimulationConfig:
     turn_radius_thickness_coeff: float = 1.0
     turn_idle_smoothing_at_20hz: float = 0.3
     turn_active_smoothing_at_20hz: float = 0.15
-
+    max_steps_per_tick: int = 4
 
 @dataclass
 class SnakeConfig:

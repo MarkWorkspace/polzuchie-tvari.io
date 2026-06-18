@@ -2,14 +2,11 @@
 import { HIDDEN_FIELDS, getNewSectionKey } from "./AdminLabels";
 
 export class ConfigEditor {
-  private password = "";
   private config: any = null;
   private drafts: Record<string, string> = {};
   private foodTypes: { value: number; weight: number; color: string; image: string; expanded?: boolean }[] = [];
 
-  constructor(password: string) {
-    this.password = password;
-  }
+  constructor() {}
 
   public getConfig(): any { return this.config; }
   public getDrafts(): Record<string, string> { return this.drafts; }
@@ -21,7 +18,7 @@ export class ConfigEditor {
 
   public async load(): Promise<string> {
     try {
-      const res = await fetch(this.getApiUrl(), { headers: { "x-admin-password": this.password } });
+      const res = await fetch(this.getApiUrl(), { credentials: "include" });
       if (!res.ok) return `Access error: Invalid password (${res.status})`;
       this.config = await res.json();
       this.resetLocalDrafts();
@@ -37,7 +34,8 @@ export class ConfigEditor {
     try {
       const res = await fetch(this.getApiUrl(), {
         method: "PATCH",
-        headers: { "content-type": "application/json", "x-admin-password": this.password },
+        headers: { "content-type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(patch)
       });
       if (!res.ok) {

@@ -12,7 +12,8 @@ from app.engine.entities import Player
 from app.engine.food_manager import FoodManager
 from app.engine.world_elements import PortalManager, BlackHoleManager
 from app.engine.systems.formula_parser import evaluate_formula
-from app.engine import game as game_orchestrator
+from app.engine.events import EventBus
+import app.engine.game as game_orchestrator
 
 VALID_ACTIONS = frozenset(
     {
@@ -27,13 +28,14 @@ VALID_ACTIONS = frozenset(
 )
 
 
-class GameState:
+class World:
     def __init__(self):
         self.config = GameConfig()
         self.config_file_path = "config.json"
         self._load_config_from_disk()
 
         self.players = {}
+        self.spectators = set()
         self.client_visibility = {}
         self.grid_width = self.config.world.width
         self.grid_height = self.config.world.height
@@ -52,9 +54,13 @@ class GameState:
         self.kill_events = []
         self.tombstones = []
 
+        self.events = EventBus()
         self.food_manager = FoodManager(self)
         self.portal_manager = PortalManager(self)
         self.bh_manager = BlackHoleManager(self, self.portal_manager)
+        
+        self.portal_manager.update_slots(force_roll=True)
+        self.bh_manager.update_slots(force_roll=True)
 
         self._cached_config_dict = self.config.to_dict()
         self._config_updated_this_tick = False
@@ -204,7 +210,15 @@ class GameState:
         )
 
     def remove_player(self, player_id):
+        p = self.players.get(player_id)
+        if p and not p.is_dead:
+            self.kill_events.append({"killer": None, "victim": player_id})
+            self.events.emit("player_died", player=p, killer_pid=None)
+            p.is_dead = True
+
         self.players.pop(player_id, None)
+        self.spectators.discard(player_id)
+        self.input_queue = [item for item in self.input_queue if item[0] != player_id]
         self.client_visibility.pop(player_id, None)
         for visible_players in self.client_visibility.values():
             visible_players.discard(player_id)
@@ -325,4 +339,4 @@ class GameState:
         self.bh_manager.update_slots(force_roll=True)
 
 
-game = GameState()
+

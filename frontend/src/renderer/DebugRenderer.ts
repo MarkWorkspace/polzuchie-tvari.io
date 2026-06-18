@@ -81,16 +81,26 @@ export class DebugRenderer {
 
     for (const pid in state.players) {
       const p = state.players[pid];
-      if (!p.body || p.body.length === 0) continue;
+      if (!p.body_len || p.body_len === 0) continue;
 
       const isSelf = pid === msg.myId;
-      const currentLength = p.body.length;
-      const effectiveLengthGained = Math.max(0, currentLength - startLength);
-      const radius = (baseHeadRadius + effectiveLengthGained * 10.0 * scoreThicknessScale) * gridSize;
+      const activePlayer = msg.activePlayers?.find((p: any) => p.id === pid);
+      
+      let hx: number;
+      let hy: number;
+      let radius: number;
 
-      const foundNickname = msg.nicknames?.find((n: any) => n.id === pid);
-      const hx = foundNickname ? foundNickname.x : (p.body[0].x * gridSize + gridSize / 2.0);
-      const hy = foundNickname ? (foundNickname.y - (radius + 4.5)) : -(p.body[0].y * gridSize + gridSize / 2.0);
+      if (activePlayer && activePlayer.hx !== undefined && activePlayer.hy !== undefined) {
+        hx = activePlayer.hx;
+        hy = activePlayer.hy;
+        radius = activePlayer.radius * gridSize;
+      } else {
+        const currentLength = p.body_len;
+        const effectiveLengthGained = Math.max(0, currentLength - startLength);
+        radius = (baseHeadRadius + effectiveLengthGained * 10.0 * scoreThicknessScale) * gridSize;
+        hx = p.head_x * gridSize + gridSize / 2.0;
+        hy = -(p.head_y * gridSize + gridSize / 2.0);
+      }
 
       this.addPlayerDebugGeometry(hx, hy, radius, p.angle, isSelf, vertices, colors);
     }

@@ -174,3 +174,13 @@ def _process_exiting(state, player, base_speed: float) -> None:
     player.body.appendleft(new_head_x)
     player.new_heads_this_tick.append(new_head_y)
     player.new_heads_this_tick.append(new_head_x)
+
+
+class TeleportationSystem:
+    name = "teleportation"
+    order = 30
+    
+    def update(self, world):
+        update(world)
+
+system = TeleportationSystem()

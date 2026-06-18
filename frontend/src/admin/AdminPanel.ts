@@ -20,7 +20,7 @@ export class AdminPanel {
     this.container = container;
     const pwd = localStorage.getItem("snake-admin-password") || "";
     if (pwd) {
-      this.editor = new ConfigEditor(pwd);
+      this.editor = new ConfigEditor();
       this.initDashboard();
     } else {
       this.renderPasswordPrompt();
@@ -31,13 +31,35 @@ export class AdminPanel {
 
   private renderPasswordPrompt(): void {
     this.container.innerHTML = `<div class="login-overlay"><div class="login-card glass-panel"><h2 class="login-logo">Admin Portal</h2><div class="login-form"><input type="password" id="admin-pass" class="input-field" placeholder="Enter Admin Password" autofocus /><button id="admin-auth-btn" class="login-button">Authorize</button><div id="auth-status" style="font-size: 12px; color: var(--text-muted);">Enter password to continue</div></div></div></div>`;
-    const auth = () => {
+    const auth = async () => {
       const input = this.container.querySelector("#admin-pass") as HTMLInputElement;
-      localStorage.setItem("snake-admin-password", input.value.trim());
-      this.editor = new ConfigEditor(input.value.trim());
-      this.initDashboard();
+      const pwd = input.value.trim();
+      const host = window.location.hostname || "127.0.0.1";
+      const isStd = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
+      const url = isStd ? `${window.location.protocol}//${host}/admin/login` : `${window.location.protocol}//${host}:8000/admin/login`;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: pwd }),
+          credentials: "include"
+        });
+        if (!res.ok) {
+          const statusText = document.getElementById("auth-status");
+          if (statusText) {
+             statusText.textContent = "Invalid password";
+             statusText.style.color = "#ef4444";
+          }
+          return;
+        }
+        localStorage.setItem("snake-admin-password", pwd);
+        this.editor = new ConfigEditor();
+        this.initDashboard();
+      } catch (e) {
+        alert("Connection error");
+      }
     };
-    this.container.querySelector("#admin-auth-btn")?.addEventListener("click", auth);
+    this.container.querySelector("#admin-auth-btn")?.addEventListener("click", () => void auth());
     this.container.querySelector("#admin-pass")?.addEventListener("keydown", (e) => (e as KeyboardEvent).key === "Enter" && auth());
   }
 
@@ -191,7 +213,7 @@ export class AdminPanel {
       const host = window.location.hostname || "127.0.0.1";
       const isStd = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
       const url = isStd ? `${window.location.protocol}//${host}/ws/admin/restart` : `${window.location.protocol}//${host}:8000/admin/restart`;
-      const res = await fetch(url, { method: "POST", headers: { "x-admin-password": localStorage.getItem("snake-admin-password") || "" } });
+      const res = await fetch(url, { method: "POST", credentials: "include" });
       alert(res.ok ? "Server restarted successfully!" : "Restart failed: " + res.statusText);
     } catch (e) { alert("Restart error: " + String(e)); }
   }

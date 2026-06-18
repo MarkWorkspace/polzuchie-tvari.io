@@ -117,8 +117,17 @@ export class CameraPredictor {
 
     this._applyGravityBending(dt, myPlayer, state, mapW, mapH);
 
+    // 3. Blend local angle slightly towards server angle to correct drift.
+    // If we are actively steering, use a very weak blend factor to prevent fighting 
+    // the 30Hz server updates (which causes judder on 144Hz monitors).
     const angleDiff = Math.atan2(Math.sin(myPlayer.angle - this.localAngle), Math.cos(myPlayer.angle - this.localAngle));
-    this.localAngle += Math.abs(angleDiff) > Math.PI / 2 ? angleDiff : angleDiff * 0.1;
+    if (Math.abs(angleDiff) > Math.PI / 2) {
+      this.localAngle += angleDiff;
+    } else {
+      const isActivelyTurning = Math.abs(this.localCurrentTurn) > 0.001;
+      const blendFactor = isActivelyTurning ? 0.01 : 0.1;
+      this.localAngle += angleDiff * blendFactor;
+    }
   }
 
   private _applyGravityBending(dt: number, myPlayer: any, state: GameState, mapW: number, mapH: number) {

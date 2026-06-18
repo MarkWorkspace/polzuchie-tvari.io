@@ -7,11 +7,12 @@ import { Leaderboard } from "./Leaderboard";
 interface SettingsCallbacks {
   onDebugToggle: () => void;
   onAdminClick: () => void;
+  onFpsToggle: (enabled: boolean) => void;
 }
 
 export class SettingsPanel {
   private container: HTMLDivElement;
-  private inputManager: InputManager;
+  private inputManager: InputManager | null;
   private callbacks: SettingsCallbacks;
 
   private triggerBtn: HTMLDivElement | null = null;
@@ -24,7 +25,7 @@ export class SettingsPanel {
   private isOpen = false;
   private isMobile = false;
 
-  constructor(container: HTMLDivElement, inputManager: InputManager, callbacks: SettingsCallbacks) {
+  constructor(container: HTMLDivElement, inputManager: InputManager | null, callbacks: SettingsCallbacks) {
     this.container = container;
     this.inputManager = inputManager;
     this.callbacks = callbacks;
@@ -89,10 +90,14 @@ export class SettingsPanel {
     }
   }
 
+  private isShowFpsEnabled(): boolean {
+    return localStorage.getItem("snake-show-fps") === "true";
+  }
+
   private refreshPanelContent(): void {
     if (!this.contentDiv) return;
 
-    const currentMode = this.inputManager.getControlMode();
+    const currentMode = this.inputManager ? this.inputManager.getControlMode() : "mouse";
 
     this.contentDiv.innerHTML = `
       <div class="drawer-header">
@@ -100,6 +105,7 @@ export class SettingsPanel {
         <div class="drawer-close" id="drawer-close">✕</div>
       </div>
 
+      ${this.inputManager ? `
       <div class="drawer-section">
         <h3 class="drawer-section-title">${t("menu.controls") || "CONTROLS"}</h3>
         <div class="drawer-control-list">
@@ -108,7 +114,16 @@ export class SettingsPanel {
           ${this.isMobile ? this.createControlOption("tilt", "📱", t("control.tilt") || "Tilt Steer", t("control.tiltDesc") || "Tilt device", currentMode) : ""}
         </div>
       </div>
+      ` : ""}
 
+      <div class="drawer-section">
+        <h3 class="drawer-section-title">${t("menu.settings") || "SETTINGS"}</h3>
+        <div class="drawer-control-list">
+          ${this.createToggleOption("showFps", "📊", t("menu.showFps") || "Show FPS", t("menu.showFpsDesc") || "Show performance stats", this.isShowFpsEnabled())}
+        </div>
+      </div>
+
+      ${this.inputManager ? `
       <div class="drawer-guide">
         <h3 class="drawer-section-title">${t("menu.guide") || "GUIDE"}</h3>
         <div class="drawer-guide-content">
@@ -118,6 +133,19 @@ export class SettingsPanel {
           <div>• ${t("guide.collision") || "Don't hit walls"}</div>
         </div>
       </div>
+      ` : ""}
+
+      ${new URLSearchParams(window.location.search).get("debug") === "true" ? `
+      <div class="drawer-section" style="margin-top: 10px;">
+        <div class="drawer-control-option" id="spectator-btn" style="background: rgba(255, 100, 100, 0.2); border-color: rgba(255, 100, 100, 0.4);">
+          <div class="control-icon">🎥</div>
+          <div class="control-text">
+            <span class="control-title">Open Spectator</span>
+            <span class="control-desc">Open debug map view in new tab</span>
+          </div>
+        </div>
+      </div>
+      ` : ''}
 
       <a href="#" class="drawer-admin-link" id="admin-panel-btn">
         <span>⚙️</span> Admin Panel
@@ -141,17 +169,49 @@ export class SettingsPanel {
     `;
   }
 
+  private createToggleOption(id: string, icon: string, title: string, desc: string, isChecked: boolean): string {
+    const activeClass = isChecked ? "active" : "";
+    return `
+      <div class="drawer-control-option ${activeClass}" id="toggle-btn-${id}">
+        <span class="control-icon">${icon}</span>
+        <div class="control-text">
+          <span class="control-title">${title}</span>
+          <span class="control-desc">${desc}</span>
+        </div>
+      </div>
+    `;
+  }
+
   private bindPanelEvents(): void {
-    this.contentDiv?.querySelector("#drawer-close")?.addEventListener("click", () => this.togglePanel(false));
+    const closeBtn = this.contentDiv?.querySelector("#drawer-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => this.togglePanel(false));
+    }
 
-    const modes: ControlMode[] = ["keyboard", "mouse"];
-    if (this.isMobile) modes.push("tilt");
-
-    modes.forEach((mode) => {
-      this.contentDiv?.querySelector(`#mode-btn-${mode}`)?.addEventListener("click", () => {
-        this.inputManager.setControlMode(mode);
-        this.refreshPanelContent();
+    const spectatorBtn = this.contentDiv?.querySelector("#spectator-btn");
+    if (spectatorBtn) {
+      spectatorBtn.addEventListener("click", () => {
+        window.open("/?spectator=true", "_blank");
       });
+    }
+
+    if (this.inputManager) {
+      const modes: ControlMode[] = ["keyboard", "mouse"];
+      if (this.isMobile) modes.push("tilt");
+
+      modes.forEach((mode) => {
+        this.contentDiv?.querySelector(`#mode-btn-${mode}`)?.addEventListener("click", () => {
+          this.inputManager!.setControlMode(mode);
+          this.refreshPanelContent();
+        });
+      });
+    }
+
+    this.contentDiv?.querySelector("#toggle-btn-showFps")?.addEventListener("click", () => {
+      const nextState = !this.isShowFpsEnabled();
+      localStorage.setItem("snake-show-fps", nextState ? "true" : "false");
+      this.callbacks.onFpsToggle(nextState);
+      this.refreshPanelContent();
     });
 
     this.contentDiv?.querySelector("#admin-panel-btn")?.addEventListener("click", (e) => {

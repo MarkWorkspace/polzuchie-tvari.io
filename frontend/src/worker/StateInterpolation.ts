@@ -7,7 +7,23 @@ export class StateInterpolator {
   private renderTime: number | null = null;
 
   public pushState(state: GameState, timestamp: number = Date.now()) {
-    this.queue.push({ time: timestamp, state });
+    let idealTime = timestamp;
+    if (this.queue.length > 0) {
+      const tickMs = 1000 / (state.server_tick_rate || 30);
+      const lastIdeal = this.queue[this.queue.length - 1].time;
+      idealTime = lastIdeal + tickMs;
+
+      // Softly lock to actual timestamp to prevent clock drift over time,
+      // but snap if the drift is too large (e.g., lag spike or tab inactive)
+      const drift = timestamp - idealTime;
+      if (Math.abs(drift) > 200) {
+        idealTime = timestamp; // Snap to reality
+      } else {
+        idealTime += drift * 0.1; // Filter out 90% of high-frequency network jitter
+      }
+    }
+
+    this.queue.push({ time: idealTime, state });
     if (this.queue.length > 20) {
       this.queue.shift();
     }

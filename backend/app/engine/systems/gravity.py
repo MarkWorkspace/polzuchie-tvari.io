@@ -94,3 +94,13 @@ def _apply_bh_pull_on_single_food(
         state.food_manager.moved_foods[f.id] = (
             {"id": f.id, "x": round(f.x, 2), "y": round(f.y, 2)}
         )
+
+
+class GravitySystem:
+    name = "gravity"
+    order = 40
+    
+    def update(self, world):
+        update(world)
+
+system = GravitySystem()

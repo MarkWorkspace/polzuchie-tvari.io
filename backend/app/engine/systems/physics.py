@@ -36,16 +36,40 @@ def update(state) -> None:
 
         player.pending_steps += player.speed_mult
         steps_this_tick = int(player.pending_steps)
+        
+        max_steps = getattr(state.config.simulation, 'max_steps_per_tick', 4)
+        if steps_this_tick > max_steps:
+            steps_this_tick = max_steps
+            player.pending_steps = float(max_steps)
+
         player.pending_steps -= steps_this_tick
         player.steps_this_tick = steps_this_tick
+
+        # TURN ONCE PER TICK
+        if player.teleport_state in ("none", "exiting"):
+            target_turn = player.turn * turn_speed
+            if getattr(player, "steered_by_mouse", False):
+                player.current_turn = target_turn
+            else:
+                if player.turn == 0:
+                    player.current_turn += (0 - player.current_turn) * idle_turn_smoothing
+                else:
+                    player.current_turn += (target_turn - player.current_turn) * active_turn_smoothing
+            player.angle += player.current_turn
+        else:
+            player.current_turn = 0.0
+
+        # Apply gravity bend from black holes ONCE PER TICK
+        if player.body_len > 0:
+            bend_angle = state.bh_manager.get_gravity_bend(
+                {"x": player.head_x, "y": player.head_y}, player.angle, state.tick_interval
+            )
+            player.angle += bend_angle
 
         for _ in range(steps_this_tick):
             _step_player_physics(
                 state,
                 player,
-                turn_speed,
-                idle_turn_smoothing,
-                active_turn_smoothing,
                 base_speed,
             )
 
@@ -53,25 +77,8 @@ def update(state) -> None:
 def _step_player_physics(
     state,
     player,
-    turn_speed: float,
-    idle_smooth: float,
-    active_smooth: float,
     base_speed: float,
 ) -> None:
-    if player.teleport_state in ("none", "exiting"):
-        target_turn = player.turn * turn_speed
-        if getattr(player, "steered_by_mouse", False):
-            player.current_turn = target_turn
-        else:
-            if player.turn == 0:
-                player.current_turn += (0 - player.current_turn) * idle_smooth
-            else:
-                player.current_turn += (
-                    target_turn - player.current_turn
-                ) * active_smooth
-        player.angle += player.current_turn
-    else:
-        player.current_turn = 0.0
 
     # Apply gravity bend from black holes
     if player.body_len > 0:
@@ -106,3 +113,13 @@ def _step_player_physics(
         player.body.appendleft(new_head_x)
         player.new_heads_this_tick.append(new_head_y)
         player.new_heads_this_tick.append(new_head_x)
+
+
+class PhysicsSystem:
+    name = "physics"
+    order = 10
+    
+    def update(self, world):
+        update(world)
+
+system = PhysicsSystem()

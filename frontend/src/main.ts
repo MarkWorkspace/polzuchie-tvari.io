@@ -33,8 +33,35 @@ document.addEventListener("DOMContentLoaded", () => {
                   window.location.pathname.startsWith("/admin") ||
                   window.location.hash.startsWith("#admin") ||
                   window.location.hash.startsWith("#/admin");
+  const isSpectator = urlParams.has("spectator");
 
-  if (isAdmin) {
+  if (isSpectator) {
+    const canvasContainer = document.createElement("div");
+    canvasContainer.id = "game-canvas-container";
+    canvasContainer.classList.add("game-canvas-container");
+    app.appendChild(canvasContainer);
+
+    const hudContainer = document.createElement("div");
+    hudContainer.className = "hud-container";
+    app.appendChild(hudContainer);
+
+    import("./game/SpectatorApp").then(({ SpectatorApp }) => {
+      const appInst = new SpectatorApp(canvasContainer);
+      
+      const settings = new SettingsPanel(hudContainer, null, {
+        onDebugToggle: () => {},
+        onAdminClick: () => { window.location.search = "?admin=true"; },
+        onFpsToggle: (enabled: boolean) => {
+          appInst.setStatsEnabled(enabled);
+        }
+      });
+      
+      window.addEventListener("beforeunload", () => {
+        appInst.destroy();
+        settings.destroy();
+      });
+    });
+  } else if (isAdmin) {
     new AdminPanel(app);
   } else {
     showLoginScreen(app);
@@ -62,6 +89,11 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
 
   // 3. Initialize Game Engine
   const game = new Game(canvasContainer);
+  
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get("debug") === "true") {
+    game.toggleDebug();
+  }
 
   // 4. Initialize HUD Components
   const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
@@ -97,6 +129,9 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
     },
     onAdminClick: () => {
       window.location.search = "?admin=true";
+    },
+    onFpsToggle: (enabled: boolean) => {
+      game.setStatsEnabled(enabled);
     }
   });
 
@@ -113,7 +148,7 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
       minimap.update(frame, myId, isMobile);
       
       // Compute score delta to dispatch events for HUD
-      const myPlayer = frame.gameState.players[myId];
+      const myPlayer = frame.gameState?.players?.[myId];
       gameOverScreen.setMyId(myId);
 
       if (myPlayer) {

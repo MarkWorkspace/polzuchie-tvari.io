@@ -87,14 +87,20 @@ export class InputManager {
   }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
-    const activeEl = document.activeElement;
-    const isInputActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
-    if (isInputActive) return;
-    e.stopPropagation();
-
+    // Prevent default to stop scrolling, even on repeated keys
     if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
       e.preventDefault();
     }
+
+    // Ignore repeated keydown events to prevent lag
+    if (e.repeat) return;
+
+    const activeEl = document.activeElement;
+    const isInputActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
+    if (isInputActive) return;
+    
+    e.stopPropagation();
+
     if (e.code === "KeyT") {
       this.setControlMode(this.controlMode === "keyboard" ? "mouse" : "keyboard");
       return;
