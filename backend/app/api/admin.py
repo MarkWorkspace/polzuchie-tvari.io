@@ -18,7 +18,7 @@ from app.api.websocket import (
 def admin_password():
     password = os.getenv("ADMIN_PASSWORD")
     if password:
-        return password
+        return password.strip('\r\n"')
     if os.getenv("ENVIRONMENT") != "production":
         print(
             "[WARNING] Using default admin password 'admin'. Set ADMIN_PASSWORD env var for production!"
