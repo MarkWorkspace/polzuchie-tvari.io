@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { decompress, decodeFullState, decodeDeltaState } from "./DeltaDecoder";
-import { snake } from "./shared/snake_proto";
+import { decodeGameStateFrame } from "./shared/ProtoFrameDecoder";
 
 const FIXTURES_DIR = resolve(
   __dirname, "../../../tests_shared/golden_frames"
@@ -24,8 +24,7 @@ describe("Frame parity (golden fixtures)", () => {
   it("decodes FULL frame and matches expected structure", () => {
     const compressed = loadBin("frame_full.bin");
     const decompressed = decompress(compressed);
-    const message = snake.GameStateFrame.decode(decompressed);
-    const parsed = snake.GameStateFrame.toObject(message, { enums: String, defaults: false }) as any;
+    const parsed = decodeGameStateFrame(decompressed);
     const expected = loadExpected("frame_full.expected.json");
 
     const state = decodeFullState(parsed, MAP_W, MAP_H);
@@ -61,14 +60,12 @@ describe("Frame parity (golden fixtures)", () => {
   it("decodes DELTA frame and matches expected structure", () => {
     const compressed = loadBin("frame_delta.bin");
     const decompressed = decompress(compressed);
-    const message = snake.GameStateFrame.decode(decompressed);
-    const parsed = snake.GameStateFrame.toObject(message, { enums: String, defaults: false }) as any;
+    const parsed = decodeGameStateFrame(decompressed);
     const expected = loadExpected("frame_delta.expected.json");
 
     const fullCompressed = loadBin("frame_full.bin");
     const fullDecompressed = decompress(fullCompressed);
-    const fullMessage = snake.GameStateFrame.decode(fullDecompressed);
-    const fullParsed = snake.GameStateFrame.toObject(fullMessage, { enums: String, defaults: false }) as any;
+    const fullParsed = decodeGameStateFrame(fullDecompressed);
     const prevState = decodeFullState(fullParsed, MAP_W, MAP_H);
 
     const state = decodeDeltaState(parsed, prevState, MAP_W, MAP_H);

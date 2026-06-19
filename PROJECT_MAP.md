@@ -21,7 +21,7 @@ frontend/
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум. Не рендеринг.
-    │   └── Config.ts                   # ROLE: Константы (WORLD_WIDTH, GRID_SIZE и др.). Единственная копия констант физики на фронте.
+    │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
     ├── lib/
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
     ├── renderer/
@@ -68,6 +68,7 @@ frontend/
     │       ├── MathUtils.parity.test.ts # ROLE: Parity-тест тороидальной математики. Сверяет TS с golden vectors.
     │       ├── GrowableArray.ts        # ROLE: Динамически расширяемые массивы Float32 и Uint32 для буферов геометрии.
     │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
+    │       ├── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame для воркера. Не генерирует и не кодирует сообщения.
     │       ├── snake_proto.js          # ROLE: [СГЕНЕРИРОВАНО] JS-модуль Protobuf.
     │       └── snake_proto.d.ts         # ROLE: [СГЕНЕРИРОВАНО] TS-декларации для Protobuf-модуля.
     ├── ui/
@@ -108,7 +109,8 @@ backend/
 ├── server.py                           # ROLE: Точка входа FastAPI. Не содержит игровой логики.
 ├── game_config.py                      # ROLE: Конфигурация через датаклассы.
 ├── config.json                         # Сохранённая конфигурация (генерируется, не редактировать вручную).
-├── requirements.txt
+├── requirements.txt                    # ROLE: Runtime-зависимости backend-сервера. Не содержит тестовые и генераторные инструменты.
+├── requirements-dev.txt                # ROLE: Dev/test-зависимости backend. Расширяет runtime requirements для pytest и генерации Protobuf.
 └── app/
     ├── api/
     │   ├── websocket.py                # ROLE: WebSocket endpoint, rate limiting. Не игровая логика.
@@ -138,6 +140,7 @@ backend/
 
 ```
 backend/tests/
+├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока. Проверяет Protobuf restart-frame и очистку соединений.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
 ├── test_events.py                      # ROLE: Тесты EventBus.
 ├── test_formula_parser.py              # ROLE: Тесты парсера формул роста.
@@ -160,9 +163,9 @@ tests_shared/
 ├── golden_vectors/
 │   └── math.json                       # Эталонные векторы для тороидальной математики (25 кейсов).
 └── golden_frames/
-    ├── frame_full.bin                  # Эталонный FULL-кадр (zlib + MsgPack).
+    ├── frame_full.bin                  # Эталонный FULL-кадр (zlib + Protobuf).
     ├── frame_full.expected.json        # Ожидаемый результат декодирования FULL-кадра.
-    ├── frame_delta.bin                 # Эталонный DELTA-кадр (zlib + MsgPack).
+    ├── frame_delta.bin                 # Эталонный DELTA-кадр (zlib + Protobuf).
     └── frame_delta.expected.json       # Ожидаемый результат декодирования DELTA-кадра.
 ```
 

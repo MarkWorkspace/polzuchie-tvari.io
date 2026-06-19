@@ -1,7 +1,5 @@
+# ROLE: Runtime-зависимости backend-сервера. Не содержит тестовые и генераторные инструменты.
 websockets==15.0.1
 fastapi==0.115.12
 uvicorn[standard]==0.34.3
 protobuf==6.33.6
-grpcio-tools==1.81.1
-pytest==8.3.3
-pytest-asyncio==0.24.0

@@ -9,7 +9,7 @@
 ```
 [FastAPI Game Tick] 
        │
-       ▼ (MsgPack Serialization & AoI-фильтрация)
+       ▼ (Protobuf Serialization & AoI-фильтрация)
 [serialization.py]
        │
        ▼ (zlib.compress с уровнем сжатия 1)
@@ -21,10 +21,10 @@
        ▼ (Прием сообщения)
 [WebSocketClient (Worker)]
        │
-       ▼ (Декомпрессия DecompressionStream "deflate")
+       ▼ (Декомпрессия pako.inflate)
 [DeltaDecoder.decompress]
        │
-       ▼ (Декодирование @msgpack/msgpack)
+       ▼ (Декодирование Protobuf GameStateFrame)
 [WebSocketClient._handleMessage]
        │
        ▼ (Парсинг точек [x0, y0, ...] -> Point[])
@@ -55,17 +55,17 @@
 **Детализация шагов и форматы данных:**
 1. **FastAPI Game State (Сервер):**
    - На каждом тике (30 Гц) оркестратор [game.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/game.py) вызывает физические и игровые системы, обновляющие состояние [GameState](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/state.py).
-   - [serialization.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/serialization.py) кэширует сериализованные словари игроков. Для экономии трафика координаты змеек сжимаются в плоские одномерные массивы `[x0, y0, x1, y1, ...]`.
-   - В [server.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/server.py) полученное MsgPack-состояние сжимается с помощью `zlib.compress(..., level=1)`.
-   - **Формат границы:** Бинарный сжатый MsgPack (deflate).
+   - [serialization.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/serialization.py) кэширует сериализованные словари игроков и собирает `GameStateFrame` по схеме `tests_shared/snake.proto`. Для экономии трафика координаты змеек сжимаются в плоские одномерные массивы `[x0, y0, x1, y1, ...]`.
+   - В [server.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/server.py) полученный Protobuf-кадр сжимается с помощью `zlib.compress(..., level=1)`.
+   - **Формат границы:** Бинарный сжатый Protobuf (zlib/deflate).
 
 2. **WebSocket Connection (Сеть):**
    - Передача через WebSocket в бинарном режиме (`arraybuffer`).
 
 3. **WebSocketClient (Воркер):**
    - Получает `arraybuffer` в `_handleMessage`.
-   - Передает в [DeltaDecoder.decompress()](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/worker/DeltaDecoder.ts#L5), который использует браузерный `DecompressionStream("deflate")`.
-   - Декодирует распакованный буфер с помощью `@msgpack/msgpack` (`decode`).
+   - Передает в [DeltaDecoder.decompress()](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/worker/DeltaDecoder.ts#L5), который использует `pako.inflate`.
+   - Декодирует распакованный буфер с помощью минимального [ProtoFrameDecoder.ts](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/worker/shared/ProtoFrameDecoder.ts).
    - **Формат границы:** JS Object с сырыми сетевыми данными.
 
 4. **DeltaDecoder (Воркер):**
@@ -171,8 +171,8 @@
 
 3. **Сериализация и декодирование сетевого кадра:**
    - **Файлы:** [DeltaDecoder.ts](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/worker/DeltaDecoder.ts) и [serialization.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/serialization.py)
-   - **Что сломается:** Декомпрессия или декодирование пакета упадет с ошибкой (MsgPack decode error), клиент не сможет обработать ни один кадр и игра зависнет на экране загрузки.
-   - **Причина:** Формат плоских массивов координат `body`/`new_heads` жестко закодирован на обеих сторонах.
+   - **Что сломается:** Декомпрессия или декодирование Protobuf-пакета упадет с ошибкой, клиент не сможет обработать ни один кадр и игра зависнет на экране загрузки.
+   - **Причина:** Схема `tests_shared/snake.proto` и формат плоских массивов координат `body`/`new_heads` жестко закодированы на обеих сторонах.
 
 ---
 

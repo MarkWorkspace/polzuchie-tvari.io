@@ -1,7 +1,7 @@
 // ROLE: WebSocket-соединение, реконнект, ping/pong. Не бизнес-логика.
 
 import { decompress } from "./DeltaDecoder";
-import { snake } from "./shared/snake_proto";
+import { decodeGameStateFrame } from "./shared/ProtoFrameDecoder";
 
 export class WebSocketClient {
   private socket: WebSocket | null = null;
@@ -100,8 +100,7 @@ export class WebSocketClient {
 
     try {
       const decompressedBuffer = decompress(new Uint8Array(event.data));
-      const message = snake.GameStateFrame.decode(decompressedBuffer);
-      const parsedState = snake.GameStateFrame.toObject(message, { enums: String, defaults: false }) as any;
+      const parsedState = decodeGameStateFrame(decompressedBuffer);
       
       if (parsedState.type === "SERVER_RESTART") {
         const msg = parsedState.restart_message || undefined;

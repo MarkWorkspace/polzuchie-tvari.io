@@ -1,3 +1,4 @@
+# ROLE: Admin REST API.
 import os
 import asyncio
 import hmac
@@ -73,21 +74,23 @@ async def health_check():
     return {"status": "ok"}
 
 
-async def admin_restart_game(request: Request):
-    print("[Admin] Game restart requested. Notifying all clients...")
+def _build_restart_message() -> bytes:
+    frame = snake_pb2.GameStateFrame()
+    frame.type = snake_pb2.GameStateFrame.FrameType.SERVER_RESTART
+    frame.restart_message = "Сервер перезагружается..."
+    return zlib.compress(frame.SerializeToString(), 1)
 
-    shutdown_message = zlib.compress(
-        msgpack.packb(
-            {"type": "SERVER_RESTART", "message": "Сервер перезагружается..."}
-        )
-    )
+
+async def _queue_restart_message(shutdown_message: bytes) -> None:
     for client_id, connection in list(active_connections.items()):
         try:
-            replace_queued_state(connection["queue"], (shutdown_message, set()))
+            replace_queued_state(connection["queue"], (shutdown_message, set(), True))
             await asyncio.sleep(0.01)
         except Exception:
             pass
 
+
+async def _close_active_connections() -> None:
     for client_id, connection in list(active_connections.items()):
         try:
             await connection["websocket"].close(code=1012, reason="Server restart")
@@ -97,14 +100,21 @@ async def admin_restart_game(request: Request):
             connection["task"].cancel()
         except Exception:
             pass
-
     active_connections.clear()
 
+
+def _cancel_pending_disconnects() -> None:
     for task in pending_disconnects.values():
         task.cancel()
     pending_disconnects.clear()
 
-    # Reset game state while preserving configuration
+
+async def admin_restart_game(request: Request):
+    print("[Admin] Game restart requested. Notifying all clients...")
+
+    await _queue_restart_message(_build_restart_message())
+    await _close_active_connections()
+    _cancel_pending_disconnects()
     request.app.state.world.reset_state()
 
     print("[Admin] Game state reset complete. Clients will auto-reconnect.")
