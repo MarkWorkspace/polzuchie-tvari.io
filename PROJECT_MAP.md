@@ -140,6 +140,7 @@ backend/
 
 ```
 backend/tests/
+├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации. Проверяет парсинг пароля, очистку пробелов/кавычек и работу login-обработчика.
 ├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока. Проверяет Protobuf restart-frame и очистку соединений.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
 ├── test_events.py                      # ROLE: Тесты EventBus.

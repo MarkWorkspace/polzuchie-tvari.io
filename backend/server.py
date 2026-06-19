@@ -136,6 +136,7 @@ else:
 
 # REST endpoints routing (mapped to handlers in app/api/admin.py)
 app.post("/admin/login")(admin_login)
+app.post("/ws/admin/login")(admin_login)
 
 admin_router = APIRouter(dependencies=[Depends(require_admin)])
 admin_router.get("/admin/config")(get_admin_config)

@@ -140,9 +140,11 @@ export class ConfigEditor {
 
   private getApiUrl(): string {
     const host = window.location.hostname || "127.0.0.1";
-    const port = window.location.port;
     const protocol = window.location.protocol;
-    const isStd = port === "" || port === "80" || port === "443";
-    return isStd ? `${protocol}//${host}/ws/admin/config` : `${protocol}//${host}:8000/admin/config`;
+    const isDev = import.meta.env.DEV;
+    const port = isDev ? "8000" : (window.location.port || "");
+    const portStr = port ? `:${port}` : "";
+    const pathPrefix = isDev ? "" : "/ws";
+    return `${protocol}//${host}${portStr}${pathPrefix}/admin/config`;
   }
 }

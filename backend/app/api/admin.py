@@ -4,6 +4,7 @@ import asyncio
 import hmac
 import zlib
 from fastapi import Header, HTTPException, Response, Cookie, Request
+from pydantic import BaseModel
 
 from app.engine.systems import snake_pb2
 
@@ -18,7 +19,7 @@ from app.api.websocket import (
 def admin_password():
     password = os.getenv("ADMIN_PASSWORD")
     if password:
-        return password.strip('\r\n"')
+        return password.strip(' \t\r\n"\'')
     if os.getenv("ENVIRONMENT") != "production":
         print(
             "[WARNING] Using default admin password 'admin'. Set ADMIN_PASSWORD env var for production!"
@@ -27,10 +28,9 @@ def admin_password():
     return None
 
 
-from pydantic import BaseModel
-
 class LoginRequest(BaseModel):
     password: str
+
 
 async def admin_login(req: LoginRequest, response: Response):
     expected_password = admin_password()

@@ -35,8 +35,11 @@ export class AdminPanel {
       const input = this.container.querySelector("#admin-pass") as HTMLInputElement;
       const pwd = input.value.trim();
       const host = window.location.hostname || "127.0.0.1";
-      const isStd = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
-      const url = isStd ? `${window.location.protocol}//${host}/admin/login` : `${window.location.protocol}//${host}:8000/admin/login`;
+      const isDev = import.meta.env.DEV;
+      const port = isDev ? "8000" : (window.location.port || "");
+      const portStr = port ? `:${port}` : "";
+      const pathPrefix = isDev ? "" : "/ws";
+      const url = `${window.location.protocol}//${host}${portStr}${pathPrefix}/admin/login`;
       try {
         const res = await fetch(url, {
           method: "POST",
@@ -47,7 +50,16 @@ export class AdminPanel {
         if (!res.ok) {
           const statusText = document.getElementById("auth-status");
           if (statusText) {
-             statusText.textContent = "Invalid password";
+             let errorMsg = "Invalid password";
+             try {
+               const data = await res.json();
+               if (data && data.detail) {
+                 errorMsg = data.detail;
+               }
+             } catch (e) {
+               errorMsg = `Error ${res.status}: ${res.statusText}`;
+             }
+             statusText.textContent = errorMsg;
              statusText.style.color = "#ef4444";
           }
           return;
@@ -56,7 +68,7 @@ export class AdminPanel {
         this.editor = new ConfigEditor();
         this.initDashboard();
       } catch (e) {
-        alert("Connection error");
+        alert("Connection error: " + String(e));
       }
     };
     this.container.querySelector("#admin-auth-btn")?.addEventListener("click", () => void auth());
@@ -211,8 +223,11 @@ export class AdminPanel {
   private async restartServer(): Promise<void> {
     try {
       const host = window.location.hostname || "127.0.0.1";
-      const isStd = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
-      const url = isStd ? `${window.location.protocol}//${host}/ws/admin/restart` : `${window.location.protocol}//${host}:8000/admin/restart`;
+      const isDev = import.meta.env.DEV;
+      const port = isDev ? "8000" : (window.location.port || "");
+      const portStr = port ? `:${port}` : "";
+      const pathPrefix = isDev ? "" : "/ws";
+      const url = `${window.location.protocol}//${host}${portStr}${pathPrefix}/admin/restart`;
       const res = await fetch(url, { method: "POST", credentials: "include" });
       alert(res.ok ? "Server restarted successfully!" : "Restart failed: " + res.statusText);
     } catch (e) { alert("Restart error: " + String(e)); }
@@ -223,8 +238,11 @@ export class AdminPanel {
       const start = performance.now();
       try {
         const host = window.location.hostname || "127.0.0.1";
-        const isStd = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
-        const url = isStd ? `${window.location.protocol}//${host}/ws/health` : `${window.location.protocol}//${host}:8000/health`;
+        const isDev = import.meta.env.DEV;
+        const port = isDev ? "8000" : (window.location.port || "");
+        const portStr = port ? `:${port}` : "";
+        const pathPrefix = isDev ? "" : "/ws";
+        const url = `${window.location.protocol}//${host}${portStr}${pathPrefix}/health`;
         const res = await fetch(url);
         const data = await res.json();
         this.healthData = { online: true, players: data.players || 0, ping: Math.round(performance.now() - start) };

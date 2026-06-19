@@ -101,8 +101,9 @@ export class NetworkManager {
   private buildWsUrl(nickname: string, skin: string, role: string): string {
     const host = window.location.hostname || "127.0.0.1";
     const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-    const isStandardPort = window.location.port === "" || window.location.port === "80" || window.location.port === "443";
-    const wsPort = isStandardPort ? "" : ":8000";
+    const isDev = import.meta.env.DEV;
+    const port = isDev ? "8000" : (window.location.port || "");
+    const wsPort = port ? `:${port}` : "";
     const trimmed = nickname.trim() || "Snake";
     let url = `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmed)}&skin=${encodeURIComponent(skin)}&role=${encodeURIComponent(role)}`;
     
