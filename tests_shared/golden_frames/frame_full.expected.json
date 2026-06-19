@@ -1,0 +1,2217 @@
+{
+  "black_holes": [
+    {
+      "id": "bh_0_1",
+      "kill_radius": 0.05,
+      "pull_radius": 0.32,
+      "x": 30.84,
+      "y": 63.02
+    }
+  ],
+  "foods": [
+    {
+      "color": "#ef4444",
+      "id": 1,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 61.32,
+      "y": 9.06
+    },
+    {
+      "color": "#ef4444",
+      "id": 2,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 85.74,
+      "y": 15.75
+    },
+    {
+      "color": "#ef4444",
+      "id": 3,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 20.28,
+      "y": 44.93
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 4,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 15.79,
+      "y": 27.89
+    },
+    {
+      "color": "#f43f5e",
+      "id": 5,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 36.44,
+      "y": 19.84
+    },
+    {
+      "color": "#ef4444",
+      "id": 6,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 53.54,
+      "y": 11.47
+    },
+    {
+      "color": "#f97316",
+      "id": 7,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 58.86,
+      "y": 50.01
+    },
+    {
+      "color": "#ef4444",
+      "id": 8,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 41.49,
+      "y": 5.14
+    },
+    {
+      "color": "#ef4444",
+      "id": 9,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 83.9,
+      "y": 21.13
+    },
+    {
+      "color": "#22c55e",
+      "id": 10,
+      "image": "melon.svg",
+      "value": 600,
+      "x": 77.53,
+      "y": 8.14
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 11,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 62.87,
+      "y": 7.24
+    },
+    {
+      "color": "#ef4444",
+      "id": 12,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 56.58,
+      "y": 71.36
+    },
+    {
+      "color": "#ef4444",
+      "id": 13,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 63.7,
+      "y": 55.74
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 14,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 16.17,
+      "y": 22.88
+    },
+    {
+      "color": "#ef4444",
+      "id": 15,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 50.93,
+      "y": 9.91
+    },
+    {
+      "color": "#ef4444",
+      "id": 16,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 70.29,
+      "y": 59.08
+    },
+    {
+      "color": "#ef4444",
+      "id": 17,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 49.31,
+      "y": 50.83
+    },
+    {
+      "color": "#f97316",
+      "id": 18,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 29.42,
+      "y": 22.21
+    },
+    {
+      "color": "#ef4444",
+      "id": 19,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 31.21,
+      "y": 30.68
+    },
+    {
+      "color": "#ef4444",
+      "id": 20,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 52.09,
+      "y": 10.9
+    },
+    {
+      "color": "#f43f5e",
+      "id": 21,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 47.0,
+      "y": 7.39
+    },
+    {
+      "color": "#ef4444",
+      "id": 22,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 60.5,
+      "y": 62.01
+    },
+    {
+      "color": "#f43f5e",
+      "id": 23,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 25.06,
+      "y": 50.6
+    },
+    {
+      "color": "#ef4444",
+      "id": 24,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 80.06,
+      "y": 24.47
+    },
+    {
+      "color": "#ef4444",
+      "id": 25,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 36.96,
+      "y": 30.81
+    },
+    {
+      "color": "#ef4444",
+      "id": 26,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 72.85,
+      "y": 68.24
+    },
+    {
+      "color": "#f43f5e",
+      "id": 27,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 23.33,
+      "y": 23.35
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 28,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 37.74,
+      "y": 16.81
+    },
+    {
+      "color": "#ef4444",
+      "id": 29,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 45.25,
+      "y": 25.29
+    },
+    {
+      "color": "#ef4444",
+      "id": 30,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 80.86,
+      "y": 16.64
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 31,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 40.21,
+      "y": 22.31
+    },
+    {
+      "color": "#ef4444",
+      "id": 32,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 62.58,
+      "y": 56.19
+    },
+    {
+      "color": "#dc2626",
+      "id": 33,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 62.24,
+      "y": 59.25
+    },
+    {
+      "color": "#ef4444",
+      "id": 34,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 8.99,
+      "y": 29.99
+    },
+    {
+      "color": "#f97316",
+      "id": 35,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 39.49,
+      "y": 30.86
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 36,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 83.38,
+      "y": 22.03
+    },
+    {
+      "color": "#ef4444",
+      "id": 37,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 82.77,
+      "y": 15.55
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 38,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 10.6,
+      "y": 64.91
+    },
+    {
+      "color": "#f43f5e",
+      "id": 39,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 40.7,
+      "y": 23.52
+    },
+    {
+      "color": "#ef4444",
+      "id": 40,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 88.49,
+      "y": 8.85
+    },
+    {
+      "color": "#ef4444",
+      "id": 41,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 11.29,
+      "y": 34.62
+    },
+    {
+      "color": "#ef4444",
+      "id": 42,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 64.35,
+      "y": 57.06
+    },
+    {
+      "color": "#f472b6",
+      "id": 43,
+      "image": "peach.svg",
+      "value": 150,
+      "x": 61.13,
+      "y": 10.29
+    },
+    {
+      "color": "#f43f5e",
+      "id": 44,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 74.5,
+      "y": 66.22
+    },
+    {
+      "color": "#f97316",
+      "id": 45,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 30.34,
+      "y": 24.59
+    },
+    {
+      "color": "#ef4444",
+      "id": 46,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 25.13,
+      "y": 59.26
+    },
+    {
+      "color": "#f43f5e",
+      "id": 47,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 30.59,
+      "y": 49.08
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 48,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 17.02,
+      "y": 31.18
+    },
+    {
+      "color": "#ef4444",
+      "id": 49,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 92.7,
+      "y": 1.91
+    },
+    {
+      "color": "#f43f5e",
+      "id": 50,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 35.1,
+      "y": 29.39
+    },
+    {
+      "color": "#ef4444",
+      "id": 51,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 87.32,
+      "y": 87.17
+    },
+    {
+      "color": "#ef4444",
+      "id": 52,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 32.48,
+      "y": 2.85
+    },
+    {
+      "color": "#f43f5e",
+      "id": 53,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 45.88,
+      "y": 11.41
+    },
+    {
+      "color": "#f97316",
+      "id": 54,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 31.86,
+      "y": 24.95
+    },
+    {
+      "color": "#ef4444",
+      "id": 55,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 29.53,
+      "y": 57.22
+    },
+    {
+      "color": "#ef4444",
+      "id": 56,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 65.54,
+      "y": 14.88
+    },
+    {
+      "color": "#ef4444",
+      "id": 57,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 66.38,
+      "y": 61.18
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 58,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 9.86,
+      "y": 25.0
+    },
+    {
+      "color": "#dc2626",
+      "id": 59,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 59.82,
+      "y": 61.46
+    },
+    {
+      "color": "#f43f5e",
+      "id": 60,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 73.52,
+      "y": 65.37
+    },
+    {
+      "color": "#ea580c",
+      "id": 61,
+      "image": "persimmon.svg",
+      "value": 20,
+      "x": 4.91,
+      "y": 36.07
+    },
+    {
+      "color": "#f43f5e",
+      "id": 62,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 29.44,
+      "y": 40.23
+    },
+    {
+      "color": "#ef4444",
+      "id": 63,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 72.2,
+      "y": 62.48
+    },
+    {
+      "color": "#ef4444",
+      "id": 64,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 69.74,
+      "y": 63.38
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 65,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 15.34,
+      "y": 16.45
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 66,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 30.96,
+      "y": 28.8
+    },
+    {
+      "color": "#ef4444",
+      "id": 67,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 56.56,
+      "y": 61.1
+    },
+    {
+      "color": "#f97316",
+      "id": 68,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 78.13,
+      "y": 19.36
+    },
+    {
+      "color": "#ef4444",
+      "id": 69,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 24.31,
+      "y": 46.51
+    },
+    {
+      "color": "#22c55e",
+      "id": 70,
+      "image": "melon.svg",
+      "value": 600,
+      "x": 71.09,
+      "y": 20.8
+    },
+    {
+      "color": "#ef4444",
+      "id": 71,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 27.02,
+      "y": 11.62
+    },
+    {
+      "color": "#ef4444",
+      "id": 72,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 14.22,
+      "y": 56.03
+    },
+    {
+      "color": "#ef4444",
+      "id": 73,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 19.63,
+      "y": 5.35
+    },
+    {
+      "color": "#ef4444",
+      "id": 74,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 80.12,
+      "y": 18.39
+    },
+    {
+      "color": "#f43f5e",
+      "id": 75,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 26.16,
+      "y": 48.22
+    },
+    {
+      "color": "#f97316",
+      "id": 76,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 8.56,
+      "y": 32.77
+    },
+    {
+      "color": "#f43f5e",
+      "id": 77,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 7.36,
+      "y": 16.22
+    },
+    {
+      "color": "#f43f5e",
+      "id": 78,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 60.01,
+      "y": 15.24
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 79,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 22.22,
+      "y": 51.61
+    },
+    {
+      "color": "#ef4444",
+      "id": 80,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 66.7,
+      "y": 60.7
+    },
+    {
+      "color": "#f43f5e",
+      "id": 81,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 35.48,
+      "y": 20.28
+    },
+    {
+      "color": "#f43f5e",
+      "id": 82,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 82.3,
+      "y": 18.18
+    },
+    {
+      "color": "#22c55e",
+      "id": 83,
+      "image": "melon.svg",
+      "value": 600,
+      "x": 21.99,
+      "y": 30.74
+    },
+    {
+      "color": "#f43f5e",
+      "id": 84,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 8.39,
+      "y": 26.04
+    },
+    {
+      "color": "#f43f5e",
+      "id": 85,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 32.63,
+      "y": 24.4
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 86,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 65.59,
+      "y": 54.77
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 87,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 54.64,
+      "y": 40.69
+    },
+    {
+      "color": "#f43f5e",
+      "id": 88,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 88.36,
+      "y": 61.04
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 89,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 68.58,
+      "y": 48.63
+    },
+    {
+      "color": "#f43f5e",
+      "id": 90,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 83.53,
+      "y": 13.55
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 91,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 81.07,
+      "y": 18.94
+    },
+    {
+      "color": "#ef4444",
+      "id": 92,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 29.09,
+      "y": 49.15
+    },
+    {
+      "color": "#ef4444",
+      "id": 93,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 68.43,
+      "y": 62.38
+    },
+    {
+      "color": "#ef4444",
+      "id": 94,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 20.87,
+      "y": 29.51
+    },
+    {
+      "color": "#ef4444",
+      "id": 95,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 66.45,
+      "y": 5.33
+    },
+    {
+      "color": "#ef4444",
+      "id": 96,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 26.0,
+      "y": 55.17
+    },
+    {
+      "color": "#f97316",
+      "id": 97,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 53.75,
+      "y": 72.99
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 98,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 48.85,
+      "y": 27.75
+    },
+    {
+      "color": "#f43f5e",
+      "id": 99,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 10.58,
+      "y": 16.45
+    },
+    {
+      "color": "#ea580c",
+      "id": 100,
+      "image": "persimmon.svg",
+      "value": 20,
+      "x": 53.34,
+      "y": 89.88
+    },
+    {
+      "color": "#f43f5e",
+      "id": 101,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 30.32,
+      "y": 25.75
+    },
+    {
+      "color": "#ef4444",
+      "id": 102,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 9.55,
+      "y": 30.78
+    },
+    {
+      "color": "#ef4444",
+      "id": 103,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 28.27,
+      "y": 94.22
+    },
+    {
+      "color": "#ef4444",
+      "id": 104,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 47.09,
+      "y": 74.4
+    },
+    {
+      "color": "#ef4444",
+      "id": 105,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 22.97,
+      "y": 7.72
+    },
+    {
+      "color": "#ca8a04",
+      "id": 106,
+      "image": "pear.svg",
+      "value": 80,
+      "x": 64.32,
+      "y": 10.96
+    },
+    {
+      "color": "#ef4444",
+      "id": 107,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 66.49,
+      "y": 64.54
+    },
+    {
+      "color": "#dc2626",
+      "id": 108,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 44.07,
+      "y": 9.37
+    },
+    {
+      "color": "#f43f5e",
+      "id": 109,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 32.52,
+      "y": 24.91
+    },
+    {
+      "color": "#ef4444",
+      "id": 110,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 34.05,
+      "y": 7.38
+    },
+    {
+      "color": "#ef4444",
+      "id": 111,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 20.44,
+      "y": 59.03
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 112,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 47.74,
+      "y": 6.91
+    },
+    {
+      "color": "#ef4444",
+      "id": 113,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 77.7,
+      "y": 35.03
+    },
+    {
+      "color": "#ef4444",
+      "id": 114,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 32.69,
+      "y": 50.84
+    },
+    {
+      "color": "#f43f5e",
+      "id": 115,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 21.31,
+      "y": 43.36
+    },
+    {
+      "color": "#f43f5e",
+      "id": 116,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 35.37,
+      "y": 4.91
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 117,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 42.11,
+      "y": 15.76
+    },
+    {
+      "color": "#dc2626",
+      "id": 118,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 62.21,
+      "y": 59.18
+    },
+    {
+      "color": "#f43f5e",
+      "id": 119,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 56.72,
+      "y": 12.16
+    },
+    {
+      "color": "#f43f5e",
+      "id": 120,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 38.21,
+      "y": 21.07
+    },
+    {
+      "color": "#f43f5e",
+      "id": 121,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 57.92,
+      "y": 11.66
+    },
+    {
+      "color": "#ef4444",
+      "id": 122,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 78.75,
+      "y": 10.25
+    },
+    {
+      "color": "#f43f5e",
+      "id": 123,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 30.61,
+      "y": 32.75
+    },
+    {
+      "color": "#ef4444",
+      "id": 124,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 21.43,
+      "y": 51.46
+    },
+    {
+      "color": "#ef4444",
+      "id": 125,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 24.21,
+      "y": 54.84
+    },
+    {
+      "color": "#ef4444",
+      "id": 126,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 78.08,
+      "y": 24.51
+    },
+    {
+      "color": "#dc2626",
+      "id": 127,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 82.58,
+      "y": 22.58
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 128,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 52.41,
+      "y": 28.73
+    },
+    {
+      "color": "#ef4444",
+      "id": 129,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 78.65,
+      "y": 20.21
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 130,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 67.42,
+      "y": 10.98
+    },
+    {
+      "color": "#f43f5e",
+      "id": 131,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 62.62,
+      "y": 54.07
+    },
+    {
+      "color": "#ef4444",
+      "id": 132,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 28.14,
+      "y": 51.92
+    },
+    {
+      "color": "#dc2626",
+      "id": 133,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 30.41,
+      "y": 29.0
+    },
+    {
+      "color": "#f43f5e",
+      "id": 134,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 73.49,
+      "y": 52.82
+    },
+    {
+      "color": "#ef4444",
+      "id": 135,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 5.18,
+      "y": 20.43
+    },
+    {
+      "color": "#ef4444",
+      "id": 136,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 65.52,
+      "y": 51.31
+    },
+    {
+      "color": "#f43f5e",
+      "id": 137,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 54.82,
+      "y": 6.78
+    },
+    {
+      "color": "#dc2626",
+      "id": 138,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 81.19,
+      "y": 19.0
+    },
+    {
+      "color": "#ef4444",
+      "id": 139,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 74.39,
+      "y": 64.23
+    },
+    {
+      "color": "#f43f5e",
+      "id": 140,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 80.41,
+      "y": 20.91
+    },
+    {
+      "color": "#f97316",
+      "id": 141,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 89.19,
+      "y": 12.9
+    },
+    {
+      "color": "#f43f5e",
+      "id": 142,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 75.78,
+      "y": 19.8
+    },
+    {
+      "color": "#f43f5e",
+      "id": 143,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 82.01,
+      "y": 8.0
+    },
+    {
+      "color": "#ef4444",
+      "id": 144,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 38.54,
+      "y": 14.48
+    },
+    {
+      "color": "#ef4444",
+      "id": 145,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 37.92,
+      "y": 12.37
+    },
+    {
+      "color": "#ef4444",
+      "id": 146,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 11.46,
+      "y": 19.14
+    },
+    {
+      "color": "#ef4444",
+      "id": 147,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 68.62,
+      "y": 11.98
+    },
+    {
+      "color": "#ef4444",
+      "id": 148,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 61.78,
+      "y": 65.47
+    },
+    {
+      "color": "#ea580c",
+      "id": 149,
+      "image": "persimmon.svg",
+      "value": 20,
+      "x": 8.27,
+      "y": 21.55
+    },
+    {
+      "color": "#ef4444",
+      "id": 150,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 26.48,
+      "y": 52.55
+    },
+    {
+      "color": "#ef4444",
+      "id": 151,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 59.12,
+      "y": 65.3
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 152,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 65.24,
+      "y": 55.6
+    },
+    {
+      "color": "#ef4444",
+      "id": 153,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 57.73,
+      "y": 6.77
+    },
+    {
+      "color": "#ef4444",
+      "id": 154,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 23.28,
+      "y": 46.34
+    },
+    {
+      "color": "#ef4444",
+      "id": 155,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 32.84,
+      "y": 8.9
+    },
+    {
+      "color": "#ef4444",
+      "id": 156,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 38.94,
+      "y": 29.13
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 157,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 37.74,
+      "y": 10.39
+    },
+    {
+      "color": "#ef4444",
+      "id": 158,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 90.47,
+      "y": 46.22
+    },
+    {
+      "color": "#ef4444",
+      "id": 159,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 49.84,
+      "y": 71.23
+    },
+    {
+      "color": "#f43f5e",
+      "id": 160,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 65.7,
+      "y": 53.13
+    },
+    {
+      "color": "#f43f5e",
+      "id": 161,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 71.56,
+      "y": 61.1
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 162,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 45.5,
+      "y": 8.7
+    },
+    {
+      "color": "#ef4444",
+      "id": 163,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 65.59,
+      "y": 49.52
+    },
+    {
+      "color": "#f43f5e",
+      "id": 164,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 7.89,
+      "y": 27.13
+    },
+    {
+      "color": "#ef4444",
+      "id": 165,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 13.01,
+      "y": 34.5
+    },
+    {
+      "color": "#ef4444",
+      "id": 166,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 6.55,
+      "y": 30.75
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 167,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 49.54,
+      "y": 4.63
+    },
+    {
+      "color": "#f43f5e",
+      "id": 168,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 35.79,
+      "y": 24.03
+    },
+    {
+      "color": "#f43f5e",
+      "id": 169,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 62.76,
+      "y": 68.04
+    },
+    {
+      "color": "#ef4444",
+      "id": 170,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 39.7,
+      "y": 18.91
+    },
+    {
+      "color": "#f43f5e",
+      "id": 171,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 84.53,
+      "y": 85.22
+    },
+    {
+      "color": "#ef4444",
+      "id": 172,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 62.93,
+      "y": 52.62
+    },
+    {
+      "color": "#ef4444",
+      "id": 173,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 52.04,
+      "y": 12.25
+    },
+    {
+      "color": "#ef4444",
+      "id": 174,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 24.78,
+      "y": 30.52
+    },
+    {
+      "color": "#f97316",
+      "id": 175,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 59.85,
+      "y": 16.67
+    },
+    {
+      "color": "#ef4444",
+      "id": 176,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 69.89,
+      "y": 65.91
+    },
+    {
+      "color": "#f97316",
+      "id": 177,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 74.76,
+      "y": 17.05
+    },
+    {
+      "color": "#ef4444",
+      "id": 178,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 61.97,
+      "y": 54.28
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 179,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 67.41,
+      "y": 16.48
+    },
+    {
+      "color": "#ef4444",
+      "id": 180,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 40.38,
+      "y": 8.36
+    },
+    {
+      "color": "#ef4444",
+      "id": 181,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 20.52,
+      "y": 38.7
+    },
+    {
+      "color": "#f43f5e",
+      "id": 182,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 13.51,
+      "y": 43.33
+    },
+    {
+      "color": "#ef4444",
+      "id": 183,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 65.51,
+      "y": 27.9
+    },
+    {
+      "color": "#f43f5e",
+      "id": 184,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 68.15,
+      "y": 7.6
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 185,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 77.02,
+      "y": 23.55
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 186,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 75.92,
+      "y": 11.77
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 187,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 61.43,
+      "y": 56.34
+    },
+    {
+      "color": "#f43f5e",
+      "id": 188,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 66.65,
+      "y": 54.59
+    },
+    {
+      "color": "#ef4444",
+      "id": 189,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 33.02,
+      "y": 41.72
+    },
+    {
+      "color": "#ef4444",
+      "id": 190,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 16.64,
+      "y": 48.3
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 191,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 66.09,
+      "y": 52.74
+    },
+    {
+      "color": "#f97316",
+      "id": 192,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 46.9,
+      "y": 8.38
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 193,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 20.97,
+      "y": 24.06
+    },
+    {
+      "color": "#ef4444",
+      "id": 194,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 60.92,
+      "y": 14.56
+    },
+    {
+      "color": "#ef4444",
+      "id": 195,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 35.74,
+      "y": 7.67
+    },
+    {
+      "color": "#dc2626",
+      "id": 196,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 74.53,
+      "y": 18.19
+    },
+    {
+      "color": "#dc2626",
+      "id": 197,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 77.12,
+      "y": 11.27
+    },
+    {
+      "color": "#ef4444",
+      "id": 198,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 13.25,
+      "y": 26.93
+    },
+    {
+      "color": "#ef4444",
+      "id": 199,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 12.38,
+      "y": 24.01
+    },
+    {
+      "color": "#f43f5e",
+      "id": 200,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 23.54,
+      "y": 43.19
+    },
+    {
+      "color": "#dc2626",
+      "id": 201,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 74.4,
+      "y": 59.33
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 202,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 48.46,
+      "y": 13.37
+    },
+    {
+      "color": "#ef4444",
+      "id": 203,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 84.83,
+      "y": 10.74
+    },
+    {
+      "color": "#f43f5e",
+      "id": 204,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 31.22,
+      "y": 51.92
+    },
+    {
+      "color": "#f472b6",
+      "id": 205,
+      "image": "peach.svg",
+      "value": 150,
+      "x": 81.77,
+      "y": 9.98
+    },
+    {
+      "color": "#ef4444",
+      "id": 206,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 65.43,
+      "y": 13.41
+    },
+    {
+      "color": "#22c55e",
+      "id": 207,
+      "image": "melon.svg",
+      "value": 600,
+      "x": 89.11,
+      "y": 20.51
+    },
+    {
+      "color": "#ef4444",
+      "id": 208,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 80.04,
+      "y": 19.44
+    },
+    {
+      "color": "#f97316",
+      "id": 209,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 75.13,
+      "y": 63.65
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 210,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 64.34,
+      "y": 15.47
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 211,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 61.91,
+      "y": 13.46
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 212,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 23.42,
+      "y": 29.15
+    },
+    {
+      "color": "#f43f5e",
+      "id": 213,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 82.78,
+      "y": 16.45
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 214,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 52.1,
+      "y": 45.89
+    },
+    {
+      "color": "#f472b6",
+      "id": 215,
+      "image": "peach.svg",
+      "value": 150,
+      "x": 65.02,
+      "y": 49.28
+    },
+    {
+      "color": "#ef4444",
+      "id": 216,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 63.83,
+      "y": 54.51
+    },
+    {
+      "color": "#f43f5e",
+      "id": 217,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 39.04,
+      "y": 7.71
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 218,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 37.22,
+      "y": 14.34
+    },
+    {
+      "color": "#ef4444",
+      "id": 219,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 71.9,
+      "y": 21.41
+    },
+    {
+      "color": "#ef4444",
+      "id": 220,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 40.08,
+      "y": 72.5
+    },
+    {
+      "color": "#ef4444",
+      "id": 221,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 41.73,
+      "y": 14.43
+    },
+    {
+      "color": "#ea580c",
+      "id": 222,
+      "image": "persimmon.svg",
+      "value": 20,
+      "x": 33.88,
+      "y": 29.1
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 223,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 55.52,
+      "y": 58.47
+    },
+    {
+      "color": "#f43f5e",
+      "id": 224,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 23.39,
+      "y": 33.26
+    },
+    {
+      "color": "#dc2626",
+      "id": 225,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 67.79,
+      "y": 10.66
+    },
+    {
+      "color": "#ef4444",
+      "id": 226,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 84.61,
+      "y": 21.69
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 227,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 30.52,
+      "y": 53.1
+    },
+    {
+      "color": "#ef4444",
+      "id": 228,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 55.48,
+      "y": 7.37
+    },
+    {
+      "color": "#f43f5e",
+      "id": 229,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 42.49,
+      "y": 8.27
+    },
+    {
+      "color": "#ef4444",
+      "id": 230,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 64.29,
+      "y": 62.09
+    },
+    {
+      "color": "#ef4444",
+      "id": 231,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 66.31,
+      "y": 15.35
+    },
+    {
+      "color": "#ef4444",
+      "id": 232,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 63.44,
+      "y": 69.96
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 233,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 34.16,
+      "y": 25.91
+    },
+    {
+      "color": "#8b5cf6",
+      "id": 234,
+      "image": "grape.svg",
+      "value": 5,
+      "x": 30.98,
+      "y": 35.15
+    },
+    {
+      "color": "#f43f5e",
+      "id": 235,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 45.04,
+      "y": 18.24
+    },
+    {
+      "color": "#ef4444",
+      "id": 236,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 57.76,
+      "y": 52.87
+    },
+    {
+      "color": "#ef4444",
+      "id": 237,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 6.37,
+      "y": 21.03
+    },
+    {
+      "color": "#dc2626",
+      "id": 238,
+      "image": "apple.svg",
+      "value": 40,
+      "x": 43.13,
+      "y": 14.83
+    },
+    {
+      "color": "#f43f5e",
+      "id": 239,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 63.23,
+      "y": 69.47
+    },
+    {
+      "color": "#f43f5e",
+      "id": 240,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 80.01,
+      "y": 8.06
+    },
+    {
+      "color": "#f97316",
+      "id": 241,
+      "image": "mandarin.svg",
+      "value": 10,
+      "x": 59.2,
+      "y": 12.5
+    },
+    {
+      "color": "#ef4444",
+      "id": 242,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 10.81,
+      "y": 20.87
+    },
+    {
+      "color": "#ef4444",
+      "id": 243,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 33.22,
+      "y": 61.14
+    },
+    {
+      "color": "#ef4444",
+      "id": 244,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 35.7,
+      "y": 55.5
+    },
+    {
+      "color": "#ef4444",
+      "id": 245,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 28.58,
+      "y": 30.48
+    },
+    {
+      "color": "#ef4444",
+      "id": 246,
+      "image": "cherry.svg",
+      "value": 1,
+      "x": 75.2,
+      "y": 67.41
+    },
+    {
+      "color": "#f43f5e",
+      "id": 247,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 20.01,
+      "y": 60.57
+    },
+    {
+      "color": "#f43f5e",
+      "id": 248,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 34.01,
+      "y": 30.49
+    },
+    {
+      "color": "#f43f5e",
+      "id": 249,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 35.81,
+      "y": 35.58
+    },
+    {
+      "color": "#f43f5e",
+      "id": 250,
+      "image": "strawberry.svg",
+      "value": 2,
+      "x": 57.66,
+      "y": 44.21
+    }
+  ],
+  "moved_foods": [
+    {
+      "id": 17,
+      "x": 49.31,
+      "y": 50.83
+    }
+  ],
+  "players": {
+    "player_aoi": {
+      "accelerating": false,
+      "angle": 0.0,
+      "body": [
+        50.4,
+        50.0,
+        50.2,
+        50.0,
+        50.0,
+        50.0,
+        49.0,
+        50.0,
+        48.0,
+        50.0,
+        47.0,
+        50.0,
+        46.0,
+        50.0,
+        45.0,
+        50.0,
+        44.0,
+        50.0
+      ],
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "nickname": "InAoI",
+      "score": 1,
+      "skin": "#ff0000"
+    },
+    "player_far": {
+      "accelerating": false,
+      "angle": 0.0,
+      "body": [
+        5.4,
+        5.0
+      ],
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "nickname": "FarAway",
+      "score": 1,
+      "skin": "#00ff00"
+    },
+    "player_new": {
+      "accelerating": false,
+      "angle": 0.0,
+      "body": [
+        90.4,
+        90.0
+      ],
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "nickname": "JustSpawned",
+      "score": 1,
+      "skin": "#0000ff"
+    }
+  },
+  "portals": [
+    {
+      "color": "#3b82f6",
+      "current_scale": 0.02,
+      "id": "portal_1",
+      "radius": 2.5,
+      "x1": 44.58,
+      "x2": 61.82,
+      "y1": 47.2,
+      "y2": 76.67
+    }
+  ],
+  "server_food": {
+    "attraction_radius": 3.0,
+    "attraction_speed": 8.0,
+    "base_radius": 0.2,
+    "death_drop_score_fraction": 0.5,
+    "radius_value_scale": 0.1,
+    "types": [
+      {
+        "color": "#ef4444",
+        "image": "cherry.svg",
+        "value": 1,
+        "weight": 50
+      },
+      {
+        "color": "#f43f5e",
+        "image": "strawberry.svg",
+        "value": 2,
+        "weight": 25
+      },
+      {
+        "color": "#8b5cf6",
+        "image": "grape.svg",
+        "value": 5,
+        "weight": 15
+      },
+      {
+        "color": "#f97316",
+        "image": "mandarin.svg",
+        "value": 10,
+        "weight": 6
+      },
+      {
+        "color": "#ea580c",
+        "image": "persimmon.svg",
+        "value": 20,
+        "weight": 3
+      },
+      {
+        "color": "#dc2626",
+        "image": "apple.svg",
+        "value": 40,
+        "weight": 2
+      },
+      {
+        "color": "#ca8a04",
+        "image": "pear.svg",
+        "value": 80,
+        "weight": 1
+      },
+      {
+        "color": "#f472b6",
+        "image": "peach.svg",
+        "value": 150,
+        "weight": 1
+      },
+      {
+        "color": "#eab308",
+        "image": "pineapple.svg",
+        "value": 300,
+        "weight": 1
+      },
+      {
+        "color": "#22c55e",
+        "image": "melon.svg",
+        "value": 600,
+        "weight": 1
+      },
+      {
+        "color": "#15803d",
+        "image": "watermelon.svg",
+        "value": 1200,
+        "weight": 1
+      }
+    ]
+  },
+  "server_simulation": {
+    "base_speed_per_second": 6.0,
+    "max_turn_speed_deg_per_second": 290.0,
+    "min_turn_radius": 0.5,
+    "tick_rate": 30,
+    "turn_active_smoothing_at_20hz": 0.15,
+    "turn_idle_smoothing_at_20hz": 0.3,
+    "turn_radius_thickness_coeff": 1.0
+  },
+  "server_snake": {
+    "base_head_radius": 0.2,
+    "camera_zoom_out_coeff": 200.0,
+    "growth_score_per_segment": "10.0",
+    "max_growth_score": 5000,
+    "min_body_length": 9,
+    "safe_spawn_distance": 15.0,
+    "score_thickness_scale": 0.0,
+    "start_length": 9,
+    "start_score": 1
+  },
+  "server_tick_rate": 30,
+  "server_visual": {
+    "camera_base_zoom": 1.0,
+    "camera_pitch_angle": 55.0,
+    "camera_y_offset": 0.25,
+    "camera_z_height": 0.0,
+    "fog_score_expansion_coeff": 0.5,
+    "head_glow_radius": 3.0,
+    "min_fog_radius": 900.0,
+    "mouse_sensitivity": 1.0
+  },
+  "server_world": {
+    "black_holes_count": 2,
+    "black_holes_enabled": 1,
+    "black_holes_growth_time": 5.0,
+    "black_holes_kill_radius": 1.8,
+    "black_holes_pull_force": 6.0,
+    "black_holes_pull_radius": 12.0,
+    "black_holes_spawn_chance": 0.5,
+    "height": 100,
+    "portals_count": 2,
+    "portals_enabled": 1,
+    "portals_growth_time": 3.0,
+    "portals_radius": 2.5,
+    "portals_spawn_chance": 0.5,
+    "portals_teleport_delay_ms": 1500,
+    "width": 100
+  },
+  "type": "FULL",
+  "your_id": "player_aoi"
+}

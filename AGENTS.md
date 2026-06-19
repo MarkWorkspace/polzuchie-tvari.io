@@ -23,8 +23,9 @@
 | Логика | Frontend | Backend |
 |---|---|---|
 | Тороидальная математика | `worker/shared/MathUtils.ts` | `engine/systems/math_utils.py` |
-| Парсер формул роста | `worker/shared/FormulaParser.ts` | `game_config.py` |
 | Сетевой формат кадра | `worker/DeltaDecoder.ts` | `engine/systems/serialization.py` |
+
+> Парсер формул роста больше не дублируется: клиентский `FormulaParser.ts` удалён (был мёртвым кодом), серверный `formula_parser.py` остаётся единственной реализацией.
 
 **Примечание:** `game/Config.ts` содержит только клиентские константы рендеринга (gridSize, wrapOffsets, SKINS, WORLD_WIDTH/HEIGHT). Физические константы там более нет — клиент получает их от сервера через `server_simulation` в каждом кадре. Не добавлять физические константы в Config.ts.
 

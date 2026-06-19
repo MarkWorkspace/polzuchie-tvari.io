@@ -1,0 +1,73 @@
+{
+  "black_holes": [
+    {
+      "id": "bh_0_1",
+      "kill_radius": 0.07,
+      "pull_radius": 0.48,
+      "x": 30.84,
+      "y": 63.02
+    }
+  ],
+  "moved_foods": [
+    {
+      "id": 17,
+      "x": 49.54,
+      "y": 50.69
+    }
+  ],
+  "players": {
+    "player_aoi": {
+      "accelerating": false,
+      "angle": 0.0,
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "length": 9,
+      "new_heads": [
+        50.6,
+        50.0
+      ],
+      "score": 1
+    },
+    "player_far": {
+      "accelerating": false,
+      "angle": 0.0,
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "length": 1,
+      "new_heads": [
+        5.6,
+        5.0
+      ],
+      "score": 1
+    },
+    "player_new": {
+      "accelerating": false,
+      "angle": 0.0,
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "length": 1,
+      "new_heads": [
+        90.6,
+        90.0
+      ],
+      "score": 1
+    }
+  },
+  "portals": [
+    {
+      "color": "#3b82f6",
+      "current_scale": 0.03,
+      "id": "portal_1",
+      "radius": 2.5,
+      "x1": 44.58,
+      "x2": 61.82,
+      "y1": 47.2,
+      "y2": 76.67
+    }
+  ],
+  "server_tick_rate": 30,
+  "type": "DELTA"
+}

@@ -8,8 +8,7 @@ export function decompress(bytes: Uint8Array): Uint8Array {
 }
 
 export function ensureFlatArray(arr: any): number[] {
-  if (!arr) return [];
-  if (arr.length === 0) return [];
+  if (!arr || arr.length === 0) return [];
   if (typeof arr[0] === 'number') {
     return arr as number[];
   }
@@ -24,22 +23,32 @@ export function ensureFlatArray(arr: any): number[] {
   return [];
 }
 
+function decodeFullPlayer(netPlayer: any): Player {
+  return {
+    angle: netPlayer.angle ?? 0,
+    score: netPlayer.score ?? 0,
+    kills: netPlayer.kills ?? 0,
+    deaths: netPlayer.deaths ?? 0,
+    accelerating: netPlayer.accelerating ?? false,
+    is_dead: netPlayer.is_dead ?? false,
+    teleport_state: netPlayer.teleport_state || "none",
+    skin: netPlayer.skin || "default",
+    nickname: netPlayer.nickname || "Игрок",
+    ...netPlayer,
+    body: ensureFlatArray(netPlayer.body),
+  };
+}
+
 export function decodeFullState(parsedState: any, mapW: number, mapH: number): GameState {
   const players: Record<string, Player> = {};
   if (parsedState.players) {
     for (const [pid, player] of Object.entries(parsedState.players)) {
-      const netPlayer = player as any;
-      players[pid] = {
-        ...netPlayer,
-        body: ensureFlatArray(netPlayer.body),
-      };
+      players[pid] = decodeFullPlayer(player);
     }
   }
   const initialFoods = (parsedState.foods || [])
     .filter((f: any) => f.x >= 0 && f.x < mapW && f.y >= 0 && f.y < mapH)
     .map((f: Food) => ({ ...f }));
-  
-
 
   return {
     server_tick_rate: parsedState.server_tick_rate,
@@ -56,89 +65,134 @@ export function decodeFullState(parsedState: any, mapW: number, mapH: number): G
   };
 }
 
+function getNewBody(
+  body: any,
+  new_heads: any,
+  length: number | undefined,
+  oldPlayer: Player | undefined
+): number[] {
+  if (body && body.length > 0) {
+    return ensureFlatArray(body);
+  }
+  if (!oldPlayer || !oldPlayer.body) return [];
+  const addedHeads = ensureFlatArray(new_heads);
+  const targetLen = (length !== undefined && length !== 0) ? length : Math.floor(oldPlayer.body.length / 2);
+  const newBody = new Array(targetLen * 2);
+  const headsCount = addedHeads.length;
+  for (let i = 0; i < headsCount && i < targetLen * 2; i++) {
+    newBody[i] = addedHeads[i];
+  }
+  for (let i = headsCount; i < targetLen * 2; i++) {
+    newBody[i] = oldPlayer.body[i - headsCount];
+  }
+  return newBody;
+}
+
+function decodePlayer(
+  pData: any,
+  oldPlayer: Player | undefined,
+  defaultPlayer: any
+): Player {
+  const { body, new_heads, length, teleport_state, ...otherProps } = pData;
+  const newBody = getNewBody(body, new_heads, length, oldPlayer);
+
+  const cleanProps: Record<string, any> = {};
+  for (const [k, v] of Object.entries(otherProps)) {
+    if (v !== undefined) {
+      cleanProps[k] = v;
+    }
+  }
+
+  return {
+    ...defaultPlayer,
+    ...oldPlayer,
+    teleport_state: teleport_state || "none",
+    ...cleanProps,
+    body: newBody,
+  };
+}
+
+function decodePlayers(
+  parsedPlayers: Record<string, any> | undefined,
+  currentPlayers: Record<string, Player>
+): Record<string, Player> {
+  const nextPlayers: Record<string, Player> = {};
+  if (!parsedPlayers) return nextPlayers;
+  const defaultPlayer = {
+    body: [] as number[],
+    angle: 0,
+    score: 0,
+    kills: 0,
+    deaths: 0,
+    nickname: "",
+    skin: "default"
+  };
+  for (const [pid, pData] of Object.entries(parsedPlayers)) {
+    nextPlayers[pid] = decodePlayer(pData, currentPlayers[pid], defaultPlayer);
+  }
+  return nextPlayers;
+}
+
+function getNewFoodsFiltered(newFoods: any[] | undefined, mapW: number, mapH: number): Food[] {
+  const filtered: Food[] = [];
+  if (!newFoods) return filtered;
+  for (let i = 0; i < newFoods.length; i++) {
+    const nf = newFoods[i] as Food;
+    if (nf.x >= 0 && nf.x < mapW && nf.y >= 0 && nf.y < mapH) {
+      filtered.push({ ...nf });
+    }
+  }
+  return filtered;
+}
+
+function getMovedFoodsMap(movedFoods: any[] | undefined): Map<number, { x: number; y: number }> {
+  const movedMap = new Map<number, { x: number; y: number }>();
+  if (!movedFoods) return movedMap;
+  for (let i = 0; i < movedFoods.length; i++) {
+    const mf = movedFoods[i];
+    if (typeof mf.id === "number" && typeof mf.x === "number" && typeof mf.y === "number" && !isNaN(mf.x) && !isNaN(mf.y)) {
+      movedMap.set(mf.id, { x: mf.x, y: mf.y });
+    }
+  }
+  return movedMap;
+}
+
+function decodeFoods(
+  currentFoods: Food[],
+  eatenFoods: number[] | undefined,
+  movedFoods: any[] | undefined,
+  newFoods: any[] | undefined,
+  mapW: number,
+  mapH: number
+): Food[] {
+  const eatenSet = new Set<number>(eatenFoods || []);
+  const movedMap = getMovedFoodsMap(movedFoods);
+  const newFoodsFiltered = getNewFoodsFiltered(newFoods, mapW, mapH);
+
+  return currentFoods
+    .filter((f) => !eatenSet.has(f.id) && f.x >= 0 && f.x < mapW && f.y >= 0 && f.y < mapH)
+    .map((f) => {
+      const moved = movedMap.get(f.id);
+      return moved ? { ...f, x: moved.x, y: moved.y } : f;
+    })
+    .concat(newFoodsFiltered);
+}
+
 export function decodeDeltaState(
   parsedState: any,
   currentGameState: GameState,
   mapW: number,
   mapH: number
 ): GameState {
-  const currentPlayers = currentGameState.players || {};
-  const nextPlayers: Record<string, Player> = {};
-
-  for (const [pid, pData] of Object.entries(parsedState.players as Record<string, any>)) {
-    const oldPlayer = currentPlayers[pid];
-    const defaultPlayer = {
-      body: [] as number[],
-      angle: 0,
-      score: 0,
-      kills: 0,
-      deaths: 0,
-      nickname: "",
-      skin: "default"
-    };
-    const { body, new_heads, length, teleport_state, ...otherProps } = pData;
-    let newBody: number[] = [];
-
-    if (body) {
-      newBody = ensureFlatArray(body);
-    } else if (oldPlayer && oldPlayer.body) {
-      const addedHeads = ensureFlatArray(new_heads);
-      const targetLen = length ?? Math.floor(oldPlayer.body.length / 2);
-      
-      newBody = new Array(targetLen * 2);
-      const headsCountNumbers = addedHeads.length;
-      
-      for (let i = 0; i < headsCountNumbers && i < targetLen * 2; i++) {
-        newBody[i] = addedHeads[i];
-      }
-      
-      for (let i = headsCountNumbers; i < targetLen * 2; i++) {
-        newBody[i] = oldPlayer.body[i - headsCountNumbers];
-      }
-    }
-
-    nextPlayers[pid] = {
-      ...defaultPlayer,
-      ...oldPlayer,
-      teleport_state: teleport_state || "none",
-      ...otherProps,
-      body: newBody,
-    };
-  }
-
-
-
-  const newFoodsFiltered: Food[] = [];
-  if (parsedState.new_foods) {
-    for (let i = 0; i < parsedState.new_foods.length; i++) {
-      const nf = parsedState.new_foods[i] as Food;
-      if (nf.x >= 0 && nf.x < mapW && nf.y >= 0 && nf.y < mapH) {
-        const nextFood = { ...nf };
-        newFoodsFiltered.push(nextFood);
-      }
-    }
-  }
-
-  const eatenSet = new Set<number>(parsedState.eaten_foods || []);
-  const movedFoodPositions = new Map<number, { x: number; y: number }>();
-  const movedFoods = parsedState.moved_foods;
-  if (movedFoods && movedFoods.length > 0) {
-    for (let i = 0; i < movedFoods.length; i++) {
-      const mf = movedFoods[i];
-      if (typeof mf.id === "number" && typeof mf.x === "number" && typeof mf.y === "number" && !isNaN(mf.x) && !isNaN(mf.y)) {
-        movedFoodPositions.set(mf.id, { x: mf.x, y: mf.y });
-      }
-    }
-  }
-
-  const nextFoods = currentGameState.foods
-    .filter((f) => !eatenSet.has(f.id) && f.x >= 0 && f.x < mapW && f.y >= 0 && f.y < mapH)
-    .map((f) => {
-      const moved = movedFoodPositions.get(f.id);
-      const nextFood = moved ? { ...f, x: moved.x, y: moved.y } : f;
-      return nextFood;
-    })
-    .concat(newFoodsFiltered);
+  const nextPlayers = decodePlayers(parsedState.players, currentGameState.players || {});
+  const nextFoods = decodeFoods(
+    currentGameState.foods,
+    parsedState.eaten_foods,
+    parsedState.moved_foods,
+    parsedState.new_foods,
+    mapW,
+    mapH
+  );
 
   return {
     server_tick_rate: parsedState.server_tick_rate ?? currentGameState.server_tick_rate,

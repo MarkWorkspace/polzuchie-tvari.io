@@ -3,7 +3,7 @@ import asyncio
 import contextlib
 import re
 import uuid
-import msgpack
+from app.engine.systems import snake_pb2
 import zlib
 from collections import deque
 from fastapi import WebSocket
@@ -108,9 +108,8 @@ async def _handle_reconnection(
 
 
 async def _initialize_connection(client_id: str, websocket: WebSocket, world) -> asyncio.Queue:
-    full_state = world.get_full_state(client_id)
-    full_state["your_id"] = client_id
-    await websocket.send_bytes(zlib.compress(msgpack.packb(full_state)))
+    full_state_bytes = world.get_full_state(client_id, serialize_proto=True)
+    await websocket.send_bytes(zlib.compress(full_state_bytes))
 
     send_queue = asyncio.Queue(maxsize=1)
     send_task = asyncio.create_task(sender_loop(client_id, websocket, send_queue, world))

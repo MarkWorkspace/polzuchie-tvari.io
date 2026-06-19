@@ -59,14 +59,17 @@ frontend/
     │   ├── ParticleComputer.ts         # ROLE: Симуляция частиц хвоста.
     │   ├── EyeComputer.ts              # ROLE: Позиции глаз и зрачков змеек.
     │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера. Не сеть, не интерполяция.
+    │   ├── DeltaDecoder.parity.test.ts # ROLE: Parity-тест сетевого кадра. Декодирует бинарные фикстуры и сравнивает с expected JSON.
     │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, реконнект, ping/pong. Не бизнес-логика.
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
     │   ├── SnakeProcessor.ts           # ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
     │   └── shared/
-    │       ├── FormulaParser.ts        # ROLE: Парсер формул роста. ЕДИНСТВЕННАЯ копия — импортируется только воркером.
     │       ├── MathUtils.ts            # ROLE: Тороидальные операции, lerp. ЕДИНСТВЕННАЯ копия математики на фронте.
+    │       ├── MathUtils.parity.test.ts # ROLE: Parity-тест тороидальной математики. Сверяет TS с golden vectors.
     │       ├── GrowableArray.ts        # ROLE: Динамически расширяемые массивы Float32 и Uint32 для буферов геометрии.
-    │       └── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
+    │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
+    │       ├── snake_proto.js          # ROLE: [СГЕНЕРИРОВАНО] JS-модуль Protobuf.
+    │       └── snake_proto.d.ts         # ROLE: [СГЕНЕРИРОВАНО] TS-декларации для Protobuf-модуля.
     ├── ui/
     │   ├── LoginScreen.ts              # ROLE: Экран входа.
     │   ├── HUD.ts                      # ROLE: Score, ping, статус соединения. Не игровая логика.
@@ -125,5 +128,49 @@ backend/
             ├── boost.py                # ROLE: Ускорение, потеря массы, спавн еды при бусте.
             ├── growth.py               # ROLE: Рост/усыхание, формула сегментов.
             ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
-            └── serialization.py        # ROLE: MsgPack-упаковка, AoI-фильтрация, placeholder-замена.
+            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация.
+            └── snake_pb2.py            # ROLE: [СГЕНЕРИРОВАНО] Python-модуль Protobuf.
+```
+
+---
+
+## Тесты бэкенда: `backend/tests/`
+
+```
+backend/tests/
+├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
+├── test_events.py                      # ROLE: Тесты EventBus.
+├── test_formula_parser.py              # ROLE: Тесты парсера формул роста.
+├── test_frame_parity.py                # ROLE: Round-trip parity-тест сетевого кадра. Кодирует → декодирует → сравнивает с .expected.json.
+├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
+├── test_math_parity.py                 # ROLE: Parity-тест тороидальной математики. Сверяет Python с golden vectors.
+├── test_physics.py                     # ROLE: Тесты физики движения.
+├── test_world_elements.py              # ROLE: Тесты порталов и чёрных дыр.
+└── generate_frame_fixtures.py          # ROLE: Генерация эталонных кадров для parity-тестов. Запуск вручную при изменении формата.
+```
+
+---
+
+## Общие тестовые данные: `tests_shared/`
+
+```
+tests_shared/
+├── snake.proto                     # ROLE: Protobuf-схема сетевого протокола обмена.
+├── golden_vectors/
+│   └── math.json                       # Эталонные векторы для тороидальной математики (25 кейсов).
+└── golden_frames/
+    ├── frame_full.bin                  # Эталонный FULL-кадр (zlib + MsgPack).
+    ├── frame_full.expected.json        # Ожидаемый результат декодирования FULL-кадра.
+    ├── frame_delta.bin                 # Эталонный DELTA-кадр (zlib + MsgPack).
+    └── frame_delta.expected.json       # Ожидаемый результат декодирования DELTA-кадра.
+```
+
+---
+
+## CI: `.github/`
+
+```
+.github/
+└── workflows/
+    └── ci.yml                          # ROLE: CI для проекта. Запускает pytest и vitest на push/PR.
 ```

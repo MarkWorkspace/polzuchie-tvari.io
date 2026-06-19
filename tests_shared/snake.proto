@@ -1,0 +1,169 @@
+// ROLE: Protobuf schema for client-server game state communication with optional fields for delta-preservation.
+
+syntax = "proto3";
+
+package snake;
+
+message WorldConfig {
+  optional int32 width = 1;
+  optional int32 height = 2;
+  optional int32 portals_enabled = 3;
+  optional int32 portals_count = 4;
+  optional float portals_radius = 5;
+  optional int32 portals_teleport_delay_ms = 6;
+  optional float portals_spawn_chance = 7;
+  optional float portals_growth_time = 8;
+  optional int32 black_holes_enabled = 9;
+  optional int32 black_holes_count = 10;
+  optional float black_holes_spawn_chance = 11;
+  optional float black_holes_pull_radius = 12;
+  optional float black_holes_pull_force = 13;
+  optional float black_holes_kill_radius = 14;
+  optional float black_holes_growth_time = 15;
+}
+
+message SimulationConfig {
+  optional int32 tick_rate = 1;
+  optional float base_speed_per_second = 2;
+  optional float max_turn_speed_deg_per_second = 3;
+  optional float min_turn_radius = 4;
+  optional float turn_radius_thickness_coeff = 5;
+  optional float turn_idle_smoothing_at_20hz = 6;
+  optional float turn_active_smoothing_at_20hz = 7;
+}
+
+message SnakeConfig {
+  optional float base_head_radius = 1;
+  optional float score_thickness_scale = 2;
+  optional float camera_zoom_out_coeff = 3;
+  optional string growth_score_per_segment = 4;
+  optional int32 start_length = 5;
+  optional int32 start_score = 6;
+  optional int32 min_body_length = 7;
+  optional float safe_spawn_distance = 8;
+  optional int32 max_growth_score = 9;
+}
+
+message VisualConfig {
+  optional float min_fog_radius = 1;
+  optional float fog_score_expansion_coeff = 2;
+  optional float camera_base_zoom = 3;
+  optional float camera_pitch_angle = 4;
+  optional float camera_z_height = 5;
+  optional float camera_y_offset = 6;
+  optional float mouse_sensitivity = 7;
+  optional float head_glow_radius = 8;
+}
+
+message FoodTypeConfig {
+  optional int32 value = 1;
+  optional int32 weight = 2;
+  optional string color = 3;
+  optional string image = 4;
+}
+
+message FoodConfig {
+  repeated FoodTypeConfig types = 1;
+  optional float base_radius = 2;
+  optional float radius_value_scale = 3;
+  optional float death_drop_score_fraction = 4;
+  optional float attraction_radius = 5;
+  optional float attraction_speed = 6;
+}
+
+message Food {
+  optional int32 id = 1;
+  optional float x = 2;
+  optional float y = 3;
+  optional int32 value = 4;
+  optional string color = 5;
+  optional string image = 6;
+}
+
+message MovedFood {
+  optional int32 id = 1;
+  optional float x = 2;
+  optional float y = 3;
+}
+
+message Portal {
+  optional string id = 1;
+  optional string color = 2;
+  optional float x1 = 3;
+  optional float y1 = 4;
+  optional float x2 = 5;
+  optional float y2 = 6;
+  optional float radius = 7;
+  optional float current_scale = 8;
+}
+
+message BlackHole {
+  optional string id = 1;
+  optional float x = 2;
+  optional float y = 3;
+  optional float pull_radius = 4;
+  optional float kill_radius = 5;
+}
+
+message Tombstone {
+  optional string id = 1;
+  optional float x = 2;
+  optional float y = 3;
+  optional string nickname = 4;
+  optional float time_left = 5;
+}
+
+message KillEvent {
+  optional string killer = 1;
+  optional string victim = 2;
+}
+
+message Player {
+  optional float angle = 1;
+  optional int32 score = 2;
+  optional int32 kills = 3;
+  optional int32 deaths = 4;
+  optional bool accelerating = 5;
+  optional bool is_dead = 6;
+  
+  optional string teleport_state = 7;
+  optional float teleport_out_x = 8;
+  optional float teleport_out_y = 9;
+  optional float teleport_timer_ratio = 10;
+  
+  optional string skin = 11;
+  optional string nickname = 12;
+  
+  repeated float body = 13 [packed=true];
+  repeated float new_heads = 14 [packed=true];
+  optional int32 length = 15;
+}
+
+message GameStateFrame {
+  enum FrameType {
+    UNKNOWN = 0;
+    FULL = 1;
+    DELTA = 2;
+    SERVER_RESTART = 3;
+  }
+  optional FrameType type = 1;
+  optional int32 server_tick_rate = 2;
+  map<string, Player> players = 3;
+  repeated Food foods = 4;
+  repeated Food new_foods = 5;
+  repeated int32 eaten_foods = 6;
+  repeated MovedFood moved_foods = 7;
+  repeated KillEvent kill_events = 8;
+  repeated Tombstone tombstones = 9;
+  repeated Portal portals = 10;
+  repeated BlackHole black_holes = 11;
+  
+  optional WorldConfig server_world = 12;
+  optional SimulationConfig server_simulation = 13;
+  optional SnakeConfig server_snake = 14;
+  optional VisualConfig server_visual = 15;
+  optional FoodConfig server_food = 16;
+  
+  optional string your_id = 17;
+  optional string restart_message = 18;
+}

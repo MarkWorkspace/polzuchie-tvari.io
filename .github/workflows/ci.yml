@@ -1,0 +1,56 @@
+# ROLE: CI для проекта. Запускает бэкенд-тесты (pytest) и фронтенд-сборку+тесты (tsc/vite/vitest) на каждый push и PR.
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+# Отменяем параллельные запуски той же ветки — экономит минуты.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run pytest
+        # Тесты используют bare-импорты (from app.engine..., from game_config),
+        # значит должны запускаться из backend/ (CWD).
+        run: pytest tests/ -q
+
+  frontend:
+    name: Frontend (typecheck + build + vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      # esbuild требует postinstall-скрипт; npm v10 его блокирует по умолчанию.
+      - name: Allow esbuild postinstall
+        run: node node_modules/esbuild/install.js
+      - name: Typecheck & build
+        run: npm run build
+      - name: Run vitest
+        run: npm test

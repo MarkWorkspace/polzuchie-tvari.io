@@ -290,7 +290,7 @@ class World:
         is_full=False,
         update_visibility=True,
         return_visibility=False,
-        serialize_msgpack=False,
+        serialize_proto=False,
     ):
         from app.engine.systems.serialization import get_delta_state
 
@@ -300,13 +300,13 @@ class World:
             is_full,
             update_visibility,
             return_visibility,
-            serialize_msgpack,
+            serialize_proto,
         )
 
-    def get_full_state(self, client_id):
+    def get_full_state(self, client_id, serialize_proto=False):
         from app.engine.systems.serialization import get_full_state
 
-        return get_full_state(self, client_id)
+        return get_full_state(self, client_id, serialize_proto)
 
     def set_client_visibility(self, client_id, visible_players):
         self.client_visibility[client_id] = visible_players

@@ -1,7 +1,7 @@
 // ROLE: WebSocket-соединение, реконнект, ping/pong. Не бизнес-логика.
 
 import { decompress } from "./DeltaDecoder";
-import { decode } from "@msgpack/msgpack";
+import { snake } from "./shared/snake_proto";
 
 export class WebSocketClient {
   private socket: WebSocket | null = null;
@@ -100,12 +100,14 @@ export class WebSocketClient {
 
     try {
       const decompressedBuffer = decompress(new Uint8Array(event.data));
-      const parsedState = decode(decompressedBuffer) as any;
+      const message = snake.GameStateFrame.decode(decompressedBuffer);
+      const parsedState = snake.GameStateFrame.toObject(message, { enums: String, defaults: false }) as any;
       
       if (parsedState.type === "SERVER_RESTART") {
+        const msg = parsedState.restart_message || undefined;
         this.statusCallbacks.forEach(cb => cb("reconnecting", {
-          msg: parsedState.message || undefined,
-          msgKey: parsedState.message ? undefined : "status.serverRestart"
+          msg,
+          msgKey: msg ? undefined : "status.serverRestart"
         }));
         this.socket?.close(1000, "Server Restart");
         return;
@@ -118,7 +120,7 @@ export class WebSocketClient {
 
       this.messageCallbacks.forEach(cb => cb(parsedState));
     } catch (err) {
-      console.error("Worker packet decompression or MsgPack decode error:", err);
+      console.error("Worker packet decompression or Protobuf decode error:", err);
     }
   }
 

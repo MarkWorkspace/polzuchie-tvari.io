@@ -4,7 +4,7 @@ import os
 import asyncio
 import contextlib
 import traceback
-import msgpack
+from app.engine.systems import snake_pb2
 import uvicorn
 import zlib
 from contextlib import asynccontextmanager
@@ -33,32 +33,32 @@ from app.api.admin import (
 
 async def process_client(client_id, connection, world):
     is_full_sync = connection.get("needs_full_sync", False)
-    
-    # If the queue is full and we need a full sync, do not waste CPU generating
-    # a massive payload that will just replace another frame and likely overflow again.
     if is_full_sync and connection["queue"].full():
         return
 
     if is_full_sync:
-        final_dict, visible_players = world.get_delta_state(
+        frame, visible_players = world.get_delta_state(
             client_id,
             is_full=True,
             update_visibility=False,
             return_visibility=True,
-            serialize_msgpack=False,
+            serialize_proto=False,
         )
-        final_dict["foods"] = [f.to_dict() for f in world.food_manager.foods.values()]
-        state_msgpack = msgpack.packb(final_dict)
+        frame.your_id = client_id
+        for f in world.food_manager.foods.values():
+            f_msg = frame.foods.add()
+            f_msg.id, f_msg.x, f_msg.y, f_msg.value, f_msg.color, f_msg.image = f.id, f.x, f.y, f.value, f.color, f.image or ""
+        state_bytes = frame.SerializeToString()
         connection["needs_full_sync"] = False
     else:
-        state_msgpack, visible_players = world.get_delta_state(
+        state_bytes, visible_players = world.get_delta_state(
             client_id,
             update_visibility=False,
             return_visibility=True,
-            serialize_msgpack=True,
+            serialize_proto=True,
         )
         
-    compressed = await asyncio.to_thread(zlib.compress, state_msgpack, 1)
+    compressed = await asyncio.to_thread(zlib.compress, state_bytes, 1)
     skipped = replace_queued_state(connection["queue"], (compressed, visible_players, is_full_sync))
     if skipped:
         connection["needs_full_sync"] = True
@@ -97,14 +97,10 @@ async def lifespan(app):
     task = asyncio.create_task(game_loop(world))
     yield
     print("[Server] Graceful shutdown initiated...")
-    shutdown_message = zlib.compress(
-        msgpack.packb(
-            {
-                "type": "SERVER_RESTART",
-                "message": "Сервер перезагружается для обновления...",
-            }
-        )
-    )
+    frame = snake_pb2.GameStateFrame()
+    frame.type = snake_pb2.GameStateFrame.FrameType.SERVER_RESTART
+    frame.restart_message = "Сервер перезагружается для обновления..."
+    shutdown_message = zlib.compress(frame.SerializeToString())
     for client_id, connection in list(active_connections.items()):
         try:
             replace_queued_state(connection["queue"], (shutdown_message, set(), True))

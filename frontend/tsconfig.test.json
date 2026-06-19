@@ -1,0 +1,11 @@
+// ROLE: TypeScript-конфигурация для тестов (vitest). Наследует основной tsconfig, добавляет node-типы.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Тесты читают общий JSON через node:fs — нужны Node-типы, убираем DOM-флаг vite/client.
+    "types": ["node"],
+    "lib": ["ES2023"],
+    "composite": false
+  },
+  "include": ["src/**/*.test.ts", "vite.config.ts"]
+}
