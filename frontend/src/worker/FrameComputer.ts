@@ -106,6 +106,11 @@ function _buildFrameResult(
       body_len: p.body ? Math.floor(p.body.length / 2) : 0,
       head_x: p.body && p.body.length >= 2 ? p.body[0] : 0,
       head_y: p.body && p.body.length >= 2 ? p.body[1] : 0,
+      angle: p.angle,
+      is_dead: p.is_dead,
+      kills: p.kills,
+      deaths: p.deaths,
+      teleport_state: p.teleport_state
     };
   }
 
@@ -181,6 +186,7 @@ export function computeFrame(
   progress: number,
   myId: string,
   isSpectator: boolean,
+  showAllInMainCopy: boolean,
   camera: CameraPredictor,
   particles: ParticleComputer,
   eyes: EyeComputer,
@@ -202,13 +208,20 @@ export function computeFrame(
     return dist >= end ? 1.0 : (dist <= start ? 0.0 : (dist - start) / (end - start));
   };
 
+  let myHeadX = cam.camX;
+  let myHeadY = cam.camY;
+  if (myPlayer && myPlayer.body && myPlayer.body.length >= 2) {
+    myHeadX = myPlayer.body[0] * gridSize + gridSize / 2;
+    myHeadY = -(myPlayer.body[1] * gridSize + gridSize / 2);
+  }
+
   const foodCount = computeFood(
-    state, lastState, progress, myPlayer, cam.camX, cam.camY, fogRadiusWorld, dt, gridSize,
+    state, lastState, progress, myPlayer, myHeadX, myHeadY, cam.camX, cam.camY, fogRadiusWorld, dt, gridSize, showAllInMainCopy,
     tempFoodMatrices, tempFoodColors, tempFoodImageIndices
   );
 
-  const portals = computePortals(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, calcFog, FOG_R, FOG_G, FOG_B);
-  const blackHoles = computeBlackHoles(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize);
+  const portals = computePortals(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, showAllInMainCopy, calcFog, FOG_R, FOG_G, FOG_B);
+  const blackHoles = computeBlackHoles(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, showAllInMainCopy);
 
   // Clear geometries
   bodyBufs.vertices.reset(); bodyBufs.uvs.reset(); bodyBufs.colors.reset(); bodyBufs.params.reset(); bodyBufs.indices.reset();
@@ -216,7 +229,7 @@ export function computeFrame(
 
   const activePlayers: any[] = [];
   const nicknames: any[] = [];
-  processSnakes(state, lastState, progress, myId, gridSize, startLength, camera, particles, eyes, bodyBufs, calcFog, activePlayers, nicknames, fogRadiusWorld);
+  processSnakes(state, lastState, progress, myId, gridSize, startLength, camera, particles, eyes, bodyBufs, calcFog, activePlayers, nicknames, fogRadiusWorld, showAllInMainCopy);
 
   particles.update(dt);
   const partBufs = particles.buildBuffers(FOG_R, FOG_G, FOG_B, calcFog);

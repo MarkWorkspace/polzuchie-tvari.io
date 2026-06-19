@@ -43,7 +43,7 @@ export class NetworkManager {
     this.worker?.postMessage({ type: "SEND", data: msg });
   }
 
-  public requestFrame(dt: number, myId: string, input: any): void {
+  public requestFrame(dt: number, myId: string, input: any, showAllInMainCopy: boolean = false): void {
     if (!this.worker || this.isWaitingForFrame) return;
 
     this.isWaitingForFrame = true;
@@ -56,6 +56,7 @@ export class NetworkManager {
       dt,
       myId,
       isSpectator: myId === "spectator_id",
+      showAllInMainCopy,
       gridSize,
       localInput: input,
       sentTime: performance.now()

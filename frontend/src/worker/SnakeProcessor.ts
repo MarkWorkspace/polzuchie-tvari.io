@@ -24,7 +24,8 @@ function _processSingleSnake(
   nicknames: any[],
   baseHeadRadius: number,
   scoreThicknessScale: number,
-  pitchAngle: number
+  pitchAngle: number,
+  showAllInMainCopy: boolean
 ): void {
   const activePlayerObj: any = { id: playerId, isMe: isSelf, nickname: p.nickname || "Игрок" };
   activePlayers.push(activePlayerObj);
@@ -51,22 +52,26 @@ function _processSingleSnake(
     const camX = camera.localX * gridSize + gridSize / 2;
     const camY = -(camera.localY * gridSize + gridSize / 2);
 
-    let dx = hx - camX;
-    if (dx > mapW_geo / 2) dx -= mapW_geo;
-    else if (dx < -mapW_geo / 2) dx += mapW_geo;
-    hx = camX + dx;
+    if (!showAllInMainCopy) {
+      let dx = hx - camX;
+      if (dx > mapW_geo / 2) dx -= mapW_geo;
+      else if (dx < -mapW_geo / 2) dx += mapW_geo;
+      hx = camX + dx;
 
-    let dy = hy - camY;
-    if (dy > mapH_geo / 2) dy -= mapH_geo;
-    else if (dy < -mapH_geo / 2) dy += mapH_geo;
-    hy = camY + dy;
+      let dy = hy - camY;
+      if (dy > mapH_geo / 2) dy -= mapH_geo;
+      else if (dy < -mapH_geo / 2) dy += mapH_geo;
+      hy = camY + dy;
+    }
 
     const fogAmt = calcFog(hx, hy);
     const headAngle = isSelf ? (camera.localAngle ?? p.angle) : p.angle;
 
+    // Use wrapped hx, hy unless showAllInMainCopy is true (in which case they aren't wrapped anyway)
+    // For self, subPaths[0] is already wrapped, but for others it's not.
     let finalHx = hx;
     let finalHy = hy;
-    if (subPaths.length > 0 && subPaths[0].pointsCount > 0) {
+    if (isSelf && subPaths.length > 0 && subPaths[0].pointsCount > 0) {
       finalHx = subPaths[0].x[0];
       finalHy = subPaths[0].y[0];
     }
@@ -110,7 +115,8 @@ export function processSnakes(
   calcFog: (wx: number, wy: number) => number,
   activePlayers: any[],
   nicknames: any[],
-  fogRadiusWorld: number
+  fogRadiusWorld: number,
+  showAllInMainCopy: boolean
 ): void {
   const baseHeadRadius = state.server_snake?.base_head_radius ?? 0.2;
   const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? 0.0005;
@@ -123,7 +129,7 @@ export function processSnakes(
 
     const isSelf = playerId === myId;
     
-    if (!isSelf) {
+    if (!isSelf && !showAllInMainCopy) {
       const pLength = Math.floor(p.body.length / 2);
       const mapW = state.server_world?.width ?? 100;
       const mapH = state.server_world?.height ?? 100;
@@ -156,7 +162,7 @@ export function processSnakes(
     _processSingleSnake(
       playerId, p, oldP, isSelf, state, progress, gridSize, startLength, camera,
       particles, eyes, bodyBufs, calcFog, activePlayers, nicknames,
-      baseHeadRadius, scoreThicknessScale, pitchAngle
+      baseHeadRadius, scoreThicknessScale, pitchAngle, showAllInMainCopy
     );
   }
 }

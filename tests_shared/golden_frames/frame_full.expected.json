@@ -2,8 +2,8 @@
   "black_holes": [
     {
       "id": "bh_0_1",
-      "kill_radius": 0.05,
-      "pull_radius": 0.32,
+      "kill_radius": 0.03,
+      "pull_radius": 0.43,
       "x": 30.84,
       "y": 63.02
     }
@@ -37,7 +37,7 @@
       "color": "#8b5cf6",
       "id": 4,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 15.79,
       "y": 27.89
     },
@@ -58,10 +58,10 @@
       "y": 11.47
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 7,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 58.86,
       "y": 50.01
     },
@@ -82,10 +82,10 @@
       "y": 21.13
     },
     {
-      "color": "#22c55e",
+      "color": "#ca8a04",
       "id": 10,
-      "image": "melon.svg",
-      "value": 600,
+      "image": "pear.svg",
+      "value": 30,
       "x": 77.53,
       "y": 8.14
     },
@@ -93,7 +93,7 @@
       "color": "#8b5cf6",
       "id": 11,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 62.87,
       "y": 7.24
     },
@@ -117,7 +117,7 @@
       "color": "#8b5cf6",
       "id": 14,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 16.17,
       "y": 22.88
     },
@@ -142,14 +142,14 @@
       "id": 17,
       "image": "cherry.svg",
       "value": 1,
-      "x": 49.31,
-      "y": 50.83
+      "x": 49.62,
+      "y": 50.58
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 18,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 29.42,
       "y": 22.21
     },
@@ -229,7 +229,7 @@
       "color": "#8b5cf6",
       "id": 28,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 37.74,
       "y": 16.81
     },
@@ -250,10 +250,10 @@
       "y": 16.64
     },
     {
-      "color": "#8b5cf6",
+      "color": "#f43f5e",
       "id": 31,
-      "image": "grape.svg",
-      "value": 5,
+      "image": "strawberry.svg",
+      "value": 2,
       "x": 40.21,
       "y": 22.31
     },
@@ -266,10 +266,10 @@
       "y": 56.19
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 33,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 62.24,
       "y": 59.25
     },
@@ -282,10 +282,10 @@
       "y": 29.99
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 35,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 39.49,
       "y": 30.86
     },
@@ -293,7 +293,7 @@
       "color": "#8b5cf6",
       "id": 36,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 83.38,
       "y": 22.03
     },
@@ -309,7 +309,7 @@
       "color": "#8b5cf6",
       "id": 38,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 10.6,
       "y": 64.91
     },
@@ -346,10 +346,10 @@
       "y": 57.06
     },
     {
-      "color": "#f472b6",
+      "color": "#dc2626",
       "id": 43,
-      "image": "peach.svg",
-      "value": 150,
+      "image": "apple.svg",
+      "value": 20,
       "x": 61.13,
       "y": 10.29
     },
@@ -362,10 +362,10 @@
       "y": 66.22
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 45,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 30.34,
       "y": 24.59
     },
@@ -386,10 +386,10 @@
       "y": 49.08
     },
     {
-      "color": "#8b5cf6",
+      "color": "#f43f5e",
       "id": 48,
-      "image": "grape.svg",
-      "value": 5,
+      "image": "strawberry.svg",
+      "value": 2,
       "x": 17.02,
       "y": 31.18
     },
@@ -437,7 +437,7 @@
       "color": "#f97316",
       "id": 54,
       "image": "mandarin.svg",
-      "value": 10,
+      "value": 5,
       "x": 31.86,
       "y": 24.95
     },
@@ -469,15 +469,15 @@
       "color": "#8b5cf6",
       "id": 58,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 9.86,
       "y": 25.0
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 59,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 59.82,
       "y": 61.46
     },
@@ -493,7 +493,7 @@
       "color": "#ea580c",
       "id": 61,
       "image": "persimmon.svg",
-      "value": 20,
+      "value": 12,
       "x": 4.91,
       "y": 36.07
     },
@@ -525,7 +525,7 @@
       "color": "#8b5cf6",
       "id": 65,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 15.34,
       "y": 16.45
     },
@@ -533,7 +533,7 @@
       "color": "#8b5cf6",
       "id": 66,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 30.96,
       "y": 28.8
     },
@@ -546,10 +546,10 @@
       "y": 61.1
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 68,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 78.13,
       "y": 19.36
     },
@@ -562,10 +562,10 @@
       "y": 46.51
     },
     {
-      "color": "#22c55e",
+      "color": "#ca8a04",
       "id": 70,
-      "image": "melon.svg",
-      "value": 600,
+      "image": "pear.svg",
+      "value": 30,
       "x": 71.09,
       "y": 20.8
     },
@@ -613,7 +613,7 @@
       "color": "#f97316",
       "id": 76,
       "image": "mandarin.svg",
-      "value": 10,
+      "value": 5,
       "x": 8.56,
       "y": 32.77
     },
@@ -637,7 +637,7 @@
       "color": "#8b5cf6",
       "id": 79,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 22.22,
       "y": 51.61
     },
@@ -666,10 +666,10 @@
       "y": 18.18
     },
     {
-      "color": "#22c55e",
+      "color": "#ca8a04",
       "id": 83,
-      "image": "melon.svg",
-      "value": 600,
+      "image": "pear.svg",
+      "value": 30,
       "x": 21.99,
       "y": 30.74
     },
@@ -693,7 +693,7 @@
       "color": "#8b5cf6",
       "id": 86,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 65.59,
       "y": 54.77
     },
@@ -701,7 +701,7 @@
       "color": "#8b5cf6",
       "id": 87,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 54.64,
       "y": 40.69
     },
@@ -714,18 +714,18 @@
       "y": 61.04
     },
     {
-      "color": "#8b5cf6",
+      "color": "#f43f5e",
       "id": 89,
-      "image": "grape.svg",
-      "value": 5,
+      "image": "strawberry.svg",
+      "value": 2,
       "x": 68.58,
       "y": 48.63
     },
     {
-      "color": "#f43f5e",
+      "color": "#ef4444",
       "id": 90,
-      "image": "strawberry.svg",
-      "value": 2,
+      "image": "cherry.svg",
+      "value": 1,
       "x": 83.53,
       "y": 13.55
     },
@@ -733,7 +733,7 @@
       "color": "#8b5cf6",
       "id": 91,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 81.07,
       "y": 18.94
     },
@@ -781,7 +781,7 @@
       "color": "#f97316",
       "id": 97,
       "image": "mandarin.svg",
-      "value": 10,
+      "value": 5,
       "x": 53.75,
       "y": 72.99
     },
@@ -789,7 +789,7 @@
       "color": "#8b5cf6",
       "id": 98,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 48.85,
       "y": 27.75
     },
@@ -802,10 +802,10 @@
       "y": 16.45
     },
     {
-      "color": "#ea580c",
+      "color": "#f97316",
       "id": 100,
-      "image": "persimmon.svg",
-      "value": 20,
+      "image": "mandarin.svg",
+      "value": 5,
       "x": 53.34,
       "y": 89.88
     },
@@ -850,10 +850,10 @@
       "y": 7.72
     },
     {
-      "color": "#ca8a04",
+      "color": "#ea580c",
       "id": 106,
-      "image": "pear.svg",
-      "value": 80,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 64.32,
       "y": 10.96
     },
@@ -866,10 +866,10 @@
       "y": 64.54
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 108,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 44.07,
       "y": 9.37
     },
@@ -901,7 +901,7 @@
       "color": "#8b5cf6",
       "id": 112,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 47.74,
       "y": 6.91
     },
@@ -941,15 +941,15 @@
       "color": "#8b5cf6",
       "id": 117,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 42.11,
       "y": 15.76
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 118,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 62.21,
       "y": 59.18
     },
@@ -1018,18 +1018,18 @@
       "y": 24.51
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 127,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 82.58,
       "y": 22.58
     },
     {
-      "color": "#8b5cf6",
+      "color": "#f43f5e",
       "id": 128,
-      "image": "grape.svg",
-      "value": 5,
+      "image": "strawberry.svg",
+      "value": 2,
       "x": 52.41,
       "y": 28.73
     },
@@ -1042,10 +1042,10 @@
       "y": 20.21
     },
     {
-      "color": "#8b5cf6",
+      "color": "#f43f5e",
       "id": 130,
-      "image": "grape.svg",
-      "value": 5,
+      "image": "strawberry.svg",
+      "value": 2,
       "x": 67.42,
       "y": 10.98
     },
@@ -1066,10 +1066,10 @@
       "y": 51.92
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 133,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 30.41,
       "y": 29.0
     },
@@ -1106,10 +1106,10 @@
       "y": 6.78
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 138,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 81.19,
       "y": 19.0
     },
@@ -1130,10 +1130,10 @@
       "y": 20.91
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 141,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 89.19,
       "y": 12.9
     },
@@ -1194,10 +1194,10 @@
       "y": 65.47
     },
     {
-      "color": "#ea580c",
+      "color": "#f97316",
       "id": 149,
-      "image": "persimmon.svg",
-      "value": 20,
+      "image": "mandarin.svg",
+      "value": 5,
       "x": 8.27,
       "y": 21.55
     },
@@ -1221,7 +1221,7 @@
       "color": "#8b5cf6",
       "id": 152,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 65.24,
       "y": 55.6
     },
@@ -1261,7 +1261,7 @@
       "color": "#8b5cf6",
       "id": 157,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 37.74,
       "y": 10.39
     },
@@ -1301,7 +1301,7 @@
       "color": "#8b5cf6",
       "id": 162,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 45.5,
       "y": 8.7
     },
@@ -1314,10 +1314,10 @@
       "y": 49.52
     },
     {
-      "color": "#f43f5e",
+      "color": "#ef4444",
       "id": 164,
-      "image": "strawberry.svg",
-      "value": 2,
+      "image": "cherry.svg",
+      "value": 1,
       "x": 7.89,
       "y": 27.13
     },
@@ -1341,7 +1341,7 @@
       "color": "#8b5cf6",
       "id": 167,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 49.54,
       "y": 4.63
     },
@@ -1405,7 +1405,7 @@
       "color": "#f97316",
       "id": 175,
       "image": "mandarin.svg",
-      "value": 10,
+      "value": 5,
       "x": 59.85,
       "y": 16.67
     },
@@ -1418,10 +1418,10 @@
       "y": 65.91
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 177,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 74.76,
       "y": 17.05
     },
@@ -1437,7 +1437,7 @@
       "color": "#8b5cf6",
       "id": 179,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 67.41,
       "y": 16.48
     },
@@ -1458,10 +1458,10 @@
       "y": 38.7
     },
     {
-      "color": "#f43f5e",
+      "color": "#ef4444",
       "id": 182,
-      "image": "strawberry.svg",
-      "value": 2,
+      "image": "cherry.svg",
+      "value": 1,
       "x": 13.51,
       "y": 43.33
     },
@@ -1485,7 +1485,7 @@
       "color": "#8b5cf6",
       "id": 185,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 77.02,
       "y": 23.55
     },
@@ -1493,15 +1493,15 @@
       "color": "#8b5cf6",
       "id": 186,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 75.92,
       "y": 11.77
     },
     {
-      "color": "#8b5cf6",
+      "color": "#f43f5e",
       "id": 187,
-      "image": "grape.svg",
-      "value": 5,
+      "image": "strawberry.svg",
+      "value": 2,
       "x": 61.43,
       "y": 56.34
     },
@@ -1533,15 +1533,15 @@
       "color": "#8b5cf6",
       "id": 191,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 66.09,
       "y": 52.74
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 192,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 46.9,
       "y": 8.38
     },
@@ -1549,7 +1549,7 @@
       "color": "#8b5cf6",
       "id": 193,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 20.97,
       "y": 24.06
     },
@@ -1570,18 +1570,18 @@
       "y": 7.67
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 196,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 74.53,
       "y": 18.19
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 197,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 77.12,
       "y": 11.27
     },
@@ -1610,10 +1610,10 @@
       "y": 43.19
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 201,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 74.4,
       "y": 59.33
     },
@@ -1621,7 +1621,7 @@
       "color": "#8b5cf6",
       "id": 202,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 48.46,
       "y": 13.37
     },
@@ -1642,10 +1642,10 @@
       "y": 51.92
     },
     {
-      "color": "#f472b6",
+      "color": "#dc2626",
       "id": 205,
-      "image": "peach.svg",
-      "value": 150,
+      "image": "apple.svg",
+      "value": 20,
       "x": 81.77,
       "y": 9.98
     },
@@ -1658,10 +1658,10 @@
       "y": 13.41
     },
     {
-      "color": "#22c55e",
+      "color": "#ca8a04",
       "id": 207,
-      "image": "melon.svg",
-      "value": 600,
+      "image": "pear.svg",
+      "value": 30,
       "x": 89.11,
       "y": 20.51
     },
@@ -1677,7 +1677,7 @@
       "color": "#f97316",
       "id": 209,
       "image": "mandarin.svg",
-      "value": 10,
+      "value": 5,
       "x": 75.13,
       "y": 63.65
     },
@@ -1685,7 +1685,7 @@
       "color": "#8b5cf6",
       "id": 210,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 64.34,
       "y": 15.47
     },
@@ -1693,7 +1693,7 @@
       "color": "#8b5cf6",
       "id": 211,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 61.91,
       "y": 13.46
     },
@@ -1701,7 +1701,7 @@
       "color": "#8b5cf6",
       "id": 212,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 23.42,
       "y": 29.15
     },
@@ -1717,15 +1717,15 @@
       "color": "#8b5cf6",
       "id": 214,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 52.1,
       "y": 45.89
     },
     {
-      "color": "#f472b6",
+      "color": "#dc2626",
       "id": 215,
-      "image": "peach.svg",
-      "value": 150,
+      "image": "apple.svg",
+      "value": 20,
       "x": 65.02,
       "y": 49.28
     },
@@ -1746,10 +1746,10 @@
       "y": 7.71
     },
     {
-      "color": "#8b5cf6",
+      "color": "#f43f5e",
       "id": 218,
-      "image": "grape.svg",
-      "value": 5,
+      "image": "strawberry.svg",
+      "value": 2,
       "x": 37.22,
       "y": 14.34
     },
@@ -1778,10 +1778,10 @@
       "y": 14.43
     },
     {
-      "color": "#ea580c",
+      "color": "#f97316",
       "id": 222,
-      "image": "persimmon.svg",
-      "value": 20,
+      "image": "mandarin.svg",
+      "value": 5,
       "x": 33.88,
       "y": 29.1
     },
@@ -1789,7 +1789,7 @@
       "color": "#8b5cf6",
       "id": 223,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 55.52,
       "y": 58.47
     },
@@ -1802,10 +1802,10 @@
       "y": 33.26
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 225,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 67.79,
       "y": 10.66
     },
@@ -1821,7 +1821,7 @@
       "color": "#8b5cf6",
       "id": 227,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 30.52,
       "y": 53.1
     },
@@ -1869,7 +1869,7 @@
       "color": "#8b5cf6",
       "id": 233,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 34.16,
       "y": 25.91
     },
@@ -1877,7 +1877,7 @@
       "color": "#8b5cf6",
       "id": 234,
       "image": "grape.svg",
-      "value": 5,
+      "value": 3,
       "x": 30.98,
       "y": 35.15
     },
@@ -1906,10 +1906,10 @@
       "y": 21.03
     },
     {
-      "color": "#dc2626",
+      "color": "#ea580c",
       "id": 238,
-      "image": "apple.svg",
-      "value": 40,
+      "image": "persimmon.svg",
+      "value": 12,
       "x": 43.13,
       "y": 14.83
     },
@@ -1930,10 +1930,10 @@
       "y": 8.06
     },
     {
-      "color": "#f97316",
+      "color": "#8b5cf6",
       "id": 241,
-      "image": "mandarin.svg",
-      "value": 10,
+      "image": "grape.svg",
+      "value": 3,
       "x": 59.2,
       "y": 12.5
     },
@@ -2013,8 +2013,8 @@
   "moved_foods": [
     {
       "id": 17,
-      "x": 49.31,
-      "y": 50.83
+      "x": 49.62,
+      "y": 50.58
     }
   ],
   "players": {
@@ -2091,8 +2091,8 @@
   ],
   "server_food": {
     "attraction_radius": 3.0,
-    "attraction_speed": 8.0,
-    "base_radius": 0.2,
+    "attraction_speed": 14.0,
+    "base_radius": 0.1,
     "death_drop_score_fraction": 0.5,
     "radius_value_scale": 0.1,
     "types": [
@@ -2100,66 +2100,66 @@
         "color": "#ef4444",
         "image": "cherry.svg",
         "value": 1,
-        "weight": 50
+        "weight": 500
       },
       {
         "color": "#f43f5e",
         "image": "strawberry.svg",
         "value": 2,
-        "weight": 25
+        "weight": 250
       },
       {
         "color": "#8b5cf6",
         "image": "grape.svg",
-        "value": 5,
-        "weight": 15
+        "value": 3,
+        "weight": 150
       },
       {
         "color": "#f97316",
         "image": "mandarin.svg",
-        "value": 10,
-        "weight": 6
+        "value": 5,
+        "weight": 60
       },
       {
         "color": "#ea580c",
         "image": "persimmon.svg",
-        "value": 20,
-        "weight": 3
+        "value": 12,
+        "weight": 30
       },
       {
         "color": "#dc2626",
         "image": "apple.svg",
-        "value": 40,
-        "weight": 2
+        "value": 20,
+        "weight": 20
       },
       {
         "color": "#ca8a04",
         "image": "pear.svg",
-        "value": 80,
-        "weight": 1
+        "value": 30,
+        "weight": 10
       },
       {
         "color": "#f472b6",
         "image": "peach.svg",
-        "value": 150,
-        "weight": 1
+        "value": 50,
+        "weight": 4
       },
       {
         "color": "#eab308",
         "image": "pineapple.svg",
-        "value": 300,
-        "weight": 1
+        "value": 100,
+        "weight": 3
       },
       {
         "color": "#22c55e",
         "image": "melon.svg",
-        "value": 600,
-        "weight": 1
+        "value": 200,
+        "weight": 2
       },
       {
         "color": "#15803d",
         "image": "watermelon.svg",
-        "value": 1200,
+        "value": 300,
         "weight": 1
       }
     ]
@@ -2174,10 +2174,10 @@
     "turn_radius_thickness_coeff": 1.0
   },
   "server_snake": {
-    "base_head_radius": 0.2,
-    "camera_zoom_out_coeff": 200.0,
-    "growth_score_per_segment": "10.0",
-    "max_growth_score": 5000,
+    "base_head_radius": 0.1,
+    "camera_zoom_out_coeff": 20.0,
+    "growth_score_per_segment": "6 + 0.0047 * s",
+    "max_growth_score": 20000,
     "min_body_length": 9,
     "safe_spawn_distance": 15.0,
     "score_thickness_scale": 0.0,
@@ -2186,22 +2186,22 @@
   },
   "server_tick_rate": 30,
   "server_visual": {
-    "camera_base_zoom": 1.0,
+    "camera_base_zoom": 7.0,
     "camera_pitch_angle": 55.0,
-    "camera_y_offset": 0.25,
+    "camera_y_offset": 0.3,
     "camera_z_height": 0.0,
-    "fog_score_expansion_coeff": 0.5,
+    "fog_score_expansion_coeff": 0.1,
     "head_glow_radius": 3.0,
-    "min_fog_radius": 900.0,
-    "mouse_sensitivity": 1.0
+    "min_fog_radius": 500.0,
+    "mouse_sensitivity": 1.5
   },
   "server_world": {
     "black_holes_count": 2,
     "black_holes_enabled": 1,
     "black_holes_growth_time": 5.0,
-    "black_holes_kill_radius": 1.8,
-    "black_holes_pull_force": 6.0,
-    "black_holes_pull_radius": 12.0,
+    "black_holes_kill_radius": 1.2,
+    "black_holes_pull_force": 1.0,
+    "black_holes_pull_radius": 16.0,
     "black_holes_spawn_chance": 0.5,
     "height": 100,
     "portals_count": 2,
@@ -2209,7 +2209,7 @@
     "portals_growth_time": 3.0,
     "portals_radius": 2.5,
     "portals_spawn_chance": 0.5,
-    "portals_teleport_delay_ms": 1500,
+    "portals_teleport_delay_ms": 2000,
     "width": 100
   },
   "type": "FULL",

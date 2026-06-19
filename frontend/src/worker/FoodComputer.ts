@@ -15,11 +15,14 @@ export function computeFood(
   lastState: GameState | null,
   progress: number,
   myPlayer: any,
+  myHeadX: number,
+  myHeadY: number,
   camX: number,
   camY: number,
   fogRadiusWorld: number,
   dt: number,
   gridSize: number,
+  showAllInMainCopy: boolean,
   tempFoodMatrices: Float32Array,
   tempFoodColors: Float32Array,
   tempFoodImageIndices: Int32Array
@@ -45,18 +48,20 @@ export function computeFood(
     const worldW = mapW * gridSize;
     const worldH = mapH * gridSize;
 
-    let dx = wx - camX;
-    if (dx > worldW / 2) dx -= worldW;
-    else if (dx < -worldW / 2) dx += worldW;
-    wx = camX + dx;
+    if (!showAllInMainCopy) {
+      let dx = wx - camX;
+      if (dx > worldW / 2) dx -= worldW;
+      else if (dx < -worldW / 2) dx += worldW;
+      wx = camX + dx;
 
-    let dy = wy - camY;
-    if (dy > worldH / 2) dy -= worldH;
-    else if (dy < -worldH / 2) dy += worldH;
-    wy = camY + dy;
+      let dy = wy - camY;
+      if (dy > worldH / 2) dy -= worldH;
+      else if (dy < -worldH / 2) dy += worldH;
+      wy = camY + dy;
+    }
 
     const distToCamSq = (wx - camX) ** 2 + (wy - camY) ** 2;
-    if (distToCamSq > (fogRadiusWorld * 1.05) ** 2) {
+    if (!showAllInMainCopy && distToCamSq > (fogRadiusWorld * 1.05) ** 2) {
       continue;
     }
 
@@ -64,7 +69,7 @@ export function computeFood(
     const dist = Math.sqrt(distToCamSq);
 
     const attractionResult = _applyAttractionAndGravity(
-      state, myPlayer, foodRadius, wx, wy, dist, camX, camY, dt, gridSize, mapW, mapH
+      state, myPlayer, myHeadX, myHeadY, foodRadius, wx, wy, dist, dt, gridSize, mapW, mapH
     );
     if (attractionResult === null) {
       continue;
@@ -116,12 +121,12 @@ function _interpolateFoodPosition(food: Food, lastFoodMap: Map<number, Food>, pr
 function _applyAttractionAndGravity(
   state: GameState,
   myPlayer: any,
+  myHeadX: number,
+  myHeadY: number,
   foodRadius: number,
   wx: number,
   wy: number,
   dist: number,
-  camX: number,
-  camY: number,
   dt: number,
   gridSize: number,
   mapW: number,
@@ -140,13 +145,15 @@ function _applyAttractionAndGravity(
     }
 
     const attractionRadius = (state.server_food?.attraction_radius ?? 3.0) * gridSize;
-    if (dist < attractionRadius) {
+    const distToHeadSq = (wx - myHeadX) ** 2 + (wy - myHeadY) ** 2;
+    const distToHead = Math.sqrt(distToHeadSq);
+    if (distToHead < attractionRadius) {
       const attractionSpeed = (state.server_food?.attraction_speed ?? 8.0) * gridSize;
       const pullDist = attractionSpeed * dt;
-      if (dist > 0.1) {
-        const ratio = Math.min(1.0, pullDist / dist);
-        wx -= (wx - camX) * ratio;
-        wy -= (wy - camY) * ratio;
+      if (distToHead > 0.1) {
+        const ratio = Math.min(1.0, pullDist / distToHead);
+        wx -= (wx - myHeadX) * ratio;
+        wy -= (wy - myHeadY) * ratio;
       }
     }
   }

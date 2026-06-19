@@ -113,7 +113,7 @@ function _handleRequestFrame(msg: any) {
     return;
   }
 
-  const { dt, localInput, gridSize, isSpectator } = msg;
+  const { dt, localInput, gridSize, isSpectator, showAllInMainCopy } = msg;
   const tickRate = currentGameState?.server_simulation?.tick_rate ?? 30;
 
   const interpolated = interpolator.interpolate(dt, tickRate);
@@ -125,7 +125,7 @@ function _handleRequestFrame(msg: any) {
   const { state, lastState, progress } = interpolated;
   try {
     const frame = computeFrame(
-      dt, localInput, gridSize, state, lastState, progress, myId, isSpectator, camera, particles, eyes, accumulatedKillEvents,
+      dt, localInput, gridSize, state, lastState, progress, myId, isSpectator, showAllInMainCopy, camera, particles, eyes, accumulatedKillEvents,
       bodyBufs, tempFoodMatrices, tempFoodColors, tempFoodImageIndices
     );
 

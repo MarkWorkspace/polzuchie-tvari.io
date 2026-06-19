@@ -1,11 +1,10 @@
 import os
 import asyncio
 import hmac
-import msgpack
-import math
-import random
 import zlib
 from fastapi import Header, HTTPException, Response, Cookie, Request
+
+from app.engine.systems import snake_pb2
 
 from app.engine.entities import Food
 from app.api.websocket import (

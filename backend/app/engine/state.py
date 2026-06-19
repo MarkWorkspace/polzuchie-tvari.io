@@ -2,9 +2,6 @@
 import os
 import json
 import math
-import random
-import threading
-import msgpack
 from collections import defaultdict
 
 from game_config import GameConfig, validate_growth_formula, CELL_SIZE

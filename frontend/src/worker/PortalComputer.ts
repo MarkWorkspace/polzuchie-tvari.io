@@ -20,6 +20,7 @@ export function computePortals(
   camY: number,
   fogRadiusWorld: number,
   gridSize: number,
+  showAllInMainCopy: boolean,
   calcFogAmount: (wx: number, wy: number) => number,
   fogR: number,
   fogG: number,
@@ -45,34 +46,38 @@ export function computePortals(
       let wx1 = p.x1 * gridSize;
       let wy1 = -p.y1 * gridSize;
 
-      let dx1 = wx1 - camX;
-      if (dx1 > worldW / 2) dx1 -= worldW;
-      else if (dx1 < -worldW / 2) dx1 += worldW;
-      wx1 = camX + dx1;
+      if (!showAllInMainCopy) {
+        let dx1 = wx1 - camX;
+        if (dx1 > worldW / 2) dx1 -= worldW;
+        else if (dx1 < -worldW / 2) dx1 += worldW;
+        wx1 = camX + dx1;
 
-      let dy1 = wy1 - camY;
-      if (dy1 > worldH / 2) dy1 -= worldH;
-      else if (dy1 < -worldH / 2) dy1 += worldH;
-      wy1 = camY + dy1;
+        let dy1 = wy1 - camY;
+        if (dy1 > worldH / 2) dy1 -= worldH;
+        else if (dy1 < -worldH / 2) dy1 += worldH;
+        wy1 = camY + dy1;
+      }
 
-      if ((wx1 - camX) ** 2 + (wy1 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
+      if (showAllInMainCopy || (wx1 - camX) ** 2 + (wy1 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
         visiblePortals.push({ wx: wx1, wy: wy1, r: radius, color });
       }
 
       let wx2 = p.x2 * gridSize;
       let wy2 = -p.y2 * gridSize;
 
-      let dx2 = wx2 - camX;
-      if (dx2 > worldW / 2) dx2 -= worldW;
-      else if (dx2 < -worldW / 2) dx2 += worldW;
-      wx2 = camX + dx2;
+      if (!showAllInMainCopy) {
+        let dx2 = wx2 - camX;
+        if (dx2 > worldW / 2) dx2 -= worldW;
+        else if (dx2 < -worldW / 2) dx2 += worldW;
+        wx2 = camX + dx2;
 
-      let dy2 = wy2 - camY;
-      if (dy2 > worldH / 2) dy2 -= worldH;
-      else if (dy2 < -worldH / 2) dy2 += worldH;
-      wy2 = camY + dy2;
+        let dy2 = wy2 - camY;
+        if (dy2 > worldH / 2) dy2 -= worldH;
+        else if (dy2 < -worldH / 2) dy2 += worldH;
+        wy2 = camY + dy2;
+      }
 
-      if ((wx2 - camX) ** 2 + (wy2 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
+      if (showAllInMainCopy || (wx2 - camX) ** 2 + (wy2 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
         visiblePortals.push({ wx: wx2, wy: wy2, r: radius, color });
       }
     }

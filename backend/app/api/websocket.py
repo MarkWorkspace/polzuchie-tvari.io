@@ -100,6 +100,10 @@ async def _handle_reconnection(
         world.client_visibility[client_id] = set()
         world.reset_player_input(client_id)
         world.input_queue = [item for item in world.input_queue if item[0] != client_id]
+        if role == "spectator":
+            world.spectators.add(client_id)
+        else:
+            world.spectators.discard(client_id)
     else:
         if role == "spectator":
             world.spectators.add(client_id)

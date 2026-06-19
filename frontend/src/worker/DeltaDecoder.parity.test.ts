@@ -92,4 +92,27 @@ describe("Frame parity (golden fixtures)", () => {
 
     expect(state.server_tick_rate).toBe(expected["server_tick_rate"]);
   });
+
+  it("clears portals, black holes, and tombstones when they are undefined in the delta payload", () => {
+    const prevState = {
+      server_tick_rate: 30,
+      players: {},
+      foods: [],
+      portals: [{ id: "p1" }],
+      black_holes: [{ id: "bh1" }],
+      tombstones: [{ id: "t1" }]
+    } as any;
+
+    const deltaPayload = {
+      players: {},
+      eaten_foods: [],
+      moved_foods: [],
+      new_foods: []
+    } as any;
+
+    const state = decodeDeltaState(deltaPayload, prevState, MAP_W, MAP_H);
+    expect(state.portals).toEqual([]);
+    expect(state.black_holes).toEqual([]);
+    expect(state.tombstones).toEqual([]);
+  });
 });

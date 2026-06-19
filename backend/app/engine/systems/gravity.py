@@ -38,18 +38,18 @@ def _pull_and_consume_food(state, tick_interval: float) -> None:
     grid_width_cells = max(1, math.ceil(state.grid_width / CELL_SIZE))
     grid_height_cells = max(1, math.ceil(state.grid_height / CELL_SIZE))
 
-    food_grid = getattr(state, "food_grid", {})
+    spatial_grid = getattr(state, "spatial_grid", {})
 
     for bh in state.bh_manager.black_hole_slots:
         if bh is None or bh.state == "dead" or bh.current_scale <= 0.01:
             continue
         _pull_food_for_black_hole(
-            state, bh, food_grid, grid_width_cells, grid_height_cells, tick_interval
+            state, bh, spatial_grid, grid_width_cells, grid_height_cells, tick_interval
         )
 
 
 def _pull_food_for_black_hole(
-    state, bh, food_grid: dict, grid_w: int, grid_h: int, tick_interval: float
+    state, bh, spatial_grid: dict, grid_w: int, grid_h: int, tick_interval: float
 ) -> None:
     eff_pull_radius = bh.pull_radius * bh.current_scale
     eff_kill_radius = bh.kill_radius * bh.current_scale
@@ -60,9 +60,9 @@ def _pull_food_for_black_hole(
     for dx in range(-radius_cells, radius_cells + 1):
         for dy in range(-radius_cells, radius_cells + 1):
             cell = ((bh_grid_x + dx) % grid_w, (bh_grid_y + dy) % grid_h)
-            if cell not in food_grid:
+            if cell not in spatial_grid:
                 continue
-            for f in food_grid[cell]:
+            for f in spatial_grid[cell]["foods"]:
                 if f.eaten:
                     continue
                 _apply_bh_pull_on_single_food(

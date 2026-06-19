@@ -2,8 +2,8 @@
   "black_holes": [
     {
       "id": "bh_0_1",
-      "kill_radius": 0.07,
-      "pull_radius": 0.48,
+      "kill_radius": 0.05,
+      "pull_radius": 0.64,
       "x": 30.84,
       "y": 63.02
     }
@@ -11,8 +11,8 @@
   "moved_foods": [
     {
       "id": 17,
-      "x": 49.54,
-      "y": 50.69
+      "x": 50.02,
+      "y": 50.34
     }
   ],
   "players": {

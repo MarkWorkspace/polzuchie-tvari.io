@@ -187,7 +187,7 @@ def _assemble_entities(frame, state, client_id):
     frame.eaten_foods.extend(state.food_manager.eaten_foods)
 
     moved_foods_list = list(state.food_manager.moved_foods.values())
-    if client_id and client_id in state.players:
+    if client_id and client_id in state.players and client_id not in state.spectators:
         moved_foods_list = _filter_moved_foods(state, state.players[client_id], moved_foods_list)
     for mf in moved_foods_list:
         mf_msg = frame.moved_foods.add()

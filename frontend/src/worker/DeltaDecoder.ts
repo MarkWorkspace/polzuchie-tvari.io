@@ -203,8 +203,8 @@ export function decodeDeltaState(
     server_food: parsedState.server_food ?? currentGameState.server_food,
     players: nextPlayers,
     foods: nextFoods,
-    portals: parsedState.portals ?? currentGameState.portals,
-    black_holes: parsedState.black_holes ?? currentGameState.black_holes,
-    tombstones: parsedState.tombstones ?? currentGameState.tombstones ?? []
+    portals: parsedState.portals ?? [],
+    black_holes: parsedState.black_holes ?? [],
+    tombstones: parsedState.tombstones ?? []
   };
 }

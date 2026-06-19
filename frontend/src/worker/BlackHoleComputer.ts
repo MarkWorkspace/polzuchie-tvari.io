@@ -17,7 +17,8 @@ export function computeBlackHoles(
   camX: number,
   camY: number,
   fogRadiusWorld: number,
-  gridSize: number
+  gridSize: number,
+  showAllInMainCopy: boolean
 ): BlackHoleBuffers {
   const blackHoles = state.black_holes || [];
   const lastBhMap = _buildLastBhMap(lastState);
@@ -47,17 +48,19 @@ export function computeBlackHoles(
       let wx = bh.x * gridSize;
       let wy = -bh.y * gridSize;
 
-      let dx = wx - camX;
-      if (dx > worldW / 2) dx -= worldW;
-      else if (dx < -worldW / 2) dx += worldW;
-      wx = camX + dx;
+      if (!showAllInMainCopy) {
+        let dx = wx - camX;
+        if (dx > worldW / 2) dx -= worldW;
+        else if (dx < -worldW / 2) dx += worldW;
+        wx = camX + dx;
 
-      let dy = wy - camY;
-      if (dy > worldH / 2) dy -= worldH;
-      else if (dy < -worldH / 2) dy += worldH;
-      wy = camY + dy;
+        let dy = wy - camY;
+        if (dy > worldH / 2) dy -= worldH;
+        else if (dy < -worldH / 2) dy += worldH;
+        wy = camY + dy;
+      }
 
-      if ((wx - camX) ** 2 + (wy - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
+      if (showAllInMainCopy || (wx - camX) ** 2 + (wy - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
         visibleBlackHoles.push({ wx, wy, pullRadius, killRadius });
       }
     }
