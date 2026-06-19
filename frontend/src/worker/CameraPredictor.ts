@@ -1,13 +1,12 @@
 // ROLE: Клиентское предсказание позиции камеры.
 
 import type { GameState } from "../types/game";
-import { frameSmoothing, toroidalLerp } from "./shared/MathUtils";
+import { toroidalLerp } from "./shared/MathUtils";
 
 export class CameraPredictor {
   public localAngle = 0.0;
   public localX = 0.0;
   public localY = 0.0;
-  public localCurrentTurn = 0.0;
   public currentZoomOffset = 0.0;
   public myVisualOffsetX = 0.0;
   public myVisualOffsetY = 0.0;
@@ -17,7 +16,6 @@ export class CameraPredictor {
     this.localAngle = 0.0;
     this.localX = 0.0;
     this.localY = 0.0;
-    this.localCurrentTurn = 0.0;
     this.currentZoomOffset = 0.0;
     this.myVisualOffsetX = 0.0;
     this.myVisualOffsetY = 0.0;
@@ -60,8 +58,7 @@ export class CameraPredictor {
       };
     }
 
-    const tickRate = state.server_simulation?.tick_rate ?? 30;
-    this._predictAngle(dt, myPlayer, localInput, state, tickRate, mapW, mapH);
+    this._interpolateAngle(myPlayer, lastState, myId, progress, mapW, mapH);
     this._predictPosition(dt, myId, myPlayer, localInput, state, lastState, progress, mapW, mapH);
 
     // Apply wrap corrections
@@ -77,93 +74,72 @@ export class CameraPredictor {
     };
   }
 
-  private _predictAngle(
-    dt: number,
+  private _interpolateAngle(
     myPlayer: any,
-    localInput: any,
-    state: GameState,
-    tickRate: number,
+    lastState: GameState | null,
+    myId: string,
+    progress: number,
     mapW: number,
     mapH: number
   ) {
-    const baseHeadRadius = state.server_snake?.base_head_radius ?? 0.2;
-    const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? 0.0005;
-    const startLength = state.server_snake?.start_length ?? 5;
-    const myLength = myPlayer.body ? Math.floor(myPlayer.body.length / 2) : startLength;
-    const myGained = Math.max(0, myLength - startLength);
+    const lastPlayer = lastState?.players[myId];
 
-    const minTurnRadius = state.server_simulation?.min_turn_radius ?? 0.5;
-    const turnCoeff = state.server_simulation?.turn_radius_thickness_coeff ?? 1.0;
-    const maxTurnSpeed = state.server_simulation?.max_turn_speed_deg_per_second ?? 290.0;
-    const baseSpeed = state.server_simulation?.base_speed_per_second ?? 6.0;
-
-    const myHeadRadius = baseHeadRadius + (myGained * 10.0) * scoreThicknessScale;
-    const effRadius = minTurnRadius + myHeadRadius * turnCoeff;
-    const maxTurn = baseSpeed / Math.max(effRadius, 0.01);
-    const turnPerTick = Math.min(maxTurnSpeed * Math.PI / 180, maxTurn) / tickRate;
-
-    if (!myPlayer.teleport_state || myPlayer.teleport_state === "none" || myPlayer.teleport_state === "exiting") {
-      const targetTurn = localInput.turn * turnPerTick;
-      if (localInput.mode === "mouse" || localInput.mode === "tilt") {
-        this.localCurrentTurn = targetTurn;
-      } else {
-        const smoothing = localInput.turn === 0 ? (state.server_simulation?.turn_idle_smoothing_at_20hz ?? 0.3) : (state.server_simulation?.turn_active_smoothing_at_20hz ?? 0.15);
-        this.localCurrentTurn += (targetTurn - this.localCurrentTurn) * frameSmoothing(smoothing, dt);
-      }
-      this.localAngle += this.localCurrentTurn * dt * tickRate;
-    } else {
-      this.localCurrentTurn = 0.0;
+    if (!lastPlayer || lastPlayer.is_dead || !lastPlayer.body || lastPlayer.body.length < 4 || !myPlayer.body || myPlayer.body.length < 4) {
+      this.localAngle = myPlayer.angle;
+      return;
     }
 
-    this._applyGravityBending(dt, myPlayer, state, mapW, mapH);
+    // Interpolate head position (segment 0)
+    const bx0 = myPlayer.body[0];
+    const by0 = myPlayer.body[1];
+    const ox0 = lastPlayer.body[0];
+    const oy0 = lastPlayer.body[1];
 
-    // 3. Blend local angle slightly towards server angle to correct drift.
-    // If we are actively steering, use a very weak blend factor to prevent fighting 
-    // the 30Hz server updates (which causes judder on 144Hz monitors).
-    const angleDiff = Math.atan2(Math.sin(myPlayer.angle - this.localAngle), Math.cos(myPlayer.angle - this.localAngle));
-    if (Math.abs(angleDiff) > Math.PI / 2) {
-      this.localAngle += angleDiff;
-    } else {
-      const isActivelyTurning = Math.abs(this.localCurrentTurn) > 0.001;
-      const blendFactor = isActivelyTurning ? 0.01 : 0.1;
-      this.localAngle += angleDiff * blendFactor;
+    const dx0 = bx0 - ox0;
+    const dy0 = by0 - oy0;
+    const isTeleportHead = (dx0 * dx0 + dy0 * dy0) > 36.0;
+
+    // Interpolate neck position (segment 1)
+    const bx1 = myPlayer.body[2];
+    const by1 = myPlayer.body[3];
+    const ox1 = lastPlayer.body[2];
+    const oy1 = lastPlayer.body[3];
+
+    const dx1 = bx1 - ox1;
+    const dy1 = by1 - oy1;
+    const isTeleportNeck = (dx1 * dx1 + dy1 * dy1) > 36.0;
+
+    if (isTeleportHead || isTeleportNeck) {
+      this.localAngle = myPlayer.angle;
+      return;
     }
+
+    const x0 = toroidalLerp(ox0, bx0, progress, mapW);
+    const y0 = toroidalLerp(oy0, by0, progress, mapH);
+    const x1 = toroidalLerp(ox1, bx1, progress, mapW);
+    const y1 = toroidalLerp(oy1, by1, progress, mapH);
+
+    let dx = x0 - x1;
+    let dy = y0 - y1;
+
+    // Toroidal correction for displacement vector
+    if (dx > mapW / 2) dx -= mapW;
+    else if (dx < -mapW / 2) dx += mapW;
+
+    if (dy > mapH / 2) dy -= mapH;
+    else if (dy < -mapH / 2) dy += mapH;
+
+    // Convert to visual coordinates (where Y is negated) and compute angle
+    const visualDx = dx;
+    const visualDy = -dy;
+
+    const visAngle = Math.atan2(visualDy, visualDx);
+
+    // Server angle space is negated visual angle
+    this.localAngle = -visAngle;
   }
 
-  private _applyGravityBending(dt: number, myPlayer: any, state: GameState, mapW: number, mapH: number) {
-    if (state.server_world?.black_holes_enabled === 0 || !state.black_holes || !myPlayer.body) return;
-    const headX = myPlayer.body[0];
-    const headY = myPlayer.body[1];
-    let gravityBend = 0.0;
 
-    for (let i = 0; i < state.black_holes.length; i++) {
-      const bh = state.black_holes[i];
-      if (!bh || bh.state === "dead" || (bh.current_scale ?? 1.0) <= 0.01) continue;
-
-      let bhDx = bh.x - headX;
-      if (bhDx > mapW / 2) bhDx -= mapW;
-      else if (bhDx < -mapW / 2) bhDx += mapW;
-
-      let bhDy = bh.y - headY;
-      if (bhDy > mapH / 2) bhDy -= mapH;
-      else if (bhDy < -mapH / 2) bhDy += mapH;
-
-      const dist = Math.sqrt(bhDx * bhDx + bhDy * bhDy);
-      const effPullRadius = bh.pull_radius * (bh.current_scale ?? 1.0);
-
-      if (dist > 0.001 && dist < effPullRadius) {
-        const pullDistFactor = (effPullRadius - dist) / effPullRadius;
-        const targetAngle = Math.atan2(bhDy, bhDx);
-        const angleDiffBend = Math.atan2(Math.sin(targetAngle - this.localAngle), Math.cos(targetAngle - this.localAngle));
-
-        const pullForce = state.server_world?.black_holes_pull_force ?? 6.0;
-        const bendSpeed = pullForce * (bh.current_scale ?? 1.0) * pullDistFactor * 5.0 * dt;
-
-        gravityBend += angleDiffBend > 0 ? Math.min(angleDiffBend, bendSpeed) : Math.max(angleDiffBend, -bendSpeed);
-      }
-    }
-    this.localAngle += gravityBend;
-  }
 
   private _predictPosition(
     dt: number,

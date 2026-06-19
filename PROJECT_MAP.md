@@ -146,6 +146,7 @@ backend/tests/
 ├── test_formula_parser.py              # ROLE: Тесты парсера формул роста.
 ├── test_frame_parity.py                # ROLE: Round-trip parity-тест сетевого кадра. Кодирует → декодирует → сравнивает с .expected.json.
 ├── test_gravity.py                     # ROLE: Тестирование системы гравитации (притяжения еды).
+├── test_gravity_once_per_tick.py        # ROLE: Тест: гравитация чёрных дыр применяется к углу змейки ровно один раз за тик.
 ├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
 ├── test_math_parity.py                 # ROLE: Parity-тест тороидальной математики. Сверяет Python с golden vectors.
 ├── test_physics.py                     # ROLE: Тесты физики движения.

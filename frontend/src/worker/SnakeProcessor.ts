@@ -65,7 +65,13 @@ function _processSingleSnake(
     }
 
     const fogAmt = calcFog(hx, hy);
-    const headAngle = isSelf ? (camera.localAngle ?? p.angle) : p.angle;
+    // Derive head angle from spline geometry to stay in sync with body mesh
+    let headAngle = p.angle;
+    if (subPaths[0].pointsCount >= 2) {
+      const dx = subPaths[0].x[0] - subPaths[0].x[1];
+      const dy = subPaths[0].y[0] - subPaths[0].y[1];
+      headAngle = -Math.atan2(dy, dx);
+    }
 
     // Use wrapped hx, hy unless showAllInMainCopy is true (in which case they aren't wrapped anyway)
     // For self, subPaths[0] is already wrapped, but for others it's not.

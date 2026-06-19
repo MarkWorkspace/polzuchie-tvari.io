@@ -80,13 +80,6 @@ def _step_player_physics(
     base_speed: float,
 ) -> None:
 
-    # Apply gravity bend from black holes
-    if player.body_len > 0:
-        bend_angle = state.bh_manager.get_gravity_bend(
-            {"x": player.head_x, "y": player.head_y}, player.angle, state.tick_interval
-        )
-        player.angle += bend_angle
-
     # Basic movement
     if player.teleport_state == "none" and player.body_len > 0:
         dx = math.cos(player.angle) * base_speed
