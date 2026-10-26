@@ -47,7 +47,7 @@ def _check_collision_for_player(
             )
             if cell not in state.spatial_grid:
                 continue
-                
+
             cell_data = state.spatial_grid[cell]
             # Check players and tombstones
             for other_pid, seg_x, seg_y, other_radius in cell_data["players"] + cell_data["tombstones"]:
@@ -62,6 +62,8 @@ def _check_collision_for_player(
 
 
 def _process_player_death(state, pid: str, player, killer_pid: str | None) -> None:
+    if player.is_dead:
+        return
     if killer_pid and killer_pid in state.players:
         state.players[killer_pid].kills += 1
     player.deaths += 1
@@ -91,13 +93,25 @@ def _process_player_death(state, pid: str, player, killer_pid: str | None) -> No
         )
 
     player.is_dead = True
+    player.accelerating = False
+    player.turn = 0
+    player.current_turn = 0.0
+    player.speed_mult = 1.0
+    player.pending_steps = 0.0
+    player.teleport_state = "none"
+    player.teleport_pos = None
+    player.teleport_out_pos = None
+    player.teleport_timer = 0.0
+    player.teleport_delay = 0.0
+    player.last_portal_exited = None
+    player.new_heads_this_tick = []
     player.body.clear()
 
 
 class CollisionSystem:
     name = "collision"
     order = 20
-    
+
     def update(self, world):
         check(world)
 

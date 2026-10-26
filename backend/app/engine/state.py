@@ -2,7 +2,6 @@
 import os
 import json
 import math
-from collections import defaultdict
 
 from game_config import GameConfig, validate_growth_formula, CELL_SIZE
 from app.engine.entities import Player
@@ -37,32 +36,29 @@ class World:
         self.grid_width = self.config.world.width
         self.grid_height = self.config.world.height
         self.target_food_count = self.config.world.target_food_count
+        self._recompute_grid_cells()
 
-        self._max_player_body_len = 1
-        self._grid_width_cells = int(math.ceil(self.grid_width / CELL_SIZE))
-        self._grid_height_cells = int(math.ceil(self.grid_height / CELL_SIZE))
-        self.full_players_dict = {}
-        self.mini_players_dict = {}
-        self.full_players_packed = {}
-        self.mini_players_packed = {}
-
-
-        self.collision_grid = defaultdict(list)
+        self.full_players_cache = {}
+        self.mini_players_cache = {}
         self.kill_events = []
         self.tombstones = []
+        self.spatial_grid = {}
 
         self.events = EventBus()
         self.food_manager = FoodManager(self)
         self.portal_manager = PortalManager(self)
         self.bh_manager = BlackHoleManager(self, self.portal_manager)
-        
+
         self.portal_manager.update_slots(force_roll=True)
         self.bh_manager.update_slots(force_roll=True)
 
-        self._cached_config_dict = self.config.to_dict()
         self._config_updated_this_tick = False
         self._config_broadcast_needed = False
         self.input_queue = []
+
+    def _recompute_grid_cells(self):
+        self._grid_width_cells = max(1, int(math.ceil(self.grid_width / CELL_SIZE)))
+        self._grid_height_cells = max(1, int(math.ceil(self.grid_height / CELL_SIZE)))
 
     @property
     def tick_interval(self):
@@ -168,7 +164,6 @@ class World:
 
         self.config.apply_patch(patch)
         self._update_compiled_formulas()
-        self._cached_config_dict = self.config.to_dict()
         self._config_updated_this_tick = True
 
         for p in self.players.values():
@@ -178,6 +173,9 @@ class World:
         self.grid_width = self.config.world.width
         self.grid_height = self.config.world.height
         self.target_food_count = self.config.world.target_food_count
+        size_changed = old_width != self.grid_width or old_height != self.grid_height
+        self._recompute_grid_cells()
+        self.spatial_grid = {}
 
         self.food_manager.on_grid_resize(old_width, old_height, old_cluster_count)
 
@@ -186,7 +184,7 @@ class World:
             or "portals_count" in patch["world"]
             or "portals_radius" in patch["world"]
         )
-        if portals_changed:
+        if portals_changed or size_changed:
             self.portal_manager.update_slots(force_roll=True)
 
         black_holes_changed = "world" in patch and (
@@ -195,12 +193,13 @@ class World:
             or "black_holes_pull_radius" in patch["world"]
             or "black_holes_kill_radius" in patch["world"]
         )
-        if black_holes_changed:
-            self.bh_manager.update_slots()
+        if black_holes_changed or size_changed:
+            self.bh_manager.update_slots(force_roll=size_changed)
 
         return self.get_config()
 
     def add_player(self, player_id, nickname="Игрок", skin="#22c55e"):
+        self.spectators.discard(player_id)
         start_x, start_y = self.food_manager.get_safe_spawn_location()
         self.players[player_id] = Player(
             player_id, start_x, start_y, self.config, nickname, skin
@@ -323,17 +322,22 @@ class World:
 
     def reset_state(self):
         self.players.clear()
+        self.spectators.clear()
         self.client_visibility.clear()
         self.kill_events.clear()
+        self.tombstones.clear()
+        self.input_queue.clear()
+        self.full_players_cache.clear()
+        self.mini_players_cache.clear()
+        self.spatial_grid = {}
 
-        self.full_players_dict.clear()
-        self.mini_players_dict.clear()
-        self.collision_grid.clear()
-        self._max_player_body_len = 1
+        self.grid_width = self.config.world.width
+        self.grid_height = self.config.world.height
+        self.target_food_count = self.config.world.target_food_count
+        self._recompute_grid_cells()
 
         self.food_manager.clear()
         self.portal_manager.update_slots(force_roll=True)
         self.bh_manager.update_slots(force_roll=True)
-
-
-
+        self._config_updated_this_tick = False
+        self._config_broadcast_needed = False

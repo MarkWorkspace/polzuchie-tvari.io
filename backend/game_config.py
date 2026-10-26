@@ -390,7 +390,7 @@ def validate_growth_formula(formula_str: str) -> None:
                 raise ValueError(
                     f"Unary operator '{type(node.op).__name__}' is not allowed"
                 )
-        elif isinstance(node, (ast.Num, ast.Constant)):
+        elif isinstance(node, ast.Constant):
             continue
         elif isinstance(node, ast.Name):
             if node.id not in allowed_names and node.id not in allowed_funcs:

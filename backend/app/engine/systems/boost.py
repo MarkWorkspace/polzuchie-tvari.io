@@ -11,6 +11,10 @@ def update(state) -> None:
     boost_cfg = state.config.boost
 
     for player in state.players.values():
+        if player.is_dead:
+            player.speed_mult = 1.0
+            player.boost_drop = 0.0
+            continue
         is_accelerating = player.is_accelerating_valid
         player.speed_mult = boost_cfg.speed_multiplier if is_accelerating else 1.0
 
@@ -38,7 +42,7 @@ def _apply_boost_drain(state, player, tick_interval: float, boost_cfg) -> None:
 class BoostSystem:
     name = "boost"
     order = 60
-    
+
     def update(self, world):
         update(world)
 

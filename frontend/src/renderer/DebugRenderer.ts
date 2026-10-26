@@ -65,7 +65,7 @@ export class DebugRenderer {
     const geom = new THREE.BufferGeometry();
     geom.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
     const mat = new THREE.LineBasicMaterial({ color: 0x22c55e, opacity: 0.35, transparent: true });
-    
+
     this.gridMesh = new THREE.LineSegments(geom, mat);
     RenderConfig.configureMesh(this.gridMesh, RenderLayer.DebugGrid);
     this.scene.add(this.gridMesh);
@@ -85,7 +85,7 @@ export class DebugRenderer {
 
       const isSelf = pid === msg.myId;
       const activePlayer = msg.activePlayers?.find((p: any) => p.id === pid);
-      
+
       let hx: number;
       let hy: number;
       let radius: number;
@@ -112,6 +112,7 @@ export class DebugRenderer {
     hx: number, hy: number, radius: number, angle: number,
     isSelf: boolean, vertices: number[], colors: number[]
   ): void {
+    if (![hx, hy, radius, angle].every(Number.isFinite) || radius <= 0) return;
     const zOffset = 3.0;
     const segments = 16;
 

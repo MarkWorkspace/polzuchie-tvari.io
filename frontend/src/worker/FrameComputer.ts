@@ -9,6 +9,7 @@ import { type GeometryBuffers } from "./MeshBuilder";
 import { EyeComputer } from "./EyeComputer";
 import { ParticleComputer } from "./ParticleComputer";
 import { parseColor } from "./shared/ColorUtils";
+import { computeFogRadiusWorld } from "./shared/PlayerMetrics";
 import { processSnakes } from "./SnakeProcessor";
 import { GrowableFloat32Array } from "./shared/GrowableArray";
 
@@ -21,14 +22,12 @@ export interface FrameResult {
   transferables: ArrayBuffer[];
 }
 
-function _calcFogRadius(state: GameState, myPlayer: any, startLength: number, isSpectator: boolean): number {
-  if (isSpectator || myPlayer?.is_dead) {
-    return 1000000.0; // Infinite fog for spectators and dead players
-  }
-  const myLength = myPlayer && myPlayer.body ? myPlayer.body.length : startLength;
-  const minFog = state.server_visual?.min_fog_radius ?? 900.0;
-  const fogExpansion = state.server_visual?.fog_score_expansion_coeff ?? 0.5;
-  return minFog + (Math.max(0, myLength - startLength) * 10.0) * fogExpansion;
+function _calcFogRadius(state: GameState, myPlayer: any, isSpectator: boolean): number {
+  return computeFogRadiusWorld(
+    state,
+    myPlayer?.body,
+    isSpectator || !!myPlayer?.is_dead
+  );
 }
 
 function _buildLeaderboard(state: GameState, myId: string): any[] {
@@ -199,7 +198,8 @@ export function computeFrame(
   const cam = camera.predict(dt, myId, localInput, state, lastState, progress, gridSize);
   const myPlayer = state.players[myId];
   const startLength = state.server_snake?.start_length ?? 5;
-  const fogRadiusWorld = _calcFogRadius(state, myPlayer, startLength, isSpectator);
+  const fogRadiusWorld = _calcFogRadius(state, myPlayer, isSpectator);
+  const wrapAll = showAllInMainCopy || isSpectator;
 
   const calcFog = (wx: number, wy: number) => {
     const dist = Math.sqrt((wx - cam.camX) ** 2 + (wy - cam.camY) ** 2);
@@ -216,12 +216,12 @@ export function computeFrame(
   }
 
   const foodCount = computeFood(
-    state, lastState, progress, myPlayer, myHeadX, myHeadY, cam.camX, cam.camY, fogRadiusWorld, dt, gridSize, showAllInMainCopy,
+    state, lastState, progress, myPlayer, myHeadX, myHeadY, cam.camX, cam.camY, fogRadiusWorld, dt, gridSize, wrapAll,
     tempFoodMatrices, tempFoodColors, tempFoodImageIndices
   );
 
-  const portals = computePortals(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, showAllInMainCopy, calcFog, FOG_R, FOG_G, FOG_B);
-  const blackHoles = computeBlackHoles(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, showAllInMainCopy);
+  const portals = computePortals(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, wrapAll, calcFog, FOG_R, FOG_G, FOG_B);
+  const blackHoles = computeBlackHoles(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, wrapAll);
 
   // Clear geometries
   bodyBufs.vertices.reset(); bodyBufs.uvs.reset(); bodyBufs.colors.reset(); bodyBufs.params.reset(); bodyBufs.indices.reset();
@@ -229,7 +229,7 @@ export function computeFrame(
 
   const activePlayers: any[] = [];
   const nicknames: any[] = [];
-  processSnakes(state, lastState, progress, myId, gridSize, startLength, camera, particles, eyes, bodyBufs, calcFog, activePlayers, nicknames, fogRadiusWorld, showAllInMainCopy);
+  processSnakes(state, lastState, progress, myId, gridSize, startLength, camera, particles, eyes, bodyBufs, calcFog, activePlayers, nicknames, fogRadiusWorld, wrapAll);
 
   particles.update(dt);
   const partBufs = particles.buildBuffers(FOG_R, FOG_G, FOG_B, calcFog);

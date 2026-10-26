@@ -1,6 +1,28 @@
 // ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
 import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
 
+export function getPlayerHead(player: any): { x: number; y: number } | null {
+  if (!player) return null;
+  if (typeof player.head_x === "number" && typeof player.head_y === "number") {
+    return { x: player.head_x, y: player.head_y };
+  }
+  const body = player.body;
+  if (!Array.isArray(body) || body.length === 0) return null;
+  if (typeof body[0] === "number" && typeof body[1] === "number") {
+    return { x: body[0], y: body[1] };
+  }
+  if (body[0] && typeof body[0] === "object") {
+    return { x: body[0].x, y: body[0].y };
+  }
+  return null;
+}
+
+export function getPlayerDotColor(skin: string | undefined): string {
+  if (skin === "zebra") return "#e2e8f0";
+  if (skin && /^#[0-9a-f]{6}$/i.test(skin)) return skin;
+  return "#22c55e";
+}
+
 export class Minimap {
   private container: HTMLDivElement;
   private wrapper: HTMLDivElement | null = null;
@@ -44,9 +66,12 @@ export class Minimap {
       px = (msg.camX - gridSize / 2) / gridSize;
       py = (-msg.camY - gridSize / 2) / gridSize;
       myAngle = msg.camAngle;
-    } else if (myPlayer && myPlayer.body && myPlayer.body.length > 0) {
-      px = myPlayer.body[0].x;
-      py = myPlayer.body[0].y;
+    } else if (myPlayer) {
+      const head = getPlayerHead(myPlayer);
+      if (head) {
+        px = head.x;
+        py = head.y;
+      }
       myAngle = myPlayer.angle ?? 0;
     }
 
@@ -56,8 +81,8 @@ export class Minimap {
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(-myAngle - Math.PI / 2);
 
-    const foodMinimapData = msg.foodMinimapData instanceof Float32Array 
-      ? msg.foodMinimapData 
+    const foodMinimapData = msg.foodMinimapData instanceof Float32Array
+      ? msg.foodMinimapData
       : new Float32Array(msg.foodMinimapData);
 
     const radarRadius = canvas.width / 2; // 100 for 200x200 canvas
@@ -126,10 +151,10 @@ export class Minimap {
       if (fvalue > 1.0) {
         s = fvalue >= 50.0 ? 6.0 : fvalue >= 20.0 ? 4.0 : 2.5;
       }
-      
+
       const sx = baseRx * scale;
       const sy = baseRy * scale;
-      
+
       if (Math.abs(sx) <= radarRadius && Math.abs(sy) <= radarRadius) {
         ctx.fillRect(sx - s / 2.0, sy - s / 2.0, s, s);
       }
@@ -153,13 +178,11 @@ export class Minimap {
     for (const pid in players) {
       if (pid === myId) continue;
       const p = players[pid];
-      if (p.is_dead || !p.body || p.body.length === 0) continue;
+      if (p.is_dead || !p.body_len) continue;
+      const head = getPlayerHead(p);
+      if (!head) continue;
 
-      ctx.fillStyle = p.skin === "zebra" ? "#e2e8f0" : p.skin || "#22c55e";
-      const head = p.body[0];
-      if (!head || typeof head.x !== "number" || typeof head.y !== "number" || isNaN(head.x) || isNaN(head.y)) {
-        continue;
-      }
+      ctx.fillStyle = getPlayerDotColor(p.skin);
       let baseRx = head.x - px;
       let baseRy = head.y - py;
       if (baseRx > mapW / 2) baseRx -= mapW;
@@ -169,7 +192,7 @@ export class Minimap {
 
       const sx = baseRx * scale;
       const sy = baseRy * scale;
-      
+
       if (Math.abs(sx) <= radarRadius && Math.abs(sy) <= radarRadius) {
         ctx.beginPath();
         ctx.arc(sx, sy, dotSize, 0, Math.PI * 2.0);
@@ -178,7 +201,7 @@ export class Minimap {
     }
 
     const myPlayer = players[myId];
-    if (myPlayer && myPlayer.body && myPlayer.body.length > 0) {
+    if (myPlayer && !myPlayer.is_dead && getPlayerHead(myPlayer)) {
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
       ctx.arc(0, 0, dotSize, 0, Math.PI * 2.0);

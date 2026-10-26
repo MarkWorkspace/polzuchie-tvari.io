@@ -57,12 +57,20 @@ async def process_client(client_id, connection, world):
             return_visibility=True,
             serialize_proto=True,
         )
-        
+
     compressed = await asyncio.to_thread(zlib.compress, state_bytes, 1)
     skipped = replace_queued_state(connection["queue"], (compressed, visible_players, is_full_sync))
     if skipped:
         connection["needs_full_sync"] = True
 
+
+
+async def _safe_process_client(client_id, connection, world) -> None:
+    """Serialize one client without letting it kill the shared game loop."""
+    try:
+        await process_client(client_id, connection, world)
+    except Exception:
+        traceback.print_exc()
 
 
 async def game_loop(world):
@@ -81,7 +89,8 @@ async def game_loop(world):
             continue
 
         tasks = [
-            process_client(cid, conn, world) for cid, conn in list(active_connections.items())
+            _safe_process_client(cid, conn, world)
+            for cid, conn in list(active_connections.items())
         ]
         if tasks:
             await asyncio.gather(*tasks)

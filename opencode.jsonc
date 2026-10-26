@@ -1,0 +1,16 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [".opencode/instructions/project.md"],
+  "watcher": {
+    "ignore": [
+      "frontend/node_modules/**",
+      "frontend/dist/**",
+      "backend/__pycache__/**",
+      "backend/.pytest_cache/**",
+      "backend/.venv/**",
+      ".venv/**",
+      "**/*.pyc",
+      "**/__pycache__/**"
+    ]
+  }
+}

@@ -7,10 +7,12 @@ from game_config import CELL_SIZE
 
 def update(state) -> None:
     """
-    Updates black hole states, checks if players hit black holes, and pulls food toward them.
+    Applies black-hole gravity to food and checks player kills.
+
+    Black-hole timer/growth updates are performed once per tick by game.py;
+    doing them here as well would advance them at double speed.
     """
     tick_interval = state.tick_interval
-    state.bh_manager.update(tick_interval)
 
     if (
         not state.config.world.black_holes_enabled
@@ -24,7 +26,7 @@ def update(state) -> None:
 
 def _check_player_kills(state) -> None:
     for pid, player in list(state.players.items()):
-        if not player.body or player.teleport_state == "in_transit":
+        if player.is_dead or not player.body or player.teleport_state == "in_transit":
             continue
 
         head = {"x": player.head_x, "y": player.head_y}
@@ -99,7 +101,7 @@ def _apply_bh_pull_on_single_food(
 class GravitySystem:
     name = "gravity"
     order = 40
-    
+
     def update(self, world):
         update(world)
 

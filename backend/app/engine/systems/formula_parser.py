@@ -1,4 +1,4 @@
-# ROLE: Парсер формул роста. Точная копия логики из FormulaParser.ts.
+# ROLE: Парсер формул роста. Единственная реализация: клиентский FormulaParser удалён.
 import re
 import math
 
@@ -11,7 +11,7 @@ class FormulaParser:
         if expression not in _TOKEN_CACHE:
             regex = r"\d+(?:\.\d+)?|[a-z_][a-z0-9_]*|[\+\-\*\/\^,\(\)]"
             _TOKEN_CACHE[expression] = re.findall(regex, expression, re.IGNORECASE)
-        
+
         self.tokens = list(_TOKEN_CACHE[expression])
         self.pos = 0
 

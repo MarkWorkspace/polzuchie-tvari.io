@@ -9,10 +9,15 @@ export interface FrameInput {
   mode: string;
 }
 
+export function getClientIdStorageKey(role: string): string | null {
+  return role === "player" ? "snake_client_id" : null;
+}
+
 export class NetworkManager {
   private worker: Worker | null = null;
   private isWaitingForFrame = false;
   private frameTimeoutId: number | null = null;
+  private role = "player";
 
   private onStatusChange?: (status: NetworkStatus, msg?: string, msgKey?: string, msgParams?: any) => void;
   private onPing?: (latency: number) => void;
@@ -23,6 +28,7 @@ export class NetworkManager {
   constructor() {}
 
   public connect(nickname: string, skin: string, role: string = "player"): void {
+    this.role = role;
     if (this.worker) {
       this.close();
     }
@@ -106,8 +112,9 @@ export class NetworkManager {
     const wsPort = port ? `:${port}` : "";
     const trimmed = nickname.trim() || "Snake";
     let url = `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmed)}&skin=${encodeURIComponent(skin)}&role=${encodeURIComponent(role)}`;
-    
-    const savedId = localStorage.getItem("snake_client_id");
+
+    const storageKey = getClientIdStorageKey(role);
+    const savedId = storageKey ? localStorage.getItem(storageKey) : null;
     if (savedId) {
       url += `&client_id=${encodeURIComponent(savedId)}`;
     }
@@ -123,7 +130,8 @@ export class NetworkManager {
     } else if (msg.type === "PING") {
       this.onPing?.(msg.latency);
     } else if (msg.type === "YOUR_ID") {
-      localStorage.setItem("snake_client_id", msg.your_id);
+      const storageKey = getClientIdStorageKey(this.role);
+      if (storageKey) localStorage.setItem(storageKey, msg.your_id);
       this.onYourId?.(msg.your_id);
     } else if (msg.type === "FRAME_DATA") {
       this.isWaitingForFrame = false;

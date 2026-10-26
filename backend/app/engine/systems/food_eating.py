@@ -19,7 +19,7 @@ def update(state) -> None:
     attracted_ids = set()
 
     for pid, player in state.players.items():
-        if not player.body or player.teleport_state == "in_transit":
+        if player.is_dead or not player.body or player.teleport_state == "in_transit":
             continue
         _process_eating_for_player(
             state,
@@ -149,7 +149,7 @@ def _eat_attracted_food(state, player, f, attracted_ids: set) -> None:
 class Food_eatingSystem:
     name = "food_eating"
     order = 50
-    
+
     def update(self, world):
         update(world)
 

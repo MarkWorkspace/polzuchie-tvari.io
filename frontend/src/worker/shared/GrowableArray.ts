@@ -60,11 +60,10 @@ export class GrowableFloat32Array {
   }
 
   public slice(): Float32Array {
-    if (USE_SHARED_BUFFER) {
-      return this.array.subarray(0, this.length);
-    } else {
-      return this.array.slice(0, this.length);
-    }
+    // Always return an independent copy. A subarray view into a
+    // SharedArrayBuffer would alias the worker's live buffer, so the main
+    // thread could read torn data while the next frame is being written.
+    return this.array.slice(0, this.length);
   }
 }
 
@@ -108,10 +107,7 @@ export class GrowableUint32Array {
   }
 
   public slice(): Uint32Array {
-    if (USE_SHARED_BUFFER) {
-      return this.array.subarray(0, this.length);
-    } else {
-      return this.array.slice(0, this.length);
-    }
+    // See GrowableFloat32Array.slice: never expose the live shared buffer.
+    return this.array.slice(0, this.length);
   }
 }

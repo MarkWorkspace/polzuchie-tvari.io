@@ -128,7 +128,8 @@ class Player:
     @property
     def is_accelerating_valid(self):
         return (
-            self.accelerating
+            not self.is_dead
+            and self.accelerating
             and self.score > self.config.boost.min_score
             and self.teleport_state == "none"
         )

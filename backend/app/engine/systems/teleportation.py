@@ -12,9 +12,16 @@ def update(state) -> None:
     base_speed = state.config.simulation.base_speed_per_second * tick_interval
 
     for player in state.players.values():
+        if player.is_dead:
+            continue
         if player.teleport_state == "none":
             # Clear or manage portal exit reference
             _check_exit_portal_clear(state, player)
+            continue
+        if not player.teleport_pos or not player.teleport_out_pos:
+            # A death or a config change can leave a half-initialized FSM.
+            player.teleport_state = "none"
+            player.teleport_timer = 0.0
             continue
 
         steps = getattr(player, "steps_this_tick", 0)
@@ -144,7 +151,7 @@ def _process_exiting(state, player, base_speed: float) -> None:
     new_head_x = (ref_x + dx) % state.grid_width
     new_head_y = (ref_y + dy) % state.grid_height
 
-    if player.body_len >= player.length:
+    if player.body_len >= player.length and player.body_len > 0:
         all_cleared = True
         if len(player.body) >= 2:
             tail_x, tail_y = player.body[-2], player.body[-1]
@@ -179,7 +186,7 @@ def _process_exiting(state, player, base_speed: float) -> None:
 class TeleportationSystem:
     name = "teleportation"
     order = 30
-    
+
     def update(self, world):
         update(world)
 

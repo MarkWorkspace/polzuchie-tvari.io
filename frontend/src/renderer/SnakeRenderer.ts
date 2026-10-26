@@ -1,7 +1,7 @@
 // ROLE: Меши змеек, сплайны, тени. Не физика, не HUD.
 import * as THREE from "three";
 import { patchSnakeMaterial } from "./shaders/snakeBody.glsl";
-import { WORLD_WIDTH, WORLD_HEIGHT, gridSize, wrapOffsets } from "../game/Config";
+import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class SnakeRenderer {
@@ -15,6 +15,8 @@ export class SnakeRenderer {
   private pupilMesh!: THREE.InstancedMesh;
   private glowMesh!: THREE.InstancedMesh;
   private glowMaterial!: THREE.ShaderMaterial;
+  private wrapWidth = 0;
+  private wrapHeight = 0;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -26,6 +28,7 @@ export class SnakeRenderer {
     const isSpectator = msg.myId === "spectator_id";
     this.bodyMesh.count = isSpectator ? 1 : 9;
 
+    this._updateWrapMatrices(msg);
     this.updateUniforms(msg);
     this.updateGeometries(msg);
     this.updateInstancedParts(msg);
@@ -129,7 +132,7 @@ export class SnakeRenderer {
   private initMaterials(): void {
     const uInit = {
       uTime: { value: 0.0 },
-      uMapWidth: { value: WORLD_WIDTH * gridSize }, 
+      uMapWidth: { value: WORLD_WIDTH * gridSize },
       uMapHeight: { value: WORLD_HEIGHT * gridSize }
     };
 
@@ -165,7 +168,7 @@ export class SnakeRenderer {
         void main() {
           float dist = length(vUv - 0.5) * 2.0;
           float alpha = smoothstep(1.0, 0.0, dist);
-          alpha = pow(alpha, 1.5) * 0.2; 
+          alpha = pow(alpha, 1.5) * 0.2;
           if (alpha < 0.01) discard;
           gl_FragColor = vec4(uColor, alpha);
         }
@@ -188,12 +191,34 @@ export class SnakeRenderer {
     geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1000000);
     geom.computeBoundingSphere = () => { /* no-op */ };
     RenderConfig.configureMesh(this.bodyMesh, RenderLayer.SnakeBody, { castShadow: true });
-    for (let i = 0; i < 9; i++) {
-      const mat = new THREE.Matrix4().makeTranslation(wrapOffsets[i][0], wrapOffsets[i][1], 0);
+    this._setWrapMatrices(WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize);
+    this.scene.add(this.bodyMesh);
+  }
+
+  private _updateWrapMatrices(msg: any): void {
+    const mapW = msg.gameState?.server_world?.width ?? WORLD_WIDTH;
+    const mapH = msg.gameState?.server_world?.height ?? WORLD_HEIGHT;
+    const width = mapW * gridSize;
+    const height = mapH * gridSize;
+    if (width === this.wrapWidth && height === this.wrapHeight) return;
+    this._setWrapMatrices(width, height);
+  }
+
+  private _setWrapMatrices(width: number, height: number): void {
+    this.wrapWidth = width;
+    this.wrapHeight = height;
+    const offsets: [number, number][] = [
+      [0, 0], [width, 0], [-width, 0],
+      [0, height], [0, -height],
+      [width, height], [-width, height],
+      [width, -height], [-width, -height]
+    ];
+    const mat = new THREE.Matrix4();
+    for (let i = 0; i < offsets.length; i++) {
+      mat.makeTranslation(offsets[i][0], offsets[i][1], 0);
       this.bodyMesh.setMatrixAt(i, mat);
     }
     this.bodyMesh.instanceMatrix.needsUpdate = true;
-    this.scene.add(this.bodyMesh);
   }
 
   private _initEyeAndGlowMeshes(): void {

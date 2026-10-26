@@ -3,20 +3,6 @@
 export const WORLD_WIDTH = 100;
 export const WORLD_HEIGHT = 100;
 export const gridSize = 20;
-export const WG = WORLD_WIDTH * gridSize;
-export const HG = WORLD_HEIGHT * gridSize;
-
-export const wrapOffsets: [number, number][] = [
-  [0, 0],
-  [WG, 0],
-  [-WG, 0],
-  [0, HG],
-  [0, -HG],
-  [WG, HG],
-  [-WG, HG],
-  [WG, -HG],
-  [-WG, -HG]
-];
 
 export const SKINS = [
   { id: "#ef4444", name: "Красный", bg: "#ef4444" },
@@ -30,4 +16,3 @@ export const SKINS = [
   { id: "rainbow", name: "Радуга", bg: "linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)" },
   { id: "cyberpunk", name: "Киберпанк", bg: "repeating-linear-gradient(45deg, #f0f, #f0f 10px, #0ff 10px, #0ff 20px)" }
 ];
-

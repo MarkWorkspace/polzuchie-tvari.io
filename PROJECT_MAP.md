@@ -1,7 +1,7 @@
 # PROJECT_MAP.md
 
 > Этот файл поддерживается AI-агентами. Обновляется после каждого структурного изменения.
-> Правила обновления — в `AGENTS.md`
+> Правила и рабочие команды — в `.opencode/instructions/project.md` (OpenCode V2).
 
 ---
 
@@ -20,6 +20,9 @@ frontend/
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
+    │   ├── NetworkManager.test.ts      # ROLE: Тесты идентичности player/spectator и storage-ключей.
+    │   ├── SpectatorApp.ts             # ROLE: Приложение режима спектатора. Камера, отладочные панели. Не игровая логика.
+    │   ├── SpectatorCamera.ts          # ROLE: Свободная камера спектатора (pan/zoom), границы карты.
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум. Не рендеринг.
     │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
     ├── lib/
@@ -38,8 +41,10 @@ frontend/
     │   ├── GrapeGeometry.ts            # ROLE: Процедурная генерация 3D-геометрии винограда. Не содержит инстансинга и рендеринга.
     │   ├── PortalRenderer.ts           # ROLE: Визуализация порталов.
     │   ├── BlackHoleRenderer.ts        # ROLE: Визуализация чёрных дыр.
+    │   ├── TombstoneRenderer.ts        # ROLE: Инстансированные надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Система частиц (свечение хвоста).
     │   ├── PostProcessing.ts           # ROLE: Линзирование, туман.
+    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, порядок, фабрики материалов.
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
     │   └── shaders/
     │       ├── snakeBody.glsl.ts       # ROLE: Шейдер тела змейки (5 скинов, GPU-клиппинг).
@@ -66,7 +71,10 @@ frontend/
     │   └── shared/
     │       ├── MathUtils.ts            # ROLE: Тороидальные операции, lerp. ЕДИНСТВЕННАЯ копия математики на фронте.
     │       ├── MathUtils.parity.test.ts # ROLE: Parity-тест тороидальной математики. Сверяет TS с golden vectors.
+    │       ├── PlayerMetrics.ts        # ROLE: Чистая математика размеров змейки (сегменты, радиус, туман).
+    │       ├── PlayerMetrics.test.ts   # ROLE: Тесты размеров/тумана без DOM.
     │       ├── GrowableArray.ts        # ROLE: Динамически расширяемые массивы Float32 и Uint32 для буферов геометрии.
+    │       ├── GrowableArray.test.ts   # ROLE: Тесты копирования буферов (без SharedArrayBuffer alias).
     │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
     │       ├── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame для воркера. Не генерирует и не кодирует сообщения.
     │       ├── snake_proto.js          # ROLE: [СГЕНЕРИРОВАНО] JS-модуль Protobuf.
@@ -76,6 +84,7 @@ frontend/
     │   ├── HUD.ts                      # ROLE: Score, ping, статус соединения. Не игровая логика.
     │   ├── Leaderboard.ts              # ROLE: Топ-10 таблица.
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
+    │   ├── Minimap.test.ts             # ROLE: Тесты разбора lightweight-игроков для миникарты.
     │   ├── KillFeed.ts                 # ROLE: Лента убийств.
     │   ├── SteeringIndicator.ts        # ROLE: Шкала поворота мыши.
     │   ├── MobileControls.ts           # ROLE: Мобильные элементы управления.
@@ -89,8 +98,14 @@ frontend/
     │   └── AdminLabels.ts              # ROLE: Метаданные (названия полей, единицы измерения, подсказки) для панели администратора.
     └── types/
         └── game.ts                     # ROLE: Типы GameState, Player, Food и др. Только типы, без логики.
+```
 
-styles/
+---
+
+## Styles: `frontend/src/styles/`
+
+```
+frontend/src/styles/
 ├── main.css
 ├── hud_score.css
 ├── hud.css
@@ -109,28 +124,37 @@ backend/
 ├── server.py                           # ROLE: Точка входа FastAPI. Не содержит игровой логики.
 ├── game_config.py                      # ROLE: Конфигурация через датаклассы.
 ├── config.json                         # Сохранённая конфигурация (генерируется, не редактировать вручную).
+├── pytest.ini                          # ROLE: Настройки pytest (async loop scope).
 ├── requirements.txt                    # ROLE: Runtime-зависимости backend-сервера. Не содержит тестовые и генераторные инструменты.
 ├── requirements-dev.txt                # ROLE: Dev/test-зависимости backend. Расширяет runtime requirements для pytest и генерации Protobuf.
 └── app/
     ├── api/
-    │   ├── websocket.py                # ROLE: WebSocket endpoint, rate limiting. Не игровая логика.
+    │   ├── websocket.py                # ROLE: WebSocket endpoint, rate limiting, spectator/player identity. Не игровая логика.
     │   └── admin.py                    # ROLE: Admin REST API.
     └── engine/
         ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
+        ├── registry.py                 # ROLE: Авто-дискавери и порядок систем.
+        ├── events.py                   # ROLE: Синхронная шина событий.
         ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка конфигурации, управление игроками. Не содержит игровой логики тика.
         ├── entities.py                 # ROLE: Датаклассы Player, Food, Portal, BlackHole. Только структуры данных.
         ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн.
-        ├── world_elements.py           # ROLE: Жизненный цикл порталов и чёрных дыр.
+        ├── world_elements/
+        │   ├── base.py                 # ROLE: Generic PeriodicEntityManager (слоты/таймеры/рост).
+        │   ├── portal.py               # ROLE: Спавн и поиск порталов.
+        │   └── black_hole.py           # ROLE: Спавн, гравитация и kill-radius чёрных дыр.
         └── systems/
             ├── physics.py              # ROLE: Движение, тороидальное оборачивание. Не коллизии.
+            ├── spatial_index.py        # ROLE: Единая пространственная сетка за тик.
             ├── collision.py            # ROLE: Столкновения змейка-змейка (коэфф. 0.95). Не движение, не еда.
             ├── teleportation.py        # ROLE: FSM телепортации (5 состояний).
-            ├── gravity.py              # ROLE: Притяжение чёрных дыр.
+            ├── gravity.py              # ROLE: Притяжение еды чёрными дырами; таймеры ЧД обновляет game.py.
             ├── food_eating.py          # ROLE: Поедание и притяжение еды.
             ├── boost.py                # ROLE: Ускорение, потеря массы, спавн еды при бусте.
             ├── growth.py               # ROLE: Рост/усыхание, формула сегментов.
             ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
-            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация.
+            ├── visibility.py           # ROLE: AoI-фильтрация видимых игроков.
+            ├── formula_parser.py       # ROLE: Единственная реализация парсера формул роста.
+            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, кэши игроков.
             └── snake_pb2.py            # ROLE: [СГЕНЕРИРОВАНО] Python-модуль Protobuf.
 ```
 
@@ -142,7 +166,10 @@ backend/
 backend/tests/
 ├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации. Проверяет парсинг пароля, очистку пробелов/кавычек и работу login-обработчика.
 ├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока. Проверяет Protobuf restart-frame и очистку соединений.
+├── test_black_hole_timer.py           # ROLE: Таймеры чёрных дыр двигаются ровно один раз за тик.
+├── test_client_messages.py            # ROLE: Лимит длины текстовых команд клиента.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
+├── test_dead_player_systems.py         # ROLE: Мёртвый игрок не двигается/ест/бустит и не ломает телепорт.
 ├── test_events.py                      # ROLE: Тесты EventBus.
 ├── test_formula_parser.py              # ROLE: Тесты парсера формул роста.
 ├── test_frame_parity.py                # ROLE: Round-trip parity-тест сетевого кадра. Кодирует → декодирует → сравнивает с .expected.json.
@@ -151,9 +178,15 @@ backend/tests/
 ├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
 ├── test_math_parity.py                 # ROLE: Parity-тест тороидальной математики. Сверяет Python с golden vectors.
 ├── test_physics.py                     # ROLE: Тесты физики движения.
+├── test_serialization_cache_race.py    # ROLE: Позднее подключение игрока не вызывает KeyError в кэше кадра.
+├── test_server_resilience.py           # ROLE: Сбой сериализации одного клиента не убивает game loop.
+├── test_spectator_identity.py          # ROLE: Spectator не переиспользует player client_id; неудачный handshake не оставляет призрака.
+├── test_world_lifecycle.py             # ROLE: Resize карты и полная очистка World.reset_state.
 ├── test_world_elements.py              # ROLE: Тесты порталов и чёрных дыр.
 └── generate_frame_fixtures.py          # ROLE: Генерация эталонных кадров для parity-тестов. Запуск вручную при изменении формата.
 ```
+
+`backend/pytest.ini` задаёт loop scope для async-тестов.
 
 ---
 
@@ -179,4 +212,36 @@ tests_shared/
 .github/
 └── workflows/
     └── ci.yml                          # ROLE: CI для проекта. Запускает pytest и vitest на push/PR.
+```
+
+---
+
+## Git hooks and repo tooling
+
+```
+.pre-commit-config.yaml                # ROLE: fast affected-stack tests on commit, full tests/build on push.
+requirements-dev.txt                   # ROLE: root dev tooling (pre-commit + backend test deps).
+scripts/
+└── run_checks.py                      # ROLE: cross-platform backend/frontend check runner used by hooks.
+```
+
+Setup per clone: `python -m pip install -r requirements-dev.txt` then
+`pre-commit install` (installs both pre-commit and pre-push hooks).
+
+---
+
+## OpenCode V2 environment
+
+```
+opencode.jsonc                          # ROLE: Project config: instructions, watcher ignores.
+.opencode/
+├── instructions/
+│   └── project.md                      # ROLE: Project rules, commands, hard invariants.
+├── agents/
+│   └── reviewer.md                     # ROLE: Read-only review subagent.
+├── commands/
+│   ├── review.md                       # ROLE: /review — run the reviewer on the current diff.
+│   └── verify.md                       # ROLE: /verify — run backend/frontend checks.
+└── skills/
+    └── netcode-change/SKILL.md          # ROLE: Checklist for safe frame/toroidal-math changes.
 ```

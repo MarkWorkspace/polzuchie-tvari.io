@@ -17,6 +17,7 @@ pending_disconnects = {}
 
 MAX_CONNECTIONS = 50
 RATE_LIMIT_PER_SECOND = 50
+MAX_CLIENT_MESSAGE_LENGTH = 32
 VALID_SKINS = frozenset({"zebra", "tiger", "rainbow", "cyberpunk"})
 HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 NICKNAME_MAX_LENGTH = 16
@@ -38,7 +39,7 @@ async def sender_loop(client_id, websocket, queue, world):
 def replace_queued_state(queue, data_tuple):
     new_is_full = data_tuple[2]
     skipped = False
-    
+
     if queue.full():
         try:
             current_item = queue._queue[0]
@@ -58,18 +59,38 @@ def replace_queued_state(queue, data_tuple):
     return skipped
 
 
-def _validate_client(client_id: str | None, world) -> tuple[str, bool]:
+def _new_client_id() -> str:
+    return str(uuid.uuid4())
+
+
+def _validate_client(
+    client_id: str | None, world, role: str = "player"
+) -> tuple[str, bool]:
+    """Return a safe connection id.
+
+    A spectator always gets a fresh identity: reusing a player's client_id
+    would kick the player, leave a ghost snake and make both tabs fight over
+    the same active connection.
+    """
+    if role == "spectator":
+        return _new_client_id(), False
+
     reconnecting = False
     if client_id:
         try:
             uuid.UUID(client_id)
+        except (ValueError, TypeError, AttributeError):
+            client_id = None
+        else:
             if client_id in world.players:
                 reconnecting = True
-        except ValueError:
-            client_id = None
+            elif client_id in active_connections:
+                # The id belongs to another connection (for example a
+                # spectator). Never overwrite it.
+                client_id = None
 
     if not client_id:
-        client_id = str(uuid.uuid4())
+        client_id = _new_client_id()
     return client_id, reconnecting
 
 
@@ -95,7 +116,7 @@ async def _handle_reconnection(
                 await old_conn["task"]
             with contextlib.suppress(Exception):
                 await old_conn["websocket"].close()
-                
+
         # Completely reset state for this player upon reconnection
         world.client_visibility[client_id] = set()
         world.reset_player_input(client_id)
@@ -108,6 +129,7 @@ async def _handle_reconnection(
         if role == "spectator":
             world.spectators.add(client_id)
         else:
+            world.spectators.discard(client_id)
             world.add_player(client_id, nickname, skin)
 
 
@@ -130,7 +152,7 @@ async def _run_receive_loop(client_id: str, websocket: WebSocket, world):
     msg_timestamps = deque()
     while True:
         data = await websocket.receive_text()
-        if len(data) > 20:
+        if len(data) > MAX_CLIENT_MESSAGE_LENGTH:
             continue
 
         now = asyncio.get_event_loop().time()
@@ -184,7 +206,7 @@ async def websocket_endpoint(
     role: str = "player",
 ):
     world = websocket.app.state.world
-    client_id, reconnecting = _validate_client(client_id, world)
+    client_id, reconnecting = _validate_client(client_id, world, role)
     if len(active_connections) >= MAX_CONNECTIONS and not reconnecting:
         await websocket.close(code=4002, reason="Server full")
         return
@@ -192,13 +214,27 @@ async def websocket_endpoint(
     nickname, skin = _clean_profile(nickname, skin)
     await websocket.accept()
 
-    await _handle_reconnection(client_id, reconnecting, nickname, skin, websocket, world, role)
-    await _initialize_connection(client_id, websocket, world)
-
+    initialized = False
     try:
+        await _handle_reconnection(
+            client_id, reconnecting, nickname, skin, websocket, world, role
+        )
+        await _initialize_connection(client_id, websocket, world)
+        initialized = True
         await _run_receive_loop(client_id, websocket, world)
     except Exception:
         pass
     finally:
         await _cleanup_connection(client_id, websocket, world)
-
+        if not initialized:
+            # Handshake failed before the connection was registered. Remove
+            # the just-created player/spectator so it cannot become a ghost.
+            conn = active_connections.pop(client_id, None)
+            if conn:
+                conn["task"].cancel()
+            disconnect_task = pending_disconnects.pop(client_id, None)
+            if disconnect_task:
+                disconnect_task.cancel()
+            world.remove_player(client_id)
+            with contextlib.suppress(Exception):
+                await websocket.close()

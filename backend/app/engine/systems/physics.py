@@ -22,9 +22,9 @@ def update(state) -> None:
     )
 
     for player in state.players.values():
+        player.new_heads_this_tick = []
         if player.is_dead:
             continue
-        player.new_heads_this_tick = []
         if player.teleport_state in ("entering", "in_transit"):
             player.teleport_timer = max(0.0, player.teleport_timer - tick_interval)
 
@@ -36,7 +36,7 @@ def update(state) -> None:
 
         player.pending_steps += player.speed_mult
         steps_this_tick = int(player.pending_steps)
-        
+
         max_steps = getattr(state.config.simulation, 'max_steps_per_tick', 4)
         if steps_this_tick > max_steps:
             steps_this_tick = max_steps
@@ -111,7 +111,7 @@ def _step_player_physics(
 class PhysicsSystem:
     name = "physics"
     order = 10
-    
+
     def update(self, world):
         update(world)
 

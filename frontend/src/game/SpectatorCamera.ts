@@ -11,6 +11,9 @@ export class SpectatorCamera {
   private lastMouseX = 0;
   private lastMouseY = 0;
   private container: HTMLDivElement;
+  private mapWidth = WORLD_WIDTH;
+  private mapHeight = WORLD_HEIGHT;
+  private hasMapSize = false;
 
   constructor(container: HTMLDivElement) {
     this.container = container;
@@ -18,6 +21,25 @@ export class SpectatorCamera {
     window.addEventListener("mousemove", this.onMouseMove);
     window.addEventListener("mouseup", this.onMouseUp);
     this.container.addEventListener("wheel", this.onWheel);
+  }
+
+  public setMapSize(width: number, height: number): void {
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+    if (width === this.mapWidth && height === this.mapHeight) return;
+    this.mapWidth = Math.max(1, width);
+    this.mapHeight = Math.max(1, height);
+    const mapW = this.mapWidth * gridSize;
+    const mapH = this.mapHeight * gridSize;
+    if (!this.hasMapSize) {
+      this.hasMapSize = true;
+      this.currentX = mapW / 2;
+      this.currentY = -mapH / 2;
+      this.currentZoom = Math.max(mapW, mapH);
+      return;
+    }
+    this.currentX = Math.max(0, Math.min(this.currentX, mapW));
+    this.currentY = Math.max(-mapH, Math.min(this.currentY, 0));
+    this.currentZoom = Math.min(this.currentZoom, Math.max(mapW, mapH));
   }
 
   public destroy(): void {
@@ -38,7 +60,7 @@ export class SpectatorCamera {
 
     const dx = e.clientX - this.lastMouseX;
     const dy = e.clientY - this.lastMouseY;
-    
+
     // Convert screen pixels to world coordinates approximately
     const panSpeed = this.currentZoom * 0.002;
     this.currentX -= dx * panSpeed;
@@ -59,12 +81,12 @@ export class SpectatorCamera {
     } else {
       this.currentZoom *= (1 - zoomSpeed);
     }
-    this.currentZoom = Math.max(50.0, Math.min(this.currentZoom, Math.max(WORLD_WIDTH, WORLD_HEIGHT) * gridSize));
+    this.currentZoom = Math.max(50.0, Math.min(this.currentZoom, Math.max(this.mapWidth, this.mapHeight) * gridSize));
   };
 
   public update(camera: THREE.PerspectiveCamera): void {
-    const mapW_geo = WORLD_WIDTH * gridSize;
-    const mapH_geo = WORLD_HEIGHT * gridSize;
+    const mapW_geo = this.mapWidth * gridSize;
+    const mapH_geo = this.mapHeight * gridSize;
 
     // Clamp camera within map bounds
     this.currentX = Math.max(0, Math.min(this.currentX, mapW_geo));

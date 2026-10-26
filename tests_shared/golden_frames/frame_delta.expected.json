@@ -2,8 +2,8 @@
   "black_holes": [
     {
       "id": "bh_0_1",
-      "kill_radius": 0.05,
-      "pull_radius": 0.64,
+      "kill_radius": 0.02,
+      "pull_radius": 0.32,
       "x": 30.84,
       "y": 63.02
     }

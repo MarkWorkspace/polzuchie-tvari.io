@@ -1,8 +1,5 @@
 # ROLE: Protobuf-упаковка, AoI-фильтрация.
 
-import math
-from collections import defaultdict
-from game_config import CELL_SIZE
 from app.engine.systems.visibility import get_visible_players
 from app.engine.systems import snake_pb2
 
@@ -14,18 +11,18 @@ def populate_player_message(p_msg, player, in_aoi=True, is_full=False):
     p_msg.deaths = player.deaths
     p_msg.accelerating = player.is_accelerating_valid if in_aoi else False
     p_msg.is_dead = player.is_dead
-    
+
     if player.teleport_state != "none":
         p_msg.teleport_state = player.teleport_state
         if player.teleport_out_pos:
             p_msg.teleport_out_x = player.teleport_out_pos[0]
             p_msg.teleport_out_y = player.teleport_out_pos[1]
             p_msg.teleport_timer_ratio = max(0.0, player.teleport_timer) / max(0.001, player.teleport_delay)
-            
+
     if is_full:
         p_msg.skin = player.skin
         p_msg.nickname = player.nickname
-        
+
     if is_full or player.just_respawned:
         p_msg.body.extend(player.body if in_aoi else ([player.body[0], player.body[1]] if player.body else []))
     else:
@@ -48,32 +45,46 @@ def prepare_cache(state) -> None:
         mini_p = snake_pb2.Player()
         populate_player_message(mini_p, p, in_aoi=False, is_full=False)
         state.mini_players_cache[pid] = mini_p
-        
+
     for p in state.players.values():
         p.just_respawned = False
+
+
+def _load_cached_player(p_msg, cache, pid, player, in_aoi):
+    """Copy a tick cache into the frame, or populate directly on a cache miss.
+
+    A player can connect between prepare_cache() and frame assembly. Falling
+    back here prevents a KeyError from aborting the whole broadcast.
+    """
+    cached = cache.get(pid) if cache else None
+    if cached is not None:
+        p_msg.CopyFrom(cached)
+    else:
+        populate_player_message(p_msg, player, in_aoi=in_aoi, is_full=False)
 
 
 def _serialize_players_data(
     state, candidates: dict, curr_visible: set, prev_visible: set, is_full: bool, players_map
 ) -> None:
+    full_cache = getattr(state, "full_players_cache", {})
+    mini_cache = getattr(state, "mini_players_cache", {})
+
     for pid, p in candidates.items():
         in_aoi = pid in curr_visible
         p_msg = players_map[pid]
         if is_full:
             populate_player_message(p_msg, p, in_aoi=in_aoi, is_full=True)
-        else:
-            if in_aoi:
-                if pid not in prev_visible:
-                    populate_player_message(p_msg, p, in_aoi=True, is_full=True)
-                else:
-                    p_msg.CopyFrom(state.full_players_cache[pid])
+        elif in_aoi:
+            if pid not in prev_visible:
+                populate_player_message(p_msg, p, in_aoi=True, is_full=True)
             else:
-                p_msg.CopyFrom(state.mini_players_cache[pid])
+                _load_cached_player(p_msg, full_cache, pid, p, True)
+        else:
+            _load_cached_player(p_msg, mini_cache, pid, p, False)
 
     for pid, p in state.players.items():
         if pid not in players_map:
-            p_msg = players_map[pid]
-            p_msg.CopyFrom(state.mini_players_cache[pid])
+            _load_cached_player(players_map[pid], mini_cache, pid, p, False)
 
 
 def _filter_moved_foods(state, client_player, moved_foods_list):
@@ -83,24 +94,24 @@ def _filter_moved_foods(state, client_player, moved_foods_list):
     else:
         cx, cy = state.grid_width / 2, state.grid_height / 2
         eff_score = 0
-        
+
     fog_r_world = (
         state.config.visual.min_fog_radius
         + eff_score * state.config.visual.fog_score_expansion_coeff
     )
     fog_r_grid = fog_r_world / 20.0
     aoi_sq = (fog_r_grid * 1.5) ** 2
-    
+
     filtered = []
     gw, gh = state.grid_width, state.grid_height
     gw2, gh2 = gw / 2.0, gh / 2.0
-    
+
     for f in moved_foods_list:
         dx = abs(cx - f["x"])
         if dx > gw2: dx = gw - dx
         dy = abs(cy - f["y"])
         if dy > gh2: dy = gh - dy
-        
+
         if (dx * dx + dy * dy) < aoi_sq:
             filtered.append(f)
     return filtered
@@ -216,7 +227,7 @@ def _assemble_final_frame(state, is_full: bool, client_id: str = None) -> snake_
     frame = snake_pb2.GameStateFrame()
     frame.type = snake_pb2.GameStateFrame.FrameType.FULL if is_full else snake_pb2.GameStateFrame.FrameType.DELTA
     frame.server_tick_rate = state.config.simulation.tick_rate
-    
+
     _assemble_entities(frame, state, client_id)
     _assemble_structures(frame, state)
 
@@ -267,14 +278,14 @@ def get_full_state(state, client_id, serialize_proto=False):
         f_msg.value = f.value
         f_msg.color = f.color
         f_msg.image = f.image or ""
-        
+
     return frame.SerializeToString() if serialize_proto else frame
 
 
 class SerializationSystem:
     name = "serialization"
     order = 80
-    
+
     def update(self, world):
         prepare_cache(world)
 

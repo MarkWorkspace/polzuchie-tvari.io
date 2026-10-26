@@ -18,8 +18,8 @@ export class AdminPanel {
 
   constructor(container: HTMLDivElement) {
     this.container = container;
-    const pwd = localStorage.getItem("snake-admin-password") || "";
-    if (pwd) {
+    const authenticated = localStorage.getItem("snake-admin-auth") === "1";
+    if (authenticated) {
       this.editor = new ConfigEditor();
       this.initDashboard();
     } else {
@@ -30,6 +30,7 @@ export class AdminPanel {
   public destroy(): void { clearInterval(this.healthInterval); }
 
   private renderPasswordPrompt(): void {
+    localStorage.removeItem("snake-admin-password");
     this.container.innerHTML = `<div class="login-overlay"><div class="login-card glass-panel"><h2 class="login-logo">Admin Portal</h2><div class="login-form"><input type="password" id="admin-pass" class="input-field" placeholder="Enter Admin Password" autofocus /><button id="admin-auth-btn" class="login-button">Authorize</button><div id="auth-status" style="font-size: 12px; color: var(--text-muted);">Enter password to continue</div></div></div></div>`;
     const auth = async () => {
       const input = this.container.querySelector("#admin-pass") as HTMLInputElement;
@@ -64,7 +65,8 @@ export class AdminPanel {
           }
           return;
         }
-        localStorage.setItem("snake-admin-password", pwd);
+        localStorage.setItem("snake-admin-auth", "1");
+        localStorage.removeItem("snake-admin-password");
         this.editor = new ConfigEditor();
         this.initDashboard();
       } catch (e) {
@@ -79,6 +81,7 @@ export class AdminPanel {
     const status = await this.editor!.load();
     if (status !== "OK") {
       alert(status);
+      localStorage.removeItem("snake-admin-auth");
       localStorage.removeItem("snake-admin-password");
       this.renderPasswordPrompt();
       return;
@@ -119,15 +122,15 @@ export class AdminPanel {
         if (el.dataset.key === "growth_score_per_segment") this.formulaError = null;
         this.runSimulation();
         const counts = this.editor!.getModifiedCounts();
-        
+
         const floatingPanel = this.container.querySelector("#floating-action-panel") as HTMLElement;
         if (floatingPanel) {
           floatingPanel.style.display = counts.all > 0 ? "block" : "none";
         }
-        
+
         const applyBtn = this.container.querySelector("#save-config-btn");
         if (applyBtn) applyBtn.textContent = `Apply (${counts.all})`;
-        
+
         const tabBtn = this.container.querySelector(`.tab-btn[data-tab="all"]`);
         if (tabBtn && counts.all > 0) {
           if (!tabBtn.querySelector("span:nth-child(2)")) {
@@ -149,7 +152,7 @@ export class AdminPanel {
         const isImage = el.classList.contains("food-type-image");
         const key = el.classList.contains("food-type-val") ? "value" : (isColor ? "color" : (isImage ? "image" : "weight"));
         this.editor!.updateFoodType(idx, key, (isColor || isImage) ? el.value : (Number(el.value) || 0));
-        
+
         // Save selection state before rendering
         let selectionStart = 0, selectionEnd = 0, className = "";
         if (!el.classList.contains("food-type-color-picker")) {
@@ -157,9 +160,9 @@ export class AdminPanel {
             selectionEnd = el.selectionEnd || 0;
             className = Array.from(el.classList).find(c => c.startsWith("food-type-")) || "";
         }
-        
+
         this.render();
-        
+
         // Restore focus
         if (className) {
             const restoredEl = this.container.querySelector(`.${className}[data-idx="${idx}"]`) as HTMLInputElement;
@@ -250,7 +253,7 @@ export class AdminPanel {
         this.healthData = { online: false, players: 0, ping: 0 };
       }
       const hEl = this.container.querySelector("#server-health");
-      if (hEl) hEl.innerHTML = this.healthData.online 
+      if (hEl) hEl.innerHTML = this.healthData.online
         ? `<span style="display: flex; align-items: center; gap: 5px;"><span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px #4ade80; display: inline-block;"></span>Server: <strong style="color: #4ade80; font-weight: 500;">online</strong></span><span style="color: var(--text-muted);">|</span><span>Players: ${this.healthData.players}</span><span style="color: var(--text-muted);">|</span><span>Ping: <strong style="color: ${this.healthData.ping <= 75 ? "#4ade80" : this.healthData.ping <= 150 ? "#fbbf24" : "#f87171"};">${this.healthData.ping} ms</strong></span>`
         : `<span style="display: flex; align-items: center; gap: 5px;"><span class="pulse-dot" style="width: 8px; height: 8px; border-radius: 50%; background: #f87171; display: inline-block;"></span>Server: <strong style="color: #f87171; font-weight: 500;">offline</strong></span>`;
     };

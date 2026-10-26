@@ -2,6 +2,7 @@
 
 import type { GameState, Food } from "../types/game";
 import { parseColor } from "./shared/ColorUtils";
+import { computeHeadRadiusWorld } from "./shared/PlayerMetrics";
 
 const FRUIT_IMAGE_MAP: Record<string, number> = {
   "cherry.svg": 1, "strawberry.svg": 2, "grape.svg": 3,
@@ -92,7 +93,7 @@ const lastStateFoodCache = new WeakMap<GameState, Map<number, Food>>();
 
 function _buildLastFoodMap(lastState: GameState | null): Map<number, Food> {
   if (!lastState || !lastState.foods) return new Map();
-  
+
   let map = lastStateFoodCache.get(lastState);
   if (map) return map;
 
@@ -101,7 +102,7 @@ function _buildLastFoodMap(lastState: GameState | null): Map<number, Food> {
     const lf = lastState.foods[i];
     map.set(lf.id, lf);
   }
-  
+
   lastStateFoodCache.set(lastState, map);
   return map;
 }
@@ -112,7 +113,7 @@ function _interpolateFoodPosition(food: Food, lastFoodMap: Map<number, Food>, pr
 
   const dx = food.x - lf.x;
   const dy = food.y - lf.y;
-  
+
   const x = Math.abs(dx) > mapW / 2 ? food.x : lf.x + dx * progress;
   const y = Math.abs(dy) > mapH / 2 ? food.y : lf.y + dy * progress;
   return { x, y };
@@ -133,12 +134,7 @@ function _applyAttractionAndGravity(
   mapH: number
 ): { x: number; y: number } | null {
   if (myPlayer) {
-    const baseHeadRadius = state.server_snake?.base_head_radius ?? 0.2;
-    const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? 0.0005;
-    const startLength = state.server_snake?.start_length ?? 5;
-    const myLength = myPlayer.body ? myPlayer.body.length : startLength;
-    const myGained = Math.max(0, myLength - startLength);
-    const myHeadRadius = (baseHeadRadius + myGained * 10.0 * scoreThicknessScale) * gridSize;
+    const myHeadRadius = computeHeadRadiusWorld(state, myPlayer.body, gridSize);
 
     if (dist < (myHeadRadius + foodRadius)) {
       return null;
@@ -180,7 +176,7 @@ function _applyBHGravityOnFood(
 
     const bhWx = bh.x * gridSize + gridSize / 2;
     const bhWy = -(bh.y * gridSize + gridSize / 2);
-    
+
     let bhDx = bhWx - wx;
     let bhDy = bhWy - wy;
     const worldW = mapW * gridSize;
@@ -223,10 +219,10 @@ function _writeFoodInstance(
 ) {
   const mIdx = index * 16;
   matrices.fill(0, mIdx, mIdx + 16);
-  
+
   const cos = Math.cos(theta);
   const sin = Math.sin(theta);
-  
+
   matrices[mIdx + 0] = radius * cos;
   matrices[mIdx + 1] = radius * sin;
   matrices[mIdx + 4] = -radius * sin;

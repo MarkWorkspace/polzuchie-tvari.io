@@ -7,7 +7,7 @@
 Цепочка движения и преобразования данных от игрового состояния на сервере до вызова отрисовки в WebGL:
 
 ```
-[FastAPI Game Tick] 
+[FastAPI Game Tick]
        │
        ▼ (Protobuf Serialization & AoI-фильтрация)
 [serialization.py]
@@ -195,3 +195,7 @@
    - Максимальная длина ника игрока — `16` символов, некорректные скины принудительно сбрасываются в `"#22c55e"`.
 5. **Тороидальный размер ячеек:**
    - Spatial partitioning на сервере ([collision.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/collision.py#L5), [food_eating.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/food_eating.py#L5), [gravity.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/gravity.py#L33), [serialization.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/serialization.py#L7)) и клиенте использует фиксированный размер ячейки `CELL_SIZE = 10.0`.
+6. **Идентичность spectator/player:**
+   - Spectator всегда получает собственный `client_id`; идентификатор игрока никогда не переиспользуется для спектатора. Иначе открытие спектатора рвёт соединение игрока и оставляет змейку-призрака.
+7. **Обновление чёрных дыр:**
+   - Таймеры, рост и смена состояний чёрных дыр обновляются ровно один раз за тик в `game.py`. `gravity.py` применяет только притяжение и проверку гибели.

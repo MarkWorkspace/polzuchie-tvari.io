@@ -65,14 +65,14 @@ export class SpectatorApp {
     label.style.fontSize = "12px";
     label.style.fontFamily = "sans-serif";
     label.style.opacity = "0.9";
-    
+
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = this.showAllInMainCopy;
     checkbox.onchange = (e) => {
       this.showAllInMainCopy = (e.target as HTMLInputElement).checked;
     };
-    
+
     label.appendChild(checkbox);
     label.appendChild(document.createTextNode("Отображать всё в главной копии"));
     this.debugOverlay.appendChild(label);
@@ -95,7 +95,7 @@ export class SpectatorApp {
     this.globalDebugPanel.style.display = "flex";
     this.globalDebugPanel.style.flexDirection = "column";
     this.globalDebugPanel.style.gap = "5px";
-    
+
     this.globalStatsDiv = document.createElement("div");
     this.globalDebugPanel.appendChild(this.globalStatsDiv);
 
@@ -169,7 +169,7 @@ export class SpectatorApp {
 
     // Start with "spectator" role
     this.networkManager.connect("Spectator", "spectator", "spectator");
-    
+
     this.tick();
   }
 
@@ -178,12 +178,12 @@ export class SpectatorApp {
   private updateDebugOverlay(msg: any, statsDiv: HTMLDivElement): void {
     const players = msg.gameState?.players || {};
     const food = msg.gameState?.food || {};
-    
+
     // 1. TOP LEFT PANEL
     let html = `<b>SPECTATOR MODE</b><br/>`;
     html += `Players: ${Object.keys(players).length}<br/>`;
     html += `Food: ${Object.keys(food).length}<br/><hr/>`;
-    
+
     // Sort players by length descending
     const sorted = Object.values(players).sort((a: any, b: any) => (b.body_len || 0) - (a.body_len || 0));
     for (let i = 0; i < Math.min(10, sorted.length); i++) {
@@ -274,6 +274,10 @@ export class SpectatorApp {
     // Send dummy requests to get frames
     this.networkManager.requestFrame(dt, "spectator_id", { turn: 0, accelerating: false, mode: "mouse" }, this.showAllInMainCopy);
 
+    const serverWorld = this.latestFrame?.gameState?.server_world;
+    if (serverWorld) {
+      this.spectatorCamera.setMapSize(serverWorld.width, serverWorld.height);
+    }
     this.spectatorCamera.update(this.sceneManager.getCamera());
 
     this.raycaster.setFromCamera(this.mouse, this.sceneManager.getCamera());
@@ -301,5 +305,7 @@ export class SpectatorApp {
     this.sceneManager.destroy();
     if (this.stats) this.stats.dom.remove();
     this.debugOverlay.remove();
+    this.globalDebugPanel.remove();
+    this.snakeDebugPanel.remove();
   }
 }
