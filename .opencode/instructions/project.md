@@ -15,38 +15,42 @@ behavioral fixes.
 
 ## Commands
 
-Backend (run from `backend/`):
+Backend (run from `backend/`, requires `uv` >= 0.11.2):
 
 ```bash
-python -m pytest tests/ -q
-python tests/generate_frame_fixtures.py   # only after an intentional frame-format change
+uv sync
+uv run --frozen ruff check .
+uv run --frozen pytest tests/ -q
+uv run --frozen python tests/generate_frame_fixtures.py   # only after an intentional frame-format change
 ```
 
 Frontend (run from `frontend/`):
 
 ```bash
+npm ci
 npm test
 npm run build
 ```
 
-Local development: `start_dev.bat` starts backend on `:8000` and Vite on `:5173`.
+Local development: `start_dev.bat` runs `uv sync` and starts backend on `:8000`
+plus Vite on `:5173`.
 
 ## Git hooks
 
 Install the shared hooks once per clone:
 
 ```bash
-python -m pip install -r requirements-dev.txt
-pre-commit install
+uv sync --project backend
+uv run --project backend pre-commit install
 ```
 
 `default_install_hook_types` installs both `pre-commit` and `pre-push` hooks.
-On commit, only the affected stack's tests run (backend pytest for backend
-changes, Vitest for frontend changes). On push, the full backend suite, full
-frontend suite and frontend production build run. To run them manually:
+On commit, only the affected stack's checks run (Ruff/pytest for backend
+changes, Vitest for frontend changes). On push, the full backend lint + tests,
+full frontend tests and frontend production build run. To run them manually:
 
 ```bash
-python scripts/run_checks.py all
+uv run --project backend python scripts/run_checks.py all
 ```
 
 

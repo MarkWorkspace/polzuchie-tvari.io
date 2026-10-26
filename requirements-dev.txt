@@ -1,3 +1,0 @@
-# ROLE: Repo-wide developer tooling for local git hooks. Not backend runtime.
--r backend/requirements-dev.txt
-pre-commit==4.7.0

@@ -1,4 +1,3 @@
-import math
 from collections import defaultdict
 from game_config import CELL_SIZE
 
@@ -7,10 +6,10 @@ def update(state) -> None:
     Builds a unified spatial index for the current tick.
     """
     state.spatial_grid = defaultdict(lambda: {"players": [], "foods": [], "tombstones": []})
-    
+
     grid_w = state._grid_width_cells
     grid_h = state._grid_height_cells
-    
+
     # 1. Add Tombstones
     for tomb in state.tombstones:
         if tomb["time_left"] > 58.5: # Arming time
@@ -20,7 +19,7 @@ def update(state) -> None:
         state.spatial_grid[(cx, cy)]["tombstones"].append(
             ("tombstone", tomb["x"], tomb["y"], 1.2)
         )
-        
+
     # 2. Add Players
     for pid, player in state.players.items():
         if not player.body or player.teleport_state == "in_transit" or player.is_dead:
@@ -31,7 +30,7 @@ def update(state) -> None:
             cx = int(pt_x / CELL_SIZE) % grid_w
             cy = int(pt_y / CELL_SIZE) % grid_h
             state.spatial_grid[(cx, cy)]["players"].append((pid, pt_x, pt_y, radius))
-            
+
     # 3. Add Foods
     for f in state.food_manager.foods.values():
         if f.eaten:
@@ -43,7 +42,7 @@ def update(state) -> None:
 class SpatialIndexSystem:
     name = "spatial_index"
     order = 15
-    
+
     def update(self, world):
         update(world)
 

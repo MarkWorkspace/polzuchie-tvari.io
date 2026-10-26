@@ -8,18 +8,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app.engine.state import World
 from app.engine.systems.serialization import system, get_full_state
-from app.engine.systems import snake_pb2
 
 
 def test():
     world = World()
     world.add_player("test_id", "Player", "#22c55e")
-    
+
     system.update(world)
-    
+
     # Get full state message
     frame = get_full_state(world, "test_id", serialize_proto=False)
-    
+
     print("Frame Type:", frame.type)
     print("Server Tick Rate:", frame.server_tick_rate)
     print("Your ID:", frame.your_id)
@@ -30,11 +29,11 @@ def test():
         print("  Player Skin:", p.skin)
         print("  Player Body length:", len(p.body))
         print("  Player Body coordinates:", list(p.body))
-    
+
     print("Foods count:", len(frame.foods))
     print("Portals count:", len(frame.portals))
     print("Black Holes count:", len(frame.black_holes))
-    
+
     # Config checks
     print("World width:", frame.server_world.width)
     print("World height:", frame.server_world.height)

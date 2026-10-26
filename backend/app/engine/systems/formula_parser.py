@@ -7,7 +7,7 @@ _TOKEN_CACHE = {}
 
 
 class FormulaParser:
-    def __init__(self, expression: str, s: float, l: float):
+    def __init__(self, expression: str, score: float, length: float):
         if expression not in _TOKEN_CACHE:
             regex = r"\d+(?:\.\d+)?|[a-z_][a-z0-9_]*|[\+\-\*\/\^,\(\)]"
             _TOKEN_CACHE[expression] = re.findall(regex, expression, re.IGNORECASE)
@@ -18,9 +18,9 @@ class FormulaParser:
         for i in range(len(self.tokens)):
             t = self.tokens[i].lower()
             if t in ("s", "score"):
-                self.tokens[i] = str(s)
+                self.tokens[i] = str(score)
             elif t in ("l", "len", "length"):
-                self.tokens[i] = str(l)
+                self.tokens[i] = str(length)
             elif t == "pi":
                 self.tokens[i] = str(math.pi)
             elif t == "e":

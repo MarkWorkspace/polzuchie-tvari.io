@@ -5,6 +5,22 @@
 
 ---
 
+## Repository root
+
+```
+.
+├── README.md                           # ROLE: Quickstart, stack, checks and docs index.
+├── .editorconfig                       # ROLE: Shared editor whitespace/charset conventions.
+├── .gitattributes                      # ROLE: Line-ending and binary-file rules.
+├── .pre-commit-config.yaml             # ROLE: Git hooks (Ruff/tests/build).
+├── opencode.jsonc                      # ROLE: OpenCode V2 project config.
+├── docker-compose.yml                  # ROLE: Local production-like stack.
+├── start_dev.bat                       # ROLE: Windows dev launcher (uv + Vite).
+└── scripts/run_checks.py               # ROLE: Cross-platform check runner used by hooks.
+```
+
+---
+
 ## Frontend: `frontend/`
 
 ```
@@ -12,7 +28,9 @@ frontend/
 ├── index.html
 ├── vite.config.ts
 ├── package.json
-├── Dockerfile                      # ROLE: Сборка и запуск фронтенда (Vite) в Docker.
+├── package-lock.json
+├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
+├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite) в Docker.
 └── src/
     ├── main.ts                         # ROLE: Точка входа приложения. Не содержит игровой логики.
     ├── game/
@@ -124,9 +142,10 @@ backend/
 ├── server.py                           # ROLE: Точка входа FastAPI. Не содержит игровой логики.
 ├── game_config.py                      # ROLE: Конфигурация через датаклассы.
 ├── config.json                         # Сохранённая конфигурация (генерируется, не редактировать вручную).
-├── pytest.ini                          # ROLE: Настройки pytest (async loop scope).
-├── requirements.txt                    # ROLE: Runtime-зависимости backend-сервера. Не содержит тестовые и генераторные инструменты.
-├── requirements-dev.txt                # ROLE: Dev/test-зависимости backend. Расширяет runtime requirements для pytest и генерации Protobuf.
+├── pyproject.toml                      # ROLE: PEP 621 metadata, runtime/dev dependencies, pytest + ruff config.
+├── uv.lock                             # ROLE: [СГЕНЕРИРОВАНО] uv lockfile. Не редактировать вручную.
+├── .python-version                     # ROLE: Python version for uv (3.13).
+├── Dockerfile                          # ROLE: Production image на Python 3.13 + uv (non-root, healthcheck).
 └── app/
     ├── api/
     │   ├── websocket.py                # ROLE: WebSocket endpoint, rate limiting, spectator/player identity. Не игровая логика.
@@ -186,7 +205,7 @@ backend/tests/
 └── generate_frame_fixtures.py          # ROLE: Генерация эталонных кадров для parity-тестов. Запуск вручную при изменении формата.
 ```
 
-`backend/pytest.ini` задаёт loop scope для async-тестов.
+`backend/pyproject.toml` задаёт pytest (`testpaths`, `pythonpath`, async loop scope) и Ruff.
 
 ---
 
@@ -219,14 +238,17 @@ tests_shared/
 ## Git hooks and repo tooling
 
 ```
-.pre-commit-config.yaml                # ROLE: fast affected-stack tests on commit, full tests/build on push.
-requirements-dev.txt                   # ROLE: root dev tooling (pre-commit + backend test deps).
+.pre-commit-config.yaml                # ROLE: Ruff/tests on commit, full lint/tests/build on push.
 scripts/
 └── run_checks.py                      # ROLE: cross-platform backend/frontend check runner used by hooks.
 ```
 
-Setup per clone: `python -m pip install -r requirements-dev.txt` then
-`pre-commit install` (installs both pre-commit and pre-push hooks).
+Setup per clone (requires uv >= 0.11):
+
+```bash
+uv sync --project backend
+uv run --project backend pre-commit install
+```
 
 ---
 

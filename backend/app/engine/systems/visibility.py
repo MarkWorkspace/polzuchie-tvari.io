@@ -1,6 +1,5 @@
 # ROLE: Расчёт зоны видимости (Area of Interest - AoI) и фильтрация игроков.
 
-from app.engine.systems.math_utils import toroidal_distance
 
 
 def get_visible_players(state, client_id):
@@ -38,7 +37,7 @@ def get_visible_players(state, client_id):
             dy = abs(cy - p.head_y)
             if dy > gh2:
                 dy = state.grid_height - dy
-                
+
             dist = (dx * dx + dy * dy) ** 0.5
             safe_r = (fog_r_grid + p.body_len * 0.5) * 1.03
             if dist < safe_r:

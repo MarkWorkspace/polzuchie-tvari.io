@@ -8,7 +8,7 @@ from app.engine.systems import snake_pb2
 import uvicorn
 import zlib
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Header, WebSocket, APIRouter, Depends
+from fastapi import FastAPI, APIRouter, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 # Ensure the backend directory is in the sys.path for app module discovery
@@ -82,7 +82,7 @@ async def game_loop(world):
                 world.update_direction(cid, data)
             world.input_queue.clear()
             world.tick()
-        except Exception as e:
+        except Exception:
             traceback.print_exc()
             elapsed = asyncio.get_event_loop().time() - start_time
             await asyncio.sleep(max(0.0, world.tick_interval - elapsed))

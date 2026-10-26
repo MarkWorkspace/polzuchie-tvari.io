@@ -3,8 +3,8 @@ from app.engine.state import World
 from game_config import validate_growth_formula
 
 def test_formula_parser_valid():
-    state = World()
-    
+    World()
+
     # These should pass without ValueError
     valid_formulas = [
         "1",
@@ -18,7 +18,7 @@ def test_formula_parser_valid():
         "pow(s, 0.5)",
         "10 + (s * 2) / 5"
     ]
-    
+
     for formula in valid_formulas:
         try:
             validate_growth_formula(formula)
@@ -26,8 +26,8 @@ def test_formula_parser_valid():
             pytest.fail(f"Valid formula '{formula}' raised ValueError: {e}")
 
 def test_formula_parser_invalid():
-    state = World()
-    
+    World()
+
     invalid_formulas = [
         "import os",
         "__import__('os')",
@@ -40,12 +40,12 @@ def test_formula_parser_invalid():
         "{s: 1}",
         "lambda x: x"
     ]
-    
+
     for formula in invalid_formulas:
         # ** is Pow, it is allowed! So I should remove s ** 2 from invalid
         if "**" in formula:
             continue
-            
+
         with pytest.raises(ValueError):
             validate_growth_formula(formula)
 

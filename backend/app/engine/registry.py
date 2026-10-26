@@ -1,4 +1,4 @@
-from typing import Protocol, Callable, Any, runtime_checkable
+from typing import Protocol, Any, runtime_checkable
 import importlib
 import pkgutil
 from pathlib import Path
@@ -8,7 +8,7 @@ import app.engine.systems
 class System(Protocol):
     name: str
     order: int
-    
+
     def update(self, world: Any) -> None:
         pass
 

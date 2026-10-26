@@ -108,9 +108,11 @@ def _filter_moved_foods(state, client_player, moved_foods_list):
 
     for f in moved_foods_list:
         dx = abs(cx - f["x"])
-        if dx > gw2: dx = gw - dx
+        if dx > gw2:
+            dx = gw - dx
         dy = abs(cy - f["y"])
-        if dy > gh2: dy = gh - dy
+        if dy > gh2:
+            dy = gh - dy
 
         if (dx * dx + dy * dy) < aoi_sq:
             filtered.append(f)

@@ -1,4 +1,4 @@
-# ROLE: Git hooks. Fast affected-stack tests on commit, full tests+build on push.
+# ROLE: Git hooks. Fast affected-stack checks on commit, full checks on push.
 default_install_hook_types: [pre-commit, pre-push]
 default_stages: [pre-commit]
 minimum_pre_commit_version: "4.0.0"
@@ -36,23 +36,38 @@ repos:
 
   - repo: local
     hooks:
+      - id: backend-lint
+        name: backend lint (ruff)
+        entry: uv run --project backend --frozen ruff check --force-exclude
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: true
+
       - id: backend-tests
         name: backend tests (pytest)
-        entry: python scripts/run_checks.py backend-tests
+        entry: uv run --project backend --frozen python scripts/run_checks.py backend-tests
         language: system
-        files: ^(backend/.*\.py|backend/pytest\.ini|tests_shared/.*)$
+        files: ^(backend/.*\.py|backend/(pyproject\.toml|uv\.lock)|tests_shared/.*)$
         pass_filenames: false
 
       - id: frontend-tests
         name: frontend tests (vitest)
-        entry: python scripts/run_checks.py frontend-tests
+        entry: uv run --project backend --frozen python scripts/run_checks.py frontend-tests
         language: system
         files: ^(frontend/src/.*\.(ts|tsx)|frontend/(package\.json|package-lock\.json|vite\.config\.ts|tsconfig.*\.json)|tests_shared/.*)$
         pass_filenames: false
 
+      - id: backend-lint-push
+        name: backend lint (pre-push)
+        entry: uv run --project backend --frozen python scripts/run_checks.py backend-lint
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+
       - id: backend-tests-push
         name: backend tests (pre-push)
-        entry: python scripts/run_checks.py backend-tests
+        entry: uv run --project backend --frozen python scripts/run_checks.py backend-tests
         language: system
         stages: [pre-push]
         pass_filenames: false
@@ -60,7 +75,7 @@ repos:
 
       - id: frontend-tests-push
         name: frontend tests (pre-push)
-        entry: python scripts/run_checks.py frontend-tests
+        entry: uv run --project backend --frozen python scripts/run_checks.py frontend-tests
         language: system
         stages: [pre-push]
         pass_filenames: false
@@ -68,7 +83,7 @@ repos:
 
       - id: frontend-build-push
         name: frontend typecheck & build (pre-push)
-        entry: python scripts/run_checks.py frontend-build
+        entry: uv run --project backend --frozen python scripts/run_checks.py frontend-build
         language: system
         stages: [pre-push]
         pass_filenames: false

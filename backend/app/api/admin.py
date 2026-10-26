@@ -3,12 +3,11 @@ import os
 import asyncio
 import hmac
 import zlib
-from fastapi import Header, HTTPException, Response, Cookie, Request
+from fastapi import HTTPException, Response, Cookie, Request
 from pydantic import BaseModel
 
 from app.engine.systems import snake_pb2
 
-from app.engine.entities import Food
 from app.api.websocket import (
     active_connections,
     replace_queued_state,
@@ -38,7 +37,7 @@ async def admin_login(req: LoginRequest, response: Response):
         raise HTTPException(status_code=403, detail="ADMIN_PASSWORD is not configured")
     if not hmac.compare_digest(req.password, expected_password):
         raise HTTPException(status_code=401, detail="Invalid admin password")
-    
+
     response.set_cookie(
         key="admin_token",
         value=req.password,

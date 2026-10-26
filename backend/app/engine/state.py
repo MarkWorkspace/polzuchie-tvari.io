@@ -88,19 +88,20 @@ class World:
                 formula = str(formula)
             validate_growth_formula(formula)
 
-            self.growth_segment_cost_func = lambda s, l: evaluate_formula(formula, s, l)
+            self.growth_segment_cost_func = lambda score, length: evaluate_formula(
+                formula, score, length
+            )
             print(f"[Config] Bound growth segment cost function: {formula}")
         except Exception as e:
             print(
-                f"[Config] Error compiling growth formula: {e}. Falling back to lambda s, l: 10.0"
+                f"[Config] Error compiling growth formula: {e}. Falling back to lambda score, length: 10.0"
             )
-            self.growth_segment_cost_func = lambda s, l: 10.0
+            self.growth_segment_cost_func = lambda score, length: 10.0
 
     def align_player_growth(self, player):
         start_score = self.config.snake.start_score
         start_length = self.config.snake.start_length
         max_growth_score = self.config.snake.max_growth_score
-        min_body_length = self.config.snake.min_body_length
 
         if player.score <= start_score:
             ideal_length = start_length
@@ -134,13 +135,17 @@ class World:
         current_length = player.body_len
         score_offset = 0.0
         if ideal_length > current_length:
-            for l in range(current_length, ideal_length):
-                cost = max(0.1, float(self.growth_segment_cost_func(player.score, l)))
+            for length in range(current_length, ideal_length):
+                cost = max(
+                    0.1, float(self.growth_segment_cost_func(player.score, length))
+                )
                 score_offset += cost
             player.pending_growth = ideal_pending + score_offset
         elif ideal_length < current_length:
-            for l in range(ideal_length, current_length):
-                cost = max(0.1, float(self.growth_segment_cost_func(player.score, l)))
+            for length in range(ideal_length, current_length):
+                cost = max(
+                    0.1, float(self.growth_segment_cost_func(player.score, length))
+                )
                 score_offset += cost
             player.pending_growth = ideal_pending - score_offset
         else:

@@ -3,13 +3,10 @@ import asyncio
 import contextlib
 import re
 import uuid
-from app.engine.systems import snake_pb2
 import zlib
 from collections import deque
 from fastapi import WebSocket
 
-from app.engine.entities import Food
-from app.engine.state import World
 
 
 active_connections = {}

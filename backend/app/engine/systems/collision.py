@@ -1,6 +1,5 @@
 # ROLE: Столкновения змейка-змейка (коэфф. 0.95). Не движение, не еда.
 
-import math
 from app.engine.systems.math_utils import toroidal_delta, toroidal_distance
 from game_config import CELL_SIZE
 

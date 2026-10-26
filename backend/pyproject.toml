@@ -1,0 +1,42 @@
+[project]
+name = "polzuchie-tvari-backend"
+version = "0.1.0"
+description = "FastAPI + WebSocket authoritative simulation for Polzuchie-tvari.io"
+requires-python = ">=3.13"
+dependencies = [
+    "websockets==15.0.1",
+    "fastapi==0.115.12",
+    "uvicorn[standard]==0.34.3",
+    "protobuf==6.33.6",
+]
+
+[dependency-groups]
+dev = [
+    "grpcio-tools==1.81.1",
+    "pytest==8.3.3",
+    "pytest-asyncio==0.24.0",
+    "pre-commit==4.7.0",
+    "ruff==0.17.2",
+]
+
+[tool.uv]
+# This is an application, not an installable library: sync deps only.
+package = false
+required-version = ">=0.11.2"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+extend-exclude = ["app/engine/systems/snake_pb2.py"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+# server.py inserts its own directory into sys.path before app imports.
+"server.py" = ["E402"]

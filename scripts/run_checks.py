@@ -25,6 +25,10 @@ def _quote(value: str) -> str:
 
 
 CHECKS = {
+    "backend-lint": (
+        f"{_quote(_python_for_backend())} -m ruff check .",
+        ROOT / "backend",
+    ),
     "backend-tests": (
         f"{_quote(_python_for_backend())} -m pytest tests -q",
         ROOT / "backend",
@@ -33,12 +37,12 @@ CHECKS = {
     "frontend-build": ("npm run build", ROOT / "frontend"),
 }
 
-CHECK_ORDER = ("backend-tests", "frontend-tests", "frontend-build")
+CHECK_ORDER = ("backend-lint", "backend-tests", "frontend-tests", "frontend-build")
 
 
 def _run(name: str) -> None:
     command, cwd = CHECKS[name]
-    if name != "backend-tests" and not (ROOT / "frontend/node_modules").exists():
+    if name.startswith("frontend") and not (ROOT / "frontend/node_modules").exists():
         raise SystemExit(
             "[checks] frontend/node_modules is missing. Run `npm ci` in frontend/ first."
         )
