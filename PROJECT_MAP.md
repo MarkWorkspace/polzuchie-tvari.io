@@ -32,6 +32,10 @@ frontend/
 ├── tsconfig.json                       # ROLE: Production TypeScript config (strict, excludes tests).
 ├── tsconfig.test.json                  # ROLE: Test TypeScript config (DOM + Node types).
 ├── biome.json                          # ROLE: Biome lint/format config for the frontend.
+├── playwright.config.ts                # ROLE: Playwright E2E config; поднимает backend и Vite.
+├── e2e/
+│   ├── game.spec.ts                    # ROLE: Smoke login, HUD, settings и game-over.
+│   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
 ├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
 ├── nginx.conf                          # ROLE: SPA static serving, /ws proxy, cache and security headers.
@@ -55,7 +59,7 @@ frontend/
     │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
     ├── renderer/
-    │   ├── SceneManager.ts             # ROLE: Инициализация Three.js сцены, свет, рендерер.
+    │   ├── SceneManager.ts             # ROLE: Three.js сцена, свет, рендерер, пресеты качества и adaptive pixel ratio.
     │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, сплайны, тени. Не физика, не HUD.
     │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
     │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.

@@ -66,6 +66,17 @@ npm test
 npm run build
 ```
 
+E2E smoke-тесты (Playwright сам поднимает backend на `:8000` и Vite на `:5173`):
+
+```bash
+cd frontend
+npx playwright install chromium   # один раз на машину
+npm run test:e2e
+```
+
+Перед первым запуском на Linux CI браузер ставится с системными зависимостями:
+`npx playwright install --with-deps chromium`.
+
 ## Git hooks
 
 ```bash
@@ -75,6 +86,7 @@ uv run --project backend pre-commit install
 
 На коммит запускаются Ruff/Biome и тесты затронутого стека; на пуш — полный
 backend format/lint + pytest, frontend lint/typecheck + vitest и production build.
+Playwright E2E запускается в CI отдельным job.
 
 ## Docker
 

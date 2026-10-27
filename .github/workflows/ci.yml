@@ -73,6 +73,38 @@ jobs:
       - name: Run vitest
         run: npm test
 
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v9
+        with:
+          version: "0.11.2"
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "backend/uv.lock"
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run E2E smoke tests
+        working-directory: frontend
+        run: npm run test:e2e
+        env:
+          CI: "true"
+
   docker:
     name: Docker builds
     runs-on: ubuntu-latest
