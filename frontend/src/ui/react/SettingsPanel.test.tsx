@@ -33,4 +33,25 @@ describe("SettingsPanel", () => {
     expect(onFpsToggle).toHaveBeenCalledWith(true);
     expect(localStorage.getItem("snake-show-fps")).toBe("true");
   });
+
+  it("hides the trigger while the drawer is open so it cannot cover the close button", () => {
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+    render(
+      <SettingsPanel
+        inputManager={null}
+        callbacks={{ onDebugToggle: vi.fn(), onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveClass("hidden");
+    expect(trigger).toHaveAttribute("aria-hidden", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "✕" }));
+    expect(document.querySelector(".settings-drawer")).not.toHaveClass("open");
+  });
 });

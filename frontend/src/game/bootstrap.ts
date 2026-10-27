@@ -1,10 +1,9 @@
 // ROLE: Lazy game UI bootstrap (login, HUD, game lifecycle). Not network or renderer logic.
 
-import { HUD } from "../ui/HUD";
-import { KillFeed } from "../ui/KillFeed";
-import { Leaderboard } from "../ui/Leaderboard";
 import { Minimap } from "../ui/Minimap";
 import { MobileControls } from "../ui/MobileControls";
+import { attachGameUiBridge } from "../ui/react/gameUiStore";
+import { mountGameHud } from "../ui/react/mountGameHud";
 import { mountGameOverScreen } from "../ui/react/mountGameOverScreen";
 import { mountLoginScreen } from "../ui/react/mountLoginScreen";
 import { mountSettingsPanel } from "../ui/react/mountSettingsPanel";
@@ -40,21 +39,9 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     window.innerWidth <= 768;
 
-  const hud = new HUD(hudContainer);
-  const leaderboardOptions = isMobile
-    ? { limit: 3, alwaysOpen: true, noBackground: true, hideHeader: true }
-    : { limit: 10 };
-  const leaderboard = new Leaderboard(hudContainer, leaderboardOptions);
+  const detachGameUi = attachGameUiBridge();
+  const unmountHud = mountGameHud(hudContainer, isMobile);
 
-  if (isMobile && document.querySelector(".leaderboard-panel")) {
-    const panel = document.querySelector(".leaderboard-panel") as HTMLElement;
-    const titleDiv = document.createElement("div");
-    titleDiv.classList.add("mobile-leaderboard-title");
-    titleDiv.innerHTML = "<span>🏆</span> Top 3";
-    panel.insertBefore(titleDiv, panel.firstChild);
-  }
-
-  const killFeed = new KillFeed(hudContainer);
   const steering = new SteeringIndicator(hudContainer);
   const minimap = new Minimap(hudContainer);
   const gameOverContainer = document.createElement("div");
@@ -79,7 +66,7 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
     },
   });
 
-  window.addEventListener("game-ping", () => {}); // placeholder for potential future listener
+  let lastScore = 0;
 
   (game as any).renderOrchestrator.onPostRender((frame: any, myId: string) => {
     const turn = game.getInputManager().getTurn();
@@ -92,14 +79,13 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
       const myPlayer = frame.gameState?.players?.[myId];
 
       if (myPlayer) {
-        const lastScore = (hud as any).lastScore || 0;
         if (myPlayer.score !== lastScore) {
           window.dispatchEvent(
             new CustomEvent("game-score-update", {
               detail: { score: myPlayer.score, delta: myPlayer.score - lastScore },
             }),
           );
-          (hud as any).lastScore = myPlayer.score;
+          lastScore = myPlayer.score;
         }
       }
     }
@@ -110,9 +96,8 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
   window.addEventListener("beforeunload", () => {
     game.destroy();
     unmountGameOver();
-    hud.destroy();
-    leaderboard.destroy();
-    killFeed.destroy();
+    unmountHud();
+    detachGameUi();
     steering.destroy();
     minimap.destroy();
     mobile.destroy();

@@ -1,8 +1,8 @@
 // ROLE: React settings drawer (controls, FPS, guide, admin link, leaderboard).
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { ControlMode, InputManager } from "../../game/InputManager";
 import { t } from "../../lib/i18n";
-import { Leaderboard } from "../Leaderboard";
+import { Leaderboard } from "./Leaderboard";
 
 export interface SettingsCallbacks {
   onDebugToggle: () => void;
@@ -23,18 +23,7 @@ export function SettingsPanel({ inputManager, callbacks }: SettingsPanelProps) {
   const [open, setOpen] = useState(false);
   const [showFps, setShowFps] = useState(() => localStorage.getItem("snake-show-fps") === "true");
   const [mode, setMode] = useState<ControlMode>(() => inputManager?.getControlMode() ?? "mouse");
-  const leaderboardHost = useRef<HTMLDivElement>(null);
   const debugMode = new URLSearchParams(window.location.search).get("debug") === "true";
-
-  useEffect(() => {
-    if (!open || !leaderboardHost.current) return;
-    const leaderboard = new Leaderboard(leaderboardHost.current, {
-      limit: 10,
-      alwaysOpen: true,
-      noBackground: true,
-    });
-    return () => leaderboard.destroy();
-  }, [open]);
 
   const selectMode = (nextMode: ControlMode) => {
     inputManager?.setControlMode(nextMode);
@@ -59,9 +48,11 @@ export function SettingsPanel({ inputManager, callbacks }: SettingsPanelProps) {
     <>
       <button
         type="button"
-        className="settings-trigger"
+        className={`settings-trigger ${open ? "hidden" : ""}`}
         aria-label={t("menu.settings")}
         aria-expanded={open}
+        aria-hidden={open}
+        tabIndex={open ? -1 : 0}
         onClick={() => setOpen(true)}
       >
         ☰
@@ -170,7 +161,9 @@ export function SettingsPanel({ inputManager, callbacks }: SettingsPanelProps) {
           </section>
         ) : null}
 
-        <div className="drawer-leaderboard" ref={leaderboardHost} />
+        <div className="drawer-leaderboard">
+          <Leaderboard limit={10} alwaysOpen plain />
+        </div>
 
         <button type="button" className="drawer-admin-link" onClick={callbacks.onAdminClick}>
           <span>⚙</span> Admin Panel

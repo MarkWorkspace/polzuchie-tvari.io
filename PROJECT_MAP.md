@@ -109,14 +109,19 @@ frontend/
     │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
     │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
-    │   ├── HUD.ts                      # ROLE: Score, ping, статус соединения. Не игровая логика.
-    │   ├── Leaderboard.ts              # ROLE: Топ-10 таблица (vanilla; используется HUD и настройками).
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
     │   ├── Minimap.test.ts             # ROLE: Тесты разбора lightweight-игроков для миникарты.
-    │   ├── KillFeed.ts                 # ROLE: Лента убийств.
     │   ├── SteeringIndicator.ts        # ROLE: Шкала поворота мыши.
     │   ├── MobileControls.ts           # ROLE: Мобильные элементы управления.
     │   └── react/
+    │       ├── gameUiStore.ts          # ROLE: Throttled window-event adapter + external store для игрового UI. Без рендеринга.
+    │       ├── gameUiStore.test.ts     # ROLE: Тесты троттлинга лидерборда/счета и TTL killfeed.
+    │       ├── GameHud.tsx             # ROLE: React-композиция HUD (счет, лидерборд, killfeed).
+    │       ├── HudPanel.tsx            # ROLE: React score panel, score feed и ping.
+    │       ├── Leaderboard.tsx         # ROLE: React топ-таблица для HUD и настроек.
+    │       ├── KillFeed.tsx            # ROLE: React лента убийств.
+    │       ├── mountGameHud.tsx        # ROLE: Mount/unmount React HUD в grid-контейнере.
+    │       ├── GameHud.test.tsx        # ROLE: React HUD regression tests.
     │       ├── LoginScreen.tsx         # ROLE: React login and skin selection.
     │       ├── mountLoginScreen.tsx    # ROLE: Mount/unmount React login.
     │       ├── SettingsPanel.tsx       # ROLE: React controls/settings drawer.

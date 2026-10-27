@@ -1,5 +1,9 @@
 /* ROLE: Стили для HUD элементов (Leaderboard, KillFeed, SteeringIndicator). Не стили счета или контейнера. */
 
+.hud-root {
+  display: contents;
+}
+
 /* Leaderboard */
 .leaderboard-panel {
   grid-column: 3;
@@ -21,6 +25,39 @@
   padding-bottom: 8px;
 }
 
+.leaderboard-header--collapsible {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border-glow);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.leaderboard-arrow {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.leaderboard-arrow.open {
+  transform: rotate(180deg);
+}
+
+.leaderboard-empty {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 10px 0;
+  font-size: 13px;
+}
+
 .leaderboard-list {
   display: flex;
   flex-direction: column;
@@ -30,12 +67,48 @@
 
 .leaderboard-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   padding: 6px 10px;
   border-radius: 8px;
   font-size: 14px;
   transition: var(--transition-smooth);
+}
+
+.leaderboard-item-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.leaderboard-stats {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+.leaderboard-name.self,
+.leaderboard-score.self {
+  color: #4ade80;
+}
+
+.leaderboard-panel--plain {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.leaderboard-panel--plain .leaderboard-item {
+  padding: 2px 0;
+}
+
+.leaderboard-panel--plain .leaderboard-name,
+.leaderboard-panel--plain .leaderboard-score {
+  font-size: 12px;
 }
 
 .leaderboard-item.self {
@@ -84,7 +157,9 @@
 }
 
 .kill-message {
-  animation: slideInUp 0.3s ease;
+  animation:
+    slideInUp 0.3s ease,
+    killFeedFade 5s ease forwards;
   background: hsla(0, 0%, 0%, 0.6);
   padding: 6px 16px;
   border-radius: 20px;
@@ -101,6 +176,20 @@
 .kill-victim {
   color: var(--accent-blue);
   font-weight: 600;
+}
+
+/* Duration matches KILL_FEED_LIFETIME_MS in gameUiStore.ts. */
+@keyframes killFeedFade {
+  0% {
+    opacity: 0;
+  }
+  6%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* Steering Indicator */
