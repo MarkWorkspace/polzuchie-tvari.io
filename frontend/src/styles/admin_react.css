@@ -663,6 +663,13 @@
   box-sizing: border-box;
 }
 
+.admin-login-card .login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 18px;
+}
+
 .admin-login-caption {
   margin: 8px 0 0;
   color: var(--text-muted);

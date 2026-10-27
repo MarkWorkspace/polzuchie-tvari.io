@@ -11,12 +11,16 @@ interface MapSimulatorProps {
 
 export function MapSimulator({ editor, revision, visible }: MapSimulatorProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const lastSignature = useRef<string | null>(null);
   const [seed, setSeed] = useState(42);
   // biome-ignore lint/correctness/useExhaustiveDependencies: revision invalidates the mutable editor model.
   const config = useMemo(() => editor.getSimConfig(), [editor, revision]);
 
   useEffect(() => {
     if (!visible || !canvasRef.current || !config) return;
+    const signature = `${seed}:${JSON.stringify(config)}`;
+    if (signature === lastSignature.current) return;
+    lastSignature.current = signature;
     const simulator = new FoodSimulator(canvasRef.current);
     simulator.simulateAndDraw(config, seed);
   }, [config, seed, visible]);

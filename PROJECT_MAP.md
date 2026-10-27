@@ -38,8 +38,10 @@ frontend/
 ├── public/
 │   └── fonts/                          # ROLE: Self-hosted Outfit WOFF2 files.
 └── src/
-    ├── main.ts                         # ROLE: Точка входа приложения. Не содержит игровой логики; lazy-mount React admin.
+    ├── main.ts                         # ROLE: Route selection and lazy loading; no game logic.
     ├── game/
+    │   ├── bootstrap.ts                # ROLE: Lazy game UI bootstrap (login, HUD, game lifecycle).
+    │   ├── spectatorBootstrap.ts       # ROLE: Lazy spectator UI bootstrap.
     │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
@@ -132,6 +134,7 @@ frontend/
     │       ├── MapSizeCard.tsx          # ROLE: Width/height editor.
     │       ├── MapSimulator.tsx         # ROLE: Food distribution preview wrapper.
     │       ├── FoodTypesEditor.tsx      # ROLE: Food type editor.
+    │       ├── RestartModal.tsx         # ROLE: Accessible restart confirmation dialog.
     │       └── AdminLogin.test.tsx      # ROLE: React admin login regression tests.
     └── types/
         └── game.ts                     # ROLE: Типы GameState, Player, Food и др. Только типы, без логики.

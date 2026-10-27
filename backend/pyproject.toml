@@ -17,6 +17,7 @@ dev = [
     "pytest-asyncio==1.4.1",
     "pre-commit==4.7.0",
     "ruff==0.17.2",
+    "httpx2==2.16.0",
 ]
 
 [tool.uv]

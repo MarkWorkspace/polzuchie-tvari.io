@@ -9,9 +9,15 @@ export function adminApiUrl(path: string): string {
   return `${protocol}//${host}${portPart}${prefix}${path}`;
 }
 
-export async function adminFetch(path: string, init?: RequestInit): Promise<Response> {
+export async function adminFetch(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = 8000,
+): Promise<Response> {
+  const signal = init.signal ?? AbortSignal.timeout(timeoutMs);
   return fetch(adminApiUrl(path), {
     credentials: "include",
     ...init,
+    signal,
   });
 }

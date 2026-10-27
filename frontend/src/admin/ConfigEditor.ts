@@ -1,7 +1,7 @@
 // ROLE: Состояние и бизнес-логика конфигурации админ-панели. Без UI.
 
 import { getNewSectionKey, HIDDEN_FIELDS } from "./AdminLabels";
-import { adminApiUrl } from "./adminApi";
+import { adminFetch } from "./adminApi";
 
 let nextFoodTypeKey = 0;
 
@@ -35,7 +35,7 @@ export class ConfigEditor {
 
   public async load(): Promise<string> {
     try {
-      const res = await fetch(adminApiUrl("/admin/config"), { credentials: "include" });
+      const res = await adminFetch("/admin/config");
       if (!res.ok) return `Access error: Invalid password (${res.status})`;
       this.config = await res.json();
       this.resetLocalDrafts();
@@ -51,10 +51,9 @@ export class ConfigEditor {
       return { ok: true, message: "No changes detected" };
     }
     try {
-      const res = await fetch(adminApiUrl("/admin/config"), {
+      const res = await adminFetch("/admin/config", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        credentials: "include",
         body: JSON.stringify(patch),
       });
       if (!res.ok) {

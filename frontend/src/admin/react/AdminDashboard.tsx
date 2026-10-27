@@ -6,6 +6,7 @@ import { ConfigField, type ConfigFieldData } from "./ConfigField";
 import { FoodTypesEditor } from "./FoodTypesEditor";
 import { MapSimulator } from "./MapSimulator";
 import { MapSizeCard } from "./MapSizeCard";
+import { RestartModal } from "./RestartModal";
 
 export type AdminTab = "all" | keyof typeof NEW_SECTIONS;
 
@@ -252,37 +253,7 @@ export function AdminDashboard({
       ) : null}
 
       {restartOpen ? (
-        <div
-          className="admin-modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Restart game"
-        >
-          <div className="admin-modal">
-            <div className="admin-modal-icon">⚠️</div>
-            <h3>Restart Game?</h3>
-            <p>
-              This will disconnect all players and reset the game state. Food will be respawned.
-              Configuration settings are preserved.
-            </p>
-            <div className="admin-modal-actions">
-              <button
-                type="button"
-                className="login-button admin-secondary-button"
-                onClick={onRestartCancel}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="login-button admin-danger-button"
-                onClick={onRestartConfirm}
-              >
-                Restart
-              </button>
-            </div>
-          </div>
-        </div>
+        <RestartModal onCancel={onRestartCancel} onConfirm={onRestartConfirm} />
       ) : null}
     </div>
   );
