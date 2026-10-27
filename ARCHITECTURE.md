@@ -91,7 +91,7 @@
 8. **RenderOrchestrator & Renderers (Рендер):**
    - [RenderOrchestrator](frontend/src/game/RenderOrchestrator.ts) обновляет камеру и вызывает методы `update` у всех рендереров.
    - [SnakeRenderer](frontend/src/renderer/SnakeRenderer.ts), [FoodRenderer](frontend/src/renderer/FoodRenderer.ts), [PortalRenderer](frontend/src/renderer/PortalRenderer.ts), [BlackHoleRenderer](frontend/src/renderer/BlackHoleRenderer.ts), [ParticleRenderer](frontend/src/renderer/ParticleRenderer.ts) обновляют геометрии Three.js (`BufferGeometry`) и матрицы инстансов (`InstancedMesh`) на основе полученных буферов.
-   - [SceneManager.render](frontend/src/renderer/SceneManager.ts#L81) выполняет отрисовку через [PostProcessing.render](frontend/src/renderer/PostProcessing.ts#L88) (шейдер линзирования черных дыр и тумана) или напрямую через WebGLRenderer.
+   - [SceneManager.render](frontend/src/renderer/SceneManager.ts) выполняет отрисовку через [PostProcessing.render](frontend/src/renderer/PostProcessing.ts) (tone mapping, bloom/SSAO по пресету и линзирование черных дыр). Пресет качества (`RenderQuality`) задает эффекты, тени и pixel ratio; в режиме `auto` [AdaptiveResolution](frontend/src/renderer/AdaptiveResolution.ts) плавно меняет pixel ratio по среднему frame time.
 
 ---
 

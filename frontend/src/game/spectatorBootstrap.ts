@@ -19,15 +19,20 @@ export function mountSpectator(app: HTMLDivElement): void {
   const spectator = new SpectatorApp(canvasContainer);
   const settingsContainer = document.createElement("div");
   app.appendChild(settingsContainer);
-  const unmountSettings = mountSettingsPanel(settingsContainer, null, {
-    onDebugToggle: () => {},
-    onAdminClick: () => {
-      window.location.search = "?admin=true";
+  const unmountSettings = mountSettingsPanel(
+    settingsContainer,
+    null,
+    {
+      onDebugToggle: () => {},
+      onAdminClick: () => {
+        window.location.search = "?admin=true";
+      },
+      onFpsToggle: (enabled: boolean) => {
+        spectator.setStatsEnabled(enabled);
+      },
     },
-    onFpsToggle: (enabled: boolean) => {
-      spectator.setStatsEnabled(enabled);
-    },
-  });
+    spectator,
+  );
 
   window.addEventListener("beforeunload", () => {
     spectator.destroy();

@@ -74,7 +74,11 @@ frontend/
     │   ├── BlackHoleRenderer.ts        # ROLE: Визуализация чёрных дыр.
     │   ├── TombstoneRenderer.ts        # ROLE: Инстансированные надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Система частиц (свечение хвоста).
-    │   ├── PostProcessing.ts           # ROLE: Линзирование, туман.
+    │   ├── PostProcessing.ts           # ROLE: Tone mapping, bloom/SSAO по пресету, линзирование чёрных дыр.
+    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low) и их persisted-выбор.
+    │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
+    │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
+    │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
     │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, порядок, фабрики материалов.
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
     │   └── shaders/

@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { ControlMode, InputManager } from "../../game/InputManager";
 import { t } from "../../lib/i18n";
+import type { RenderQuality, RenderQualityControl } from "../../renderer/RenderQuality";
 import { Leaderboard } from "./Leaderboard";
 
 export interface SettingsCallbacks {
@@ -13,16 +14,20 @@ export interface SettingsCallbacks {
 interface SettingsPanelProps {
   inputManager: InputManager | null;
   callbacks: SettingsCallbacks;
+  qualityControl?: RenderQualityControl | null;
 }
 
 const IS_MOBILE =
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
   window.innerWidth <= 768;
 
-export function SettingsPanel({ inputManager, callbacks }: SettingsPanelProps) {
+export function SettingsPanel({ inputManager, callbacks, qualityControl }: SettingsPanelProps) {
   const [open, setOpen] = useState(false);
   const [showFps, setShowFps] = useState(() => localStorage.getItem("snake-show-fps") === "true");
   const [mode, setMode] = useState<ControlMode>(() => inputManager?.getControlMode() ?? "mouse");
+  const [quality, setQuality] = useState<RenderQuality>(
+    () => qualityControl?.getQuality() ?? "auto",
+  );
   const debugMode = new URLSearchParams(window.location.search).get("debug") === "true";
 
   const selectMode = (nextMode: ControlMode) => {
@@ -110,6 +115,30 @@ export function SettingsPanel({ inputManager, callbacks }: SettingsPanelProps) {
                 />
               ) : null}
             </div>
+          </section>
+        ) : null}
+
+        {qualityControl ? (
+          <section className="drawer-section">
+            <h3 className="drawer-section-title">{t("menu.graphics")}</h3>
+            <label className="drawer-select-row">
+              <span>{t("menu.quality")}</span>
+              <select
+                className="drawer-select"
+                value={quality}
+                onChange={(event) => {
+                  const next = event.currentTarget.value as RenderQuality;
+                  setQuality(next);
+                  qualityControl.setQuality(next);
+                }}
+              >
+                <option value="auto">{t("quality.auto")}</option>
+                <option value="high">{t("quality.high")}</option>
+                <option value="medium">{t("quality.medium")}</option>
+                <option value="low">{t("quality.low")}</option>
+              </select>
+            </label>
+            <p className="drawer-hint">{t("menu.qualityHint")}</p>
           </section>
         ) : null}
 

@@ -54,17 +54,22 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
 
   const settingsContainer = document.createElement("div");
   app.appendChild(settingsContainer);
-  const unmountSettings = mountSettingsPanel(settingsContainer, game.getInputManager(), {
-    onDebugToggle: () => {
-      game.toggleDebug();
+  const unmountSettings = mountSettingsPanel(
+    settingsContainer,
+    game.getInputManager(),
+    {
+      onDebugToggle: () => {
+        game.toggleDebug();
+      },
+      onAdminClick: () => {
+        window.location.search = "?admin=true";
+      },
+      onFpsToggle: (enabled: boolean) => {
+        game.setStatsEnabled(enabled);
+      },
     },
-    onAdminClick: () => {
-      window.location.search = "?admin=true";
-    },
-    onFpsToggle: (enabled: boolean) => {
-      game.setStatsEnabled(enabled);
-    },
-  });
+    game,
+  );
 
   let lastScore = 0;
 

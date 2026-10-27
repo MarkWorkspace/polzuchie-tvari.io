@@ -3,6 +3,7 @@
 import Stats from "stats.js";
 import * as THREE from "three";
 import { escapeHtml } from "../lib/escapeHtml";
+import type { RenderQuality } from "../renderer/RenderQuality";
 import { SceneManager } from "../renderer/SceneManager";
 import { gridSize } from "./Config";
 import { NetworkManager } from "./NetworkManager";
@@ -250,6 +251,14 @@ export class SpectatorApp {
     } else {
       this.snakeDebugPanel.innerHTML = `<b>SNAKE DEBUG</b><br/><br/>Змейка не выбрана`;
     }
+  }
+
+  public getQuality(): RenderQuality {
+    return this.sceneManager.getQuality();
+  }
+
+  public setQuality(quality: RenderQuality): void {
+    this.sceneManager.setQuality(quality);
   }
 
   public setStatsEnabled(enabled: boolean): void {

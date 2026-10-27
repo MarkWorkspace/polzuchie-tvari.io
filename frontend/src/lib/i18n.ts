@@ -33,6 +33,18 @@ const translations = {
     en: "Display frame rate and performance stats",
   },
 
+  // Graphics quality
+  "menu.graphics": { ru: "Графика", en: "Graphics" },
+  "menu.quality": { ru: "Качество", en: "Quality" },
+  "menu.qualityHint": {
+    ru: "Auto подстраивает разрешение, чтобы держать плавный FPS.",
+    en: "Auto tunes resolution to keep the frame rate smooth.",
+  },
+  "quality.auto": { ru: "Авто", en: "Auto" },
+  "quality.high": { ru: "Высокое", en: "High" },
+  "quality.medium": { ru: "Среднее", en: "Medium" },
+  "quality.low": { ru: "Низкое", en: "Low" },
+
   // Control modes
   "control.touchDrag": { ru: "Сенсорный Драг", en: "Touch Drag" },
   "control.touchDragDesc": { ru: "Перетаскивание + зона буста", en: "Drag steering + Boost zone" },

@@ -1,6 +1,7 @@
 // ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
 
 import Stats from "stats.js";
+import type { RenderQuality } from "../renderer/RenderQuality";
 import { SceneManager } from "../renderer/SceneManager";
 import { GameCamera } from "./Camera";
 import type { ControlMode } from "./InputManager";
@@ -89,6 +90,14 @@ export class Game {
 
   public getMyId(): string {
     return this.myId;
+  }
+
+  public getQuality(): RenderQuality {
+    return this.sceneManager.getQuality();
+  }
+
+  public setQuality(quality: RenderQuality): void {
+    this.sceneManager.setQuality(quality);
   }
 
   private setupInputCallbacks(): void {

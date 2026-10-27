@@ -1,4 +1,4 @@
-// ROLE: Линзирование, AO, туман.
+// ROLE: EffectComposer-пайплайн: tone mapping, опциональные SSAO/bloom, линзирование чёрных дыр.
 
 import {
   BlendFunction,
@@ -52,10 +52,18 @@ class LensingEffect extends Effect {
   }
 }
 
+export interface PostProcessingOptions {
+  ssao?: boolean;
+  bloom?: boolean;
+}
+
 export class PostProcessing {
-  private composer: EffectComposer;
-  private lensingEffect: LensingEffect;
-  private normalPass: NormalPass;
+  private readonly composer: EffectComposer;
+  private readonly scene: THREE.Scene;
+  private readonly camera: THREE.PerspectiveCamera;
+  private lensingEffect!: LensingEffect;
+  private ssaoEnabled: boolean;
+  private bloomEnabled: boolean;
 
   private bhPositionsArray = new Float32Array(30);
   private tempVec3 = new THREE.Vector3();
@@ -67,51 +75,80 @@ export class PostProcessing {
     camera: THREE.PerspectiveCamera,
     width: number,
     height: number,
+    options: PostProcessingOptions = {},
   ) {
+    this.scene = scene;
+    this.camera = camera;
     this.composer = new EffectComposer(renderer, {
       frameBufferType: THREE.HalfFloatType,
     });
+    this.ssaoEnabled = options.ssao ?? true;
+    this.bloomEnabled = options.bloom ?? true;
 
-    const renderPass = new RenderPass(scene, camera);
-    this.composer.addPass(renderPass);
+    this.buildPipeline();
+    this.resize(width, height);
+  }
 
-    this.normalPass = new NormalPass(scene, camera);
-    this.composer.addPass(this.normalPass);
+  /** Rebuild passes in place. Keeps the composer buffers and shared fullscreen geometry alive. */
+  public setOptions(options: PostProcessingOptions): void {
+    const ssao = options.ssao ?? true;
+    const bloom = options.bloom ?? true;
+    if (ssao === this.ssaoEnabled && bloom === this.bloomEnabled) return;
 
-    const ssaoEffect = new SSAOEffect(camera, this.normalPass.texture, {
-      intensity: 1.5,
-      radius: 0.05,
-      samples: 16,
-      rings: 4,
-      distanceScaling: true,
-      distanceThreshold: 0.5,
-      distanceFalloff: 0.1,
-    });
+    this.ssaoEnabled = ssao;
+    this.bloomEnabled = bloom;
+
+    const oldPasses = [...this.composer.passes];
+    this.composer.removeAllPasses();
+    for (const pass of oldPasses) pass.dispose();
+    this.buildPipeline();
+  }
+
+  private buildPipeline(): void {
+    const useSsao = this.ssaoEnabled;
+    const useBloom = this.bloomEnabled;
+    const effects: Effect[] = [];
+
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+    if (useSsao) {
+      const normalPass = new NormalPass(this.scene, this.camera);
+      this.composer.addPass(normalPass);
+      effects.push(
+        new SSAOEffect(this.camera, normalPass.texture, {
+          intensity: 1.5,
+          radius: 0.05,
+          samples: 16,
+          rings: 4,
+          distanceScaling: true,
+          distanceThreshold: 0.5,
+          distanceFalloff: 0.1,
+        }),
+      );
+    }
 
     this.lensingEffect = new LensingEffect({ bhPositionsArray: this.bhPositionsArray });
 
-    const bloomEffect = new BloomEffect({
-      intensity: 3.0,
-      luminanceThreshold: 0.7,
-      luminanceSmoothing: 0.6,
-      mipmapBlur: false,
-      resolutionScale: 1.0,
-    });
+    if (useBloom) {
+      effects.push(
+        new BloomEffect({
+          intensity: 3.0,
+          luminanceThreshold: 0.7,
+          luminanceSmoothing: 0.6,
+          mipmapBlur: false,
+          resolutionScale: 1.0,
+        }),
+      );
+    }
 
-    const toneMappingEffect = new ToneMappingEffect({
-      mode: ToneMappingMode.ACES_FILMIC,
-    });
-
-    const effectPass = new EffectPass(
-      camera,
-      ssaoEffect,
-      bloomEffect,
-      toneMappingEffect,
+    effects.push(
+      new ToneMappingEffect({
+        mode: ToneMappingMode.ACES_FILMIC,
+      }),
       this.lensingEffect,
     );
-    this.composer.addPass(effectPass);
 
-    this.resize(width, height);
+    this.composer.addPass(new EffectPass(this.camera, ...effects));
   }
 
   public resize(width: number, height: number): void {
@@ -136,7 +173,7 @@ export class PostProcessing {
     camera.updateProjectionMatrix();
 
     this.composer.render();
-    return true; // We now ALWAYS render via postprocessing because of SSAO
+    return true; // Tone mapping and black-hole lensing always use the composer.
   }
 
   private computeLensingUniforms(blackHoles: any[], camera: THREE.PerspectiveCamera): number {

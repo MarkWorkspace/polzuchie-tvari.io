@@ -1,9 +1,20 @@
 // ROLE: Инициализация Three.js сцены, свет, рендерер.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
+import { AdaptiveResolution } from "./AdaptiveResolution";
 import { PostProcessing } from "./PostProcessing";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
+import {
+  loadRenderQuality,
+  QUALITY_PRESETS,
+  type QualityPreset,
+  type RenderQuality,
+  saveRenderQuality,
+} from "./RenderQuality";
 import { patchGroundMaterial } from "./shaders/ground.glsl";
+
+const MIN_PIXEL_RATIO = 0.6;
+const MAX_PIXEL_RATIO = 3;
 
 const FOG_VERTEX_SHADER = `
   varying vec2 vWorldPos;
@@ -45,8 +56,14 @@ export class SceneManager {
   private currentWidth: number = 0;
   private currentHeight: number = 0;
 
+  private quality: RenderQuality;
+  private adaptiveResolution: AdaptiveResolution | null = null;
+  private currentPixelRatio = 1;
+  private lastFrameTime = 0;
+
   constructor(container: HTMLDivElement) {
     this.container = container;
+    this.quality = loadRenderQuality();
     this.currentWidth = Math.max(1, this.container.clientWidth);
     this.currentHeight = Math.max(1, this.container.clientHeight);
     this.initRenderer();
@@ -59,15 +76,17 @@ export class SceneManager {
   }
 
   private initRenderer(): void {
+    const preset = QUALITY_PRESETS[this.quality];
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
       logarithmicDepthBuffer: false,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.currentPixelRatio = this.initialPixelRatio(preset);
+    this.renderer.setPixelRatio(this.currentPixelRatio);
     this.renderer.setSize(this.currentWidth, this.currentHeight);
     this.renderer.setClearColor(0x050506, 1.0);
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = preset.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.container.appendChild(this.renderer.domElement);
   }
@@ -83,13 +102,79 @@ export class SceneManager {
   }
 
   private initPostProcessing(): void {
+    const preset = QUALITY_PRESETS[this.quality];
     this.postProcessing = new PostProcessing(
       this.renderer,
       this.scene,
       this.camera,
       this.currentWidth,
       this.currentHeight,
+      { ssao: preset.ssao, bloom: preset.bloom },
     );
+    this.initAdaptiveResolution(preset);
+  }
+
+  public getQuality(): RenderQuality {
+    return this.quality;
+  }
+
+  public getPixelRatio(): number {
+    return this.currentPixelRatio;
+  }
+
+  public setQuality(quality: RenderQuality): void {
+    if (quality === this.quality) return;
+
+    this.quality = quality;
+    saveRenderQuality(quality);
+
+    const preset = QUALITY_PRESETS[quality];
+    this.renderer.shadowMap.enabled = preset.shadows;
+    this.dirLight.castShadow = preset.shadows;
+    this.groundMesh.receiveShadow = preset.shadows;
+
+    this.postProcessing.setOptions({ ssao: preset.ssao, bloom: preset.bloom });
+
+    this.initAdaptiveResolution(preset);
+    this.applyPixelRatio(this.adaptiveResolution?.getRatio() ?? this.maxPixelRatio(preset));
+  }
+
+  private maxPixelRatio(preset: QualityPreset): number {
+    const deviceRatio = window.devicePixelRatio || 1;
+    return Math.max(MIN_PIXEL_RATIO, Math.min(deviceRatio, preset.pixelRatioCap));
+  }
+
+  private initialPixelRatio(preset: QualityPreset): number {
+    const maxRatio = this.maxPixelRatio(preset);
+    return preset.adaptive ? Math.min(1, maxRatio) : maxRatio;
+  }
+
+  private initAdaptiveResolution(preset: QualityPreset): void {
+    const maxRatio = this.maxPixelRatio(preset);
+    this.adaptiveResolution = preset.adaptive
+      ? new AdaptiveResolution(MIN_PIXEL_RATIO, maxRatio, Math.min(1, maxRatio))
+      : null;
+    this.lastFrameTime = performance.now();
+  }
+
+  private applyPixelRatio(ratio: number): void {
+    const clamped = Math.max(MIN_PIXEL_RATIO, Math.min(MAX_PIXEL_RATIO, ratio));
+    if (Math.abs(clamped - this.currentPixelRatio) < 0.01) return;
+
+    this.currentPixelRatio = clamped;
+    this.renderer.setPixelRatio(clamped);
+    this.postProcessing.resize(this.currentWidth, this.currentHeight);
+  }
+
+  private updateAdaptiveResolution(): void {
+    if (!this.adaptiveResolution) return;
+
+    const now = performance.now();
+    const delta = now - this.lastFrameTime;
+    this.lastFrameTime = now;
+
+    const nextRatio = this.adaptiveResolution.sample(delta);
+    if (nextRatio !== null) this.applyPixelRatio(nextRatio);
   }
 
   public destroy(): void {
@@ -128,6 +213,8 @@ export class SceneManager {
   }
 
   public render(msg: any): void {
+    this.updateAdaptiveResolution();
+
     if (msg) {
       this.updateGround(msg);
       this.updateFog(msg);
@@ -159,7 +246,7 @@ export class SceneManager {
 
     this.dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     this.dirLight.position.set(0.1, 0.1, 300);
-    this.dirLight.castShadow = true;
+    this.dirLight.castShadow = QUALITY_PRESETS[this.quality].shadows;
 
     // Configure shadow frustum size based on our view distance
     const d = 300;
@@ -207,7 +294,7 @@ export class SceneManager {
       -(WORLD_HEIGHT * gridSize) / 2,
       -2.0,
     );
-    this.groundMesh.receiveShadow = true;
+    this.groundMesh.receiveShadow = QUALITY_PRESETS[this.quality].shadows;
     this.scene.add(this.groundMesh);
   }
 
@@ -284,5 +371,6 @@ export class SceneManager {
 
     this.renderer.setSize(this.currentWidth, this.currentHeight);
     this.postProcessing.resize(this.currentWidth, this.currentHeight);
+    this.lastFrameTime = performance.now();
   };
 }

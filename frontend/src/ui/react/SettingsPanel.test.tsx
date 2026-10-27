@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InputManager } from "../../game/InputManager";
+import type { RenderQualityControl } from "../../renderer/RenderQuality";
 import { SettingsPanel } from "./SettingsPanel";
 
 afterEach(() => {
@@ -53,5 +54,33 @@ describe("SettingsPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "✕" }));
     expect(document.querySelector(".settings-drawer")).not.toHaveClass("open");
+  });
+
+  it("changes graphics quality through the control", () => {
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+    const setQuality = vi.fn();
+    const qualityControl: RenderQualityControl = {
+      getQuality: () => "auto",
+      setQuality,
+    };
+
+    render(
+      <SettingsPanel
+        inputManager={null}
+        callbacks={{ onDebugToggle: vi.fn(), onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
+        qualityControl={qualityControl}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    const select = screen.getByRole("combobox", { name: "Quality" });
+    expect(select).toHaveValue("auto");
+
+    fireEvent.change(select, { target: { value: "high" } });
+    expect(setQuality).toHaveBeenCalledWith("high");
+    expect(select).toHaveValue("high");
   });
 });
