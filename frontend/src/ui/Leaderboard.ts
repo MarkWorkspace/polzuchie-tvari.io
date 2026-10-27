@@ -1,13 +1,6 @@
 // ROLE: Топ таблица.
+import { escapeHtml } from "../lib/escapeHtml";
 import { t } from "../lib/i18n";
-
-function escapeHtml(value: string): string {
-  return value.replace(
-    /[&<>"']/g,
-    (char) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char,
-  );
-}
 
 interface LeaderboardEntry {
   id: string;

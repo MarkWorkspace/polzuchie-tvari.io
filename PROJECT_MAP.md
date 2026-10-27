@@ -50,6 +50,7 @@ frontend/
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум. Не рендеринг.
     │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
     ├── lib/
+    │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
     ├── renderer/
     │   ├── SceneManager.ts             # ROLE: Инициализация Three.js сцены, свет, рендерер.

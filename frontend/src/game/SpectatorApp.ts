@@ -2,6 +2,7 @@
 
 import Stats from "stats.js";
 import * as THREE from "three";
+import { escapeHtml } from "../lib/escapeHtml";
 import { SceneManager } from "../renderer/SceneManager";
 import { gridSize } from "./Config";
 import { NetworkManager } from "./NetworkManager";
@@ -192,7 +193,7 @@ export class SpectatorApp {
     for (let i = 0; i < Math.min(10, sorted.length); i++) {
       const p: any = sorted[i];
       const len = p.body_len || 0;
-      html += `#${i + 1} ${p.nickname} (Len: ${len})<br/>`;
+      html += `#${i + 1} ${escapeHtml(String(p.nickname ?? ""))} (Len: ${len})<br/>`;
     }
     statsDiv.innerHTML = html;
 
@@ -232,8 +233,8 @@ export class SpectatorApp {
     if (this.debugSnakeId && players[this.debugSnakeId]) {
       const p = players[this.debugSnakeId];
       let snakeHtml = `<b>SNAKE DEBUG</b><br/>`;
-      snakeHtml += `ID: <span style="user-select:all">${p.id}</span><br/>`;
-      snakeHtml += `Name: ${p.nickname}<br/>`;
+      snakeHtml += `ID: <span style="user-select:all">${escapeHtml(String(p.id ?? ""))}</span><br/>`;
+      snakeHtml += `Name: ${escapeHtml(String(p.nickname ?? ""))}<br/>`;
       // In FrameComputer, body is replaced by head_x, head_y raw indices
       snakeHtml += `Position: X:${(p.head_x ?? 0).toFixed(1)} Y:${(p.head_y ?? 0).toFixed(1)}<br/>`;
       snakeHtml += `Score: ${p.score || 0}<br/>`;
