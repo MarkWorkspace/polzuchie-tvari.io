@@ -109,16 +109,23 @@ frontend/
     │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
     │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
-    │   ├── LoginScreen.ts              # ROLE: Экран входа.
     │   ├── HUD.ts                      # ROLE: Score, ping, статус соединения. Не игровая логика.
-    │   ├── Leaderboard.ts              # ROLE: Топ-10 таблица.
+    │   ├── Leaderboard.ts              # ROLE: Топ-10 таблица (vanilla; используется HUD и настройками).
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
     │   ├── Minimap.test.ts             # ROLE: Тесты разбора lightweight-игроков для миникарты.
     │   ├── KillFeed.ts                 # ROLE: Лента убийств.
-    │   ├── GameOverScreen.ts           # ROLE: Оверлей смерти и кнопка респавна.
     │   ├── SteeringIndicator.ts        # ROLE: Шкала поворота мыши.
     │   ├── MobileControls.ts           # ROLE: Мобильные элементы управления.
-    │   └── SettingsPanel.ts            # ROLE: Боковая панель настроек.
+    │   └── react/
+    │       ├── LoginScreen.tsx         # ROLE: React login and skin selection.
+    │       ├── mountLoginScreen.tsx    # ROLE: Mount/unmount React login.
+    │       ├── SettingsPanel.tsx       # ROLE: React controls/settings drawer.
+    │       ├── mountSettingsPanel.tsx  # ROLE: Mount/unmount React settings.
+    │       ├── GameOverScreen.tsx      # ROLE: React death overlay and respawn.
+    │       ├── mountGameOverScreen.tsx # ROLE: Mount/unmount React game-over overlay.
+    │       ├── LoginScreen.test.tsx    # ROLE: React login tests.
+    │       ├── SettingsPanel.test.tsx  # ROLE: React settings tests.
+    │       └── GameOverScreen.test.tsx # ROLE: React game-over tests.
     ├── admin/
     │   ├── adminApi.ts                 # ROLE: Admin API URL/fetch helper (dev/prod prefix).
     │   ├── ConfigEditor.ts             # ROLE: Состояние и бизнес-логика конфигурации админ-панели. Без UI.

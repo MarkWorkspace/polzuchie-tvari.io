@@ -87,6 +87,10 @@ export class Game {
     return this.inputManager;
   }
 
+  public getMyId(): string {
+    return this.myId;
+  }
+
   private setupInputCallbacks(): void {
     this.inputManager.setCallbacks({
       onControlModeChange: (mode: ControlMode) => {

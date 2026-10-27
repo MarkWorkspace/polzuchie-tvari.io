@@ -1,6 +1,8 @@
 /* ROLE: Стили боковой панели настроек (Drawer). */
 
 .settings-overlay {
+  border: 0;
+  padding: 0;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
@@ -43,11 +45,14 @@
 }
 
 .settings-trigger {
+  background: none;
+  border: 0;
   position: fixed;
   top: 26px;
   right: 36px;
   cursor: pointer;
   color: white;
+  font-family: inherit;
   font-size: 28px;
   padding: 4px 8px;
   display: flex;
@@ -81,7 +86,11 @@
 }
 
 .drawer-close {
+  border: 0;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
+  font-family: inherit;
   font-size: 18px;
   opacity: 0.6;
   padding: 4px;
@@ -132,14 +141,17 @@
 }
 
 .drawer-control-option {
+  width: 100%;
   padding: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: inherit;
   font-size: 13px;
   font-weight: 700;
+  text-align: left;
   border-radius: 8px;
   cursor: pointer;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -187,10 +199,21 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
+.drawer-leaderboard {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .drawer-admin-link {
+  width: 100%;
   margin-top: 20px;
+  border: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 16px;
+  background: transparent;
+  font-family: inherit;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;

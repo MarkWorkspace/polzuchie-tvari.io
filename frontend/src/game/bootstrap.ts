@@ -1,20 +1,20 @@
 // ROLE: Lazy game UI bootstrap (login, HUD, game lifecycle). Not network or renderer logic.
 
-import { GameOverScreen } from "../ui/GameOverScreen";
 import { HUD } from "../ui/HUD";
 import { KillFeed } from "../ui/KillFeed";
 import { Leaderboard } from "../ui/Leaderboard";
-import { LoginScreen } from "../ui/LoginScreen";
 import { Minimap } from "../ui/Minimap";
 import { MobileControls } from "../ui/MobileControls";
-import { SettingsPanel } from "../ui/SettingsPanel";
+import { mountGameOverScreen } from "../ui/react/mountGameOverScreen";
+import { mountLoginScreen } from "../ui/react/mountLoginScreen";
+import { mountSettingsPanel } from "../ui/react/mountSettingsPanel";
 import { SteeringIndicator } from "../ui/SteeringIndicator";
 import { Game } from "./Game";
 
 export function showLoginScreen(app: HTMLDivElement): void {
   app.replaceChildren();
-  const login = new LoginScreen(app, (nickname, skin) => {
-    login.hide();
+  const unmountLogin = mountLoginScreen(app, (nickname, skin) => {
+    unmountLogin();
     launchGame(app, nickname, skin);
   });
 }
@@ -57,10 +57,17 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
   const killFeed = new KillFeed(hudContainer);
   const steering = new SteeringIndicator(hudContainer);
   const minimap = new Minimap(hudContainer);
-  const gameOverScreen = new GameOverScreen(hudContainer, (game as any).networkManager);
+  const gameOverContainer = document.createElement("div");
+  gameOverContainer.className = "game-over-root";
+  hudContainer.appendChild(gameOverContainer);
+  const unmountGameOver = mountGameOverScreen(gameOverContainer, game.networkManager, () =>
+    game.getMyId(),
+  );
   const mobile = new MobileControls(hudContainer, game.getInputManager());
 
-  const settings = new SettingsPanel(hudContainer, game.getInputManager(), {
+  const settingsContainer = document.createElement("div");
+  app.appendChild(settingsContainer);
+  const unmountSettings = mountSettingsPanel(settingsContainer, game.getInputManager(), {
     onDebugToggle: () => {
       game.toggleDebug();
     },
@@ -83,7 +90,6 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
       minimap.update(frame, myId, isMobile);
 
       const myPlayer = frame.gameState?.players?.[myId];
-      gameOverScreen.setMyId(myId);
 
       if (myPlayer) {
         const lastScore = (hud as any).lastScore || 0;
@@ -103,12 +109,13 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
 
   window.addEventListener("beforeunload", () => {
     game.destroy();
+    unmountGameOver();
     hud.destroy();
     leaderboard.destroy();
     killFeed.destroy();
     steering.destroy();
     minimap.destroy();
     mobile.destroy();
-    settings.destroy();
+    unmountSettings();
   });
 }

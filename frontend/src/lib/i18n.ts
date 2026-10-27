@@ -41,6 +41,11 @@ const translations = {
   "control.gyroPermission": { ru: "Разрешить гироскоп (iOS)", en: "Allow Gyroscope (iOS)" },
   "control.keyboard": { ru: "Клавиатура", en: "Keyboard" },
   "control.keyboardDesc": { ru: "A/D или Стрелочки", en: "A/D or Arrows" },
+  "control.mouseSteer": { ru: "Мышь", en: "Mouse Steer" },
+  "control.mouseSteerDesc": {
+    ru: "Двигайте мышью для поворота",
+    en: "Move mouse to steer",
+  },
 
   // Desktop controls help
   "help.controls": { ru: "Управление", en: "Controls" },
@@ -75,6 +80,7 @@ const translations = {
     en: "Use A/D or arrows to steer.",
   },
   "guide.keyBoost": { ru: "Удерживайте Пробел для ускорения.", en: "Hold Space to boost." },
+  "guide.mouseBoost": { ru: "Клик — ускорение.", en: "Click to boost." },
   "guide.collectFood": {
     ru: "Очки собираются за поедание светящихся шариков еды.",
     en: "Collect points by eating glowing food orbs.",
@@ -129,7 +135,7 @@ const translations = {
   },
 } as const;
 
-type TranslationKey = keyof typeof translations;
+export type TranslationKey = keyof typeof translations;
 
 function detectLocale(): Locale {
   if (typeof navigator === "undefined") return "en";

@@ -6,7 +6,7 @@ FastAPI, рендеринг на Three.js и вычисления геометр
 ## Стек
 
 - **Backend:** Python 3.13, FastAPI, WebSocket, Protobuf, uv.
-- **Frontend:** TypeScript, React 19 (admin only), Vite, Three.js, Web Worker, Vitest.
+- **Frontend:** TypeScript, React 19 (admin + game overlays), Vite, Three.js, Web Worker, Vitest.
 - **Данные:** общая Protobuf-схема и golden-фикстуры в `tests_shared/`.
 
 ## Быстрый старт

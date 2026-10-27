@@ -1,5 +1,5 @@
 // ROLE: Lazy spectator UI bootstrap. Not renderer or network logic.
-import { SettingsPanel } from "../ui/SettingsPanel";
+import { mountSettingsPanel } from "../ui/react/mountSettingsPanel";
 import { SpectatorApp } from "./SpectatorApp";
 
 export function mountSpectator(app: HTMLDivElement): void {
@@ -15,7 +15,9 @@ export function mountSpectator(app: HTMLDivElement): void {
   app.appendChild(hudContainer);
 
   const spectator = new SpectatorApp(canvasContainer);
-  const settings = new SettingsPanel(hudContainer, null, {
+  const settingsContainer = document.createElement("div");
+  app.appendChild(settingsContainer);
+  const unmountSettings = mountSettingsPanel(settingsContainer, null, {
     onDebugToggle: () => {},
     onAdminClick: () => {
       window.location.search = "?admin=true";
@@ -27,6 +29,6 @@ export function mountSpectator(app: HTMLDivElement): void {
 
   window.addEventListener("beforeunload", () => {
     spectator.destroy();
-    settings.destroy();
+    unmountSettings();
   });
 }

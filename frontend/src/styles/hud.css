@@ -129,6 +129,13 @@
 }
 
 /* Game Over Screen */
+.game-over-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 500;
+}
+
 .game-over-overlay {
   position: absolute;
   inset: 0;
