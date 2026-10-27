@@ -11,8 +11,24 @@ export const SKINS = [
   { id: "#22c55e", name: "Зеленый", bg: "#22c55e" },
   { id: "#ec4899", name: "Розовый", bg: "#ec4899" },
   { id: "#a855f7", name: "Фиолетовый", bg: "#a855f7" },
-  { id: "zebra", name: "Зебра", bg: "repeating-linear-gradient(45deg, #fff, #fff 10px, #000 10px, #000 20px)" },
-  { id: "tiger", name: "Тигр", bg: "repeating-linear-gradient(45deg, #f97316, #f97316 10px, #000 10px, #000 20px)" },
-  { id: "rainbow", name: "Радуга", bg: "linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)" },
-  { id: "cyberpunk", name: "Киберпанк", bg: "repeating-linear-gradient(45deg, #f0f, #f0f 10px, #0ff 10px, #0ff 20px)" }
+  {
+    id: "zebra",
+    name: "Зебра",
+    bg: "repeating-linear-gradient(45deg, #fff, #fff 10px, #000 10px, #000 20px)",
+  },
+  {
+    id: "tiger",
+    name: "Тигр",
+    bg: "repeating-linear-gradient(45deg, #f97316, #f97316 10px, #000 10px, #000 20px)",
+  },
+  {
+    id: "rainbow",
+    name: "Радуга",
+    bg: "linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet)",
+  },
+  {
+    id: "cyberpunk",
+    name: "Киберпанк",
+    bg: "repeating-linear-gradient(45deg, #f0f, #f0f 10px, #0ff 10px, #0ff 20px)",
+  },
 ];

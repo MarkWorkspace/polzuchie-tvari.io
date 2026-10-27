@@ -1,7 +1,7 @@
 // ROLE: Расчет 3D-сплайнов змеек.
 
 import type { Player } from "../types/game";
-import { toroidalLerp, toroidalDelta } from "./shared/MathUtils";
+import { toroidalDelta, toroidalLerp } from "./shared/MathUtils";
 
 export interface SplineSubPath {
   x: Float32Array;
@@ -21,11 +21,22 @@ export function computeSplinePaths(
   myVisualOffsetX: number,
   myVisualOffsetY: number,
   isSelf: boolean,
-  gridSize: number
+  gridSize: number,
 ): SplineSubPath[] {
   const segX: number[] = [];
   const segY: number[] = [];
-  _interpolateSegments(p, oldP, progress, mapW, mapH, myVisualOffsetX, myVisualOffsetY, isSelf, segX, segY);
+  _interpolateSegments(
+    p,
+    oldP,
+    progress,
+    mapW,
+    mapH,
+    myVisualOffsetX,
+    myVisualOffsetY,
+    isSelf,
+    segX,
+    segY,
+  );
 
   if (segX.length === 0) return [];
 
@@ -37,7 +48,7 @@ export function computeSplinePaths(
     if (sub.len < 2) continue;
     const smooth = _generateSmoothSpline(segX, segY, sub.start, sub.len, density, gridSize);
     if (smooth.pointsCount < 2) continue;
-    
+
     _computeNormals(smooth.x, smooth.y, smooth.nx, smooth.ny, smooth.pointsCount);
     result.push(smooth);
   }
@@ -46,27 +57,37 @@ export function computeSplinePaths(
 }
 
 function _getInterpolatedSegment(
-  bx: number, by: number,
-  ox: number | undefined, oy: number | undefined,
+  bx: number,
+  by: number,
+  ox: number | undefined,
+  oy: number | undefined,
   useInterpolation: boolean,
   progress: number,
   mapW: number,
-  mapH: number
+  mapH: number,
 ): { x: number; y: number } {
   if (ox === undefined || oy === undefined) return { x: bx, y: by };
   if (!useInterpolation) return { x: bx, y: by };
-  const dx = bx - ox, dy = by - oy;
+  const dx = bx - ox,
+    dy = by - oy;
   if (dx * dx + dy * dy > 36.0) return { x: bx, y: by };
   return {
     x: toroidalLerp(ox, bx, progress, mapW),
-    y: toroidalLerp(oy, by, progress, mapH)
+    y: toroidalLerp(oy, by, progress, mapH),
   };
 }
 
 function _interpolateSegments(
-  p: Player, oldP: Player | null, progress: number,
-  mapW: number, mapH: number, visualX: number, visualY: number,
-  isSelf: boolean, outX: number[], outY: number[]
+  p: Player,
+  oldP: Player | null,
+  progress: number,
+  mapW: number,
+  mapH: number,
+  visualX: number,
+  visualY: number,
+  isSelf: boolean,
+  outX: number[],
+  outY: number[],
 ) {
   const count = Math.floor(p.body.length / 2);
   const useInterp = !!(oldP && oldP.body && oldP.body.length > 0);
@@ -74,32 +95,40 @@ function _interpolateSegments(
   for (let i = 0; i < count; i++) {
     const bx = p.body[2 * i];
     const by = p.body[2 * i + 1];
-    
+
     let ox: number | undefined;
     let oy: number | undefined;
-    
+
     if (useInterp && oldP && oldP.body) {
-       const oldLen = Math.floor(oldP.body.length / 2);
-       if (oldLen > 0) {
-           const oldIdx = i < oldLen ? i : oldLen - 1;
-           ox = oldP.body[2 * oldIdx];
-           oy = oldP.body[2 * oldIdx + 1];
-       }
+      const oldLen = Math.floor(oldP.body.length / 2);
+      if (oldLen > 0) {
+        const oldIdx = i < oldLen ? i : oldLen - 1;
+        ox = oldP.body[2 * oldIdx];
+        oy = oldP.body[2 * oldIdx + 1];
+      }
     }
 
     let { x, y } = _getInterpolatedSegment(bx, by, ox, oy, useInterp, progress, mapW, mapH);
 
     if (isSelf) {
-      x += visualX; y += visualY;
-      if (x < 0) x += mapW; else if (x >= mapW) x -= mapW;
-      if (y < 0) y += mapH; else if (y >= mapH) y -= mapH;
+      x += visualX;
+      y += visualY;
+      if (x < 0) x += mapW;
+      else if (x >= mapW) x -= mapW;
+      if (y < 0) y += mapH;
+      else if (y >= mapH) y -= mapH;
     }
     outX.push(x);
     outY.push(y);
   }
 }
 
-function _splitSubPaths(segX: number[], segY: number[], mapW: number, mapH: number): { start: number; len: number }[] {
+function _splitSubPaths(
+  segX: number[],
+  segY: number[],
+  mapW: number,
+  mapH: number,
+): { start: number; len: number }[] {
   const newSegX = [segX[0]];
   const newSegY = [segY[0]];
   const subPaths = [{ start: 0, len: 1 }];
@@ -108,7 +137,7 @@ function _splitSubPaths(segX: number[], segY: number[], mapW: number, mapH: numb
   for (let i = 1; i < segX.length; i++) {
     const prevX = newSegX[newSegX.length - 1];
     const prevY = newSegY[newSegY.length - 1];
-    
+
     // Calculate shortest path to the next point
     const [adjDx, adjDy] = toroidalDelta(segX[i - 1], segY[i - 1], segX[i], segY[i], mapW, mapH);
     const adjDistSq = adjDx * adjDx + adjDy * adjDy;
@@ -128,8 +157,10 @@ function _splitSubPaths(segX: number[], segY: number[], mapW: number, mapH: numb
     }
   }
 
-  segX.length = 0; segY.length = 0;
-  segX.push(...newSegX); segY.push(...newSegY);
+  segX.length = 0;
+  segY.length = 0;
+  segX.push(...newSegX);
+  segY.push(...newSegY);
   return subPaths;
 }
 
@@ -139,7 +170,7 @@ function _generateSmoothSpline(
   start: number,
   len: number,
   density: number,
-  gridSize: number
+  gridSize: number,
 ): SplineSubPath {
   const maxPoints = len * (density + 1);
   const smoothX = new Float32Array(maxPoints);
@@ -187,7 +218,13 @@ function _generateSmoothSpline(
   };
 }
 
-function _computeNormals(x: Float32Array, y: Float32Array, nx: Float32Array, ny: Float32Array, count: number) {
+function _computeNormals(
+  x: Float32Array,
+  y: Float32Array,
+  nx: Float32Array,
+  ny: Float32Array,
+  count: number,
+) {
   for (let i = 0; i < count; i++) {
     let dx = 0;
     let dy = 0;

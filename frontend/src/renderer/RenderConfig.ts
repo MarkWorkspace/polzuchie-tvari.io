@@ -1,6 +1,6 @@
 // ROLE: Global render configuration, layers, and material factories. Does not contain game logic.
 
-import * as THREE from 'three';
+import * as THREE from "three";
 
 /**
  * Strict ordering for all meshes in the scene to prevent Z-fighting and depth issues.
@@ -10,7 +10,7 @@ import * as THREE from 'three';
 export const RenderLayer = {
   Ground: -2,
   Shadow: -1,
-  Opaque: 0,      // Default for standard opaque objects (e.g. Tombstones)
+  Opaque: 0, // Default for standard opaque objects (e.g. Tombstones)
   Food: 1,
   Particle: 2,
   SnakeBody: 3,
@@ -27,7 +27,7 @@ export const RenderLayer = {
   FogOverlay: 30,
 } as const;
 
-export type RenderLayer = typeof RenderLayer[keyof typeof RenderLayer];
+export type RenderLayer = (typeof RenderLayer)[keyof typeof RenderLayer];
 
 export class RenderConfig {
   /**
@@ -36,7 +36,7 @@ export class RenderConfig {
   static configureMesh(
     mesh: THREE.Object3D,
     layer: RenderLayer,
-    options: { castShadow?: boolean; receiveShadow?: boolean; frustumCulled?: boolean } = {}
+    options: { castShadow?: boolean; receiveShadow?: boolean; frustumCulled?: boolean } = {},
   ) {
     mesh.renderOrder = layer;
     mesh.castShadow = options.castShadow ?? false;
@@ -68,7 +68,11 @@ export class RenderConfig {
    * Creates a standard opaque material (like Tombstones).
    * Enforces disabled fog to prevent gamma/lighting shifts.
    */
-  static createOpaqueMaterial(color: number, roughness = 0.8, metalness = 0.1): THREE.MeshStandardMaterial {
+  static createOpaqueMaterial(
+    color: number,
+    roughness = 0.8,
+    metalness = 0.1,
+  ): THREE.MeshStandardMaterial {
     return new THREE.MeshStandardMaterial({
       color,
       roughness,

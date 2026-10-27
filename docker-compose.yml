@@ -11,6 +11,7 @@ services:
     volumes:
       - ./backend/config.json:/app/config.json
     restart: unless-stopped
+    stop_grace_period: 15s
     deploy:
       resources:
         limits:
@@ -26,10 +27,10 @@ services:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
-      - BACKEND_INTERNAL_URL=http://backend:8000
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     deploy:
       resources:
         limits:

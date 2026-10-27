@@ -1,8 +1,8 @@
 // ROLE: Сборка vertex/index-буферов из сплайнов.
 
 import type { SplineSubPath } from "./SplineComputer";
-import { GrowableFloat32Array, GrowableUint32Array } from "./shared/GrowableArray";
 import { parseColor } from "./shared/ColorUtils";
+import type { GrowableFloat32Array, GrowableUint32Array } from "./shared/GrowableArray";
 
 export interface GeometryBuffers {
   vertices: GrowableFloat32Array;
@@ -18,7 +18,7 @@ export function appendSnakeMesh(
   radius: number,
   gridSize: number,
   snakeZ: number,
-  bodyBufs: GeometryBuffers
+  bodyBufs: GeometryBuffers,
 ) {
   const skinColor = _resolveSkinColor(skin);
   const totalWidth = radius * gridSize;
@@ -33,8 +33,14 @@ export function appendSnakeMesh(
   for (const path of subPaths) {
     if (path.pointsCount < 2) continue;
     _appendSubPathMesh(
-      path, subPathIdx, subPaths.length, skinColor, totalWidth,
-      accumDistance, snakeZ, bodyBufs
+      path,
+      subPathIdx,
+      subPaths.length,
+      skinColor,
+      totalWidth,
+      accumDistance,
+      snakeZ,
+      bodyBufs,
     );
     subPathIdx++;
   }
@@ -42,16 +48,16 @@ export function appendSnakeMesh(
 
 function _resolveSkinColor(skin: string): { r: number; g: number; b: number } {
   let skinTypeVal = 1.0;
-  let skinColHex = '#22c55e';
-  
-  if (skin === 'zebra') skinTypeVal = 2.0;
-  else if (skin === 'tiger') skinTypeVal = 3.0;
-  else if (skin === 'cyberpunk') skinTypeVal = 4.0;
-  else if (skin === 'rainbow') skinTypeVal = 5.0;
+  let skinColHex = "#22c55e";
+
+  if (skin === "zebra") skinTypeVal = 2.0;
+  else if (skin === "tiger") skinTypeVal = 3.0;
+  else if (skin === "cyberpunk") skinTypeVal = 4.0;
+  else if (skin === "rainbow") skinTypeVal = 5.0;
   else {
-    skinColHex = skin || '#22c55e';
+    skinColHex = skin || "#22c55e";
   }
-  
+
   const skinColorInt = parseColor(skinColHex);
   const skinR = ((skinColorInt >> 16) & 255) / 255;
   const skinG = ((skinColorInt >> 8) & 255) / 255;
@@ -60,7 +66,7 @@ function _resolveSkinColor(skin: string): { r: number; g: number; b: number } {
   return {
     r: skinTypeVal > 1.5 ? skinTypeVal : skinR,
     g: skinG,
-    b: skinB
+    b: skinB,
   };
 }
 
@@ -72,7 +78,7 @@ function _appendSubPathMesh(
   totalWidth: number,
   accumDistance: number,
   snakeZ: number,
-  bodyBufs: GeometryBuffers
+  bodyBufs: GeometryBuffers,
 ) {
   const baseVIdx = bodyBufs.vertices.length / 3;
   const count = path.pointsCount;
@@ -86,10 +92,27 @@ function _appendSubPathMesh(
     const ny = path.ny[i];
     const uvY = path.uvY[i];
 
-    const zLift = pathIdx === 0 && accumDistance > 0 ? 1.0 - Math.min(1.0, Math.max(0.0, uvY / accumDistance)) : 0.0;
+    const zLift =
+      pathIdx === 0 && accumDistance > 0
+        ? 1.0 - Math.min(1.0, Math.max(0.0, uvY / accumDistance))
+        : 0.0;
     const bodyZ = snakeZ + zLift * 0.08;
 
-    _writeBodyVertices(wx, wy, bodyZ, nx, ny, uvY, i, count, totalWidth, accumDistance, exts, skinColor, bodyBufs);
+    _writeBodyVertices(
+      wx,
+      wy,
+      bodyZ,
+      nx,
+      ny,
+      uvY,
+      i,
+      count,
+      totalWidth,
+      accumDistance,
+      exts,
+      skinColor,
+      bodyBufs,
+    );
   }
 
   _writeIndices(baseVIdx, count, bodyBufs.indices);
@@ -100,7 +123,7 @@ function _computeExtensions(
   pathIdx: number,
   totalSubPaths: number,
   totalWidth: number,
-  accumDistance: number
+  accumDistance: number,
 ) {
   const count = path.pointsCount;
   let headExt = { bx: 0, by: 0, buvY: 0, exists: false };
@@ -114,7 +137,7 @@ function _computeExtensions(
       bx: path.x[0] + (dx / len) * totalWidth,
       by: path.y[0] + (dy / len) * totalWidth,
       buvY: -totalWidth,
-      exists: true
+      exists: true,
     };
   }
 
@@ -126,7 +149,7 @@ function _computeExtensions(
       bx: path.x[count - 1] + (dx / len) * totalWidth,
       by: path.y[count - 1] + (dy / len) * totalWidth,
       buvY: accumDistance + totalWidth,
-      exists: true
+      exists: true,
     };
   }
 
@@ -146,7 +169,7 @@ function _writeBodyVertices(
   accumDistance: number,
   ext: any,
   color: { r: number; g: number; b: number },
-  bufs: GeometryBuffers
+  bufs: GeometryBuffers,
 ) {
   let bwx = wx;
   let bwy = wy;
@@ -173,11 +196,7 @@ function _writeBodyVertices(
   bufs.params.push4(totalWidth, accumDistance, totalWidth, accumDistance);
 }
 
-function _writeIndices(
-  baseVIdx: number,
-  count: number,
-  bodyIndices: GrowableUint32Array
-) {
+function _writeIndices(baseVIdx: number, count: number, bodyIndices: GrowableUint32Array) {
   for (let i = 0; i < count - 1; i++) {
     const v0 = baseVIdx + i * 2;
     const v1 = baseVIdx + i * 2 + 1;

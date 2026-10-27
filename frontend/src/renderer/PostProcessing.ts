@@ -1,6 +1,18 @@
 // ROLE: Линзирование, AO, туман.
+
+import {
+  BlendFunction,
+  BloomEffect,
+  Effect,
+  EffectComposer,
+  EffectPass,
+  NormalPass,
+  RenderPass,
+  SSAOEffect,
+  ToneMappingEffect,
+  ToneMappingMode,
+} from "postprocessing";
 import * as THREE from "three";
-import { EffectComposer, RenderPass, EffectPass, SSAOEffect, NormalPass, Effect, BlendFunction, BloomEffect, ToneMappingEffect, ToneMappingMode } from "postprocessing";
 import { gridSize } from "../game/Config";
 
 const lensingFragmentShader = `
@@ -9,12 +21,12 @@ const lensingFragmentShader = `
 
   void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
     vec2 totalDistortion = vec2(0.0);
-    
+
     for (int i = 0; i < 10; i++) {
       if (i >= uBlackHoleCount) break;
       vec2 bhScreen = uBlackHoles[i].xy;
       float pullRadius = uBlackHoles[i].z;
-      
+
       vec2 toBH = bhScreen - uv;
       float dist = length(toBH);
       if (dist < pullRadius && dist > 0.001) {
@@ -23,24 +35,22 @@ const lensingFragmentShader = `
         totalDistortion += normalize(toBH) * warpStrength;
       }
     }
-    
+
     outputColor = texture2D(inputBuffer, uv - totalDistortion);
   }
 `;
 
 class LensingEffect extends Effect {
   constructor(options: any = {}) {
-    super('LensingEffect', lensingFragmentShader, {
+    super("LensingEffect", lensingFragmentShader, {
       blendFunction: BlendFunction.NORMAL,
       uniforms: new Map<string, any>([
-        ['uBlackHoles', new THREE.Uniform(options.bhPositionsArray || new Float32Array(30))],
-        ['uBlackHoleCount', new THREE.Uniform(0)]
-      ])
+        ["uBlackHoles", new THREE.Uniform(options.bhPositionsArray || new Float32Array(30))],
+        ["uBlackHoleCount", new THREE.Uniform(0)],
+      ]),
     });
   }
 }
-
-
 
 export class PostProcessing {
   private composer: EffectComposer;
@@ -51,9 +61,15 @@ export class PostProcessing {
   private tempVec3 = new THREE.Vector3();
   private tempProjected = new THREE.Vector3();
 
-  constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, width: number, height: number) {
+  constructor(
+    renderer: THREE.WebGLRenderer,
+    scene: THREE.Scene,
+    camera: THREE.PerspectiveCamera,
+    width: number,
+    height: number,
+  ) {
     this.composer = new EffectComposer(renderer, {
-      frameBufferType: THREE.HalfFloatType
+      frameBufferType: THREE.HalfFloatType,
     });
 
     const renderPass = new RenderPass(scene, camera);
@@ -69,7 +85,7 @@ export class PostProcessing {
       rings: 4,
       distanceScaling: true,
       distanceThreshold: 0.5,
-      distanceFalloff: 0.1
+      distanceFalloff: 0.1,
     });
 
     this.lensingEffect = new LensingEffect({ bhPositionsArray: this.bhPositionsArray });
@@ -79,16 +95,22 @@ export class PostProcessing {
       luminanceThreshold: 0.7,
       luminanceSmoothing: 0.6,
       mipmapBlur: false,
-      resolutionScale: 1.0
+      resolutionScale: 1.0,
     });
 
     const toneMappingEffect = new ToneMappingEffect({
-      mode: ToneMappingMode.ACES_FILMIC
+      mode: ToneMappingMode.ACES_FILMIC,
     });
 
-    const effectPass = new EffectPass(camera, ssaoEffect, bloomEffect, toneMappingEffect, this.lensingEffect);
+    const effectPass = new EffectPass(
+      camera,
+      ssaoEffect,
+      bloomEffect,
+      toneMappingEffect,
+      this.lensingEffect,
+    );
     this.composer.addPass(effectPass);
-    
+
     this.resize(width, height);
   }
 
@@ -103,13 +125,13 @@ export class PostProcessing {
   public render(_scene: THREE.Scene, camera: THREE.PerspectiveCamera, msg: any): boolean {
     const state = msg?.gameState;
     let bhCount = 0;
-    
+
     if (state?.black_holes && state.black_holes.length > 0) {
       bhCount = this.computeLensingUniforms(state.black_holes, camera);
     }
 
-    this.lensingEffect.uniforms.get('uBlackHoleCount')!.value = bhCount;
-    
+    this.lensingEffect.uniforms.get("uBlackHoleCount")!.value = bhCount;
+
     camera.updateMatrixWorld();
     camera.updateProjectionMatrix();
 
@@ -138,9 +160,10 @@ export class PostProcessing {
 
       // Fade out close to near plane
       const fadeStart = camera.near * 2.5;
-      const fadeFactor = distToCamPlane < fadeStart 
-        ? Math.max(0.0, (distToCamPlane - camera.near) / (fadeStart - camera.near))
-        : 1.0;
+      const fadeFactor =
+        distToCamPlane < fadeStart
+          ? Math.max(0.0, (distToCamPlane - camera.near) / (fadeStart - camera.near))
+          : 1.0;
 
       const effectivePullRadius = pullRadius * fadeFactor;
       if (effectivePullRadius <= 0.001) continue;

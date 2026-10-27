@@ -19,9 +19,7 @@ def _process_growth_step(state, player) -> None:
         player.pending_growth = max(0, player.pending_growth)
         return
 
-    cost = max(
-        0.1, float(state.growth_segment_cost_func(player.score, player.body_len))
-    )
+    cost = max(0.1, float(state.growth_segment_cost_func(player.score, player.body_len)))
     if player.score >= state.config.snake.max_growth_score:
         player.pending_growth = 0.0
         if player.body_len > 0:
@@ -44,8 +42,9 @@ def _process_growth_step(state, player) -> None:
 class GrowthSystem:
     name = "growth"
     order = 70
-    
+
     def update(self, world):
         update(world)
+
 
 system = GrowthSystem()

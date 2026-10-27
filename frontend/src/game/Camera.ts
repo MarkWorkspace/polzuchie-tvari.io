@@ -1,5 +1,5 @@
 // ROLE: Следование камеры, зум. Не рендеринг.
-import * as THREE from "three";
+import type * as THREE from "three";
 
 export class GameCamera {
   private currentFov = 50.0;
@@ -11,7 +11,7 @@ export class GameCamera {
     msg: any,
     dt: number,
     myId: string,
-    isLocalAccelerating: boolean
+    isLocalAccelerating: boolean,
   ): void {
     const isAccelerating = this.checkAcceleration(msg, myId, isLocalAccelerating);
     this.updatePositionAndRotation(camera, msg, myId);
@@ -33,13 +33,13 @@ export class GameCamera {
 
     const serverSnake = msg.gameState?.server_snake;
     const cameraZoomOutCoeff = serverSnake?.camera_zoom_out_coeff ?? 200.0;
-    
+
     const myEffectiveLength = this.getMyEffectiveLength(msg, myId);
     const scoreZoomFactor = 1.0 / (1.0 + myEffectiveLength * 10.0 * (cameraZoomOutCoeff * 1e-5));
     const globalScale = scoreZoomFactor * cameraBaseZoom;
 
-    const distance = (1500.0 / globalScale) + cameraZHeightOffset;
-    const pitch = cameraPitchAngle * Math.PI / 180.0;
+    const distance = 1500.0 / globalScale + cameraZHeightOffset;
+    const pitch = (cameraPitchAngle * Math.PI) / 180.0;
     const trueCamAngle = -(msg.camAngle ?? 0.0);
 
     const dirB_x = -Math.cos(trueCamAngle);
@@ -49,7 +49,7 @@ export class GameCamera {
     const orbitCamY = msg.camY + dirB_y * distance * Math.sin(pitch);
     const orbitCamZ = distance * Math.cos(pitch);
 
-    const offsetDistance = 1000.0 * cameraYOffset / globalScale;
+    const offsetDistance = (1000.0 * cameraYOffset) / globalScale;
     const finalCamX = orbitCamX + Math.cos(trueCamAngle) * offsetDistance;
     const finalCamY = orbitCamY + Math.sin(trueCamAngle) * offsetDistance;
 

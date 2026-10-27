@@ -1,6 +1,6 @@
 // ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
 import * as THREE from "three";
-import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
+import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class DebugRenderer {
@@ -109,8 +109,13 @@ export class DebugRenderer {
   }
 
   private addPlayerDebugGeometry(
-    hx: number, hy: number, radius: number, angle: number,
-    isSelf: boolean, vertices: number[], colors: number[]
+    hx: number,
+    hy: number,
+    radius: number,
+    angle: number,
+    isSelf: boolean,
+    vertices: number[],
+    colors: number[],
   ): void {
     if (![hx, hy, radius, angle].every(Number.isFinite) || radius <= 0) return;
     const zOffset = 3.0;
@@ -142,7 +147,12 @@ export class DebugRenderer {
   private renderCollisionLines(vertices: number[], colors: number[]): void {
     if (!this.collisionMesh) {
       const geom = new THREE.BufferGeometry();
-      const mat = new THREE.LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true, opacity: 0.8 });
+      const mat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.8,
+      });
       this.collisionMesh = new THREE.LineSegments(geom, mat);
       RenderConfig.configureMesh(this.collisionMesh, RenderLayer.DebugCollision);
       this.scene.add(this.collisionMesh);
@@ -159,10 +169,18 @@ export class DebugRenderer {
     }
   }
 
-  private updateDynamicAttr(geom: THREE.BufferGeometry, name: string, data: Float32Array, itemSize: number): void {
+  private updateDynamicAttr(
+    geom: THREE.BufferGeometry,
+    name: string,
+    data: Float32Array,
+    itemSize: number,
+  ): void {
     let attr = geom.getAttribute(name) as THREE.BufferAttribute | undefined;
     if (!attr || attr.array.length < data.length) {
-      attr = new THREE.BufferAttribute(new Float32Array(Math.max(data.length * 1.3, 512)), itemSize);
+      attr = new THREE.BufferAttribute(
+        new Float32Array(Math.max(data.length * 1.3, 512)),
+        itemSize,
+      );
       attr.setUsage(THREE.DynamicDrawUsage);
       geom.setAttribute(name, attr);
     }

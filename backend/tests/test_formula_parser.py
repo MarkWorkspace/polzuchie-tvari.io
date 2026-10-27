@@ -2,6 +2,7 @@ import pytest
 from app.engine.state import World
 from game_config import validate_growth_formula
 
+
 def test_formula_parser_valid():
     World()
 
@@ -16,7 +17,7 @@ def test_formula_parser_valid():
         "sqrt(s)",
         "log(s)",
         "pow(s, 0.5)",
-        "10 + (s * 2) / 5"
+        "10 + (s * 2) / 5",
     ]
 
     for formula in valid_formulas:
@@ -24,6 +25,7 @@ def test_formula_parser_valid():
             validate_growth_formula(formula)
         except ValueError as e:
             pytest.fail(f"Valid formula '{formula}' raised ValueError: {e}")
+
 
 def test_formula_parser_invalid():
     World()
@@ -33,12 +35,12 @@ def test_formula_parser_invalid():
         "__import__('os')",
         "eval('1')",
         "s = 10",
-        "s ** 2", # valid actually wait, pow is allowed, ** is Pow, let's see if ** is allowed
+        "s ** 2",  # valid actually wait, pow is allowed, ** is Pow, let's see if ** is allowed
         "s; 1",
         "s if True else l",
         "[s]",
         "{s: 1}",
-        "lambda x: x"
+        "lambda x: x",
     ]
 
     for formula in invalid_formulas:
@@ -49,12 +51,14 @@ def test_formula_parser_invalid():
         with pytest.raises(ValueError):
             validate_growth_formula(formula)
 
+
 def test_formula_pow_is_allowed():
     try:
         validate_growth_formula("s ** 2")
         validate_growth_formula("pow(s, 2)")
     except ValueError as e:
         pytest.fail(f"Pow formula raised ValueError: {e}")
+
 
 def test_formula_invalid_func():
     with pytest.raises(ValueError, match="Math function 'print' is not allowed"):

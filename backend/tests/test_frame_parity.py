@@ -16,9 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from app.engine.systems import snake_pb2
 from tests.frame_scenario import build_full_and_delta_world
 
-FIXTURES_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "tests_shared", "golden_frames"
-)
+FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests_shared", "golden_frames")
 
 
 def _load_bin(name: str) -> bytes:
@@ -75,6 +73,7 @@ def fresh_world_frames():
 
 # --- Эталонные проверки: код vs закоммиченный JSON. Ловят ЛЮБОЙ дрейф сериализации. ---
 
+
 def test_full_frame_matches_committed_golden(fresh_world_frames):
     full_frame, _ = fresh_world_frames
     fresh = _frame_to_norm_dict(full_frame)
@@ -90,6 +89,7 @@ def test_delta_frame_matches_committed_golden(fresh_world_frames):
 
 
 # --- Детерминизм байтов: .bin должен совпадать с тем, что генерирует код сейчас. ---
+
 
 def test_full_frame_bytes_match_committed(fresh_world_frames):
     full_frame, _ = fresh_world_frames
@@ -112,6 +112,7 @@ def test_delta_frame_bytes_match_committed(fresh_world_frames):
 
 
 # --- Round-trip sanity: protobuf декодирует то, что закодировал (базовая целостность). ---
+
 
 def test_committed_full_frame_decodes():
     raw = zlib.decompress(_load_bin("frame_full.bin"))

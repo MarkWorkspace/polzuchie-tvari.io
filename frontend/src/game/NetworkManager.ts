@@ -19,7 +19,12 @@ export class NetworkManager {
   private frameTimeoutId: number | null = null;
   private role = "player";
 
-  private onStatusChange?: (status: NetworkStatus, msg?: string, msgKey?: string, msgParams?: any) => void;
+  private onStatusChange?: (
+    status: NetworkStatus,
+    msg?: string,
+    msgKey?: string,
+    msgParams?: any,
+  ) => void;
   private onPing?: (latency: number) => void;
   private onYourId?: (id: string) => void;
   private onFrameData?: (msg: any) => void;
@@ -34,10 +39,7 @@ export class NetworkManager {
     }
 
     // Initialize worker with relative module URL standard in Vite
-    this.worker = new Worker(
-      new URL("../worker/worker.ts", import.meta.url),
-      { type: "module" }
-    );
+    this.worker = new Worker(new URL("../worker/worker.ts", import.meta.url), { type: "module" });
 
     this.worker.onmessage = this.handleWorkerMessage;
 
@@ -49,7 +51,12 @@ export class NetworkManager {
     this.worker?.postMessage({ type: "SEND", data: msg });
   }
 
-  public requestFrame(dt: number, myId: string, input: any, showAllInMainCopy: boolean = false): void {
+  public requestFrame(
+    dt: number,
+    myId: string,
+    input: any,
+    showAllInMainCopy: boolean = false,
+  ): void {
     if (!this.worker || this.isWaitingForFrame) return;
 
     this.isWaitingForFrame = true;
@@ -65,7 +72,7 @@ export class NetworkManager {
       showAllInMainCopy,
       gridSize,
       localInput: input,
-      sentTime: performance.now()
+      sentTime: performance.now(),
     });
   }
 
@@ -83,7 +90,12 @@ export class NetworkManager {
   }
 
   public setCallbacks(callbacks: {
-    onStatusChange?: (status: NetworkStatus, msg?: string, msgKey?: string, msgParams?: any) => void;
+    onStatusChange?: (
+      status: NetworkStatus,
+      msg?: string,
+      msgKey?: string,
+      msgParams?: any,
+    ) => void;
     onPing?: (latency: number) => void;
     onYourId?: (id: string) => void;
     onFrameData?: (msg: any) => void;
@@ -108,7 +120,7 @@ export class NetworkManager {
     const host = window.location.hostname || "127.0.0.1";
     const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
     const isDev = import.meta.env.DEV;
-    const port = isDev ? "8000" : (window.location.port || "");
+    const port = isDev ? "8000" : window.location.port || "";
     const wsPort = port ? `:${port}` : "";
     const trimmed = nickname.trim() || "Snake";
     let url = `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmed)}&skin=${encodeURIComponent(skin)}&role=${encodeURIComponent(role)}`;

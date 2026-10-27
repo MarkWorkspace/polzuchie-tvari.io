@@ -1,11 +1,12 @@
 // ROLE: Точка входа для режима спектатора. Инициализирует 3D движок с камерой свободного полёта.
-import { SceneManager } from "../renderer/SceneManager";
-import { NetworkManager } from "./NetworkManager";
-import { SpectatorCamera } from "./SpectatorCamera";
-import { RenderOrchestrator } from "./RenderOrchestrator";
+
 import Stats from "stats.js";
 import * as THREE from "three";
+import { SceneManager } from "../renderer/SceneManager";
 import { gridSize } from "./Config";
+import { NetworkManager } from "./NetworkManager";
+import { RenderOrchestrator } from "./RenderOrchestrator";
+import { SpectatorCamera } from "./SpectatorCamera";
 
 export class SpectatorApp {
   private sceneManager: SceneManager;
@@ -161,10 +162,10 @@ export class SpectatorApp {
             score: Math.floor(p.score || 0),
             kills: p.kills || 0,
             deaths: p.deaths || 0,
-            isMe: false
+            isMe: false,
           }));
         window.dispatchEvent(new CustomEvent("game-leaderboard", { detail: sorted }));
-      }
+      },
     });
 
     // Start with "spectator" role
@@ -185,11 +186,13 @@ export class SpectatorApp {
     html += `Food: ${Object.keys(food).length}<br/><hr/>`;
 
     // Sort players by length descending
-    const sorted = Object.values(players).sort((a: any, b: any) => (b.body_len || 0) - (a.body_len || 0));
+    const sorted = Object.values(players).sort(
+      (a: any, b: any) => (b.body_len || 0) - (a.body_len || 0),
+    );
     for (let i = 0; i < Math.min(10, sorted.length); i++) {
       const p: any = sorted[i];
       const len = p.body_len || 0;
-      html += `#${i+1} ${p.nickname} (Len: ${len})<br/>`;
+      html += `#${i + 1} ${p.nickname} (Len: ${len})<br/>`;
     }
     statsDiv.innerHTML = html;
 
@@ -208,7 +211,7 @@ export class SpectatorApp {
     this.globalStatsDiv.innerHTML = globalHtml;
 
     // Update the select options
-    const currentOptions = Array.from(this.debugSnakeSelect.options).map(o => o.value);
+    const currentOptions = Array.from(this.debugSnakeSelect.options).map((o) => o.value);
     const newOptions = Object.keys(players);
     newOptions.unshift(""); // empty option
 
@@ -219,7 +222,7 @@ export class SpectatorApp {
         const p = players[id];
         const opt = document.createElement("option");
         opt.value = id;
-        opt.innerText = `${p.nickname} (${id.substring(0,4)})`;
+        opt.innerText = `${p.nickname} (${id.substring(0, 4)})`;
         this.debugSnakeSelect.appendChild(opt);
       }
       this.debugSnakeSelect.value = this.debugSnakeId || "";
@@ -272,7 +275,12 @@ export class SpectatorApp {
     this.lastTime = now;
 
     // Send dummy requests to get frames
-    this.networkManager.requestFrame(dt, "spectator_id", { turn: 0, accelerating: false, mode: "mouse" }, this.showAllInMainCopy);
+    this.networkManager.requestFrame(
+      dt,
+      "spectator_id",
+      { turn: 0, accelerating: false, mode: "mouse" },
+      this.showAllInMainCopy,
+    );
 
     const serverWorld = this.latestFrame?.gameState?.server_world;
     if (serverWorld) {
@@ -289,7 +297,15 @@ export class SpectatorApp {
     }
 
     if (this.latestFrame) {
-      this.renderOrchestrator.updateAndRender(dt, now, this.latestFrame, "spectator_id", false, true, null);
+      this.renderOrchestrator.updateAndRender(
+        dt,
+        now,
+        this.latestFrame,
+        "spectator_id",
+        false,
+        true,
+        null,
+      );
     } else {
       this.sceneManager.render(null);
     }

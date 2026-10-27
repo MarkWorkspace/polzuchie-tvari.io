@@ -7,17 +7,16 @@ import "./styles/admin.css";
 import "./styles/minimap.css";
 import "./styles/settings.css";
 
-import { LoginScreen } from "./ui/LoginScreen";
 import { Game } from "./game/Game";
-import { HUD } from "./ui/HUD";
-import { Leaderboard } from "./ui/Leaderboard";
-import { KillFeed } from "./ui/KillFeed";
-import { SteeringIndicator } from "./ui/SteeringIndicator";
-import { Minimap } from "./ui/Minimap";
 import { GameOverScreen } from "./ui/GameOverScreen";
+import { HUD } from "./ui/HUD";
+import { KillFeed } from "./ui/KillFeed";
+import { Leaderboard } from "./ui/Leaderboard";
+import { LoginScreen } from "./ui/LoginScreen";
+import { Minimap } from "./ui/Minimap";
 import { MobileControls } from "./ui/MobileControls";
 import { SettingsPanel } from "./ui/SettingsPanel";
-import { AdminPanel } from "./admin/AdminPanel";
+import { SteeringIndicator } from "./ui/SteeringIndicator";
 
 document.addEventListener("DOMContentLoaded", () => {
   // Prevent pinch-to-zoom gestures on iOS devices
@@ -27,12 +26,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const app = document.querySelector<HTMLDivElement>("#app");
   if (!app) return;
+  app.replaceChildren();
 
   const urlParams = new URLSearchParams(window.location.search);
-  const isAdmin = urlParams.has("admin") || 
-                  window.location.pathname.startsWith("/admin") ||
-                  window.location.hash.startsWith("#admin") ||
-                  window.location.hash.startsWith("#/admin");
+  const isAdmin =
+    urlParams.has("admin") ||
+    window.location.pathname.startsWith("/admin") ||
+    window.location.hash.startsWith("#admin") ||
+    window.location.hash.startsWith("#/admin");
   const isSpectator = urlParams.has("spectator");
 
   if (isSpectator) {
@@ -47,22 +48,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
     import("./game/SpectatorApp").then(({ SpectatorApp }) => {
       const appInst = new SpectatorApp(canvasContainer);
-      
+
       const settings = new SettingsPanel(hudContainer, null, {
         onDebugToggle: () => {},
-        onAdminClick: () => { window.location.search = "?admin=true"; },
+        onAdminClick: () => {
+          window.location.search = "?admin=true";
+        },
         onFpsToggle: (enabled: boolean) => {
           appInst.setStatsEnabled(enabled);
-        }
+        },
       });
-      
+
       window.addEventListener("beforeunload", () => {
         appInst.destroy();
         settings.destroy();
       });
     });
   } else if (isAdmin) {
-    new AdminPanel(app);
+    void import("./admin/react/mountAdmin").then(({ mountAdmin }) => {
+      mountAdmin(app);
+    });
   } else {
     showLoginScreen(app);
   }
@@ -89,30 +94,32 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
 
   // 3. Initialize Game Engine
   const game = new Game(canvasContainer);
-  
+
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.get("debug") === "true") {
     game.toggleDebug();
   }
 
   // 4. Initialize HUD Components
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+  const isMobile =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth <= 768;
 
   const hud = new HUD(hudContainer);
-  
-  const leaderboardOptions = isMobile 
+
+  const leaderboardOptions = isMobile
     ? { limit: 3, alwaysOpen: true, noBackground: true, hideHeader: true }
     : { limit: 10 };
-    
+
   const leaderboard = new Leaderboard(hudContainer, leaderboardOptions);
-  
+
   if (isMobile && document.querySelector(".leaderboard-panel")) {
     const panel = document.querySelector(".leaderboard-panel") as HTMLElement;
-    
+
     const titleDiv = document.createElement("div");
     titleDiv.classList.add("mobile-leaderboard-title");
     titleDiv.innerHTML = "<span>🏆</span> Top 3";
-    
+
     panel.insertBefore(titleDiv, panel.firstChild);
   }
 
@@ -132,12 +139,12 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
     },
     onFpsToggle: (enabled: boolean) => {
       game.setStatsEnabled(enabled);
-    }
+    },
   });
 
   // 6. Bind 60FPS update hook for steering indicator & minimap
   window.addEventListener("game-ping", () => {}); // placeholder for potential future listener
-  
+
   // Intercept frame updates to draw minimap & steering bar
   (game as any).renderOrchestrator.onPostRender((frame: any, myId: string) => {
     const turn = game.getInputManager().getTurn();
@@ -146,7 +153,7 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
 
     if (frame) {
       minimap.update(frame, myId, isMobile);
-      
+
       // Compute score delta to dispatch events for HUD
       const myPlayer = frame.gameState?.players?.[myId];
       gameOverScreen.setMyId(myId);
@@ -154,9 +161,11 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
       if (myPlayer) {
         const lastScore = (hud as any).lastScore || 0;
         if (myPlayer.score !== lastScore) {
-          window.dispatchEvent(new CustomEvent("game-score-update", {
-            detail: { score: myPlayer.score, delta: myPlayer.score - lastScore }
-          }));
+          window.dispatchEvent(
+            new CustomEvent("game-score-update", {
+              detail: { score: myPlayer.score, delta: myPlayer.score - lastScore },
+            }),
+          );
           (hud as any).lastScore = myPlayer.score;
         }
       }

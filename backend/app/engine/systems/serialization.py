@@ -17,16 +17,28 @@ def populate_player_message(p_msg, player, in_aoi=True, is_full=False):
         if player.teleport_out_pos:
             p_msg.teleport_out_x = player.teleport_out_pos[0]
             p_msg.teleport_out_y = player.teleport_out_pos[1]
-            p_msg.teleport_timer_ratio = max(0.0, player.teleport_timer) / max(0.001, player.teleport_delay)
+            p_msg.teleport_timer_ratio = max(0.0, player.teleport_timer) / max(
+                0.001, player.teleport_delay
+            )
 
     if is_full:
         p_msg.skin = player.skin
         p_msg.nickname = player.nickname
 
     if is_full or player.just_respawned:
-        p_msg.body.extend(player.body if in_aoi else ([player.body[0], player.body[1]] if player.body else []))
+        p_msg.body.extend(
+            player.body if in_aoi else ([player.body[0], player.body[1]] if player.body else [])
+        )
     else:
-        p_msg.new_heads.extend(player.new_heads_this_tick if in_aoi else ([player.new_heads_this_tick[0], player.new_heads_this_tick[1]] if player.new_heads_this_tick else []))
+        p_msg.new_heads.extend(
+            player.new_heads_this_tick
+            if in_aoi
+            else (
+                [player.new_heads_this_tick[0], player.new_heads_this_tick[1]]
+                if player.new_heads_this_tick
+                else []
+            )
+        )
         p_msg.length = player.body_len if in_aoi else 1
 
 
@@ -195,7 +207,14 @@ def _populate_configs(frame, config):
 def _assemble_entities(frame, state, client_id):
     for nf in state.food_manager.new_foods:
         f_msg = frame.new_foods.add()
-        f_msg.id, f_msg.x, f_msg.y, f_msg.value, f_msg.color, f_msg.image = nf["id"], nf["x"], nf["y"], nf["value"], nf["color"], nf.get("image", "")
+        f_msg.id, f_msg.x, f_msg.y, f_msg.value, f_msg.color, f_msg.image = (
+            nf["id"],
+            nf["x"],
+            nf["y"],
+            nf["value"],
+            nf["color"],
+            nf.get("image", ""),
+        )
 
     frame.eaten_foods.extend(state.food_manager.eaten_foods)
 
@@ -212,22 +231,47 @@ def _assemble_entities(frame, state, client_id):
 
     for t in state.tombstones:
         t_msg = frame.tombstones.add()
-        t_msg.id, t_msg.x, t_msg.y, t_msg.nickname, t_msg.time_left = t["id"], t["x"], t["y"], t["nickname"] or "", t["time_left"]
+        t_msg.id, t_msg.x, t_msg.y, t_msg.nickname, t_msg.time_left = (
+            t["id"],
+            t["x"],
+            t["y"],
+            t["nickname"] or "",
+            t["time_left"],
+        )
 
 
 def _assemble_structures(frame, state):
     for p in state.portal_manager.get_cached_list():
         p_msg = frame.portals.add()
-        p_msg.id, p_msg.color, p_msg.x1, p_msg.y1, p_msg.x2, p_msg.y2, p_msg.radius, p_msg.current_scale = p["id"], p["color"], p["x1"], p["y1"], p["x2"], p["y2"], p["radius"], p["current_scale"]
+        (
+            p_msg.id,
+            p_msg.color,
+            p_msg.x1,
+            p_msg.y1,
+            p_msg.x2,
+            p_msg.y2,
+            p_msg.radius,
+            p_msg.current_scale,
+        ) = p["id"], p["color"], p["x1"], p["y1"], p["x2"], p["y2"], p["radius"], p["current_scale"]
 
     for bh in state.bh_manager.get_cached_list():
         bh_msg = frame.black_holes.add()
-        bh_msg.id, bh_msg.x, bh_msg.y, bh_msg.pull_radius, bh_msg.kill_radius = str(bh["id"]), bh["x"], bh["y"], bh["pull_radius"], bh["kill_radius"]
+        bh_msg.id, bh_msg.x, bh_msg.y, bh_msg.pull_radius, bh_msg.kill_radius = (
+            str(bh["id"]),
+            bh["x"],
+            bh["y"],
+            bh["pull_radius"],
+            bh["kill_radius"],
+        )
 
 
 def _assemble_final_frame(state, is_full: bool, client_id: str = None) -> snake_pb2.GameStateFrame:
     frame = snake_pb2.GameStateFrame()
-    frame.type = snake_pb2.GameStateFrame.FrameType.FULL if is_full else snake_pb2.GameStateFrame.FrameType.DELTA
+    frame.type = (
+        snake_pb2.GameStateFrame.FrameType.FULL
+        if is_full
+        else snake_pb2.GameStateFrame.FrameType.DELTA
+    )
     frame.server_tick_rate = state.config.simulation.tick_rate
 
     _assemble_entities(frame, state, client_id)
@@ -251,9 +295,7 @@ def get_delta_state(
     curr_visible, candidates = get_visible_players(state, client_id)
 
     frame = _assemble_final_frame(state, is_full, client_id)
-    _serialize_players_data(
-        state, candidates, curr_visible, prev_visible, is_full, frame.players
-    )
+    _serialize_players_data(state, candidates, curr_visible, prev_visible, is_full, frame.players)
 
     if client_id and update_visibility:
         state.client_visibility[client_id] = curr_visible
@@ -290,5 +332,6 @@ class SerializationSystem:
 
     def update(self, world):
         prepare_cache(world)
+
 
 system = SerializationSystem()

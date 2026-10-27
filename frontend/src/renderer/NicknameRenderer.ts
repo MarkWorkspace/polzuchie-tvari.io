@@ -57,14 +57,14 @@ export class NicknameRenderer {
       }
 
       if (el.textContent !== n.nickname) el.textContent = n.nickname;
-      
+
       const yOffset = n.isTombstone ? "-50%" : "-100%";
       const transform = `translate3d(${screenX}px, ${screenY}px, 0) translate(-50%, ${yOffset})`;
       if (el.style.transform !== transform) el.style.transform = transform;
-      
+
       const newOpacity = String(n.opacity);
       if (el.style.opacity !== newOpacity) el.style.opacity = newOpacity;
-      
+
       el.style.display = "";
     }
 
@@ -78,7 +78,9 @@ export class NicknameRenderer {
   }
 
   public destroy(): void {
-    this.nicknameElements.forEach((el) => el.remove());
+    this.nicknameElements.forEach((el) => {
+      el.remove();
+    });
     this.nicknameElements.clear();
     this.nicknameContainer.remove();
   }

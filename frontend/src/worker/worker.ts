@@ -1,15 +1,15 @@
 // ROLE: Точка входа воркера, onmessage-роутер. Не содержит вычислений.
 
 import type { GameState } from "../types/game";
-import { WebSocketClient } from "./WebSocketClient";
-import { StateInterpolator } from "./StateInterpolation";
 import { CameraPredictor } from "./CameraPredictor";
-import { EyeComputer } from "./EyeComputer";
-import { ParticleComputer } from "./ParticleComputer";
 import { decodeDeltaState, decodeFullState } from "./DeltaDecoder";
+import { EyeComputer } from "./EyeComputer";
 import { computeFrame } from "./FrameComputer";
 import type { GeometryBuffers } from "./MeshBuilder";
+import { ParticleComputer } from "./ParticleComputer";
+import { StateInterpolator } from "./StateInterpolation";
 import { GrowableFloat32Array, GrowableUint32Array } from "./shared/GrowableArray";
+import { WebSocketClient } from "./WebSocketClient";
 
 const ctx: Worker = self as any;
 
@@ -56,8 +56,8 @@ ctx.onmessage = (e: MessageEvent) => {
 
 function _handleWebSocketMessage(parsedState: any) {
   try {
-    const mapW = parsedState.server_world?.width ?? (currentGameState?.server_world?.width ?? 100);
-    const mapH = parsedState.server_world?.height ?? (currentGameState?.server_world?.height ?? 100);
+    const mapW = parsedState.server_world?.width ?? currentGameState?.server_world?.width ?? 100;
+    const mapH = parsedState.server_world?.height ?? currentGameState?.server_world?.height ?? 100;
 
     if (parsedState.type === "FULL" || !parsedState.type) {
       currentGameState = decodeFullState(parsedState, mapW, mapH);
@@ -80,7 +80,7 @@ function _handleWebSocketMessage(parsedState: any) {
 function _handleConnect(url: string) {
   _handleClose();
   client = new WebSocketClient(url);
-  
+
   client.onStatus((status, details) => ctx.postMessage({ type: "STATUS", status, ...details }));
   client.onDisconnect(() => ctx.postMessage({ type: "DISCONNECT" }));
   client.onPing((latency) => ctx.postMessage({ type: "PING", latency }));
@@ -109,7 +109,15 @@ function _handleClose() {
 
 function _handleRequestFrame(msg: any) {
   if (typeof msg.sentTime === "number" && performance.now() - msg.sentTime > 100) {
-    ctx.postMessage({ type: "FRAME_DATA", eyeCount: 0, pupilCount: 0, particleCount: 0, foodCount: 0, portalCount: 0, blackHoleCount: 0 });
+    ctx.postMessage({
+      type: "FRAME_DATA",
+      eyeCount: 0,
+      pupilCount: 0,
+      particleCount: 0,
+      foodCount: 0,
+      portalCount: 0,
+      blackHoleCount: 0,
+    });
     return;
   }
 
@@ -118,21 +126,52 @@ function _handleRequestFrame(msg: any) {
 
   const interpolated = interpolator.interpolate(dt, tickRate);
   if (!interpolated) {
-    ctx.postMessage({ type: "FRAME_DATA", eyeCount: 0, pupilCount: 0, particleCount: 0, foodCount: 0, portalCount: 0, blackHoleCount: 0 });
+    ctx.postMessage({
+      type: "FRAME_DATA",
+      eyeCount: 0,
+      pupilCount: 0,
+      particleCount: 0,
+      foodCount: 0,
+      portalCount: 0,
+      blackHoleCount: 0,
+    });
     return;
   }
 
   const { state, lastState, progress } = interpolated;
   try {
     const frame = computeFrame(
-      dt, localInput, gridSize, state, lastState, progress, myId, isSpectator, showAllInMainCopy, camera, particles, eyes, accumulatedKillEvents,
-      bodyBufs, tempFoodMatrices, tempFoodColors, tempFoodImageIndices
+      dt,
+      localInput,
+      gridSize,
+      state,
+      lastState,
+      progress,
+      myId,
+      isSpectator,
+      showAllInMainCopy,
+      camera,
+      particles,
+      eyes,
+      accumulatedKillEvents,
+      bodyBufs,
+      tempFoodMatrices,
+      tempFoodColors,
+      tempFoodImageIndices,
     );
 
     accumulatedKillEvents = [];
     ctx.postMessage(frame.payload, frame.transferables);
   } catch (error) {
     console.error("[Worker] Frame computation error:", error);
-    ctx.postMessage({ type: "FRAME_DATA", eyeCount: 0, pupilCount: 0, particleCount: 0, foodCount: 0, portalCount: 0, blackHoleCount: 0 });
+    ctx.postMessage({
+      type: "FRAME_DATA",
+      eyeCount: 0,
+      pupilCount: 0,
+      particleCount: 0,
+      foodCount: 0,
+      portalCount: 0,
+      blackHoleCount: 0,
+    });
   }
 }

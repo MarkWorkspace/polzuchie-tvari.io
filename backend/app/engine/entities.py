@@ -12,9 +12,7 @@ class Food:
         self.color = color
         self.image = image
         self.eaten = False
-        self.radius = (
-            config.food.base_radius + math.sqrt(value) * config.food.radius_value_scale
-        )
+        self.radius = config.food.base_radius + math.sqrt(value) * config.food.radius_value_scale
         self.vx = 0.0
         self.vy = 0.0
 
@@ -183,17 +181,13 @@ class Player:
             else:
                 if self._cached_body_out_aoi is None:
                     self._cached_body_out_aoi = (
-                        [round(self.body[0], 2), round(self.body[1], 2)]
-                        if self.body
-                        else []
+                        [round(self.body[0], 2), round(self.body[1], 2)] if self.body else []
                     )
                 data["body"] = self._cached_body_out_aoi
         else:
             if in_aoi:
                 if self._cached_new_heads_in_aoi is None:
-                    self._cached_new_heads_in_aoi = [
-                        round(v, 2) for v in self.new_heads_this_tick
-                    ]
+                    self._cached_new_heads_in_aoi = [round(v, 2) for v in self.new_heads_this_tick]
                 data["new_heads"] = self._cached_new_heads_in_aoi
             else:
                 if self._cached_new_heads_out_aoi is None:

@@ -1,17 +1,17 @@
 // ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
 
 import type { GameState } from "../types/game";
-import { CameraPredictor } from "./CameraPredictor";
-import { computeFood } from "./FoodComputer";
-import { computePortals } from "./PortalComputer";
 import { computeBlackHoles } from "./BlackHoleComputer";
-import { type GeometryBuffers } from "./MeshBuilder";
-import { EyeComputer } from "./EyeComputer";
-import { ParticleComputer } from "./ParticleComputer";
-import { parseColor } from "./shared/ColorUtils";
-import { computeFogRadiusWorld } from "./shared/PlayerMetrics";
+import type { CameraPredictor } from "./CameraPredictor";
+import type { EyeComputer } from "./EyeComputer";
+import { computeFood } from "./FoodComputer";
+import type { GeometryBuffers } from "./MeshBuilder";
+import type { ParticleComputer } from "./ParticleComputer";
+import { computePortals } from "./PortalComputer";
 import { processSnakes } from "./SnakeProcessor";
+import { parseColor } from "./shared/ColorUtils";
 import { GrowableFloat32Array } from "./shared/GrowableArray";
+import { computeFogRadiusWorld } from "./shared/PlayerMetrics";
 
 const FOG_R = 12 / 255;
 const FOG_G = 12 / 255;
@@ -23,11 +23,7 @@ export interface FrameResult {
 }
 
 function _calcFogRadius(state: GameState, myPlayer: any, isSpectator: boolean): number {
-  return computeFogRadiusWorld(
-    state,
-    myPlayer?.body,
-    isSpectator || !!myPlayer?.is_dead
-  );
+  return computeFogRadiusWorld(state, myPlayer?.body, isSpectator || !!myPlayer?.is_dead);
 }
 
 function _buildLeaderboard(state: GameState, myId: string): any[] {
@@ -39,7 +35,7 @@ function _buildLeaderboard(state: GameState, myId: string): any[] {
       score: p.score || 0,
       kills: p.kills || 0,
       deaths: p.deaths || 0,
-      isMe: pid === myId
+      isMe: pid === myId,
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, 10);
@@ -52,12 +48,7 @@ function _buildFoodMinimap(foods: any[]): Float32Array {
   for (let i = 0; i < foods.length; i++) {
     const f = foods[i];
     if (f.value >= 10.0) {
-      foodMinimapBuffer.push4(
-        f.x,
-        f.y,
-        f.value,
-        parseColor(f.color || "#ef4444")
-      );
+      foodMinimapBuffer.push4(f.x, f.y, f.value, parseColor(f.color || "#ef4444"));
     }
   }
   return foodMinimapBuffer.slice();
@@ -82,7 +73,7 @@ function _buildFrameResult(
   activePlayers: any[],
   leaderboard: any[],
   accumulatedKillEvents: any[],
-  foodMinimapData: Float32Array
+  foodMinimapData: Float32Array,
 ): FrameResult {
   const bVerts = bodyBufs.vertices.slice();
   const bUVs = bodyBufs.uvs.slice();
@@ -109,26 +100,46 @@ function _buildFrameResult(
       is_dead: p.is_dead,
       kills: p.kills,
       deaths: p.deaths,
-      teleport_state: p.teleport_state
+      teleport_state: p.teleport_state,
     };
   }
 
   const payload = {
     type: "FRAME_DATA",
-    bodyVertices: bVerts, bodyUVs: bUVs, bodyColors: bColors, bodySnakeParams: bParams, bodyIndices: bIndices,
-    eyeMatrices: eyeBufs.eyeMatrices, eyeColors: eyeBufs.eyeColors, eyeCount,
-    pupilMatrices: eyeBufs.pupilMatrices, pupilColors: eyeBufs.pupilColors, pupilCount,
-    particleMatrices: partBufs.particleMatrices, particleColors: partBufs.particleColors, particleCount: partBufs.particleCount,
+    bodyVertices: bVerts,
+    bodyUVs: bUVs,
+    bodyColors: bColors,
+    bodySnakeParams: bParams,
+    bodyIndices: bIndices,
+    eyeMatrices: eyeBufs.eyeMatrices,
+    eyeColors: eyeBufs.eyeColors,
+    eyeCount,
+    pupilMatrices: eyeBufs.pupilMatrices,
+    pupilColors: eyeBufs.pupilColors,
+    pupilCount,
+    particleMatrices: partBufs.particleMatrices,
+    particleColors: partBufs.particleColors,
+    particleCount: partBufs.particleCount,
     foodMatrices: fMatrices,
     foodColors: fColors,
     foodImageIndices: fImageIndices,
     foodCount,
-    portalDiskMatrices: portals.portalDiskMatrices, portalDiskColors: portals.portalDiskColors,
-    portalRingMatrices: portals.portalRingMatrices, portalRingColors: portals.portalRingColors, portalCount: portals.portalCount,
-    blackHoleCoreMatrices: blackHoles.blackHoleCoreMatrices, blackHoleRingMatrices: blackHoles.blackHoleRingMatrices,
-    blackHoleGravityMatrices: blackHoles.blackHoleGravityMatrices, blackHoleCount: blackHoles.blackHoleCount,
-    camX: cam.camX, camY: cam.camY, camAngle: cam.camAngle,
-    fogRadiusWorld, nicknames, activePlayers, leaderboard,
+    portalDiskMatrices: portals.portalDiskMatrices,
+    portalDiskColors: portals.portalDiskColors,
+    portalRingMatrices: portals.portalRingMatrices,
+    portalRingColors: portals.portalRingColors,
+    portalCount: portals.portalCount,
+    blackHoleCoreMatrices: blackHoles.blackHoleCoreMatrices,
+    blackHoleRingMatrices: blackHoles.blackHoleRingMatrices,
+    blackHoleGravityMatrices: blackHoles.blackHoleGravityMatrices,
+    blackHoleCount: blackHoles.blackHoleCount,
+    camX: cam.camX,
+    camY: cam.camY,
+    camAngle: cam.camAngle,
+    fogRadiusWorld,
+    nicknames,
+    activePlayers,
+    leaderboard,
     kill_events: [...accumulatedKillEvents],
     tombstones: state.tombstones || [],
     foodMinimapData,
@@ -144,8 +155,8 @@ function _buildFrameResult(
       foods: [],
       portals: state.portals,
       black_holes: state.black_holes,
-      tombstones: state.tombstones
-    }
+      tombstones: state.tombstones,
+    },
   };
 
   const transferables: ArrayBuffer[] = [];
@@ -154,10 +165,17 @@ function _buildFrameResult(
     transferables.push(buf as ArrayBuffer);
   };
 
-  maybeTransfer(bVerts.buffer); maybeTransfer(bUVs.buffer); maybeTransfer(bColors.buffer); maybeTransfer(bParams.buffer); maybeTransfer(bIndices.buffer);
-  maybeTransfer(eyeBufs.eyeMatrices.buffer); maybeTransfer(eyeBufs.eyeColors.buffer);
-  maybeTransfer(eyeBufs.pupilMatrices.buffer); maybeTransfer(eyeBufs.pupilColors.buffer);
-  maybeTransfer(partBufs.particleMatrices.buffer); maybeTransfer(partBufs.particleColors.buffer);
+  maybeTransfer(bVerts.buffer);
+  maybeTransfer(bUVs.buffer);
+  maybeTransfer(bColors.buffer);
+  maybeTransfer(bParams.buffer);
+  maybeTransfer(bIndices.buffer);
+  maybeTransfer(eyeBufs.eyeMatrices.buffer);
+  maybeTransfer(eyeBufs.eyeColors.buffer);
+  maybeTransfer(eyeBufs.pupilMatrices.buffer);
+  maybeTransfer(eyeBufs.pupilColors.buffer);
+  maybeTransfer(partBufs.particleMatrices.buffer);
+  maybeTransfer(partBufs.particleColors.buffer);
   maybeTransfer(foodMinimapData.buffer);
 
   maybeTransfer(fMatrices.buffer);
@@ -193,7 +211,7 @@ export function computeFrame(
   bodyBufs: GeometryBuffers,
   tempFoodMatrices: Float32Array,
   tempFoodColors: Float32Array,
-  tempFoodImageIndices: Int32Array
+  tempFoodImageIndices: Int32Array,
 ): FrameResult {
   const cam = camera.predict(dt, myId, localInput, state, lastState, progress, gridSize);
   const myPlayer = state.players[myId];
@@ -205,7 +223,7 @@ export function computeFrame(
     const dist = Math.sqrt((wx - cam.camX) ** 2 + (wy - cam.camY) ** 2);
     const start = fogRadiusWorld * 0.75;
     const end = fogRadiusWorld * 0.95;
-    return dist >= end ? 1.0 : (dist <= start ? 0.0 : (dist - start) / (end - start));
+    return dist >= end ? 1.0 : dist <= start ? 0.0 : (dist - start) / (end - start);
   };
 
   let myHeadX = cam.camX;
@@ -216,20 +234,75 @@ export function computeFrame(
   }
 
   const foodCount = computeFood(
-    state, lastState, progress, myPlayer, myHeadX, myHeadY, cam.camX, cam.camY, fogRadiusWorld, dt, gridSize, wrapAll,
-    tempFoodMatrices, tempFoodColors, tempFoodImageIndices
+    state,
+    lastState,
+    progress,
+    myPlayer,
+    myHeadX,
+    myHeadY,
+    cam.camX,
+    cam.camY,
+    fogRadiusWorld,
+    dt,
+    gridSize,
+    wrapAll,
+    tempFoodMatrices,
+    tempFoodColors,
+    tempFoodImageIndices,
   );
 
-  const portals = computePortals(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, wrapAll, calcFog, FOG_R, FOG_G, FOG_B);
-  const blackHoles = computeBlackHoles(state, lastState, progress, cam.camX, cam.camY, fogRadiusWorld, gridSize, wrapAll);
+  const portals = computePortals(
+    state,
+    lastState,
+    progress,
+    cam.camX,
+    cam.camY,
+    fogRadiusWorld,
+    gridSize,
+    wrapAll,
+    calcFog,
+    FOG_R,
+    FOG_G,
+    FOG_B,
+  );
+  const blackHoles = computeBlackHoles(
+    state,
+    lastState,
+    progress,
+    cam.camX,
+    cam.camY,
+    fogRadiusWorld,
+    gridSize,
+    wrapAll,
+  );
 
   // Clear geometries
-  bodyBufs.vertices.reset(); bodyBufs.uvs.reset(); bodyBufs.colors.reset(); bodyBufs.params.reset(); bodyBufs.indices.reset();
+  bodyBufs.vertices.reset();
+  bodyBufs.uvs.reset();
+  bodyBufs.colors.reset();
+  bodyBufs.params.reset();
+  bodyBufs.indices.reset();
   eyes.reset();
 
   const activePlayers: any[] = [];
   const nicknames: any[] = [];
-  processSnakes(state, lastState, progress, myId, gridSize, startLength, camera, particles, eyes, bodyBufs, calcFog, activePlayers, nicknames, fogRadiusWorld, wrapAll);
+  processSnakes(
+    state,
+    lastState,
+    progress,
+    myId,
+    gridSize,
+    startLength,
+    camera,
+    particles,
+    eyes,
+    bodyBufs,
+    calcFog,
+    activePlayers,
+    nicknames,
+    fogRadiusWorld,
+    wrapAll,
+  );
 
   particles.update(dt);
   const partBufs = particles.buildBuffers(FOG_R, FOG_G, FOG_B, calcFog);
@@ -241,9 +314,25 @@ export function computeFrame(
   _addTombstoneNicknames(state, nicknames, gridSize);
 
   return _buildFrameResult(
-    state, cam, fogRadiusWorld, foodCount, portals, blackHoles, bodyBufs, eyeBufs, eyes.eyeCount,
-    eyes.pupilCount, partBufs, tempFoodMatrices, tempFoodColors, tempFoodImageIndices, nicknames, activePlayers,
-    leaderboard, accumulatedKillEvents, foodMinimapData
+    state,
+    cam,
+    fogRadiusWorld,
+    foodCount,
+    portals,
+    blackHoles,
+    bodyBufs,
+    eyeBufs,
+    eyes.eyeCount,
+    eyes.pupilCount,
+    partBufs,
+    tempFoodMatrices,
+    tempFoodColors,
+    tempFoodImageIndices,
+    nicknames,
+    activePlayers,
+    leaderboard,
+    accumulatedKillEvents,
+    foodMinimapData,
   );
 }
 
@@ -261,7 +350,7 @@ function _addTombstoneNicknames(state: GameState, nicknames: any[], gridSize: nu
       y: ty,
       z: 5,
       opacity: Number(opacity.toFixed(2)),
-      isTombstone: true
+      isTombstone: true,
     });
   }
 }

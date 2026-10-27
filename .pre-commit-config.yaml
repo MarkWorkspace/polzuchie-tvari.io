@@ -20,7 +20,6 @@ repos:
       - id: end-of-file-fixer
         exclude: >-
           (?x)^(
-            frontend/src/worker/shared/snake_proto\.(js|d\.ts)|
             backend/app/engine/systems/snake_pb2\.py|
             .*\.bin
           )$
@@ -28,7 +27,6 @@ repos:
         args: ["--markdown-linebreak-ext=md"]
         exclude: >-
           (?x)^(
-            frontend/src/worker/shared/snake_proto\.(js|d\.ts)|
             backend/app/engine/systems/snake_pb2\.py|
             .*\.bin
           )$
@@ -36,6 +34,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: backend-format
+        name: backend format (ruff)
+        entry: uv run --project backend --frozen python scripts/run_checks.py backend-format
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+
       - id: backend-lint
         name: backend lint (ruff)
         entry: uv run --project backend --frozen ruff check --force-exclude
@@ -50,12 +55,34 @@ repos:
         files: ^(backend/.*\.py|backend/(pyproject\.toml|uv\.lock)|tests_shared/.*)$
         pass_filenames: false
 
+      - id: frontend-lint
+        name: frontend lint (biome)
+        entry: uv run --project backend --frozen python scripts/run_checks.py frontend-lint
+        language: system
+        files: ^(frontend/src/.*\.(ts|tsx|css)|frontend/(package\.json|package-lock\.json|biome\.json|vite\.config\.ts|tsconfig.*\.json))$
+        pass_filenames: false
+
+      - id: frontend-typecheck
+        name: frontend typecheck (tsc)
+        entry: uv run --project backend --frozen python scripts/run_checks.py frontend-typecheck
+        language: system
+        files: ^(frontend/src/.*\.(ts|tsx)|frontend/(package\.json|package-lock\.json|vite\.config\.ts|tsconfig.*\.json))$
+        pass_filenames: false
+
       - id: frontend-tests
         name: frontend tests (vitest)
         entry: uv run --project backend --frozen python scripts/run_checks.py frontend-tests
         language: system
         files: ^(frontend/src/.*\.(ts|tsx)|frontend/(package\.json|package-lock\.json|vite\.config\.ts|tsconfig.*\.json)|tests_shared/.*)$
         pass_filenames: false
+
+      - id: backend-format-push
+        name: backend format (pre-push)
+        entry: uv run --project backend --frozen python scripts/run_checks.py backend-format
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
 
       - id: backend-lint-push
         name: backend lint (pre-push)
@@ -68,6 +95,22 @@ repos:
       - id: backend-tests-push
         name: backend tests (pre-push)
         entry: uv run --project backend --frozen python scripts/run_checks.py backend-tests
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+
+      - id: frontend-lint-push
+        name: frontend lint (pre-push)
+        entry: uv run --project backend --frozen python scripts/run_checks.py frontend-lint
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+
+      - id: frontend-typecheck-push
+        name: frontend typecheck (pre-push)
+        entry: uv run --project backend --frozen python scripts/run_checks.py frontend-typecheck
         language: system
         stages: [pre-push]
         pass_filenames: false

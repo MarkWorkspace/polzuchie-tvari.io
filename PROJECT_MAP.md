@@ -29,10 +29,14 @@ frontend/
 ├── vite.config.ts
 ├── package.json
 ├── package-lock.json
+├── biome.json                          # ROLE: Biome lint/format config for the frontend.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
-├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite) в Docker.
+├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
+├── nginx.conf                          # ROLE: SPA static serving, /ws proxy, cache and security headers.
+├── public/
+│   └── fonts/                          # ROLE: Self-hosted Outfit WOFF2 files.
 └── src/
-    ├── main.ts                         # ROLE: Точка входа приложения. Не содержит игровой логики.
+    ├── main.ts                         # ROLE: Точка входа приложения. Не содержит игровой логики; lazy-mount React admin.
     ├── game/
     │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены. Не содержит логики ввода или сети.
@@ -94,9 +98,7 @@ frontend/
     │       ├── GrowableArray.ts        # ROLE: Динамически расширяемые массивы Float32 и Uint32 для буферов геометрии.
     │       ├── GrowableArray.test.ts   # ROLE: Тесты копирования буферов (без SharedArrayBuffer alias).
     │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
-    │       ├── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame для воркера. Не генерирует и не кодирует сообщения.
-    │       ├── snake_proto.js          # ROLE: [СГЕНЕРИРОВАНО] JS-модуль Protobuf.
-    │       └── snake_proto.d.ts         # ROLE: [СГЕНЕРИРОВАНО] TS-декларации для Protobuf-модуля.
+    │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
     │   ├── LoginScreen.ts              # ROLE: Экран входа.
     │   ├── HUD.ts                      # ROLE: Score, ping, статус соединения. Не игровая логика.
@@ -108,12 +110,20 @@ frontend/
     │   ├── MobileControls.ts           # ROLE: Мобильные элементы управления.
     │   └── SettingsPanel.ts            # ROLE: Боковая панель настроек.
     ├── admin/
-    │   ├── AdminPanel.ts               # ROLE: Точка входа панели администратора, оркестрация событий и здоровья сервера.
     │   ├── ConfigEditor.ts             # ROLE: Состояние и бизнес-логика конфигурации админ-панели. Без UI.
-    │   ├── ConfigRenderer.ts           # ROLE: Генерация HTML для полей конфигурации и видов еды. Без состояния.
-    │   ├── AdminDashboard.ts           # ROLE: Генерация HTML шаблона панели администратора и модальных окон.
     │   ├── FoodSimulator.ts            # ROLE: Canvas-симулятор распределения еды. Без UI.
-    │   └── AdminLabels.ts              # ROLE: Метаданные (названия полей, единицы измерения, подсказки) для панели администратора.
+    │   ├── AdminLabels.ts              # ROLE: Метаданные (названия полей, единицы измерения, подсказки) для панели администратора.
+    │   └── react/
+    │       ├── mountAdmin.tsx           # ROLE: Mount the React admin app; lazy-loaded from main.ts.
+    │       ├── AdminApp.tsx             # ROLE: React admin root, session, health polling, config actions.
+    │       ├── AdminLogin.tsx           # ROLE: React admin login form.
+    │       ├── AdminDashboard.tsx       # ROLE: React admin layout, tabs, fields, notices and restart modal.
+    │       ├── ConfigField.tsx          # ROLE: One typed config field card.
+    │       ├── MapSizeCard.tsx          # ROLE: Width/height editor.
+    │       ├── MapSimulator.tsx         # ROLE: Food distribution preview wrapper.
+    │       ├── FoodTypesEditor.tsx      # ROLE: Food type editor.
+    │       ├── adminApi.ts              # ROLE: Admin API URL/fetch helper.
+    │       └── AdminLogin.test.tsx      # ROLE: React admin login regression tests.
     └── types/
         └── game.ts                     # ROLE: Типы GameState, Player, Food и др. Только типы, без логики.
 ```
@@ -129,6 +139,7 @@ frontend/src/styles/
 ├── hud.css
 ├── login.css
 ├── admin.css
+├── admin_react.css
 ├── minimap.css
 └── settings.css
 ```
@@ -141,7 +152,7 @@ frontend/src/styles/
 backend/
 ├── server.py                           # ROLE: Точка входа FastAPI. Не содержит игровой логики.
 ├── game_config.py                      # ROLE: Конфигурация через датаклассы.
-├── config.json                         # Сохранённая конфигурация (генерируется, не редактировать вручную).
+├── config.json                         # Runtime-конфигурация (атомарно пишется админкой; не редактировать вручную).
 ├── pyproject.toml                      # ROLE: PEP 621 metadata, runtime/dev dependencies, pytest + ruff config.
 ├── uv.lock                             # ROLE: [СГЕНЕРИРОВАНО] uv lockfile. Не редактировать вручную.
 ├── .python-version                     # ROLE: Python version for uv (3.13).

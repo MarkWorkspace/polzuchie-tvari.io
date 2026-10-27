@@ -55,7 +55,7 @@ export class LoginScreen {
     `;
 
     this.container.appendChild(this.overlay);
-    
+
     const input = this.overlay.querySelector("#nickname-input") as HTMLInputElement;
     if (input && savedName) {
       input.value = savedName;

@@ -1,5 +1,5 @@
 // ROLE: Экран смерти, показывающий статистику и кнопку респавна.
-import { NetworkManager } from "../game/NetworkManager";
+import type { NetworkManager } from "../game/NetworkManager";
 
 export class GameOverScreen {
   private container: HTMLDivElement;
@@ -50,12 +50,12 @@ export class GameOverScreen {
 
     this.overlay = document.createElement("div");
     this.overlay.className = "game-over-overlay hud-interactive";
-    
+
     this.overlay.innerHTML = `
       <div class="game-over-modal glass-panel">
         <h1 class="game-over-title">ПОТРАЧЕНО</h1>
         <p class="game-over-subtitle">Твоя змейка стала кормом для других.</p>
-        
+
         <div class="game-over-stats">
           <div class="stat-box">
             <div class="stat-label">Длина</div>
@@ -66,7 +66,7 @@ export class GameOverScreen {
             <div class="stat-value stat-kills">${kills}</div>
           </div>
         </div>
-        
+
         <button id="respawn-btn" class="respawn-btn">
           ИГРАТЬ СНОВА
         </button>

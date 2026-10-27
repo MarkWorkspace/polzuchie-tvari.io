@@ -18,11 +18,12 @@ export function computeBlackHoles(
   camY: number,
   fogRadiusWorld: number,
   gridSize: number,
-  showAllInMainCopy: boolean
+  showAllInMainCopy: boolean,
 ): BlackHoleBuffers {
   const blackHoles = state.black_holes || [];
   const lastBhMap = _buildLastBhMap(lastState);
-  const visibleBlackHoles: { wx: number; wy: number; pullRadius: number; killRadius: number }[] = [];
+  const visibleBlackHoles: { wx: number; wy: number; pullRadius: number; killRadius: number }[] =
+    [];
 
   const mapW = state.server_world?.width ?? 100;
   const mapH = state.server_world?.height ?? 100;
@@ -38,8 +39,10 @@ export function computeBlackHoles(
       const lastBh = lastBhMap.get(bh.id);
       if (lastBh) {
         const lastScale = lastBh.current_scale ?? 1.0;
-        pullRadius = (lastBh.pull_radius * lastScale) + (pullRadius - lastBh.pull_radius * lastScale) * progress;
-        killRadius = (lastBh.kill_radius * lastScale) + (killRadius - lastBh.kill_radius * lastScale) * progress;
+        pullRadius =
+          lastBh.pull_radius * lastScale + (pullRadius - lastBh.pull_radius * lastScale) * progress;
+        killRadius =
+          lastBh.kill_radius * lastScale + (killRadius - lastBh.kill_radius * lastScale) * progress;
       } else {
         pullRadius *= progress;
         killRadius *= progress;
@@ -83,7 +86,7 @@ function _buildLastBhMap(lastState: GameState | null): Map<string, any> {
 
 function _buildBlackHoleBuffers(
   visibleBlackHoles: { wx: number; wy: number; pullRadius: number; killRadius: number }[],
-  gridSize: number
+  gridSize: number,
 ): BlackHoleBuffers {
   const blackHoleCount = visibleBlackHoles.length;
   const blackHoleCoreMatrices = new Float32Array(blackHoleCount * 16);
@@ -101,6 +104,6 @@ function _buildBlackHoleBuffers(
     blackHoleCoreMatrices,
     blackHoleRingMatrices,
     blackHoleGravityMatrices,
-    blackHoleCount
+    blackHoleCount,
   };
 }

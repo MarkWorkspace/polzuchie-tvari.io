@@ -25,6 +25,10 @@ def _quote(value: str) -> str:
 
 
 CHECKS = {
+    "backend-format": (
+        f"{_quote(_python_for_backend())} -m ruff format --check .",
+        ROOT / "backend",
+    ),
     "backend-lint": (
         f"{_quote(_python_for_backend())} -m ruff check .",
         ROOT / "backend",
@@ -33,11 +37,21 @@ CHECKS = {
         f"{_quote(_python_for_backend())} -m pytest tests -q",
         ROOT / "backend",
     ),
+    "frontend-lint": ("npm run lint", ROOT / "frontend"),
+    "frontend-typecheck": ("npm run typecheck", ROOT / "frontend"),
     "frontend-tests": ("npm test", ROOT / "frontend"),
     "frontend-build": ("npm run build", ROOT / "frontend"),
 }
 
-CHECK_ORDER = ("backend-lint", "backend-tests", "frontend-tests", "frontend-build")
+CHECK_ORDER = (
+    "backend-format",
+    "backend-lint",
+    "backend-tests",
+    "frontend-lint",
+    "frontend-typecheck",
+    "frontend-tests",
+    "frontend-build",
+)
 
 
 def _run(name: str) -> None:

@@ -46,29 +46,29 @@ export class KillFeed {
 
     const { events, players } = e.detail;
     events.forEach((evt) => {
-      const killerName = evt.killer ? (players[evt.killer]?.nickname || evt.killer) : "Wall";
+      const killerName = evt.killer ? players[evt.killer]?.nickname || evt.killer : "Wall";
       const victimName = players[evt.victim]?.nickname || evt.victim;
 
       const item = document.createElement("div");
       item.className = "kill-message";
-      
+
       const killerEl = document.createElement("span");
       killerEl.className = "kill-killer";
       killerEl.textContent = killerName;
-      
+
       const victimEl = document.createElement("span");
       victimEl.className = "kill-victim";
       victimEl.textContent = victimName;
-      
+
       item.appendChild(killerEl);
       item.appendChild(document.createTextNode(" killed "));
       item.appendChild(victimEl);
-      
+
       this.panel?.appendChild(item);
       this.feedItems.push({
         id: Date.now() + Math.random(),
         element: item,
-        time: Date.now()
+        time: Date.now(),
       });
 
       // Keep only last 5 items visually

@@ -1,13 +1,12 @@
 // ROLE: Parity-тест сетевого кадра. Декодирует бинарные фикстуры через DeltaDecoder и сравнивает с expected JSON.
-import { describe, it, expect } from "vitest";
+
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { decompress, decodeFullState, decodeDeltaState } from "./DeltaDecoder";
+import { describe, expect, it } from "vitest";
+import { decodeDeltaState, decodeFullState, decompress } from "./DeltaDecoder";
 import { decodeGameStateFrame } from "./shared/ProtoFrameDecoder";
 
-const FIXTURES_DIR = resolve(
-  __dirname, "../../../tests_shared/golden_frames"
-);
+const FIXTURES_DIR = resolve(__dirname, "../../../tests_shared/golden_frames");
 
 const MAP_W = 100;
 const MAP_H = 100;
@@ -30,9 +29,7 @@ describe("Frame parity (golden fixtures)", () => {
     const state = decodeFullState(parsed, MAP_W, MAP_H);
 
     const expPlayers = expected["players"] as Record<string, unknown>;
-    expect(Object.keys(state.players).sort()).toEqual(
-      Object.keys(expPlayers).sort()
-    );
+    expect(Object.keys(state.players).sort()).toEqual(Object.keys(expPlayers).sort());
 
     for (const pid of Object.keys(expPlayers)) {
       const sp = state.players[pid];
@@ -50,9 +47,7 @@ describe("Frame parity (golden fixtures)", () => {
       expect(sp.deaths ?? 0).toBe(ep["deaths"] ?? 0);
     }
 
-    expect(state.foods.length).toBe(
-      (expected["foods"] as unknown[]).length
-    );
+    expect(state.foods.length).toBe((expected["foods"] as unknown[]).length);
     expect(state.portals).toBeDefined();
     expect(state.server_tick_rate).toBe(expected["server_tick_rate"]);
   });
@@ -71,9 +66,7 @@ describe("Frame parity (golden fixtures)", () => {
     const state = decodeDeltaState(parsed, prevState, MAP_W, MAP_H);
 
     const expPlayers = expected["players"] as Record<string, unknown>;
-    expect(Object.keys(state.players).sort()).toEqual(
-      Object.keys(expPlayers).sort()
-    );
+    expect(Object.keys(state.players).sort()).toEqual(Object.keys(expPlayers).sort());
 
     for (const pid of Object.keys(expPlayers)) {
       const sp = state.players[pid];
@@ -97,14 +90,14 @@ describe("Frame parity (golden fixtures)", () => {
       foods: [],
       portals: [{ id: "p1" }],
       black_holes: [{ id: "bh1" }],
-      tombstones: [{ id: "t1" }]
+      tombstones: [{ id: "t1" }],
     } as any;
 
     const deltaPayload = {
       players: {},
       eaten_foods: [],
       moved_foods: [],
-      new_foods: []
+      new_foods: [],
     } as any;
 
     const state = decodeDeltaState(deltaPayload, prevState, MAP_W, MAP_H);

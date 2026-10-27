@@ -29,7 +29,7 @@ export class CameraPredictor {
     state: GameState,
     lastState: GameState | null,
     progress: number,
-    gridSize: number
+    gridSize: number,
   ): { camX: number; camY: number; camAngle: number } {
     const mapW = state.server_world?.width ?? 100;
     const mapH = state.server_world?.height ?? 100;
@@ -80,11 +80,18 @@ export class CameraPredictor {
     myId: string,
     progress: number,
     mapW: number,
-    mapH: number
+    mapH: number,
   ) {
     const lastPlayer = lastState?.players[myId];
 
-    if (!lastPlayer || lastPlayer.is_dead || !lastPlayer.body || lastPlayer.body.length < 4 || !myPlayer.body || myPlayer.body.length < 4) {
+    if (
+      !lastPlayer ||
+      lastPlayer.is_dead ||
+      !lastPlayer.body ||
+      lastPlayer.body.length < 4 ||
+      !myPlayer.body ||
+      myPlayer.body.length < 4
+    ) {
       this.localAngle = myPlayer.angle;
       return;
     }
@@ -97,7 +104,7 @@ export class CameraPredictor {
 
     const dx0 = bx0 - ox0;
     const dy0 = by0 - oy0;
-    const isTeleportHead = (dx0 * dx0 + dy0 * dy0) > 36.0;
+    const isTeleportHead = dx0 * dx0 + dy0 * dy0 > 36.0;
 
     // Interpolate neck position (segment 1)
     const bx1 = myPlayer.body[2];
@@ -107,7 +114,7 @@ export class CameraPredictor {
 
     const dx1 = bx1 - ox1;
     const dy1 = by1 - oy1;
-    const isTeleportNeck = (dx1 * dx1 + dy1 * dy1) > 36.0;
+    const isTeleportNeck = dx1 * dx1 + dy1 * dy1 > 36.0;
 
     if (isTeleportHead || isTeleportNeck) {
       this.localAngle = myPlayer.angle;
@@ -139,8 +146,6 @@ export class CameraPredictor {
     this.localAngle = -visAngle;
   }
 
-
-
   private _predictPosition(
     dt: number,
     myId: string,
@@ -150,7 +155,7 @@ export class CameraPredictor {
     lastState: GameState | null,
     progress: number,
     mapW: number,
-    mapH: number
+    mapH: number,
   ) {
     if (myPlayer.accelerating || localInput.accelerating) {
       this.currentZoomOffset = Math.min(1, this.currentZoomOffset + 3.0 * dt);
@@ -178,7 +183,11 @@ export class CameraPredictor {
       serverY = toroidalLerp(startY, targetY, progress, mapH);
     }
 
-    if ((myPlayer.teleport_state === "entering" || myPlayer.teleport_state === "in_transit") && myPlayer.teleport_out_x !== undefined && myPlayer.teleport_out_y !== undefined) {
+    if (
+      (myPlayer.teleport_state === "entering" || myPlayer.teleport_state === "in_transit") &&
+      myPlayer.teleport_out_x !== undefined &&
+      myPlayer.teleport_out_y !== undefined
+    ) {
       this._predictTeleportPosition(dt, myPlayer, serverX, serverY, mapW, mapH, state);
     } else {
       this._predictNormalPosition(dt, myPlayer, localInput, serverX, serverY, mapW, mapH, state);
@@ -198,10 +207,18 @@ export class CameraPredictor {
     }
   }
 
-  private _predictTeleportPosition(dt: number, myPlayer: any, serverX: number, serverY: number, mapW: number, mapH: number, state: GameState) {
+  private _predictTeleportPosition(
+    dt: number,
+    myPlayer: any,
+    serverX: number,
+    serverY: number,
+    mapW: number,
+    mapH: number,
+    state: GameState,
+  ) {
     serverX = myPlayer.teleport_out_x;
     serverY = myPlayer.teleport_out_y;
-    
+
     if (Math.abs(this.localX - serverX) > mapW / 2) {
       this.localX += this.localX < serverX ? mapW : -mapW;
     }
@@ -212,7 +229,7 @@ export class CameraPredictor {
     const ratio = Math.max(0.001, myPlayer.teleport_timer_ratio ?? 0.001);
     const delay = (state.server_world?.portals_teleport_delay_ms ?? 1500) / 1000.0;
     const timeRemaining = ratio * delay;
-    
+
     if (timeRemaining > dt && timeRemaining > 0.05) {
       const moveRatio = Math.min(1.0, dt / timeRemaining);
       this.localX += (serverX - this.localX) * moveRatio;
@@ -223,7 +240,16 @@ export class CameraPredictor {
     }
   }
 
-  private _predictNormalPosition(_dt: number, _myPlayer: any, _localInput: any, serverX: number, serverY: number, _mapW: number, _mapH: number, _state: GameState) {
+  private _predictNormalPosition(
+    _dt: number,
+    _myPlayer: any,
+    _localInput: any,
+    serverX: number,
+    serverY: number,
+    _mapW: number,
+    _mapH: number,
+    _state: GameState,
+  ) {
     // Item 19: Remove double-smoothing. serverX/Y are already smoothly interpolated
     // using progress. Prediction + EMA creates lag. We just snap to the interpolated target.
     this.localX = serverX;

@@ -28,7 +28,7 @@ export class EyeComputer {
     snakeRadius: number,
     snakeZ: number,
     angle: number,
-    fogAmt: number
+    fogAmt: number,
   ) {
     const eyeRadius = snakeRadius * 0.35;
     const pupilRadius = eyeRadius * 0.5;
@@ -45,7 +45,7 @@ export class EyeComputer {
     for (const side of [-1, 1]) {
       const ex = hx + dirFx * forwardOffset + dirRx * sideOffset * side;
       const ey = hy + dirFy * forwardOffset + dirRy * sideOffset * side;
-      
+
       if (this.eyeCount < 1000) {
         this.eyeEx[this.eyeCount] = ex;
         this.eyeEy[this.eyeCount] = ey;
@@ -57,7 +57,7 @@ export class EyeComputer {
 
       const px = ex + dirFx * (eyeRadius * 0.3);
       const py = ey + dirFy * (eyeRadius * 0.3);
-      
+
       if (this.pupilCount < 1000) {
         this.pupilPx[this.pupilCount] = px;
         this.pupilPy[this.pupilCount] = py;
@@ -69,7 +69,11 @@ export class EyeComputer {
     }
   }
 
-  public buildBuffers(fogR: number, fogG: number, fogB: number): {
+  public buildBuffers(
+    fogR: number,
+    fogG: number,
+    fogB: number,
+  ): {
     eyeMatrices: Float32Array;
     eyeColors: Float32Array;
     pupilMatrices: Float32Array;
@@ -89,7 +93,14 @@ export class EyeComputer {
     const pupilMatrices = new Float32Array(this.pupilCount * 16);
     const pupilColors = new Float32Array(this.pupilCount * 3);
     for (let i = 0; i < this.pupilCount; i++) {
-      writeMatrix(pupilMatrices, i, this.pupilPx[i], this.pupilPy[i], this.pupilPz[i], this.pupilR[i]);
+      writeMatrix(
+        pupilMatrices,
+        i,
+        this.pupilPx[i],
+        this.pupilPy[i],
+        this.pupilPz[i],
+        this.pupilR[i],
+      );
       const fogAmt = this.pupilColor[i];
       const cIdx = i * 3;
       pupilColors[cIdx + 0] = 0.0 + (fogR - 0.0) * fogAmt;

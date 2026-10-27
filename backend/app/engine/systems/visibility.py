@@ -1,7 +1,6 @@
 # ROLE: Расчёт зоны видимости (Area of Interest - AoI) и фильтрация игроков.
 
 
-
 def get_visible_players(state, client_id):
     if client_id in state.spectators:
         return set(state.players.keys()), state.players
@@ -9,9 +8,7 @@ def get_visible_players(state, client_id):
     client_player = state.players.get(client_id)
     if client_player and client_player.body_len > 0:
         cx, cy = client_player.head_x, client_player.head_y
-        eff_score = (
-            max(0, client_player.body_len - state.config.snake.start_length) * 10.0
-        )
+        eff_score = max(0, client_player.body_len - state.config.snake.start_length) * 10.0
     else:
         cx, cy = state.grid_width / 2, state.grid_height / 2
         eff_score = 0

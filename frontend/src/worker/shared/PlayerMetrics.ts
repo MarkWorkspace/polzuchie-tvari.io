@@ -14,7 +14,7 @@ export function getStartLength(state: GameState, fallback = 9): number {
 export function computeHeadRadiusWorld(
   state: GameState,
   body: number[] | undefined,
-  gridSize: number
+  gridSize: number,
 ): number {
   const startLength = getStartLength(state);
   const segments = getBodySegmentCount(body, startLength);
@@ -27,7 +27,7 @@ export function computeHeadRadiusWorld(
 export function computeFogRadiusWorld(
   state: GameState,
   body: number[] | undefined,
-  infinite: boolean
+  infinite: boolean,
 ): number {
   if (infinite) return 1_000_000.0;
   const startLength = getStartLength(state);

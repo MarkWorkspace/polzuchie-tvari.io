@@ -3,6 +3,8 @@ import math
 import random
 from app.engine.entities import Food
 from app.engine.systems.math_utils import toroidal_distance
+
+
 class FoodManager:
     def __init__(self, state):
         self.state = state
@@ -18,9 +20,9 @@ class FoodManager:
         for _ in range(self.state.target_food_count):
             f = self._spawn_food()
             self.foods[f.id] = f
-            
+
         self.state.events.subscribe("player_died", self._on_player_died)
-        
+
     def _on_player_died(self, player, killer_pid) -> None:
         self.drop_food_on_death(player)
 
@@ -93,15 +95,21 @@ class FoodManager:
         if hasattr(self.state, "bh_manager") and self.state.bh_manager:
             for bh in self.state.bh_manager.black_hole_slots:
                 if bh is not None and bh.state != "dead":
-                    dist = toroidal_distance(x, y, bh.x, bh.y, self.state.grid_width, self.state.grid_height)
+                    dist = toroidal_distance(
+                        x, y, bh.x, bh.y, self.state.grid_width, self.state.grid_height
+                    )
                     if dist < bh.pull_radius * 1.5:
                         return False
 
         if hasattr(self.state, "portal_manager") and self.state.portal_manager:
             for p in self.state.portal_manager.portal_slots:
                 if p is not None and p.state != "dead":
-                    dist1 = toroidal_distance(x, y, p.x1, p.y1, self.state.grid_width, self.state.grid_height)
-                    dist2 = toroidal_distance(x, y, p.x2, p.y2, self.state.grid_width, self.state.grid_height)
+                    dist1 = toroidal_distance(
+                        x, y, p.x1, p.y1, self.state.grid_width, self.state.grid_height
+                    )
+                    dist2 = toroidal_distance(
+                        x, y, p.x2, p.y2, self.state.grid_width, self.state.grid_height
+                    )
                     if dist1 < p.radius * 3 or dist2 < p.radius * 3:
                         return False
 
@@ -138,8 +146,7 @@ class FoodManager:
         y = max(1, min(self.state.grid_height - 1, y))
 
         return Food(
-            self.food_id_counter, x, y, chosen.value, self.state.config,
-            chosen.color, chosen.image
+            self.food_id_counter, x, y, chosen.value, self.state.config, chosen.color, chosen.image
         )
 
     def get_food_color(self, value):
@@ -147,9 +154,7 @@ class FoodManager:
             if ft.value == value:
                 return ft.color
         if self.state.config.food.types:
-            return min(
-                self.state.config.food.types, key=lambda ft: abs(ft.value - value)
-            ).color
+            return min(self.state.config.food.types, key=lambda ft: abs(ft.value - value)).color
         return "#ef4444"
 
     def get_food_image(self, value):
@@ -157,15 +162,11 @@ class FoodManager:
             if ft.value == value:
                 return ft.image
         if self.state.config.food.types:
-            return min(
-                self.state.config.food.types, key=lambda ft: abs(ft.value - value)
-            ).image
+            return min(self.state.config.food.types, key=lambda ft: abs(ft.value - value)).image
         return ""
 
     def trim_overflow(self, defer_events=False):
-        max_food_count = (
-            self.state.target_food_count + self.state.config.world.food_overflow_limit
-        )
+        max_food_count = self.state.target_food_count + self.state.config.world.food_overflow_limit
         while len(self.foods) > max_food_count:
             oldest_id = next(iter(self.foods))
             self.foods[oldest_id].eaten = True
@@ -191,9 +192,7 @@ class FoodManager:
         return new_f
 
     def drop_food_on_death(self, player):
-        drop_amount = math.floor(
-            player.score * self.state.config.food.death_drop_score_fraction
-        )
+        drop_amount = math.floor(player.score * self.state.config.food.death_drop_score_fraction)
         food_types = self.state.config.food.types
         ft_weights = [ft.weight for ft in food_types]
         max_drops = 200
@@ -244,9 +243,7 @@ class FoodManager:
             if f.vx != 0.0 or f.vy != 0.0:
                 f.x = (f.x + f.vx * tick_interval) % self.state.grid_width
                 f.y = (f.y + f.vy * tick_interval) % self.state.grid_height
-                self.moved_foods[f.id] = (
-                    {"id": f.id, "x": round(f.x, 2), "y": round(f.y, 2)}
-                )
+                self.moved_foods[f.id] = {"id": f.id, "x": round(f.x, 2), "y": round(f.y, 2)}
 
                 f.vx *= max(0.0, 1.0 - 5.0 * tick_interval)
                 f.vy *= max(0.0, 1.0 - 5.0 * tick_interval)

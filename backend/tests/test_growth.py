@@ -3,6 +3,7 @@ from app.engine.state import World
 from app.engine.entities import Player
 from app.engine.systems import growth, physics
 
+
 def test_growth_positive():
     state = World()
     player = Player("test_1", 50.0, 50.0, state.config, nickname="Test Player")
@@ -25,6 +26,7 @@ def test_growth_positive():
     assert len(player.body) == initial_len
     assert math.isclose(player.pending_growth, 0.1, rel_tol=1e-5)
 
+
 def test_growth_normal():
     state = World()
     player = Player("test_1", 50.0, 50.0, state.config, nickname="Test Player")
@@ -41,6 +43,7 @@ def test_growth_normal():
 
     # When pending_growth < cost, tail IS popped, so length decreases by 2 (x and y) from what physics added.
     assert len(player.body) == initial_len - 2
+
 
 def test_growth_shrinkage():
     state = World()

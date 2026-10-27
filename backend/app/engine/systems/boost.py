@@ -46,4 +46,5 @@ class BoostSystem:
     def update(self, world):
         update(world)
 
+
 system = BoostSystem()

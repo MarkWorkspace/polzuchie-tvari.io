@@ -58,8 +58,6 @@ def build_full_and_delta_world():
     world.client_visibility[CLIENT_ID] = set(world.players.keys())
     for _ in range(DELTA_TICKS):
         world.tick()
-    delta_frame = get_delta_state(
-        world, CLIENT_ID, is_full=False, serialize_proto=False
-    )
+    delta_frame = get_delta_state(world, CLIENT_ID, is_full=False, serialize_proto=False)
 
     return world, full_frame, delta_frame

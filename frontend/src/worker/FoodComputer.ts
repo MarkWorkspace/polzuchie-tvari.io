@@ -1,14 +1,21 @@
 // ROLE: Матрицы и цвета инстансов еды.
 
-import type { GameState, Food } from "../types/game";
+import type { Food, GameState } from "../types/game";
 import { parseColor } from "./shared/ColorUtils";
 import { computeHeadRadiusWorld } from "./shared/PlayerMetrics";
 
 const FRUIT_IMAGE_MAP: Record<string, number> = {
-  "cherry.svg": 1, "strawberry.svg": 2, "grape.svg": 3,
-  "mandarin.svg": 4, "persimmon.svg": 5, "apple.svg": 6,
-  "pear.svg": 7, "peach.svg": 8, "pineapple.svg": 9,
-  "melon.svg": 10, "watermelon.svg": 11,
+  "cherry.svg": 1,
+  "strawberry.svg": 2,
+  "grape.svg": 3,
+  "mandarin.svg": 4,
+  "persimmon.svg": 5,
+  "apple.svg": 6,
+  "pear.svg": 7,
+  "peach.svg": 8,
+  "pineapple.svg": 9,
+  "melon.svg": 10,
+  "watermelon.svg": 11,
 };
 
 export function computeFood(
@@ -26,7 +33,7 @@ export function computeFood(
   showAllInMainCopy: boolean,
   tempFoodMatrices: Float32Array,
   tempFoodColors: Float32Array,
-  tempFoodImageIndices: Int32Array
+  tempFoodImageIndices: Int32Array,
 ): number {
   const foods = state.foods || [];
   const mapW = state.server_world?.width ?? 100;
@@ -70,7 +77,18 @@ export function computeFood(
     const dist = Math.sqrt(distToCamSq);
 
     const attractionResult = _applyAttractionAndGravity(
-      state, myPlayer, myHeadX, myHeadY, foodRadius, wx, wy, dist, dt, gridSize, mapW, mapH
+      state,
+      myPlayer,
+      myHeadX,
+      myHeadY,
+      foodRadius,
+      wx,
+      wy,
+      dist,
+      dt,
+      gridSize,
+      mapW,
+      mapH,
     );
     if (attractionResult === null) {
       continue;
@@ -80,8 +98,16 @@ export function computeFood(
     const imgIdx = food.image ? (FRUIT_IMAGE_MAP[food.image] ?? 0) : 0;
     const theta = Math.sin(food.id) * Math.PI * 2;
     _writeFoodInstance(
-      visibleCount, attractionResult.x, attractionResult.y, foodRadius, theta, colorHex,
-      imgIdx, tempFoodMatrices, tempFoodColors, tempFoodImageIndices
+      visibleCount,
+      attractionResult.x,
+      attractionResult.y,
+      foodRadius,
+      theta,
+      colorHex,
+      imgIdx,
+      tempFoodMatrices,
+      tempFoodColors,
+      tempFoodImageIndices,
     );
     visibleCount++;
   }
@@ -107,7 +133,13 @@ function _buildLastFoodMap(lastState: GameState | null): Map<number, Food> {
   return map;
 }
 
-function _interpolateFoodPosition(food: Food, lastFoodMap: Map<number, Food>, progress: number, mapW: number, mapH: number): { x: number; y: number } {
+function _interpolateFoodPosition(
+  food: Food,
+  lastFoodMap: Map<number, Food>,
+  progress: number,
+  mapW: number,
+  mapH: number,
+): { x: number; y: number } {
   const lf = lastFoodMap.get(food.id);
   if (!lf) return { x: food.x, y: food.y };
 
@@ -131,12 +163,12 @@ function _applyAttractionAndGravity(
   dt: number,
   gridSize: number,
   mapW: number,
-  mapH: number
+  mapH: number,
 ): { x: number; y: number } | null {
   if (myPlayer) {
     const myHeadRadius = computeHeadRadiusWorld(state, myPlayer.body, gridSize);
 
-    if (dist < (myHeadRadius + foodRadius)) {
+    if (dist < myHeadRadius + foodRadius) {
       return null;
     }
 
@@ -164,7 +196,7 @@ function _applyBHGravityOnFood(
   dt: number,
   gridSize: number,
   mapW: number,
-  mapH: number
+  mapH: number,
 ): { x: number; y: number } | null {
   if (state.server_world?.black_holes_enabled === 0 || !state.black_holes) {
     return { x: wx, y: wy };
@@ -215,7 +247,7 @@ function _writeFoodInstance(
   imageIndex: number,
   matrices: Float32Array,
   colors: Float32Array,
-  imageIndices: Int32Array
+  imageIndices: Int32Array,
 ) {
   const mIdx = index * 16;
   matrices.fill(0, mIdx, mIdx + 16);

@@ -2,10 +2,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    // Тесты читают общий JSON через node:fs — нужны Node-типы, убираем DOM-флаг vite/client.
-    "types": ["node"],
-    "lib": ["ES2023"],
+    // Тесты читают общий JSON через node:fs и рендерят React-компоненты.
+    "types": ["node", "vite/client"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "composite": false
   },
-  "include": ["src/**/*.test.ts", "vite.config.ts"]
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "vite.config.ts"]
 }

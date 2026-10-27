@@ -1,26 +1,27 @@
 // ROLE: Метаданные (названия полей, единицы измерения, подсказки) для панели администратора.
-export const NEW_SECTIONS: Record<string, { title: string; icon: string; old_sections: string[] }> = {
-  world_network: {
-    title: "World & Network",
-    icon: "🌐",
-    old_sections: ["world", "network"],
-  },
-  snake_physics: {
-    title: "Snake & Physics",
-    icon: "🐍",
-    old_sections: ["snake", "simulation"],
-  },
-  food_boost: {
-    title: "Food & Boost",
-    icon: "🍎",
-    old_sections: ["food", "boost"],
-  },
-  camera_visual: {
-    title: "Camera & Visual",
-    icon: "🎨",
-    old_sections: ["visual"],
-  },
-};
+export const NEW_SECTIONS: Record<string, { title: string; icon: string; old_sections: string[] }> =
+  {
+    world_network: {
+      title: "World & Network",
+      icon: "🌐",
+      old_sections: ["world", "network"],
+    },
+    snake_physics: {
+      title: "Snake & Physics",
+      icon: "🐍",
+      old_sections: ["snake", "simulation"],
+    },
+    food_boost: {
+      title: "Food & Boost",
+      icon: "🍎",
+      old_sections: ["food", "boost"],
+    },
+    camera_visual: {
+      title: "Camera & Visual",
+      icon: "🎨",
+      old_sections: ["visual"],
+    },
+  };
 
 export const getNewSectionKey = (oldSec: string): string => {
   if (oldSec === "world" || oldSec === "network") return "world_network";
@@ -154,15 +155,20 @@ export const HIDDEN_FIELDS = new Set(["types", "aoi_radius", "aoi_length_padding
 export const FIELD_TOOLTIPS: Record<string, string> = {
   target_food_count: "Target food count that the server maintains on the map.",
   food_overflow_limit: "Maximum extra food above target, after which the server trims excess food.",
-  cluster_spawn_chance: "Chance (0 to 1) of spawning new food inside a dense cluster rather than randomly.",
-  cluster_move_chance: "Chance of shifting a food cluster center, checked by the server once every minute.",
+  cluster_spawn_chance:
+    "Chance (0 to 1) of spawning new food inside a dense cluster rather than randomly.",
+  cluster_move_chance:
+    "Chance of shifting a food cluster center, checked by the server once every minute.",
   tick_rate: "Frequency of game world updates (ticks per second) on the server.",
-  turn_radius_thickness_coeff: "Coefficient for increasing the turn radius based on the snake's thickness.",
+  turn_radius_thickness_coeff:
+    "Coefficient for increasing the turn radius based on the snake's thickness.",
   turn_idle_smoothing_at_20hz: "Smoothness of return to straight motion when keys are released.",
   turn_active_smoothing_at_20hz: "Smoothness of entering a turn when keys are pressed.",
-  score_thickness_scale: "Coefficient for scaling body thickness and head radius relative to score.",
+  score_thickness_scale:
+    "Coefficient for scaling body thickness and head radius relative to score.",
   camera_zoom_out_coeff: "Camera zoom-out scaling factor as the player's length increases.",
-  growth_score_per_segment: "Required score to grow a segment. Can be a number or formula (e.g. '10 + l * 0.5').",
+  growth_score_per_segment:
+    "Required score to grow a segment. Can be a number or formula (e.g. '10 + l * 0.5').",
   max_growth_score: "Score limit above which the snake stops growing new body segments.",
   drain_interval_seconds: "Time interval in seconds at which score is drained during acceleration.",
   food_drop_value: "Value of food particles dropped behind the snake during acceleration.",
@@ -170,12 +176,14 @@ export const FIELD_TOOLTIPS: Record<string, string> = {
   attraction_speed: "Speed of food attraction towards the snake's head.",
   min_fog_radius: "Minimum visual fog-of-war radius around the snake's head.",
   fog_score_expansion_coeff: "Fog-of-war expansion coefficient relative to score.",
-  mouse_sensitivity: "Cursor deflection factor from the center of the screen to reach max turning speed.",
+  mouse_sensitivity:
+    "Cursor deflection factor from the center of the screen to reach max turning speed.",
   head_glow_radius: "Radius of the warm glow effect around the snake's head.",
   portals_enabled: "Enable/disable spatial teleportation portal pairs on the map.",
   portals_count: "Number of active portal pairs.",
   portals_radius: "Radius of the portal area in grid units.",
-  portals_teleport_delay_ms: "Delay in milliseconds before the snake emerges from the output portal.",
+  portals_teleport_delay_ms:
+    "Delay in milliseconds before the snake emerges from the output portal.",
   portals_spawn_chance: "Probability checked once per minute for each slot to spawn a portal.",
   portals_growth_time: "Duration in seconds for a portal to smoothly grow or collapse.",
   black_holes_enabled: "Enable/disable gravity-well black holes.",
@@ -184,5 +192,5 @@ export const FIELD_TOOLTIPS: Record<string, string> = {
   black_holes_pull_radius: "Drift/gravity field range.",
   black_holes_pull_force: "Gravity pull strength factor.",
   black_holes_kill_radius: "Event horizon range.",
-  black_holes_growth_time: "Duration in seconds for a black hole to smoothly grow or collapse."
+  black_holes_growth_time: "Duration in seconds for a black hole to smoothly grow or collapse.",
 };

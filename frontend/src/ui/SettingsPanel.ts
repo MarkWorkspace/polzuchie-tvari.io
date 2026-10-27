@@ -1,6 +1,6 @@
 // ROLE: Боковая панель настроек / Меню.
-import { InputManager } from "../game/InputManager";
-import type { ControlMode } from "../game/InputManager";
+
+import type { ControlMode, InputManager } from "../game/InputManager";
 import { t } from "../lib/i18n";
 import { Leaderboard } from "./Leaderboard";
 
@@ -21,15 +21,21 @@ export class SettingsPanel {
   private contentDiv: HTMLDivElement | null = null;
   private leaderboardContainer: HTMLDivElement | null = null;
   private leaderboard: Leaderboard | null = null;
-  
+
   private isOpen = false;
   private isMobile = false;
 
-  constructor(container: HTMLDivElement, inputManager: InputManager | null, callbacks: SettingsCallbacks) {
+  constructor(
+    container: HTMLDivElement,
+    inputManager: InputManager | null,
+    callbacks: SettingsCallbacks,
+  ) {
     this.container = container;
     this.inputManager = inputManager;
     this.callbacks = callbacks;
-    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+    this.isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      window.innerWidth <= 768;
     this.render();
   }
 
@@ -62,10 +68,10 @@ export class SettingsPanel {
     this.leaderboardContainer.style.paddingTop = "20px";
     this.panel.appendChild(this.leaderboardContainer);
 
-    this.leaderboard = new Leaderboard(this.leaderboardContainer, { 
-      limit: 10, 
+    this.leaderboard = new Leaderboard(this.leaderboardContainer, {
+      limit: 10,
       alwaysOpen: true,
-      noBackground: true
+      noBackground: true,
     });
 
     // Trigger button
@@ -79,7 +85,7 @@ export class SettingsPanel {
   private togglePanel(force?: boolean): void {
     this.isOpen = force !== undefined ? force : !this.isOpen;
     if (!this.panel || !this.overlay) return;
-    
+
     if (this.isOpen) {
       this.panel.classList.add("open");
       this.overlay.classList.add("visible");
@@ -105,7 +111,9 @@ export class SettingsPanel {
         <div class="drawer-close" id="drawer-close">✕</div>
       </div>
 
-      ${this.inputManager ? `
+      ${
+        this.inputManager
+          ? `
       <div class="drawer-section">
         <h3 class="drawer-section-title">${t("menu.controls") || "CONTROLS"}</h3>
         <div class="drawer-control-list">
@@ -114,7 +122,9 @@ export class SettingsPanel {
           ${this.isMobile ? this.createControlOption("tilt", "📱", t("control.tilt") || "Tilt Steer", t("control.tiltDesc") || "Tilt device", currentMode) : ""}
         </div>
       </div>
-      ` : ""}
+      `
+          : ""
+      }
 
       <div class="drawer-section">
         <h3 class="drawer-section-title">${t("menu.settings") || "SETTINGS"}</h3>
@@ -123,19 +133,25 @@ export class SettingsPanel {
         </div>
       </div>
 
-      ${this.inputManager ? `
+      ${
+        this.inputManager
+          ? `
       <div class="drawer-guide">
         <h3 class="drawer-section-title">${t("menu.guide") || "GUIDE"}</h3>
         <div class="drawer-guide-content">
-          <div>• ${currentMode === "tilt" ? (t("guide.tiltSteer") || "Tilt to steer") : currentMode === "keyboard" ? (t("guide.keySteer") || "Use A/D or Arrows to steer") : (t("guide.touchSteer") || (this.isMobile ? "Drag to steer" : "Move mouse to steer"))}</div>
-          <div>• ${currentMode === "keyboard" ? (t("guide.keyBoost") || "Space to boost") : (t("guide.touchBoost") || (this.isMobile ? "Touch bottom to boost" : "Click to boost"))}</div>
+          <div>• ${currentMode === "tilt" ? t("guide.tiltSteer") || "Tilt to steer" : currentMode === "keyboard" ? (t("guide.keySteer") || "Use A/D or Arrows to steer") : (t("guide.touchSteer") || (this.isMobile ? "Drag to steer" : "Move mouse to steer"))}</div>
+          <div>• ${currentMode === "keyboard" ? t("guide.keyBoost") || "Space to boost" : t("guide.touchBoost") || (this.isMobile ? "Touch bottom to boost" : "Click to boost")}</div>
           <div>• ${t("guide.collectFood") || "Eat food to grow"}</div>
           <div>• ${t("guide.collision") || "Don't hit walls"}</div>
         </div>
       </div>
-      ` : ""}
+      `
+          : ""
+      }
 
-      ${new URLSearchParams(window.location.search).get("debug") === "true" ? `
+      ${
+        new URLSearchParams(window.location.search).get("debug") === "true"
+          ? `
       <div class="drawer-section" style="margin-top: 10px;">
         <div class="drawer-control-option" id="spectator-btn" style="background: rgba(255, 100, 100, 0.2); border-color: rgba(255, 100, 100, 0.4);">
           <div class="control-icon">🎥</div>
@@ -145,7 +161,9 @@ export class SettingsPanel {
           </div>
         </div>
       </div>
-      ` : ''}
+      `
+          : ""
+      }
 
       <a href="#" class="drawer-admin-link" id="admin-panel-btn">
         <span>⚙️</span> Admin Panel
@@ -155,7 +173,13 @@ export class SettingsPanel {
     this.bindPanelEvents();
   }
 
-  private createControlOption(mode: string, icon: string, title: string, desc: string, currentMode: ControlMode): string {
+  private createControlOption(
+    mode: string,
+    icon: string,
+    title: string,
+    desc: string,
+    currentMode: ControlMode,
+  ): string {
     const isActive = mode === currentMode;
     const activeClass = isActive ? "active" : "";
     return `
@@ -169,7 +193,13 @@ export class SettingsPanel {
     `;
   }
 
-  private createToggleOption(id: string, icon: string, title: string, desc: string, isChecked: boolean): string {
+  private createToggleOption(
+    id: string,
+    icon: string,
+    title: string,
+    desc: string,
+    isChecked: boolean,
+  ): string {
     const activeClass = isChecked ? "active" : "";
     return `
       <div class="drawer-control-option ${activeClass}" id="toggle-btn-${id}">

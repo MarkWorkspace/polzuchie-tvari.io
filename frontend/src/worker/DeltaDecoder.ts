@@ -1,7 +1,7 @@
 // ROLE: Декодирование delta-стейтов с сервера. Не сеть, не интерполяция.
 
-import type { GameState, Player, Food } from "../types/game";
 import pako from "pako";
+import type { Food, GameState, Player } from "../types/game";
 
 export function decompress(bytes: Uint8Array): Uint8Array {
   return pako.inflate(bytes);
@@ -9,10 +9,10 @@ export function decompress(bytes: Uint8Array): Uint8Array {
 
 export function ensureFlatArray(arr: any): number[] {
   if (!arr || arr.length === 0) return [];
-  if (typeof arr[0] === 'number') {
+  if (typeof arr[0] === "number") {
     return arr as number[];
   }
-  if (arr[0] && typeof arr[0] === 'object' && 'x' in arr[0]) {
+  if (arr[0] && typeof arr[0] === "object" && "x" in arr[0]) {
     const res = new Array(arr.length * 2);
     for (let i = 0; i < arr.length; i++) {
       res[i * 2] = arr[i].x;
@@ -61,7 +61,7 @@ export function decodeFullState(parsedState: any, mapW: number, mapH: number): G
     foods: initialFoods,
     portals: parsedState.portals,
     black_holes: parsedState.black_holes,
-    tombstones: parsedState.tombstones || []
+    tombstones: parsedState.tombstones || [],
   };
 }
 
@@ -69,14 +69,15 @@ function getNewBody(
   body: any,
   new_heads: any,
   length: number | undefined,
-  oldPlayer: Player | undefined
+  oldPlayer: Player | undefined,
 ): number[] {
   if (body && body.length > 0) {
     return ensureFlatArray(body);
   }
   if (!oldPlayer || !oldPlayer.body) return [];
   const addedHeads = ensureFlatArray(new_heads);
-  const targetLen = (length !== undefined && length !== 0) ? length : Math.floor(oldPlayer.body.length / 2);
+  const targetLen =
+    length !== undefined && length !== 0 ? length : Math.floor(oldPlayer.body.length / 2);
   const newBody = new Array(targetLen * 2);
   const headsCount = addedHeads.length;
   for (let i = 0; i < headsCount && i < targetLen * 2; i++) {
@@ -88,11 +89,7 @@ function getNewBody(
   return newBody;
 }
 
-function decodePlayer(
-  pData: any,
-  oldPlayer: Player | undefined,
-  defaultPlayer: any
-): Player {
+function decodePlayer(pData: any, oldPlayer: Player | undefined, defaultPlayer: any): Player {
   const { body, new_heads, length, teleport_state, ...otherProps } = pData;
   const newBody = getNewBody(body, new_heads, length, oldPlayer);
 
@@ -114,7 +111,7 @@ function decodePlayer(
 
 function decodePlayers(
   parsedPlayers: Record<string, any> | undefined,
-  currentPlayers: Record<string, Player>
+  currentPlayers: Record<string, Player>,
 ): Record<string, Player> {
   const nextPlayers: Record<string, Player> = {};
   if (!parsedPlayers) return nextPlayers;
@@ -125,7 +122,7 @@ function decodePlayers(
     kills: 0,
     deaths: 0,
     nickname: "",
-    skin: "default"
+    skin: "default",
   };
   for (const [pid, pData] of Object.entries(parsedPlayers)) {
     nextPlayers[pid] = decodePlayer(pData, currentPlayers[pid], defaultPlayer);
@@ -150,7 +147,13 @@ function getMovedFoodsMap(movedFoods: any[] | undefined): Map<number, { x: numbe
   if (!movedFoods) return movedMap;
   for (let i = 0; i < movedFoods.length; i++) {
     const mf = movedFoods[i];
-    if (typeof mf.id === "number" && typeof mf.x === "number" && typeof mf.y === "number" && !isNaN(mf.x) && !isNaN(mf.y)) {
+    if (
+      typeof mf.id === "number" &&
+      typeof mf.x === "number" &&
+      typeof mf.y === "number" &&
+      !isNaN(mf.x) &&
+      !isNaN(mf.y)
+    ) {
       movedMap.set(mf.id, { x: mf.x, y: mf.y });
     }
   }
@@ -163,7 +166,7 @@ function decodeFoods(
   movedFoods: any[] | undefined,
   newFoods: any[] | undefined,
   mapW: number,
-  mapH: number
+  mapH: number,
 ): Food[] {
   const eatenSet = new Set<number>(eatenFoods || []);
   const movedMap = getMovedFoodsMap(movedFoods);
@@ -182,7 +185,7 @@ export function decodeDeltaState(
   parsedState: any,
   currentGameState: GameState,
   mapW: number,
-  mapH: number
+  mapH: number,
 ): GameState {
   const nextPlayers = decodePlayers(parsedState.players, currentGameState.players || {});
   const nextFoods = decodeFoods(
@@ -191,7 +194,7 @@ export function decodeDeltaState(
     parsedState.moved_foods,
     parsedState.new_foods,
     mapW,
-    mapH
+    mapH,
   );
 
   return {
@@ -205,6 +208,6 @@ export function decodeDeltaState(
     foods: nextFoods,
     portals: parsedState.portals ?? [],
     black_holes: parsedState.black_holes ?? [],
-    tombstones: parsedState.tombstones ?? []
+    tombstones: parsedState.tombstones ?? [],
   };
 }

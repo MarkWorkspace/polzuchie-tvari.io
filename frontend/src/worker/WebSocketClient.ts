@@ -22,11 +22,21 @@ export class WebSocketClient {
     this.url = url;
   }
 
-  public onMessage(cb: (parsedState: any) => void) { this.messageCallbacks.push(cb); }
-  public onDisconnect(cb: () => void) { this.disconnectCallbacks.push(cb); }
-  public onStatus(cb: (status: string, details?: any) => void) { this.statusCallbacks.push(cb); }
-  public onPing(cb: (latency: number) => void) { this.pingCallbacks.push(cb); }
-  public onYourId(cb: (myId: string) => void) { this.yourIdCallbacks.push(cb); }
+  public onMessage(cb: (parsedState: any) => void) {
+    this.messageCallbacks.push(cb);
+  }
+  public onDisconnect(cb: () => void) {
+    this.disconnectCallbacks.push(cb);
+  }
+  public onStatus(cb: (status: string, details?: any) => void) {
+    this.statusCallbacks.push(cb);
+  }
+  public onPing(cb: (latency: number) => void) {
+    this.pingCallbacks.push(cb);
+  }
+  public onYourId(cb: (myId: string) => void) {
+    this.yourIdCallbacks.push(cb);
+  }
 
   public connect() {
     this.isCleaningUp = false;
@@ -57,8 +67,14 @@ export class WebSocketClient {
   }
 
   private _clearTimers() {
-    if (this.pingInterval) { clearInterval(this.pingInterval); this.pingInterval = null; }
-    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
   }
 
   private _setupSocketEvents() {
@@ -66,13 +82,17 @@ export class WebSocketClient {
 
     this.socket.onopen = () => {
       this.reconnectAttempt = 0;
-      this.statusCallbacks.forEach(cb => cb("connected"));
+      this.statusCallbacks.forEach((cb) => {
+        cb("connected");
+      });
       this._startPing();
     };
 
     this.socket.onclose = () => {
       this._clearTimers();
-      this.disconnectCallbacks.forEach(cb => cb());
+      this.disconnectCallbacks.forEach((cb) => {
+        cb();
+      });
       if (!this.isCleaningUp) this._reconnect();
     };
 
@@ -93,7 +113,9 @@ export class WebSocketClient {
       if (event.data.startsWith("PONG:")) {
         const timestamp = parseFloat(event.data.substring(5));
         const latency = performance.now() - timestamp;
-        this.pingCallbacks.forEach(cb => cb(latency));
+        this.pingCallbacks.forEach((cb) => {
+          cb(latency);
+        });
       }
       return;
     }
@@ -101,23 +123,29 @@ export class WebSocketClient {
     try {
       const decompressedBuffer = decompress(new Uint8Array(event.data));
       const parsedState = decodeGameStateFrame(decompressedBuffer);
-      
+
       if (parsedState.type === "SERVER_RESTART") {
         const msg = parsedState.restart_message || undefined;
-        this.statusCallbacks.forEach(cb => cb("reconnecting", {
-          msg,
-          msgKey: msg ? undefined : "status.serverRestart"
-        }));
+        this.statusCallbacks.forEach((cb) => {
+          cb("reconnecting", {
+            msg,
+            msgKey: msg ? undefined : "status.serverRestart",
+          });
+        });
         this.socket?.close(1000, "Server Restart");
         return;
       }
 
       if (parsedState.your_id) {
         this.myId = parsedState.your_id;
-        this.yourIdCallbacks.forEach(cb => cb(parsedState.your_id));
+        this.yourIdCallbacks.forEach((cb) => {
+          cb(parsedState.your_id);
+        });
       }
 
-      this.messageCallbacks.forEach(cb => cb(parsedState));
+      this.messageCallbacks.forEach((cb) => {
+        cb(parsedState);
+      });
     } catch (err) {
       console.error("Worker packet decompression or Protobuf decode error:", err);
     }
@@ -125,12 +153,14 @@ export class WebSocketClient {
 
   private _reconnect() {
     this.reconnectAttempt++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt - 1), 30000);
-    
-    this.statusCallbacks.forEach(cb => cb("reconnecting", {
-      msgKey: "status.reconnecting",
-      msgParams: { seconds: Math.ceil(delay / 1000) }
-    }));
+    const delay = Math.min(1000 * 2 ** (this.reconnectAttempt - 1), 30000);
+
+    this.statusCallbacks.forEach((cb) => {
+      cb("reconnecting", {
+        msgKey: "status.reconnecting",
+        msgParams: { seconds: Math.ceil(delay / 1000) },
+      });
+    });
 
     this.reconnectTimer = setTimeout(() => {
       this.connect();

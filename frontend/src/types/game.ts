@@ -49,7 +49,7 @@ export interface ServerVisualConfig {
   camera_y_offset?: number;
   mouse_sensitivity?: number;
   head_glow_radius?: number;
-};
+}
 
 export type ServerFoodConfig = {
   base_radius: number;

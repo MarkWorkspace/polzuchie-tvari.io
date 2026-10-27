@@ -2,6 +2,8 @@
 import os
 import json
 import math
+import tempfile
+from pathlib import Path
 
 from game_config import GameConfig, validate_growth_formula, CELL_SIZE
 from app.engine.entities import Player
@@ -27,7 +29,7 @@ VALID_ACTIONS = frozenset(
 class World:
     def __init__(self):
         self.config = GameConfig()
-        self.config_file_path = "config.json"
+        self.config_file_path = os.getenv("CONFIG_PATH", "config.json")
         self._load_config_from_disk()
 
         self.players = {}
@@ -74,9 +76,7 @@ class World:
                     patch = json.load(f)
                 if isinstance(patch, dict):
                     self.config.apply_patch(patch)
-                    print(
-                        f"[Config] Successfully loaded config from {self.config_file_path}"
-                    )
+                    print(f"[Config] Successfully loaded config from {self.config_file_path}")
             except Exception as e:
                 print(f"[Config] Failed to load config from disk: {e}")
         self._update_compiled_formulas()
@@ -136,28 +136,39 @@ class World:
         score_offset = 0.0
         if ideal_length > current_length:
             for length in range(current_length, ideal_length):
-                cost = max(
-                    0.1, float(self.growth_segment_cost_func(player.score, length))
-                )
+                cost = max(0.1, float(self.growth_segment_cost_func(player.score, length)))
                 score_offset += cost
             player.pending_growth = ideal_pending + score_offset
         elif ideal_length < current_length:
             for length in range(ideal_length, current_length):
-                cost = max(
-                    0.1, float(self.growth_segment_cost_func(player.score, length))
-                )
+                cost = max(0.1, float(self.growth_segment_cost_func(player.score, length)))
                 score_offset += cost
             player.pending_growth = ideal_pending - score_offset
         else:
             player.pending_growth = ideal_pending
 
     def _save_config_to_disk(self):
+        path = Path(self.config_file_path)
+        temp_path = None
         try:
-            with open(self.config_file_path, "w", encoding="utf-8") as f:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            fd, temp_path = tempfile.mkstemp(
+                dir=str(path.parent),
+                prefix=f".{path.name}.",
+                suffix=".tmp",
+                text=True,
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(self.config.to_dict(), f, indent=4, ensure_ascii=False)
+                f.write("\n")
+            os.replace(temp_path, path)
+            temp_path = None
             print(f"[Config] Successfully saved config to {self.config_file_path}")
         except Exception as e:
             print(f"[Config] Failed to save config to disk: {e}")
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                os.unlink(temp_path)
 
     def get_config(self):
         return self.config.to_dict()
@@ -206,9 +217,7 @@ class World:
     def add_player(self, player_id, nickname="Игрок", skin="#22c55e"):
         self.spectators.discard(player_id)
         start_x, start_y = self.food_manager.get_safe_spawn_location()
-        self.players[player_id] = Player(
-            player_id, start_x, start_y, self.config, nickname, skin
-        )
+        self.players[player_id] = Player(player_id, start_x, start_y, self.config, nickname, skin)
 
     def remove_player(self, player_id):
         p = self.players.get(player_id)

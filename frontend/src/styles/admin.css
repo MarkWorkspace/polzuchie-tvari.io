@@ -68,7 +68,8 @@
   transition: var(--transition-smooth);
 }
 
-.admin-tab-btn.active, .admin-tab-btn:hover {
+.admin-tab-btn.active,
+.admin-tab-btn:hover {
   background: rgba(255, 255, 255, 0.05);
   color: var(--text-primary);
 }
@@ -147,7 +148,9 @@
   left: 50%;
   transform: translateX(-50%) translateY(4px);
   opacity: 0;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   font-size: 11px;
   line-height: 1.4;
@@ -163,8 +166,14 @@
 
 /* Floating Action Panel */
 @keyframes slide-up-fade {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .floating-action-panel {
@@ -172,8 +181,15 @@
 }
 
 @keyframes pulse-crimson {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.95); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
 }
 
 .pulse-dot {
@@ -193,4 +209,3 @@
 .food-card-header:hover {
   background: rgba(255, 255, 255, 0.05) !important;
 }
-

@@ -1,5 +1,6 @@
 from app.engine.events import EventBus
 
+
 def test_event_bus():
     bus = EventBus()
 
@@ -16,6 +17,7 @@ def test_event_bus():
     assert len(events_received) == 2
     assert events_received[0] == "hello"
     assert events_received[1] == "world"
+
 
 def test_event_bus_no_subscribers():
     bus = EventBus()

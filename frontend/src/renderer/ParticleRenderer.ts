@@ -16,7 +16,7 @@ export class ParticleRenderer {
       side: THREE.DoubleSide,
       vertexColors: true,
       transparent: true,
-      depthWrite: false
+      depthWrite: false,
     });
 
     const geom = new THREE.PlaneGeometry(1, 1);

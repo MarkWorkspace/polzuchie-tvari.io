@@ -1,8 +1,8 @@
 // ROLE: Матрицы инстансов порталов.
 
 import type { GameState } from "../types/game";
-import { writeMatrix } from "./shared/MathUtils";
 import { parseColor } from "./shared/ColorUtils";
+import { writeMatrix } from "./shared/MathUtils";
 
 export interface PortalBuffers {
   portalDiskMatrices: Float32Array;
@@ -24,7 +24,7 @@ export function computePortals(
   calcFogAmount: (wx: number, wy: number) => number,
   fogR: number,
   fogG: number,
-  fogB: number
+  fogB: number,
 ): PortalBuffers {
   const portals = state.portals || [];
   const lastPortalMap = _buildLastPortalMap(lastState);
@@ -41,7 +41,7 @@ export function computePortals(
       if (scale <= 0.01) continue;
 
       const radius = p.radius * scale * gridSize;
-      const color = parseColor(p.color || '#38bdf8');
+      const color = parseColor(p.color || "#38bdf8");
 
       let wx1 = p.x1 * gridSize;
       let wy1 = -p.y1 * gridSize;
@@ -58,7 +58,10 @@ export function computePortals(
         wy1 = camY + dy1;
       }
 
-      if (showAllInMainCopy || (wx1 - camX) ** 2 + (wy1 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
+      if (
+        showAllInMainCopy ||
+        (wx1 - camX) ** 2 + (wy1 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2
+      ) {
         visiblePortals.push({ wx: wx1, wy: wy1, r: radius, color });
       }
 
@@ -77,7 +80,10 @@ export function computePortals(
         wy2 = camY + dy2;
       }
 
-      if (showAllInMainCopy || (wx2 - camX) ** 2 + (wy2 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {
+      if (
+        showAllInMainCopy ||
+        (wx2 - camX) ** 2 + (wy2 - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2
+      ) {
         visiblePortals.push({ wx: wx2, wy: wy2, r: radius, color });
       }
     }
@@ -98,7 +104,11 @@ function _buildLastPortalMap(lastState: GameState | null): Map<number, any> {
   return reusablePortalMap;
 }
 
-function _interpolatePortalScale(p: any, lastPortalMap: Map<number, any>, progress: number): number {
+function _interpolatePortalScale(
+  p: any,
+  lastPortalMap: Map<number, any>,
+  progress: number,
+): number {
   const lp = lastPortalMap.get(p.id);
   const currentScale = p.current_scale ?? 1.0;
   if (!lp) return currentScale * progress;
@@ -112,7 +122,7 @@ function _buildPortalBuffers(
   calcFogAmount: (wx: number, wy: number) => number,
   fogR: number,
   fogG: number,
-  fogB: number
+  fogB: number,
 ): PortalBuffers {
   const portalCount = visiblePortals.length;
   const portalDiskMatrices = new Float32Array(portalCount * 16);
@@ -149,6 +159,6 @@ function _buildPortalBuffers(
     portalDiskColors,
     portalRingMatrices,
     portalRingColors,
-    portalCount
+    portalCount,
   };
 }

@@ -41,6 +41,7 @@ class SimulationConfig:
     turn_active_smoothing_at_20hz: float = 0.15
     max_steps_per_tick: int = 4
 
+
 @dataclass
 class SnakeConfig:
     start_length: int = 9
@@ -131,32 +132,18 @@ class GameConfig:
     def validate(self):
         _require_range("world.width", self.world.width, 20, 10000)
         _require_range("world.height", self.world.height, 20, 10000)
-        _require_range(
-            "world.target_food_count", self.world.target_food_count, 0, 100000
-        )
-        _require_range(
-            "world.food_overflow_limit", self.world.food_overflow_limit, 0, 100000
-        )
+        _require_range("world.target_food_count", self.world.target_food_count, 0, 100000)
+        _require_range("world.food_overflow_limit", self.world.food_overflow_limit, 0, 100000)
         _require_range("world.cluster_count", self.world.cluster_count, 1, 1000)
-        _require_range(
-            "world.cluster_spawn_chance", self.world.cluster_spawn_chance, 0, 1
-        )
+        _require_range("world.cluster_spawn_chance", self.world.cluster_spawn_chance, 0, 1)
         _require_range("world.cluster_spread", self.world.cluster_spread, 0.1, 1000)
-        _require_range(
-            "world.cluster_move_chance", self.world.cluster_move_chance, 0, 1
-        )
+        _require_range("world.cluster_move_chance", self.world.cluster_move_chance, 0, 1)
         _require_range("world.portals_enabled", self.world.portals_enabled, 0, 1)
         _require_range("world.portals_count", self.world.portals_count, 1, 10)
         _require_range("world.portals_radius", self.world.portals_radius, 0.5, 50.0)
-        _require_range(
-            "world.portals_spawn_chance", self.world.portals_spawn_chance, 0.0, 1.0
-        )
-        _require_range(
-            "world.portals_growth_time", self.world.portals_growth_time, 0.1, 300.0
-        )
-        _require_range(
-            "world.black_holes_enabled", self.world.black_holes_enabled, 0, 1
-        )
+        _require_range("world.portals_spawn_chance", self.world.portals_spawn_chance, 0.0, 1.0)
+        _require_range("world.portals_growth_time", self.world.portals_growth_time, 0.1, 300.0)
+        _require_range("world.black_holes_enabled", self.world.black_holes_enabled, 0, 1)
         _require_range("world.black_holes_count", self.world.black_holes_count, 1, 10)
         _require_range(
             "world.black_holes_spawn_chance",
@@ -202,9 +189,7 @@ class GameConfig:
             10,
             3600,
         )
-        _require_range(
-            "simulation.min_turn_radius", self.simulation.min_turn_radius, 0, 100
-        )
+        _require_range("simulation.min_turn_radius", self.simulation.min_turn_radius, 0, 100)
         _require_range(
             "simulation.turn_radius_thickness_coeff",
             self.simulation.turn_radius_thickness_coeff,
@@ -227,9 +212,7 @@ class GameConfig:
         _require_range("snake.start_length", self.snake.start_length, 1, 10000)
         _require_range("snake.start_score", self.snake.start_score, 0, 1000000)
         _require_range("snake.base_head_radius", self.snake.base_head_radius, 0.01, 100)
-        _require_range(
-            "snake.score_thickness_scale", self.snake.score_thickness_scale, 0, 10
-        )
+        _require_range("snake.score_thickness_scale", self.snake.score_thickness_scale, 0, 10)
         _require_range(
             "snake.camera_zoom_out_coeff",
             self.snake.camera_zoom_out_coeff,
@@ -238,12 +221,8 @@ class GameConfig:
         )
         validate_growth_formula(self.snake.growth_score_per_segment)
         _require_range("snake.min_body_length", self.snake.min_body_length, 1, 10000)
-        _require_range(
-            "snake.safe_spawn_distance", self.snake.safe_spawn_distance, 0, 10000
-        )
-        _require_range(
-            "snake.max_growth_score", self.snake.max_growth_score, 1, 1000000000
-        )
+        _require_range("snake.safe_spawn_distance", self.snake.safe_spawn_distance, 0, 10000)
+        _require_range("snake.max_growth_score", self.snake.max_growth_score, 1, 1000000000)
 
         _require_range("boost.min_score", self.boost.min_score, 0, 1000000)
         _require_range("boost.speed_multiplier", self.boost.speed_multiplier, 1, 20)
@@ -253,9 +232,7 @@ class GameConfig:
             0.01,
             3600,
         )
-        _require_range(
-            "boost.drain_per_interval", self.boost.drain_per_interval, 0, 1000000
-        )
+        _require_range("boost.drain_per_interval", self.boost.drain_per_interval, 0, 1000000)
         _require_range("boost.food_drop_value", self.boost.food_drop_value, 1, 1000000)
 
         if len(self.food.types) == 0:
@@ -265,9 +242,7 @@ class GameConfig:
             _require_range(f"food.types[{i}].weight", ft.weight, 1, 1000000)
         _require_range("food.base_radius", self.food.base_radius, 0.01, 100)
         _require_range("food.radius_value_scale", self.food.radius_value_scale, 0, 100)
-        _require_range(
-            "food.death_drop_score_fraction", self.food.death_drop_score_fraction, 0, 1
-        )
+        _require_range("food.death_drop_score_fraction", self.food.death_drop_score_fraction, 0, 1)
         _require_range("food.attraction_radius", self.food.attraction_radius, 0, 100)
         _require_range("food.attraction_speed", self.food.attraction_speed, 0, 200)
 
@@ -278,22 +253,12 @@ class GameConfig:
             0.0,
             100.0,
         )
-        _require_range(
-            "visual.camera_base_zoom", self.visual.camera_base_zoom, 0.1, 10.0
-        )
-        _require_range(
-            "visual.camera_pitch_angle", self.visual.camera_pitch_angle, 0, 89.9
-        )
-        _require_range(
-            "visual.camera_z_height", self.visual.camera_z_height, -1000, 1000
-        )
+        _require_range("visual.camera_base_zoom", self.visual.camera_base_zoom, 0.1, 10.0)
+        _require_range("visual.camera_pitch_angle", self.visual.camera_pitch_angle, 0, 89.9)
+        _require_range("visual.camera_z_height", self.visual.camera_z_height, -1000, 1000)
         _require_range("visual.camera_y_offset", self.visual.camera_y_offset, -1.0, 1.0)
-        _require_range(
-            "visual.mouse_sensitivity", self.visual.mouse_sensitivity, 0.1, 10.0
-        )
-        _require_range(
-            "visual.head_glow_radius", self.visual.head_glow_radius, 0.0, 50.0
-        )
+        _require_range("visual.mouse_sensitivity", self.visual.mouse_sensitivity, 0.1, 10.0)
+        _require_range("visual.head_glow_radius", self.visual.head_glow_radius, 0.0, 50.0)
 
 
 def _apply_dataclass_patch(target, patch):
@@ -379,17 +344,11 @@ def validate_growth_formula(formula_str: str) -> None:
         if isinstance(node, ast.Expression):
             continue
         elif isinstance(node, ast.BinOp):
-            if not isinstance(
-                node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow)
-            ):
-                raise ValueError(
-                    f"Operator '{type(node.op).__name__}' is not allowed in formula"
-                )
+            if not isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow)):
+                raise ValueError(f"Operator '{type(node.op).__name__}' is not allowed in formula")
         elif isinstance(node, ast.UnaryOp):
             if not isinstance(node.op, (ast.UAdd, ast.USub)):
-                raise ValueError(
-                    f"Unary operator '{type(node.op).__name__}' is not allowed"
-                )
+                raise ValueError(f"Unary operator '{type(node.op).__name__}' is not allowed")
         elif isinstance(node, ast.Constant):
             continue
         elif isinstance(node, ast.Name):
@@ -400,9 +359,7 @@ def validate_growth_formula(formula_str: str) -> None:
         elif isinstance(node, ast.Call):
             if not isinstance(node.func, ast.Name) or node.func.id not in allowed_funcs:
                 func_name = (
-                    node.func.id
-                    if isinstance(node.func, ast.Name)
-                    else "complex expression"
+                    node.func.id if isinstance(node.func, ast.Name) else "complex expression"
                 )
                 raise ValueError(
                     f"Math function '{func_name}' is not allowed. Allowed: {', '.join(sorted(allowed_funcs))}"
@@ -415,9 +372,7 @@ def validate_growth_formula(formula_str: str) -> None:
         ):
             continue
         else:
-            raise ValueError(
-                f"Expression type '{type(node).__name__}' is not allowed in formula"
-            )
+            raise ValueError(f"Expression type '{type(node).__name__}' is not allowed in formula")
 
     # Test evaluation
     import math
@@ -453,9 +408,7 @@ def validate_growth_formula(formula_str: str) -> None:
         if not isinstance(res1, (int, float)) or math.isnan(res1) or math.isinf(res1):
             raise ValueError("Formula must evaluate to a valid finite number")
         if res1 <= 0:
-            raise ValueError(
-                "Formula must evaluate to a positive growth cost (greater than 0)"
-            )
+            raise ValueError("Formula must evaluate to a positive growth cost (greater than 0)")
 
         # Test 2: higher values
         test_env_2 = {
@@ -473,9 +426,7 @@ def validate_growth_formula(formula_str: str) -> None:
         if not isinstance(res2, (int, float)) or math.isnan(res2) or math.isinf(res2):
             raise ValueError("Formula must evaluate to a valid finite number")
         if res2 <= 0:
-            raise ValueError(
-                "Formula must evaluate to a positive growth cost (greater than 0)"
-            )
+            raise ValueError("Formula must evaluate to a positive growth cost (greater than 0)")
 
     except Exception as e:
         if not isinstance(e, ValueError):

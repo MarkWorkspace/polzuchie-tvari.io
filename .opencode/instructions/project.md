@@ -19,6 +19,7 @@ Backend (run from `backend/`, requires `uv` >= 0.11.2):
 
 ```bash
 uv sync
+uv run --frozen ruff format --check .
 uv run --frozen ruff check .
 uv run --frozen pytest tests/ -q
 uv run --frozen python tests/generate_frame_fixtures.py   # only after an intentional frame-format change
@@ -28,6 +29,8 @@ Frontend (run from `frontend/`):
 
 ```bash
 npm ci
+npm run lint
+npm run typecheck
 npm test
 npm run build
 ```
@@ -46,8 +49,9 @@ uv run --project backend pre-commit install
 
 `default_install_hook_types` installs both `pre-commit` and `pre-push` hooks.
 On commit, only the affected stack's checks run (Ruff/pytest for backend
-changes, Vitest for frontend changes). On push, the full backend lint + tests,
-full frontend tests and frontend production build run. To run them manually:
+changes, Biome/tsc/Vitest for frontend changes). On push, the full backend
+format/lint + tests, full frontend lint/typecheck/tests and production build
+run. To run them manually:
 
 ```bash
 uv run --project backend python scripts/run_checks.py all

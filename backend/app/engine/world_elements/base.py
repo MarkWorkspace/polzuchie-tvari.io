@@ -1,5 +1,6 @@
 import random
 
+
 class PeriodicEntityManager:
     def __init__(self, state, config_prefix: str):
         self.state = state
@@ -31,8 +32,7 @@ class PeriodicEntityManager:
     def _cache_list(self):
         if self.enabled:
             self._cached_list = [
-                e.to_dict() for e in self.slots
-                if e is not None and e.state != "dead"
+                e.to_dict() for e in self.slots if e is not None and e.state != "dead"
             ]
         else:
             self._cached_list = []
@@ -84,7 +84,11 @@ class PeriodicEntityManager:
                         if entity is None or entity.state == "dead" or entity.state == "collapsing":
                             self.slots[i] = self._spawn_entity(i)
                     else:
-                        if entity is not None and entity.state != "dead" and entity.target_scale == 1.0:
+                        if (
+                            entity is not None
+                            and entity.state != "dead"
+                            and entity.target_scale == 1.0
+                        ):
                             entity.target_scale = 0.0
                             entity.state = "collapsing"
 
@@ -93,11 +97,15 @@ class PeriodicEntityManager:
                 if entity is None or entity.state == "dead":
                     continue
                 if entity.target_scale == 1.0 and entity.current_scale < 1.0:
-                    entity.current_scale = min(1.0, entity.current_scale + tick_interval / growth_time)
+                    entity.current_scale = min(
+                        1.0, entity.current_scale + tick_interval / growth_time
+                    )
                     if entity.current_scale >= 1.0:
                         entity.state = "active"
                 elif entity.target_scale == 0.0 and entity.current_scale > 0.0:
-                    entity.current_scale = max(0.0, entity.current_scale - tick_interval / growth_time)
+                    entity.current_scale = max(
+                        0.0, entity.current_scale - tick_interval / growth_time
+                    )
                     if entity.current_scale <= 0.0:
                         entity.state = "dead"
                         self._on_entity_dead(entity)
@@ -105,5 +113,5 @@ class PeriodicEntityManager:
         else:
             for i in range(len(self.slots)):
                 self.slots[i] = None
-        
+
         self._cache_list()

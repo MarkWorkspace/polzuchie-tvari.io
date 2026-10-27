@@ -1,5 +1,6 @@
 from typing import Callable
 
+
 class EventBus:
     def __init__(self):
         self._subscribers: dict[str, list[Callable]] = {}

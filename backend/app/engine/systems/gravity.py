@@ -14,10 +14,7 @@ def update(state) -> None:
     """
     tick_interval = state.tick_interval
 
-    if (
-        not state.config.world.black_holes_enabled
-        or not state.bh_manager.black_hole_slots
-    ):
+    if not state.config.world.black_holes_enabled or not state.bh_manager.black_hole_slots:
         return
 
     _check_player_kills(state)
@@ -93,9 +90,7 @@ def _apply_bh_pull_on_single_food(
         pull_mag *= 12.0  # Compensation multiplier
         f.x = (f.x + (fdx / dist) * pull_mag) % state.grid_width
         f.y = (f.y + (fdy / dist) * pull_mag) % state.grid_height
-        state.food_manager.moved_foods[f.id] = (
-            {"id": f.id, "x": round(f.x, 2), "y": round(f.y, 2)}
-        )
+        state.food_manager.moved_foods[f.id] = {"id": f.id, "x": round(f.x, 2), "y": round(f.y, 2)}
 
 
 class GravitySystem:
@@ -104,5 +99,6 @@ class GravitySystem:
 
     def update(self, world):
         update(world)
+
 
 system = GravitySystem()

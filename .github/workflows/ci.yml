@@ -31,13 +31,19 @@ jobs:
         run: uv lock --check
       - name: Sync dependencies
         run: uv sync --frozen
+      - name: Check formatting
+        run: uv run --frozen ruff format --check .
       - name: Lint
         run: uv run --frozen ruff check .
       - name: Run pytest
         run: uv run --frozen pytest tests/ -q
+      - name: Audit runtime dependencies
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/backend-requirements.txt
+          uvx pip-audit -r /tmp/backend-requirements.txt
 
   frontend:
-    name: Frontend (typecheck + build + vitest)
+    name: Frontend (lint + typecheck + build + vitest)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -54,7 +60,23 @@ jobs:
       # esbuild's postinstall may be skipped by npm's script policy in CI.
       - name: Allow esbuild postinstall
         run: node node_modules/esbuild/install.js
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
       - name: Typecheck & build
         run: npm run build
       - name: Run vitest
         run: npm test
+
+  docker:
+    name: Docker builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build backend image
+        run: docker build -t polzuchie-backend:ci backend
+      - name: Build frontend image
+        run: docker build -t polzuchie-frontend:ci frontend

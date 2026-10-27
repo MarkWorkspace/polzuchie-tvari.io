@@ -190,4 +190,5 @@ class TeleportationSystem:
     def update(self, world):
         update(world)
 
+
 system = TeleportationSystem()

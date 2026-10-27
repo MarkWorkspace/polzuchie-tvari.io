@@ -1,5 +1,5 @@
 // ROLE: Мобильные элементы управления.
-import { InputManager } from "../game/InputManager";
+import type { InputManager } from "../game/InputManager";
 
 export class MobileControls {
   private container: HTMLDivElement;
@@ -15,7 +15,9 @@ export class MobileControls {
     this.inputManager = inputManager;
 
     const ua = navigator.userAgent;
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) || window.innerWidth <= 768;
+    const isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua) ||
+      window.innerWidth <= 768;
     if (isMobile) {
       this.render();
       this.bindEvents();
@@ -49,7 +51,7 @@ export class MobileControls {
   }
 
   private updateAcceleratingState(): void {
-    const isAccelerating = (this.boostTouchId !== null) || this.isSteeringFingerBoosting;
+    const isAccelerating = this.boostTouchId !== null || this.isSteeringFingerBoosting;
     this.inputManager.setAccelerating(isAccelerating);
   }
 
@@ -63,7 +65,7 @@ export class MobileControls {
       if (target && target.tagName !== "CANVAS" && target.id !== "mobile-boost-zone") {
         continue;
       }
-      
+
       if (touch.clientY >= rect.top) {
         if (e.cancelable) e.preventDefault();
         if (this.boostTouchId === null) {
@@ -87,7 +89,7 @@ export class MobileControls {
 
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
-      
+
       if (touch.identifier === this.steeringTouchId) {
         if (e.cancelable) e.preventDefault();
         this.updateSteering(touch.clientX);
@@ -111,7 +113,7 @@ export class MobileControls {
   private handleTouchEnd = (e: TouchEvent): void => {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
-      
+
       if (touch.identifier === this.steeringTouchId) {
         this.steeringTouchId = null;
         this.isSteeringFingerBoosting = false;
@@ -133,15 +135,15 @@ export class MobileControls {
       this.inputManager.setTurn(0.0);
       return;
     }
-    
+
     const sensitivity = this.inputManager.getMouseSensitivity() || 1.0;
     const targetDeflection = 0.5 * sensitivity;
-    
+
     // Scale the turn beyond the deadzone
     const activeRange = 1.0 - deadZone;
     const sign = Math.sign(normTouchX);
-    const activeNormX = (Math.abs(normTouchX) - deadZone) / activeRange * sign;
-    
+    const activeNormX = ((Math.abs(normTouchX) - deadZone) / activeRange) * sign;
+
     this.inputManager.setTurn(activeNormX / targetDeflection);
   }
 }

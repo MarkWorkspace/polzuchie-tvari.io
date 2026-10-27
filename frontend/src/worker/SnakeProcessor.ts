@@ -1,9 +1,9 @@
 // ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
 import type { GameState } from "../types/game";
-import { CameraPredictor } from "./CameraPredictor";
-import { ParticleComputer } from "./ParticleComputer";
-import { EyeComputer } from "./EyeComputer";
+import type { CameraPredictor } from "./CameraPredictor";
+import type { EyeComputer } from "./EyeComputer";
 import { appendSnakeMesh, type GeometryBuffers } from "./MeshBuilder";
+import type { ParticleComputer } from "./ParticleComputer";
 import { computeSplinePaths } from "./SplineComputer";
 
 function _processSingleSnake(
@@ -25,7 +25,7 @@ function _processSingleSnake(
   baseHeadRadius: number,
   scoreThicknessScale: number,
   pitchAngle: number,
-  showAllInMainCopy: boolean
+  showAllInMainCopy: boolean,
 ): void {
   const activePlayerObj: any = { id: playerId, isMe: isSelf, nickname: p.nickname || "Игрок" };
   activePlayers.push(activePlayerObj);
@@ -36,7 +36,15 @@ function _processSingleSnake(
   const pRadius = baseHeadRadius + Math.max(0, pLength - startLength) * 10.0 * scoreThicknessScale;
 
   const subPaths = computeSplinePaths(
-    p, oldP ?? null, progress, mapW, mapH, camera.myVisualOffsetX, camera.myVisualOffsetY, isSelf, gridSize
+    p,
+    oldP ?? null,
+    progress,
+    mapW,
+    mapH,
+    camera.myVisualOffsetX,
+    camera.myVisualOffsetY,
+    isSelf,
+    gridSize,
   );
 
   const snakeZ = 0.0;
@@ -102,7 +110,14 @@ function _processSingleSnake(
       const lastPath = subPaths[subPaths.length - 1];
       const tx = lastPath.x[lastPath.pointsCount - 1];
       const ty = lastPath.y[lastPath.pointsCount - 1];
-      particles.spawnParticlesForBooster(tx, ty, p.angle, pRadius * gridSize, p.skin || "#22c55e", p.speed_mult ?? 2.0);
+      particles.spawnParticlesForBooster(
+        tx,
+        ty,
+        p.angle,
+        pRadius * gridSize,
+        p.skin || "#22c55e",
+        p.speed_mult ?? 2.0,
+      );
     }
   }
 }
@@ -122,11 +137,11 @@ export function processSnakes(
   activePlayers: any[],
   nicknames: any[],
   fogRadiusWorld: number,
-  showAllInMainCopy: boolean
+  showAllInMainCopy: boolean,
 ): void {
   const baseHeadRadius = state.server_snake?.base_head_radius ?? 0.2;
   const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? 0.0005;
-  const pitchAngle = (state.server_visual?.camera_pitch_angle ?? 55) * Math.PI / 180;
+  const pitchAngle = ((state.server_visual?.camera_pitch_angle ?? 55) * Math.PI) / 180;
 
   for (const playerId in state.players) {
     const p = state.players[playerId];
@@ -134,31 +149,31 @@ export function processSnakes(
     if (p.is_dead || !p.body || p.body.length === 0 || p.teleport_state === "in_transit") continue;
 
     const isSelf = playerId === myId;
-    
+
     if (!isSelf && !showAllInMainCopy) {
       const pLength = Math.floor(p.body.length / 2);
       const mapW = state.server_world?.width ?? 100;
       const mapH = state.server_world?.height ?? 100;
       const mapW_geo = mapW * gridSize;
       const mapH_geo = mapH * gridSize;
-      
+
       const camX = camera.localX * gridSize + gridSize / 2;
       const camY = -(camera.localY * gridSize + gridSize / 2);
-      
-      let hx = p.body[0] * gridSize + gridSize / 2;
-      let hy = -(p.body[1] * gridSize + gridSize / 2);
-      
+
+      const hx = p.body[0] * gridSize + gridSize / 2;
+      const hy = -(p.body[1] * gridSize + gridSize / 2);
+
       let dx = hx - camX;
       if (dx > mapW_geo / 2) dx -= mapW_geo;
       else if (dx < -mapW_geo / 2) dx += mapW_geo;
-      
+
       let dy = hy - camY;
       if (dy > mapH_geo / 2) dy -= mapH_geo;
       else if (dy < -mapH_geo / 2) dy += mapH_geo;
-      
-      const dist = Math.sqrt(dx*dx + dy*dy);
-      const safeRadius = fogRadiusWorld * 1.1 + (pLength * gridSize * 0.6);
-      
+
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const safeRadius = fogRadiusWorld * 1.1 + pLength * gridSize * 0.6;
+
       if (dist > safeRadius) {
         activePlayers.push({ id: playerId, isMe: false, nickname: p.nickname || "Игрок" });
         continue;
@@ -166,9 +181,25 @@ export function processSnakes(
     }
 
     _processSingleSnake(
-      playerId, p, oldP, isSelf, state, progress, gridSize, startLength, camera,
-      particles, eyes, bodyBufs, calcFog, activePlayers, nicknames,
-      baseHeadRadius, scoreThicknessScale, pitchAngle, showAllInMainCopy
+      playerId,
+      p,
+      oldP,
+      isSelf,
+      state,
+      progress,
+      gridSize,
+      startLength,
+      camera,
+      particles,
+      eyes,
+      bodyBufs,
+      calcFog,
+      activePlayers,
+      nicknames,
+      baseHeadRadius,
+      scoreThicknessScale,
+      pitchAngle,
+      showAllInMainCopy,
     );
   }
 }

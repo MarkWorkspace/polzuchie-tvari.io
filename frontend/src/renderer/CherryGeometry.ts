@@ -19,9 +19,9 @@ function colorize(geomIn: THREE.BufferGeometry, hexColor: number): THREE.BufferG
     colors[i * 3 + 2] = color.b;
   }
   geom.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  
+
   for (const name in geom.attributes) {
-    if (name !== 'position' && name !== 'normal' && name !== 'color') {
+    if (name !== "position" && name !== "normal" && name !== "color") {
       geom.deleteAttribute(name);
     }
   }
@@ -39,7 +39,7 @@ function createBerries(): THREE.BufferGeometry[] {
 function createStems(): THREE.BufferGeometry[] {
   class StemCurve extends THREE.Curve<THREE.Vector3> {
     sign: number;
-    constructor(sign: number) { 
+    constructor(sign: number) {
       super();
       this.sign = sign;
     }
@@ -59,7 +59,7 @@ function createLeaf(): THREE.BufferGeometry {
   shape.moveTo(0, 0);
   shape.quadraticCurveTo(0.3, 0.3, 0.5, 0.0);
   shape.quadraticCurveTo(0.3, -0.3, 0, 0);
-  
+
   const geom = new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false });
   geom.translate(0, 0, -0.01);
   geom.rotateZ(Math.PI / 4);
@@ -78,11 +78,7 @@ function centerGeometry(geom: THREE.BufferGeometry): void {
 }
 
 export function createCherryGeometry(): THREE.BufferGeometry {
-  const geometries = [
-    ...createBerries(),
-    ...createStems(),
-    createLeaf()
-  ];
+  const geometries = [...createBerries(), ...createStems(), createLeaf()];
   const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
   centerGeometry(merged);
   merged.rotateX(Math.PI / 2);

@@ -1,6 +1,7 @@
 from collections import defaultdict
 from game_config import CELL_SIZE
 
+
 def update(state) -> None:
     """
     Builds a unified spatial index for the current tick.
@@ -12,13 +13,11 @@ def update(state) -> None:
 
     # 1. Add Tombstones
     for tomb in state.tombstones:
-        if tomb["time_left"] > 58.5: # Arming time
+        if tomb["time_left"] > 58.5:  # Arming time
             continue
         cx = int(tomb["x"] / CELL_SIZE) % grid_w
         cy = int(tomb["y"] / CELL_SIZE) % grid_h
-        state.spatial_grid[(cx, cy)]["tombstones"].append(
-            ("tombstone", tomb["x"], tomb["y"], 1.2)
-        )
+        state.spatial_grid[(cx, cy)]["tombstones"].append(("tombstone", tomb["x"], tomb["y"], 1.2))
 
     # 2. Add Players
     for pid, player in state.players.items():
@@ -39,11 +38,13 @@ def update(state) -> None:
         cy = int(f.y / CELL_SIZE) % grid_h
         state.spatial_grid[(cx, cy)]["foods"].append(f)
 
+
 class SpatialIndexSystem:
     name = "spatial_index"
     order = 15
 
     def update(self, world):
         update(world)
+
 
 system = SpatialIndexSystem()

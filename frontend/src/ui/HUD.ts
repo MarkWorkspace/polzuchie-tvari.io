@@ -68,10 +68,10 @@ export class HUD {
       const mode = controlMode || "keyboard";
       const guideKey = mode === "keyboard" ? "status.kbdGuide" : "status.mouseGuide";
       const guideText = t(guideKey);
-      
+
       const lines = guideText
         .split("|")
-        .map(line => `<div>${line.trim()}</div>`)
+        .map((line) => `<div>${line.trim()}</div>`)
         .join("");
 
       guideEl.innerHTML = `
@@ -80,7 +80,7 @@ export class HUD {
       `;
       guideEl.style.color = "#4ade80";
     } else {
-      let text = msg || (msgKey ? t(msgKey as any, msgParams) : t("status.connecting"));
+      const text = msg || (msgKey ? t(msgKey as any, msgParams) : t("status.connecting"));
       guideEl.textContent = text;
       guideEl.style.color = "#fbbf24";
     }

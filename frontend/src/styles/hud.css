@@ -123,7 +123,9 @@
   width: 50%;
   left: 25%;
   background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
-  transition: width 0.1s ease, left 0.1s ease;
+  transition:
+    width 0.1s ease,
+    left 0.1s ease;
 }
 
 /* Game Over Screen */
@@ -159,14 +161,22 @@
   font-weight: 800;
   color: #ef4444;
   margin-bottom: 8px;
-  text-shadow: -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000;
+  text-shadow:
+    -2px -2px 0 #000,
+    2px -2px 0 #000,
+    -2px 2px 0 #000,
+    2px 2px 0 #000;
 }
 
 .game-over-subtitle {
   color: #d1d5db;
   margin-bottom: 24px;
   font-size: 16px;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+  text-shadow:
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    1px 1px 0 #000;
 }
 
 .game-over-stats {
@@ -232,11 +242,14 @@
     grid-template-columns: 160px 1fr;
     grid-template-rows: calc(190px + env(safe-area-inset-top, 0px)) 1fr 1fr;
   }
-  
+
   .hud-container::before {
     content: "";
     position: absolute;
-    top: 0; left: 0; right: 0; height: calc(190px + env(safe-area-inset-top, 0px));
+    top: 0;
+    left: 0;
+    right: 0;
+    height: calc(190px + env(safe-area-inset-top, 0px));
     background: #0c0c0f;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     z-index: -1;
@@ -260,7 +273,7 @@
     margin: calc(12px + env(safe-area-inset-top, 0px)) 12px 12px 10px;
     padding: 0;
   }
-  
+
   .score-panel {
     background: transparent !important;
     border: none !important;
@@ -274,11 +287,11 @@
     align-self: end !important;
     margin: 0 !important;
   }
-  
+
   .score-title {
     display: none !important;
   }
-  
+
   .score-value {
     position: fixed !important;
     bottom: 12px !important;
@@ -290,9 +303,13 @@
     -webkit-background-clip: unset !important;
     -webkit-text-fill-color: #fafafa !important;
     color: #fafafa !important;
-    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    text-shadow:
+      -1px -1px 0 #000,
+      1px -1px 0 #000,
+      -1px 1px 0 #000,
+      1px 1px 0 #000;
   }
-  
+
   .score-feed {
     position: fixed !important;
     left: 12px !important;
@@ -307,7 +324,11 @@
     z-index: 50 !important;
     font-size: 12px !important;
     font-weight: 700 !important;
-    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    text-shadow:
+      -1px -1px 0 #000,
+      1px -1px 0 #000,
+      -1px 1px 0 #000,
+      1px 1px 0 #000;
     margin: 0 !important;
   }
 
@@ -351,6 +372,6 @@
     font-size: 18px;
     font-weight: 800;
     pointer-events: auto;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
   }
 }

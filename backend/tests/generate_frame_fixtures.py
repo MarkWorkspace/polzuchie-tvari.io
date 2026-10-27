@@ -12,9 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tests.frame_scenario import build_full_and_delta_world
 
-OUTPUT_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "..", "tests_shared", "golden_frames"
-)
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests_shared", "golden_frames")
 
 
 def _round_floats(val):
@@ -35,9 +33,7 @@ def _generate_and_save() -> None:
     full_compressed = zlib.compress(full_frame.SerializeToString(), 1)
     full_dict = MessageToDict(full_frame, preserving_proto_field_name=True)
     _write_bin(os.path.join(OUTPUT_DIR, "frame_full.bin"), full_compressed)
-    _write_json(
-        os.path.join(OUTPUT_DIR, "frame_full.expected.json"), _round_floats(full_dict)
-    )
+    _write_json(os.path.join(OUTPUT_DIR, "frame_full.expected.json"), _round_floats(full_dict))
 
     # DELTA frame.
     delta_compressed = zlib.compress(delta_frame.SerializeToString(), 1)

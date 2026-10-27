@@ -19,9 +19,9 @@ function colorize(geomIn: THREE.BufferGeometry, hexColor: number): THREE.BufferG
     colors[i * 3 + 2] = color.b;
   }
   geom.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  
+
   for (const name in geom.attributes) {
-    if (name !== 'position' && name !== 'normal' && name !== 'color') {
+    if (name !== "position" && name !== "normal" && name !== "color") {
       geom.deleteAttribute(name);
     }
   }
@@ -35,7 +35,7 @@ function createPeachBody(): THREE.BufferGeometry {
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
-    
+
     // Создаем бороздку (crease) вдоль оси Z, с одной стороны (x > 0)
     if (v.x > 0) {
       const zDist = Math.abs(v.z);
@@ -45,10 +45,10 @@ function createPeachBody(): THREE.BufferGeometry {
         v.x -= depth * Math.max(0, yFactor);
       }
     }
-    
+
     // Немного сплющиваем сверху и снизу
     v.y *= 0.95;
-    
+
     pos.setXYZ(i, v.x, v.y, v.z);
   }
   geom.computeVertexNormals();
@@ -60,7 +60,7 @@ function createLeaf(): THREE.BufferGeometry {
   shape.moveTo(0, 0);
   shape.quadraticCurveTo(0.2, 0.2, 0.4, 0.0);
   shape.quadraticCurveTo(0.2, -0.2, 0, 0);
-  
+
   const geom = new THREE.ExtrudeGeometry(shape, { depth: 0.01, bevelEnabled: false });
   geom.translate(0, 0, -0.005);
   // Наклоняем и прикрепляем к макушке
@@ -80,10 +80,7 @@ function centerGeometry(geom: THREE.BufferGeometry): void {
 }
 
 export function createPeachGeometry(): THREE.BufferGeometry {
-  const geometries = [
-    createPeachBody(),
-    createLeaf()
-  ];
+  const geometries = [createPeachBody(), createLeaf()];
   const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
   centerGeometry(merged);
   merged.rotateX(Math.PI / 2);

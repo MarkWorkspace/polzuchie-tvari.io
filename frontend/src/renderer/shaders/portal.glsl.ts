@@ -21,17 +21,17 @@ export const portalDiskShader = {
       vec2 center = vUv - vec2(0.5);
       float d = length(center) * 2.0;
       if (d > 1.0) discard;
-      
+
       float angle = atan(center.y, center.x);
       float spiral = sin(angle * 3.0 - d * 8.0 + uTime * 6.0);
       float wave = 0.5 + 0.5 * spiral;
-      
+
       vec3 col = mix(vColor * 0.4, vColor * 1.3, wave);
       float alpha = (1.0 - d) * (0.6 + 0.4 * wave);
-      
+
       gl_FragColor = vec4(col, alpha);
     }
-  `
+  `,
 };
 
 export const portalRingShader = {
@@ -56,14 +56,14 @@ export const portalRingShader = {
       vec2 center = vUv - vec2(0.5);
       float d = length(center) * 2.0;
       if (d < 0.85 || d > 1.0) discard;
-      
+
       float angle = atan(center.y, center.x);
       float dash = step(0.3, sin(angle * 8.0 + uTime * 4.0));
-      
+
       vec3 col = vColor * 1.5;
       float alpha = dash * 0.9;
-      
+
       gl_FragColor = vec4(col, alpha);
     }
-  `
+  `,
 };

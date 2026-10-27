@@ -1,8 +1,12 @@
-# ROLE: Admin REST API.
+# ROLE: Admin REST API. Session cookie auth, config read/write, restart. Not game logic.
 import os
 import asyncio
 import hmac
+import secrets
+import time
 import zlib
+from collections import deque
+
 from fastapi import HTTPException, Response, Cookie, Request
 from pydantic import BaseModel
 
@@ -14,48 +18,130 @@ from app.api.websocket import (
     pending_disconnects,
 )
 
+ADMIN_SESSION_COOKIE = "admin_token"
+ADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60
+LOGIN_RATE_LIMIT = 10
+LOGIN_RATE_WINDOW_SECONDS = 5 * 60
+
+# Single-process app: in-memory sessions are enough. Restarting the server
+# invalidates admin sessions and forces a fresh login.
+_admin_sessions: dict[str, float] = {}
+_login_attempts: dict[str, deque[float]] = {}
+_default_password_warned = False
+
 
 def admin_password():
+    global _default_password_warned
     password = os.getenv("ADMIN_PASSWORD")
     if password:
-        return password.strip(' \t\r\n"\'')
+        return password.strip(" \t\r\n\"'")
     if os.getenv("ENVIRONMENT") != "production":
-        print(
-            "[WARNING] Using default admin password 'admin'. Set ADMIN_PASSWORD env var for production!"
-        )
+        if not _default_password_warned:
+            print(
+                "[WARNING] Using default admin password 'admin'. Set ADMIN_PASSWORD env var for production!"
+            )
+            _default_password_warned = True
         return "admin"
     return None
+
+
+def _prune_admin_sessions(now: float | None = None) -> None:
+    now = time.time() if now is None else now
+    expired = [token for token, expires_at in _admin_sessions.items() if expires_at <= now]
+    for token in expired:
+        _admin_sessions.pop(token, None)
+
+
+def _create_admin_session() -> str:
+    _prune_admin_sessions()
+    token = secrets.token_urlsafe(32)
+    _admin_sessions[token] = time.time() + ADMIN_SESSION_TTL_SECONDS
+    return token
+
+
+def _is_valid_admin_session(token: str | None) -> bool:
+    if not token:
+        return False
+    _prune_admin_sessions()
+    return _admin_sessions.get(token, 0.0) > time.time()
+
+
+def _login_key(request: Request | None) -> str:
+    if request is None or request.client is None:
+        return "unknown"
+    return request.client.host
+
+
+def _is_login_rate_limited(key: str) -> bool:
+    now = time.time()
+    attempts = _login_attempts.setdefault(key, deque())
+    while attempts and attempts[0] < now - LOGIN_RATE_WINDOW_SECONDS:
+        attempts.popleft()
+    return len(attempts) >= LOGIN_RATE_LIMIT
+
+
+def _record_login_attempt(key: str) -> None:
+    _login_attempts.setdefault(key, deque()).append(time.time())
+
+
+def _is_secure_request(request: Request) -> bool:
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").split(",", 1)[0].strip()
+    return forwarded_proto == "https" or request.url.scheme == "https"
 
 
 class LoginRequest(BaseModel):
     password: str
 
 
-async def admin_login(req: LoginRequest, response: Response):
+async def admin_login(req: LoginRequest, response: Response, request: Request):
+    key = _login_key(request)
+    if _is_login_rate_limited(key):
+        raise HTTPException(status_code=429, detail="Too many login attempts")
+
+    _record_login_attempt(key)
     expected_password = admin_password()
     if not expected_password:
         raise HTTPException(status_code=403, detail="ADMIN_PASSWORD is not configured")
     if not hmac.compare_digest(req.password, expected_password):
         raise HTTPException(status_code=401, detail="Invalid admin password")
 
+    _login_attempts.pop(key, None)
     response.set_cookie(
-        key="admin_token",
-        value=req.password,
+        key=ADMIN_SESSION_COOKIE,
+        value=_create_admin_session(),
         httponly=True,
         samesite="strict",
-        max_age=86400 * 30
+        secure=_is_secure_request(request),
+        max_age=ADMIN_SESSION_TTL_SECONDS,
+        path="/",
     )
     return {"status": "ok"}
 
 
-def require_admin(
-    admin_token: str | None = Cookie(default=None)
+async def admin_logout(
+    response: Response,
+    admin_token: str | None = Cookie(default=None),
 ):
+    if admin_token:
+        _admin_sessions.pop(admin_token, None)
+    response.delete_cookie(ADMIN_SESSION_COOKIE, path="/")
+    return {"status": "ok"}
+
+
+async def admin_session(admin_token: str | None = Cookie(default=None)):
+    configured = admin_password() is not None
+    return {
+        "authenticated": configured and _is_valid_admin_session(admin_token),
+        "configured": configured,
+    }
+
+
+def require_admin(admin_token: str | None = Cookie(default=None)):
     expected_password = admin_password()
     if not expected_password:
         raise HTTPException(status_code=403, detail="ADMIN_PASSWORD is not configured")
-    if not admin_token or not hmac.compare_digest(admin_token, expected_password):
-        raise HTTPException(status_code=401, detail="Invalid admin password")
+    if not _is_valid_admin_session(admin_token):
+        raise HTTPException(status_code=401, detail="Invalid admin session")
 
 
 async def get_admin_config(request: Request):
@@ -69,8 +155,13 @@ async def patch_admin_config(patch: dict, request: Request):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-async def health_check():
-    return {"status": "ok"}
+async def health_check(request: Request):
+    world = getattr(request.app.state, "world", None)
+    return {
+        "status": "ok",
+        "players": len(world.players) if world else 0,
+        "spectators": len(world.spectators) if world else 0,
+    }
 
 
 def _build_restart_message() -> bytes:

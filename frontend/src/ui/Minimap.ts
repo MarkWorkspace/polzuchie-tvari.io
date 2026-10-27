@@ -1,5 +1,5 @@
 // ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
-import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
+import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 
 export function getPlayerHead(player: any): { x: number; y: number } | null {
   if (!player) return null;
@@ -62,7 +62,11 @@ export class Minimap {
     let py = mapH / 2;
     let myAngle = 0;
 
-    if (typeof msg.camX === "number" && typeof msg.camY === "number" && typeof msg.camAngle === "number") {
+    if (
+      typeof msg.camX === "number" &&
+      typeof msg.camY === "number" &&
+      typeof msg.camAngle === "number"
+    ) {
       px = (msg.camX - gridSize / 2) / gridSize;
       py = (-msg.camY - gridSize / 2) / gridSize;
       myAngle = msg.camAngle;
@@ -81,9 +85,10 @@ export class Minimap {
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(-myAngle - Math.PI / 2);
 
-    const foodMinimapData = msg.foodMinimapData instanceof Float32Array
-      ? msg.foodMinimapData
-      : new Float32Array(msg.foodMinimapData);
+    const foodMinimapData =
+      msg.foodMinimapData instanceof Float32Array
+        ? msg.foodMinimapData
+        : new Float32Array(msg.foodMinimapData);
 
     const radarRadius = canvas.width / 2; // 100 for 200x200 canvas
 
@@ -116,7 +121,7 @@ export class Minimap {
     mapW: number,
     mapH: number,
     isMobile: boolean,
-    radarRadius: number
+    radarRadius: number,
   ): void {
     const foodCount = foodMinimapData.length / 4;
     for (let i = 0; i < foodCount; i++) {
@@ -145,7 +150,7 @@ export class Minimap {
       }
 
       ctx.fillStyle = hexColor;
-      ctx.globalAlpha = isMobile ? 0.95 : (fvalue >= 2.0 ? 0.9 : 0.7);
+      ctx.globalAlpha = isMobile ? 0.95 : fvalue >= 2.0 ? 0.9 : 0.7;
 
       let s = 1.0;
       if (fvalue > 1.0) {
@@ -171,7 +176,7 @@ export class Minimap {
     scale: number,
     mapW: number,
     mapH: number,
-    radarRadius: number
+    radarRadius: number,
   ): void {
     const dotSize = 3.5;
 

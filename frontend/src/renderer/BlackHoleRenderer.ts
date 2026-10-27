@@ -1,11 +1,11 @@
 // ROLE: Визуализация чёрных дыр.
 import * as THREE from "three";
+import { RenderConfig, RenderLayer } from "./RenderConfig";
 import {
   blackHoleCoreShader,
+  blackHoleGravityShader,
   blackHoleRingShader,
-  blackHoleGravityShader
 } from "./shaders/blackHole.glsl";
-import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class BlackHoleRenderer {
   private scene: THREE.Scene;
@@ -26,18 +26,27 @@ export class BlackHoleRenderer {
 
   private _initMaterials(): void {
     this.coreMaterial = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, side: THREE.DoubleSide,
-      vertexShader: blackHoleCoreShader.vertexShader, fragmentShader: blackHoleCoreShader.fragmentShader
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexShader: blackHoleCoreShader.vertexShader,
+      fragmentShader: blackHoleCoreShader.fragmentShader,
     });
     this.ringMaterial = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
       uniforms: { uTime: { value: 0.0 } },
-      vertexShader: blackHoleRingShader.vertexShader, fragmentShader: blackHoleRingShader.fragmentShader
+      vertexShader: blackHoleRingShader.vertexShader,
+      fragmentShader: blackHoleRingShader.fragmentShader,
     });
     this.gravityMaterial = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
       uniforms: { uTime: { value: 0.0 } },
-      vertexShader: blackHoleGravityShader.vertexShader, fragmentShader: blackHoleGravityShader.fragmentShader
+      vertexShader: blackHoleGravityShader.vertexShader,
+      fragmentShader: blackHoleGravityShader.fragmentShader,
     });
   }
 

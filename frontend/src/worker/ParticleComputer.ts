@@ -1,7 +1,7 @@
 // ROLE: Симуляция частиц хвоста.
 
-import { writeMatrix, randomRange } from "./shared/MathUtils";
 import { parseColor } from "./shared/ColorUtils";
+import { randomRange, writeMatrix } from "./shared/MathUtils";
 
 interface Particle {
   x: number;
@@ -26,7 +26,7 @@ export class ParticleComputer {
     angle: number,
     snakeRadius: number,
     colorStr: string,
-    speedMult: number
+    speedMult: number,
   ) {
     if (speedMult <= 1.1) return;
     const baseColor = parseColor(colorStr);
@@ -34,7 +34,7 @@ export class ParticleComputer {
     for (let j = 0; j < 3; j++) {
       const pAngle = angle + Math.PI + randomRange(-0.3, 0.3);
       const pSpeed = randomRange(1.0, 3.5);
-      
+
       this.activeParticles.push({
         x: tx + randomRange(-1.0, 1.0) * snakeRadius,
         y: ty + randomRange(-1.0, 1.0) * snakeRadius,
@@ -53,7 +53,7 @@ export class ParticleComputer {
       part.x += part.vx * dt * 60.0;
       part.y += part.vy * dt * 60.0;
       part.life -= dt;
-      
+
       if (part.life <= 0) {
         if (i < this.activeParticles.length - 1) {
           this.activeParticles[i] = this.activeParticles[this.activeParticles.length - 1];
@@ -67,7 +67,7 @@ export class ParticleComputer {
     fogR: number,
     fogG: number,
     fogB: number,
-    calcFogAmount: (wx: number, wy: number) => number
+    calcFogAmount: (wx: number, wy: number) => number,
   ): {
     particleMatrices: Float32Array;
     particleColors: Float32Array;

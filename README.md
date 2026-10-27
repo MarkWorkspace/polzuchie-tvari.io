@@ -6,7 +6,7 @@ FastAPI, рендеринг на Three.js и вычисления геометр
 ## Стек
 
 - **Backend:** Python 3.13, FastAPI, WebSocket, Protobuf, uv.
-- **Frontend:** TypeScript, Vite, Three.js, Web Worker, Vitest.
+- **Frontend:** TypeScript, React 19 (admin/UI), Vite, Three.js, Web Worker, Vitest.
 - **Данные:** общая Protobuf-схема и golden-фикстуры в `tests_shared/`.
 
 ## Быстрый старт
@@ -31,13 +31,16 @@ uv run --frozen uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 
 # frontend
 cd frontend
-npm run dev -- --host 0.0.0.0
+npm run dev:host
 ```
+
+Админка доступна по `/admin` (или `/?admin=true`); для production nginx
+проксирует `/ws` на backend.
 
 ## Проверки
 
 ```bash
-# всё сразу: backend lint + pytest, frontend vitest + build
+# всё сразу: backend format/lint + pytest, frontend lint/typecheck + vitest + build
 uv run --project backend python scripts/run_checks.py all
 ```
 
@@ -52,10 +55,13 @@ uv lock
 
 ```bash
 cd backend
+uv run --frozen ruff format --check .
 uv run --frozen ruff check .
 uv run --frozen pytest tests/ -q
 
 cd frontend
+npm run lint
+npm run typecheck
 npm test
 npm run build
 ```
@@ -67,8 +73,8 @@ uv sync --project backend
 uv run --project backend pre-commit install
 ```
 
-На коммит запускаются Ruff и тесты затронутого стека; на пуш — полный backend
-lint + pytest, frontend vitest и production build.
+На коммит запускаются Ruff/Biome и тесты затронутого стека; на пуш — полный
+backend format/lint + pytest, frontend lint/typecheck + vitest и production build.
 
 ## Docker
 

@@ -1,16 +1,31 @@
 // ROLE: Состояние и бизнес-логика конфигурации админ-панели. Без UI.
-import { HIDDEN_FIELDS, getNewSectionKey } from "./AdminLabels";
+import { getNewSectionKey, HIDDEN_FIELDS } from "./AdminLabels";
+
+let nextFoodTypeKey = 0;
 
 export class ConfigEditor {
   private config: any = null;
   private drafts: Record<string, string> = {};
-  private foodTypes: { value: number; weight: number; color: string; image: string; expanded?: boolean }[] = [];
+  private foodTypes: {
+    key: string;
+    value: number;
+    weight: number;
+    color: string;
+    image: string;
+    expanded?: boolean;
+  }[] = [];
 
   constructor() {}
 
-  public getConfig(): any { return this.config; }
-  public getDrafts(): Record<string, string> { return this.drafts; }
-  public getFoodTypes(): any[] { return this.foodTypes; }
+  public getConfig(): any {
+    return this.config;
+  }
+  public getDrafts(): Record<string, string> {
+    return this.drafts;
+  }
+  public getFoodTypes(): any[] {
+    return this.foodTypes;
+  }
 
   public setDraft(key: string, value: string): void {
     this.drafts[key] = value;
@@ -36,7 +51,7 @@ export class ConfigEditor {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(patch)
+        body: JSON.stringify(patch),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
@@ -60,16 +75,24 @@ export class ConfigEditor {
       }
     }
     this.foodTypes = (this.config.food?.types || []).map((ft: any) => ({
+      key: `food-${++nextFoodTypeKey}`,
       value: ft.value,
       weight: ft.weight,
       color: ft.color,
       image: ft.image || "",
-      expanded: false
+      expanded: false,
     }));
   }
 
   public addFoodType(): void {
-    this.foodTypes.push({ value: 1, weight: 10, color: "#ffffff", image: "", expanded: true });
+    this.foodTypes.push({
+      key: `food-${++nextFoodTypeKey}`,
+      value: 1,
+      weight: 10,
+      color: "#ffffff",
+      image: "",
+      expanded: true,
+    });
   }
 
   public removeFoodType(idx: number): void {
@@ -83,7 +106,13 @@ export class ConfigEditor {
   }
 
   public getModifiedCounts(): Record<string, number> {
-    const counts: Record<string, number> = { world_network: 0, snake_physics: 0, food_boost: 0, camera_visual: 0, all: 0 };
+    const counts: Record<string, number> = {
+      world_network: 0,
+      snake_physics: 0,
+      food_boost: 0,
+      camera_visual: 0,
+      all: 0,
+    };
     if (!this.config) return counts;
     let total = 0;
     for (const [sec, vals] of Object.entries(this.config)) {
@@ -95,7 +124,12 @@ export class ConfigEditor {
         }
       }
     }
-    const cleanTypes = this.foodTypes.map(t => ({ value: Number(t.value), weight: Number(t.weight), color: t.color, image: t.image }));
+    const cleanTypes = this.foodTypes.map((t) => ({
+      value: Number(t.value),
+      weight: Number(t.weight),
+      color: t.color,
+      image: t.image,
+    }));
     if (JSON.stringify(cleanTypes) !== JSON.stringify(this.config.food?.types || [])) {
       counts.food_boost += 1;
       total++;
@@ -111,9 +145,12 @@ export class ConfigEditor {
       height: Math.max(20, parseInt(this.drafts["world.height"]) || 100),
       target_food_count: Math.max(0, parseInt(this.drafts["world.target_food_count"]) || 100),
       cluster_count: Math.max(1, parseInt(this.drafts["world.cluster_count"]) || 5),
-      cluster_spawn_chance: Math.max(0, parseFloat(this.drafts["world.cluster_spawn_chance"]) || 0.8),
+      cluster_spawn_chance: Math.max(
+        0,
+        parseFloat(this.drafts["world.cluster_spawn_chance"]) || 0.8,
+      ),
       cluster_spread: Math.max(0.1, parseFloat(this.drafts["world.cluster_spread"]) || 5.0),
-      foodTypes: this.foodTypes
+      foodTypes: this.foodTypes,
     };
   }
 
@@ -130,7 +167,12 @@ export class ConfigEditor {
         }
       }
     }
-    const cleanTypes = this.foodTypes.map(t => ({ value: Number(t.value), weight: Number(t.weight), color: t.color, image: t.image }));
+    const cleanTypes = this.foodTypes.map((t) => ({
+      value: Number(t.value),
+      weight: Number(t.weight),
+      color: t.color,
+      image: t.image,
+    }));
     if (JSON.stringify(cleanTypes) !== JSON.stringify(this.config.food?.types || [])) {
       patch.food = patch.food || {};
       patch.food.types = cleanTypes;
@@ -142,7 +184,7 @@ export class ConfigEditor {
     const host = window.location.hostname || "127.0.0.1";
     const protocol = window.location.protocol;
     const isDev = import.meta.env.DEV;
-    const port = isDev ? "8000" : (window.location.port || "");
+    const port = isDev ? "8000" : window.location.port || "";
     const portStr = port ? `:${port}` : "";
     const pathPrefix = isDev ? "" : "/ws";
     return `${protocol}//${host}${portStr}${pathPrefix}/admin/config`;

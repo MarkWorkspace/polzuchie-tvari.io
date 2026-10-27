@@ -1,7 +1,7 @@
 // ROLE: Визуализация порталов.
 import * as THREE from "three";
-import { portalDiskShader, portalRingShader } from "./shaders/portal.glsl";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { portalDiskShader, portalRingShader } from "./shaders/portal.glsl";
 
 export class PortalRenderer {
   private scene: THREE.Scene;
@@ -23,14 +23,22 @@ export class PortalRenderer {
 
   private _initDiskAndRingMaterials(): void {
     this.diskMaterial = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, side: THREE.DoubleSide, vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexColors: true,
       uniforms: { uTime: { value: 0.0 } },
-      vertexShader: portalDiskShader.vertexShader, fragmentShader: portalDiskShader.fragmentShader
+      vertexShader: portalDiskShader.vertexShader,
+      fragmentShader: portalDiskShader.fragmentShader,
     });
     this.ringMaterial = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, side: THREE.DoubleSide, vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+      vertexColors: true,
       uniforms: { uTime: { value: 0.0 } },
-      vertexShader: portalRingShader.vertexShader, fragmentShader: portalRingShader.fragmentShader
+      vertexShader: portalRingShader.vertexShader,
+      fragmentShader: portalRingShader.fragmentShader,
     });
   }
 
@@ -63,10 +71,15 @@ export class PortalRenderer {
       }
     `;
     this.glowMaterial = new THREE.ShaderMaterial({
-      transparent: true, depthWrite: false, depthTest: false,
-      blending: THREE.AdditiveBlending, side: THREE.DoubleSide, vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      vertexColors: true,
       uniforms: { uTime: { value: 0.0 } },
-      vertexShader: vs, fragmentShader: fs
+      vertexShader: vs,
+      fragmentShader: fs,
     });
   }
 
@@ -114,7 +127,12 @@ export class PortalRenderer {
     this.glowMaterial.dispose();
   }
 
-  private _updateSinglePortalMesh(mesh: THREE.InstancedMesh, matrices: Float32Array, colors: Float32Array, count: number): void {
+  private _updateSinglePortalMesh(
+    mesh: THREE.InstancedMesh,
+    matrices: Float32Array,
+    colors: Float32Array,
+    count: number,
+  ): void {
     mesh.instanceMatrix.array.set(matrices);
     mesh.instanceMatrix.clearUpdateRanges();
     mesh.instanceMatrix.addUpdateRange(0, count * 16);
@@ -133,8 +151,23 @@ export class PortalRenderer {
   }
 
   private updatePortalBuffers(msg: any, count: number): void {
-    this._updateSinglePortalMesh(this.diskMesh, msg.portalDiskMatrices, msg.portalDiskColors, count);
-    this._updateSinglePortalMesh(this.ringMesh, msg.portalRingMatrices, msg.portalRingColors, count);
-    this._updateSinglePortalMesh(this.glowMesh, msg.portalDiskMatrices, msg.portalDiskColors, count);
+    this._updateSinglePortalMesh(
+      this.diskMesh,
+      msg.portalDiskMatrices,
+      msg.portalDiskColors,
+      count,
+    );
+    this._updateSinglePortalMesh(
+      this.ringMesh,
+      msg.portalRingMatrices,
+      msg.portalRingColors,
+      count,
+    );
+    this._updateSinglePortalMesh(
+      this.glowMesh,
+      msg.portalDiskMatrices,
+      msg.portalDiskColors,
+      count,
+    );
   }
 }

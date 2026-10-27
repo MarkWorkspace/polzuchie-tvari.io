@@ -3,6 +3,7 @@ from app.engine.entities import Portal
 from app.engine.systems.math_utils import toroidal_distance
 from app.engine.world_elements.base import PeriodicEntityManager
 
+
 class PortalManager(PeriodicEntityManager):
     def __init__(self, state):
         super().__init__(state, "portals")
@@ -30,15 +31,41 @@ class PortalManager(PeriodicEntityManager):
             for op in self.slots:
                 if op is not None and op.state != "dead":
                     if (
-                        toroidal_distance(candidate1[0], candidate1[1], op.x1, op.y1, self.state.grid_width, self.state.grid_height) < op.radius * 3
-                        or toroidal_distance(candidate1[0], candidate1[1], op.x2, op.y2, self.state.grid_width, self.state.grid_height) < op.radius * 3
+                        toroidal_distance(
+                            candidate1[0],
+                            candidate1[1],
+                            op.x1,
+                            op.y1,
+                            self.state.grid_width,
+                            self.state.grid_height,
+                        )
+                        < op.radius * 3
+                        or toroidal_distance(
+                            candidate1[0],
+                            candidate1[1],
+                            op.x2,
+                            op.y2,
+                            self.state.grid_width,
+                            self.state.grid_height,
+                        )
+                        < op.radius * 3
                     ):
                         too_close = True
                         break
             if not too_close and getattr(self.state, "bh_manager", None):
                 for obh in getattr(self.state.bh_manager, "slots", []):
                     if obh is not None and obh.state != "dead":
-                        if toroidal_distance(candidate1[0], candidate1[1], obh.x, obh.y, self.state.grid_width, self.state.grid_height) < obh.pull_radius * 1.5:
+                        if (
+                            toroidal_distance(
+                                candidate1[0],
+                                candidate1[1],
+                                obh.x,
+                                obh.y,
+                                self.state.grid_width,
+                                self.state.grid_height,
+                            )
+                            < obh.pull_radius * 1.5
+                        ):
                             too_close = True
                             break
             if not too_close:
@@ -56,21 +83,57 @@ class PortalManager(PeriodicEntityManager):
                 random.uniform(5, self.state.grid_width - 5),
                 random.uniform(5, self.state.grid_height - 5),
             )
-            if toroidal_distance(candidate2[0], candidate2[1], p1[0], p1[1], self.state.grid_width, self.state.grid_height) < min_dist:
+            if (
+                toroidal_distance(
+                    candidate2[0],
+                    candidate2[1],
+                    p1[0],
+                    p1[1],
+                    self.state.grid_width,
+                    self.state.grid_height,
+                )
+                < min_dist
+            ):
                 continue
             too_close = False
             for op in self.slots:
                 if op is not None and op.state != "dead":
                     if (
-                        toroidal_distance(candidate2[0], candidate2[1], op.x1, op.y1, self.state.grid_width, self.state.grid_height) < op.radius * 3
-                        or toroidal_distance(candidate2[0], candidate2[1], op.x2, op.y2, self.state.grid_width, self.state.grid_height) < op.radius * 3
+                        toroidal_distance(
+                            candidate2[0],
+                            candidate2[1],
+                            op.x1,
+                            op.y1,
+                            self.state.grid_width,
+                            self.state.grid_height,
+                        )
+                        < op.radius * 3
+                        or toroidal_distance(
+                            candidate2[0],
+                            candidate2[1],
+                            op.x2,
+                            op.y2,
+                            self.state.grid_width,
+                            self.state.grid_height,
+                        )
+                        < op.radius * 3
                     ):
                         too_close = True
                         break
             if not too_close and getattr(self.state, "bh_manager", None):
                 for obh in getattr(self.state.bh_manager, "slots", []):
                     if obh is not None and obh.state != "dead":
-                        if toroidal_distance(candidate2[0], candidate2[1], obh.x, obh.y, self.state.grid_width, self.state.grid_height) < obh.pull_radius * 1.5:
+                        if (
+                            toroidal_distance(
+                                candidate2[0],
+                                candidate2[1],
+                                obh.x,
+                                obh.y,
+                                self.state.grid_width,
+                                self.state.grid_height,
+                            )
+                            < obh.pull_radius * 1.5
+                        ):
                             too_close = True
                             break
             if not too_close:
@@ -92,13 +155,23 @@ class PortalManager(PeriodicEntityManager):
                     continue
                 eff_radius = portal.radius * portal.current_scale
                 dist1 = toroidal_distance(
-                    new_head["x"], new_head["y"], portal.x1, portal.y1, self.state.grid_width, self.state.grid_height
+                    new_head["x"],
+                    new_head["y"],
+                    portal.x1,
+                    portal.y1,
+                    self.state.grid_width,
+                    self.state.grid_height,
                 )
                 if dist1 < eff_radius:
                     if player.last_portal_exited != (portal.id, 0):
                         return {"out_pos": (portal.x2, portal.y2), "portal_id": (portal.id, 1)}
                 dist2 = toroidal_distance(
-                    new_head["x"], new_head["y"], portal.x2, portal.y2, self.state.grid_width, self.state.grid_height
+                    new_head["x"],
+                    new_head["y"],
+                    portal.x2,
+                    portal.y2,
+                    self.state.grid_width,
+                    self.state.grid_height,
                 )
                 if dist2 < eff_radius:
                     if player.last_portal_exited != (portal.id, 1):

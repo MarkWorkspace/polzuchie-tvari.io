@@ -43,12 +43,12 @@ export const fragmentShaderPrefix = `
 
 export const fragmentColorReplace = `
   #include <color_fragment>
-  
+
   float r = vSnakeParams.x;
   float L = vSnakeParams.y;
   float x = (vUv.x - 0.5) * 2.0 * r;
   float y = vUv.y;
-  
+
   float d_dist = 0.0;
   if (y < 0.0) {
     d_dist = length(vec2(x, y)) / r;
@@ -59,13 +59,13 @@ export const fragmentColorReplace = `
   } else {
     d_dist = abs(x) / r;
   }
-  
+
   float skinType = vCustomColor.r;
   vec3 baseColor;
-  
+
   if (skinType > 1.5) {
     float sCoord = vUv.y;
-    
+
     if (skinType < 2.5) {
       float f = 0.5 + 0.5 * cos((sCoord / 25.0) * 3.14159);
       baseColor = mix(vec3(0.09, 0.09, 0.09), vec3(0.9, 0.9, 0.9), f);
@@ -82,10 +82,10 @@ export const fragmentColorReplace = `
   } else {
     baseColor = vCustomColor;
   }
-  
+
   float edge = smoothstep(0.85, 0.98, d_dist);
   vec3 finalColor = mix(baseColor, baseColor * 0.8, edge);
-  
+
   diffuseColor = vec4(finalColor, opacity);
 `;
 
@@ -96,13 +96,13 @@ export function patchSnakeMaterial(shader: any, uniforms: any) {
 
   shader.vertexShader = vertexShaderPrefix + shader.vertexShader;
   shader.vertexShader = shader.vertexShader.replace(
-    '#include <worldpos_vertex>',
-    vertexShaderReplace
+    "#include <worldpos_vertex>",
+    vertexShaderReplace,
   );
 
   shader.fragmentShader = fragmentShaderPrefix + shader.fragmentShader;
   shader.fragmentShader = shader.fragmentShader.replace(
-    '#include <color_fragment>',
-    fragmentColorReplace
+    "#include <color_fragment>",
+    fragmentColorReplace,
   );
 }

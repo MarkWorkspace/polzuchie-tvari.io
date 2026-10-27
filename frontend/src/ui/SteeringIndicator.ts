@@ -47,7 +47,8 @@ export class SteeringIndicator {
     if (clampedTurn >= 0) {
       this.barElement.style.left = "50%";
       this.barElement.style.width = `${clampedTurn * 50}%`;
-      this.barElement.style.background = "linear-gradient(90deg, var(--accent-blue), var(--accent-cyan))";
+      this.barElement.style.background =
+        "linear-gradient(90deg, var(--accent-blue), var(--accent-cyan))";
     } else {
       const widthPercent = -clampedTurn * 50;
       this.barElement.style.left = `${50 - widthPercent}%`;

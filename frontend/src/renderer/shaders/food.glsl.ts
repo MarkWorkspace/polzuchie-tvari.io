@@ -20,9 +20,9 @@ export const foodShader = {
       float d = length(vUv - vec2(0.5)) * 2.0;
       float body = 1.0 - smoothstep(0.58, 0.62, d);
       float glow = (1.0 - smoothstep(0.6, 1.0, d)) * 0.6;
-      
+
       if (body <= 0.01 && glow <= 0.01) discard;
-      
+
       // Volumetric 3D sphere shading and ambient occlusion for food body
       vec3 bodyColor = vCustomColor;
       if (d < 0.6) {
@@ -33,9 +33,8 @@ export const foodShader = {
       vec3 glowColor = vCustomColor * 0.7;
       vec3 finalColor = mix(glowColor, bodyColor, body);
       float finalAlpha = max(body, glow);
-      
+
       gl_FragColor = vec4(finalColor * 1.2, finalAlpha);
     }
-  `
+  `,
 };
-

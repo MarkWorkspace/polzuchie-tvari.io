@@ -34,7 +34,10 @@ export class StateInterpolator {
     this.renderTime = null;
   }
 
-  public interpolate(dt: number, tickRate: number): {
+  public interpolate(
+    dt: number,
+    tickRate: number,
+  ): {
     state: GameState;
     lastState: GameState;
     progress: number;
@@ -70,7 +73,11 @@ export class StateInterpolator {
     return { state: singleState, lastState: singleState, progress: 1.0 };
   }
 
-  private _performInterpolation(renderTime: number): { state: GameState; lastState: GameState; progress: number } {
+  private _performInterpolation(renderTime: number): {
+    state: GameState;
+    lastState: GameState;
+    progress: number;
+  } {
     let indexA = this.queue.length - 2;
     for (let i = 0; i < this.queue.length - 1; i++) {
       if (renderTime <= this.queue[i + 1].time) {
@@ -85,7 +92,8 @@ export class StateInterpolator {
     const timeB = this.queue[indexA + 1].time;
 
     const denom = timeB - timeA;
-    const progress = denom > 0.001 ? Math.max(0.0, Math.min(1.0, (renderTime - timeA) / denom)) : 1.0;
+    const progress =
+      denom > 0.001 ? Math.max(0.0, Math.min(1.0, (renderTime - timeA) / denom)) : 1.0;
 
     return { state: stateB, lastState: stateA, progress };
   }

@@ -9,14 +9,10 @@ def update(state) -> None:
     """
     tick_interval = state.tick_interval
     base_speed = state.config.simulation.base_speed_per_second * tick_interval
-    max_turn_deg_rad = (
-        state.config.simulation.max_turn_speed_deg_per_second * math.pi / 180
-    )
+    max_turn_deg_rad = state.config.simulation.max_turn_speed_deg_per_second * math.pi / 180
     min_turn_radius_cfg = state.config.simulation.min_turn_radius
     thickness_coeff = state.config.simulation.turn_radius_thickness_coeff
-    idle_turn_smoothing = state.tick_smoothing(
-        state.config.simulation.turn_idle_smoothing_at_20hz
-    )
+    idle_turn_smoothing = state.tick_smoothing(state.config.simulation.turn_idle_smoothing_at_20hz)
     active_turn_smoothing = state.tick_smoothing(
         state.config.simulation.turn_active_smoothing_at_20hz
     )
@@ -37,7 +33,7 @@ def update(state) -> None:
         player.pending_steps += player.speed_mult
         steps_this_tick = int(player.pending_steps)
 
-        max_steps = getattr(state.config.simulation, 'max_steps_per_tick', 4)
+        max_steps = getattr(state.config.simulation, "max_steps_per_tick", 4)
         if steps_this_tick > max_steps:
             steps_this_tick = max_steps
             player.pending_steps = float(max_steps)
@@ -54,7 +50,9 @@ def update(state) -> None:
                 if player.turn == 0:
                     player.current_turn += (0 - player.current_turn) * idle_turn_smoothing
                 else:
-                    player.current_turn += (target_turn - player.current_turn) * active_turn_smoothing
+                    player.current_turn += (
+                        target_turn - player.current_turn
+                    ) * active_turn_smoothing
             player.angle += player.current_turn
         else:
             player.current_turn = 0.0
@@ -97,9 +95,7 @@ def _step_player_physics(
             player.teleport_pos = {"x": new_head_x, "y": new_head_y}
             player.teleport_out_pos = tp_check["out_pos"]
             player.last_portal_exited = tp_check["portal_id"]
-            player.teleport_delay = (
-                state.config.world.portals_teleport_delay_ms / 1000.0
-            )
+            player.teleport_delay = state.config.world.portals_teleport_delay_ms / 1000.0
             player.teleport_timer = player.teleport_delay
 
         player.body.appendleft(new_head_y)
@@ -114,5 +110,6 @@ class PhysicsSystem:
 
     def update(self, world):
         update(world)
+
 
 system = PhysicsSystem()

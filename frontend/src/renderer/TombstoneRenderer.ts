@@ -1,7 +1,7 @@
 // ROLE: Отрисовка надгробий мертвых игроков через Three.js
 import * as THREE from "three";
-import type { Tombstone } from "../types/game";
 import { gridSize } from "../game/Config";
+import type { Tombstone } from "../types/game";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class TombstoneRenderer {
@@ -9,7 +9,7 @@ export class TombstoneRenderer {
   private scene: THREE.Scene;
   private tombstoneGeometry: THREE.BufferGeometry | null = null;
   private tombstoneMaterial: THREE.MeshStandardMaterial | null = null;
-  
+
   private MAX_INSTANCES = 50;
   private dummy = new THREE.Object3D();
 
@@ -26,14 +26,14 @@ export class TombstoneRenderer {
     this.mesh = new THREE.InstancedMesh(
       this.tombstoneGeometry,
       this.tombstoneMaterial,
-      this.MAX_INSTANCES
+      this.MAX_INSTANCES,
     );
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.mesh, RenderLayer.Opaque);
-    
+
     // Move up so it sits on the ground
     this.mesh.position.z = 0.4 * gridSize;
-    
+
     this.scene.add(this.mesh);
   }
 
@@ -47,7 +47,7 @@ export class TombstoneRenderer {
     for (let i = 0; i < count; i++) {
       this._updateInstance(tombstones[i], i);
     }
-    
+
     this.mesh.instanceMatrix.clearUpdateRanges();
     this.mesh.instanceMatrix.addUpdateRange(0, count * 16);
     this.mesh.instanceMatrix.needsUpdate = true;
@@ -59,8 +59,8 @@ export class TombstoneRenderer {
     const ty = -(tomb.y * gridSize + gridSize / 2);
     this.dummy.position.set(tx, ty, 0);
     this.dummy.rotation.x = Math.PI / 2;
-    const hash = tomb.id.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
-    this.dummy.rotation.y = (hash % 100) / 100.0 * 0.4 - 0.2; 
+    const hash = tomb.id.split("").reduce((a, b) => (a << 5) - a + b.charCodeAt(0), 0);
+    this.dummy.rotation.y = ((hash % 100) / 100.0) * 0.4 - 0.2;
     this.dummy.scale.set(1, 1, 1);
     this.dummy.updateMatrix();
     this.mesh.setMatrixAt(i, this.dummy.matrix);

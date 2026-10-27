@@ -1,9 +1,9 @@
 // ROLE: Инициализация Three.js сцены, свет, рендерер.
 import * as THREE from "three";
+import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { PostProcessing } from "./PostProcessing";
-import { patchGroundMaterial } from "./shaders/ground.glsl";
-import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { patchGroundMaterial } from "./shaders/ground.glsl";
 
 const FOG_VERTEX_SHADER = `
   varying vec2 vWorldPos;
@@ -62,7 +62,7 @@ export class SceneManager {
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
-      logarithmicDepthBuffer: false
+      logarithmicDepthBuffer: false,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.currentWidth, this.currentHeight);
@@ -78,7 +78,7 @@ export class SceneManager {
       50,
       this.currentWidth / this.currentHeight,
       15.0,
-      15000.0
+      15000.0,
     );
   }
 
@@ -88,7 +88,7 @@ export class SceneManager {
       this.scene,
       this.camera,
       this.currentWidth,
-      this.currentHeight
+      this.currentHeight,
     );
   }
 
@@ -160,7 +160,7 @@ export class SceneManager {
     this.dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     this.dirLight.position.set(0.1, 0.1, 300);
     this.dirLight.castShadow = true;
-    
+
     // Configure shadow frustum size based on our view distance
     const d = 300;
     this.dirLight.shadow.camera.left = -d;
@@ -169,13 +169,13 @@ export class SceneManager {
     this.dirLight.shadow.camera.bottom = -d;
     this.dirLight.shadow.camera.near = 0.5;
     this.dirLight.shadow.camera.far = 1000;
-    
+
     this.dirLight.shadow.mapSize.width = 2048;
     this.dirLight.shadow.mapSize.height = 2048;
     // Bias to prevent shadow acne
     this.dirLight.shadow.bias = -0.0005;
     this.dirLight.shadow.radius = 6; // Soft shadow edges
-    
+
     this.scene.add(this.dirLight);
     this.scene.add(this.dirLight.target);
   }
@@ -202,7 +202,11 @@ export class SceneManager {
     const geom = new THREE.PlaneGeometry(sizeX, sizeY);
     this.groundMesh = new THREE.Mesh(geom, this.groundMaterial);
     RenderConfig.configureMesh(this.groundMesh, RenderLayer.Ground);
-    this.groundMesh.position.set((WORLD_WIDTH * gridSize) / 2, -(WORLD_HEIGHT * gridSize) / 2, -2.0);
+    this.groundMesh.position.set(
+      (WORLD_WIDTH * gridSize) / 2,
+      -(WORLD_HEIGHT * gridSize) / 2,
+      -2.0,
+    );
     this.groundMesh.receiveShadow = true;
     this.scene.add(this.groundMesh);
   }
@@ -215,7 +219,11 @@ export class SceneManager {
     const multiplier = isSpectator ? 1 : 4;
 
     this.groundMesh.position.set((mapW * gridSize) / 2, -(mapH * gridSize) / 2, -2.0);
-    this.groundMesh.scale.set((mapW / WORLD_WIDTH) * (multiplier / 4), (mapH / WORLD_HEIGHT) * (multiplier / 4), 1.0);
+    this.groundMesh.scale.set(
+      (mapW / WORLD_WIDTH) * (multiplier / 4),
+      (mapH / WORLD_HEIGHT) * (multiplier / 4),
+      1.0,
+    );
 
     const uniforms = this.groundMaterial.userData.uniforms;
     if (uniforms) {
@@ -244,7 +252,7 @@ export class SceneManager {
     const sizeY = WORLD_HEIGHT * gridSize * 4;
     const geom = new THREE.PlaneGeometry(sizeX, sizeY);
     this.fogMesh = new THREE.Mesh(geom, this.fogMaterial);
-    
+
     RenderConfig.configureMesh(this.fogMesh, RenderLayer.FogOverlay);
     this.fogMesh.position.set((WORLD_WIDTH * gridSize) / 2, -(WORLD_HEIGHT * gridSize) / 2, 50.0);
     this.scene.add(this.fogMesh);

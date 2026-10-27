@@ -1,14 +1,15 @@
 // ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены. Не содержит логики ввода или сети.
-import { SceneManager } from "../renderer/SceneManager";
-import { GameCamera } from "./Camera";
-import { SnakeRenderer } from "../renderer/SnakeRenderer";
-import { NicknameRenderer } from "../renderer/NicknameRenderer";
-import { FoodRenderer } from "../renderer/FoodRenderer";
-import { PortalRenderer } from "../renderer/PortalRenderer";
+
 import { BlackHoleRenderer } from "../renderer/BlackHoleRenderer";
-import { ParticleRenderer } from "../renderer/ParticleRenderer";
 import { DebugRenderer } from "../renderer/DebugRenderer";
+import { FoodRenderer } from "../renderer/FoodRenderer";
+import { NicknameRenderer } from "../renderer/NicknameRenderer";
+import { ParticleRenderer } from "../renderer/ParticleRenderer";
+import { PortalRenderer } from "../renderer/PortalRenderer";
+import type { SceneManager } from "../renderer/SceneManager";
+import { SnakeRenderer } from "../renderer/SnakeRenderer";
 import { TombstoneRenderer } from "../renderer/TombstoneRenderer";
+import type { GameCamera } from "./Camera";
 
 export class RenderOrchestrator {
   private sceneManager: SceneManager;
@@ -25,7 +26,7 @@ export class RenderOrchestrator {
   constructor(sceneManager: SceneManager) {
     this.sceneManager = sceneManager;
     const scene = this.sceneManager.getScene();
-    
+
     this.snakeRenderer = new SnakeRenderer(scene);
     this.nicknameRenderer = new NicknameRenderer();
     this.foodRenderer = new FoodRenderer(scene);
@@ -47,7 +48,7 @@ export class RenderOrchestrator {
     myId: string,
     isAccelerating: boolean,
     debugMode: boolean,
-    gameCamera?: GameCamera | null
+    gameCamera?: GameCamera | null,
   ): void {
     const camera = this.sceneManager.getCamera();
     const width = this.sceneManager.getWidth();

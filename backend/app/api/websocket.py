@@ -8,7 +8,6 @@ from collections import deque
 from fastapi import WebSocket
 
 
-
 active_connections = {}
 pending_disconnects = {}
 
@@ -60,9 +59,7 @@ def _new_client_id() -> str:
     return str(uuid.uuid4())
 
 
-def _validate_client(
-    client_id: str | None, world, role: str = "player"
-) -> tuple[str, bool]:
+def _validate_client(client_id: str | None, world, role: str = "player") -> tuple[str, bool]:
     """Return a safe connection id.
 
     A spectator always gets a fresh identity: reusing a player's client_id
@@ -99,7 +96,13 @@ def _clean_profile(nickname: str, skin: str) -> tuple[str, str]:
 
 
 async def _handle_reconnection(
-    client_id: str, reconnecting: bool, nickname: str, skin: str, websocket: WebSocket, world, role: str
+    client_id: str,
+    reconnecting: bool,
+    nickname: str,
+    skin: str,
+    websocket: WebSocket,
+    world,
+    role: str,
 ):
     disconnect_task = pending_disconnects.pop(client_id, None)
     if disconnect_task:
@@ -190,9 +193,7 @@ async def _cleanup_connection(client_id: str, websocket: WebSocket, world):
             except asyncio.CancelledError:
                 pass
 
-        pending_disconnects[client_id] = asyncio.create_task(
-            delayed_remove(client_id)
-        )
+        pending_disconnects[client_id] = asyncio.create_task(delayed_remove(client_id))
 
 
 async def websocket_endpoint(
@@ -213,9 +214,7 @@ async def websocket_endpoint(
 
     initialized = False
     try:
-        await _handle_reconnection(
-            client_id, reconnecting, nickname, skin, websocket, world, role
-        )
+        await _handle_reconnection(client_id, reconnecting, nickname, skin, websocket, world, role)
         await _initialize_connection(client_id, websocket, world)
         initialized = True
         await _run_receive_loop(client_id, websocket, world)

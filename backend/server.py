@@ -28,6 +28,8 @@ from app.api.admin import (
     admin_restart_game,
     require_admin,
     admin_login,
+    admin_logout,
+    admin_session,
 )
 
 
@@ -47,7 +49,14 @@ async def process_client(client_id, connection, world):
         frame.your_id = client_id
         for f in world.food_manager.foods.values():
             f_msg = frame.foods.add()
-            f_msg.id, f_msg.x, f_msg.y, f_msg.value, f_msg.color, f_msg.image = f.id, f.x, f.y, f.value, f.color, f.image or ""
+            f_msg.id, f_msg.x, f_msg.y, f_msg.value, f_msg.color, f_msg.image = (
+                f.id,
+                f.x,
+                f.y,
+                f.value,
+                f.color,
+                f.image or "",
+            )
         state_bytes = frame.SerializeToString()
         connection["needs_full_sync"] = False
     else:
@@ -62,7 +71,6 @@ async def process_client(client_id, connection, world):
     skipped = replace_queued_state(connection["queue"], (compressed, visible_players, is_full_sync))
     if skipped:
         connection["needs_full_sync"] = True
-
 
 
 async def _safe_process_client(client_id, connection, world) -> None:
@@ -89,8 +97,7 @@ async def game_loop(world):
             continue
 
         tasks = [
-            _safe_process_client(cid, conn, world)
-            for cid, conn in list(active_connections.items())
+            _safe_process_client(cid, conn, world) for cid, conn in list(active_connections.items())
         ]
         if tasks:
             await asyncio.gather(*tasks)
@@ -146,6 +153,10 @@ else:
 # REST endpoints routing (mapped to handlers in app/api/admin.py)
 app.post("/admin/login")(admin_login)
 app.post("/ws/admin/login")(admin_login)
+app.post("/admin/logout")(admin_logout)
+app.post("/ws/admin/logout")(admin_logout)
+app.get("/admin/session")(admin_session)
+app.get("/ws/admin/session")(admin_session)
 
 admin_router = APIRouter(dependencies=[Depends(require_admin)])
 admin_router.get("/admin/config")(get_admin_config)

@@ -26,27 +26,20 @@ def vectors():
 
 def test_toroidal_delta_parity(vectors):
     for i, v in enumerate(vectors):
-        dx, dy = toroidal_delta(
-            v["x1"], v["y1"], v["x2"], v["y2"], v["width"], v["height"]
-        )
+        dx, dy = toroidal_delta(v["x1"], v["y1"], v["x2"], v["y2"], v["width"], v["height"])
         exp_dx, exp_dy = v["expected_delta"]
         assert math.isclose(dx, exp_dx, rel_tol=REL_TOL, abs_tol=ABS_TOL), (
-            f"Vector #{i} ({v.get('desc', '')}): "
-            f"delta_x mismatch: got {dx}, expected {exp_dx}"
+            f"Vector #{i} ({v.get('desc', '')}): delta_x mismatch: got {dx}, expected {exp_dx}"
         )
         assert math.isclose(dy, exp_dy, rel_tol=REL_TOL, abs_tol=ABS_TOL), (
-            f"Vector #{i} ({v.get('desc', '')}): "
-            f"delta_y mismatch: got {dy}, expected {exp_dy}"
+            f"Vector #{i} ({v.get('desc', '')}): delta_y mismatch: got {dy}, expected {exp_dy}"
         )
 
 
 def test_toroidal_distance_parity(vectors):
     for i, v in enumerate(vectors):
-        dist = toroidal_distance(
-            v["x1"], v["y1"], v["x2"], v["y2"], v["width"], v["height"]
-        )
+        dist = toroidal_distance(v["x1"], v["y1"], v["x2"], v["y2"], v["width"], v["height"])
         exp_dist = v["expected_distance"]
         assert math.isclose(dist, exp_dist, rel_tol=REL_TOL, abs_tol=ABS_TOL), (
-            f"Vector #{i} ({v.get('desc', '')}): "
-            f"distance mismatch: got {dist}, expected {exp_dist}"
+            f"Vector #{i} ({v.get('desc', '')}): distance mismatch: got {dist}, expected {exp_dist}"
         )

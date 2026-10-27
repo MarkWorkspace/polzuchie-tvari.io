@@ -38,12 +38,13 @@ export class FoodSimulator {
     for (let i = 0; i < cfg.cluster_count; i++) {
       clusters.push({
         x: 10 + lcgRandom() * (cfg.width - 20),
-        y: 10 + lcgRandom() * (cfg.height - 20)
+        y: 10 + lcgRandom() * (cfg.height - 20),
       });
     }
 
     // Prepare food type weights
-    const types = cfg.foodTypes.length > 0 ? cfg.foodTypes : [{ value: 1, weight: 1, color: "#ef4444" }];
+    const types =
+      cfg.foodTypes.length > 0 ? cfg.foodTypes : [{ value: 1, weight: 1, color: "#ef4444" }];
     const totalWeight = types.reduce((sum, t) => sum + t.weight, 0);
 
     const getWeightedType = () => {
@@ -105,7 +106,7 @@ export class FoodSimulator {
 
     const mapToCanvas = (x: number, y: number) => ({
       cx: oX + x * scale,
-      cy: oY + y * scale
+      cy: oY + y * scale,
     });
 
     // 1. Draw Map Base

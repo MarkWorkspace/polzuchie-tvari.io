@@ -19,9 +19,9 @@ function colorize(geomIn: THREE.BufferGeometry, hexColor: number): THREE.BufferG
     colors[i * 3 + 2] = color.b;
   }
   geom.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  
+
   for (const name in geom.attributes) {
-    if (name !== 'position' && name !== 'normal' && name !== 'color') {
+    if (name !== "position" && name !== "normal" && name !== "color") {
       geom.deleteAttribute(name);
     }
   }
@@ -32,30 +32,30 @@ function createGrapes(): THREE.BufferGeometry[] {
   const geometries: THREE.BufferGeometry[] = [];
   const radius = 0.22;
   const positions: [number, number, number][] = [];
-  
+
   // Нижний слой (одна виноградина)
   positions.push([0, 0, 0]);
-  
+
   // Слой 1
-  for(let i = 0; i < 4; i++) {
+  for (let i = 0; i < 4; i++) {
     const angle = (Math.PI * 2 * i) / 4;
     positions.push([Math.cos(angle) * 0.2, 0.3, Math.sin(angle) * 0.2]);
   }
-  
+
   // Слой 2
-  for(let i = 0; i < 5; i++) {
+  for (let i = 0; i < 5; i++) {
     const angle = (Math.PI * 2 * i) / 5;
     positions.push([Math.cos(angle) * 0.3, 0.6, Math.sin(angle) * 0.3]);
   }
 
   // Слой 3
-  for(let i = 0; i < 6; i++) {
+  for (let i = 0; i < 6; i++) {
     const angle = (Math.PI * 2 * i) / 6;
     positions.push([Math.cos(angle) * 0.35, 0.9, Math.sin(angle) * 0.35]);
   }
 
   // Слой 4 (верх)
-  for(let i = 0; i < 4; i++) {
+  for (let i = 0; i < 4; i++) {
     const angle = (Math.PI * 2 * i) / 4 + Math.PI / 4;
     positions.push([Math.cos(angle) * 0.2, 1.15, Math.sin(angle) * 0.2]);
   }
@@ -71,7 +71,9 @@ function createGrapes(): THREE.BufferGeometry[] {
 
 function createStem(): THREE.BufferGeometry {
   class StemCurve extends THREE.Curve<THREE.Vector3> {
-    constructor() { super(); }
+    constructor() {
+      super();
+    }
     getPoint(t: number, target = new THREE.Vector3()) {
       const x = Math.sin(t * Math.PI) * 0.1;
       const y = 1.25 + t * 0.35;
@@ -93,10 +95,7 @@ function centerGeometry(geom: THREE.BufferGeometry): void {
 }
 
 export function createGrapeGeometry(): THREE.BufferGeometry {
-  const geometries = [
-    ...createGrapes(),
-    createStem()
-  ];
+  const geometries = [...createGrapes(), createStem()];
   const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
   centerGeometry(merged);
   merged.rotateX(Math.PI / 2);

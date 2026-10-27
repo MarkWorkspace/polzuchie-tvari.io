@@ -13,9 +13,7 @@ def check(state) -> None:
 
     dead_players = set()
     for pid, player in active_players:
-        is_dead, killer_pid = _check_collision_for_player(
-            state, pid, player, dead_players
-        )
+        is_dead, killer_pid = _check_collision_for_player(state, pid, player, dead_players)
         if is_dead:
             dead_players.add(pid)
             _process_player_death(state, pid, player, killer_pid)
@@ -25,9 +23,6 @@ def check(state) -> None:
         state.tombstones = [t for t in state.tombstones if t["time_left"] > dt]
     for t in state.tombstones:
         t["time_left"] -= dt
-
-
-
 
 
 def _check_collision_for_player(
@@ -49,12 +44,12 @@ def _check_collision_for_player(
 
             cell_data = state.spatial_grid[cell]
             # Check players and tombstones
-            for other_pid, seg_x, seg_y, other_radius in cell_data["players"] + cell_data["tombstones"]:
+            for other_pid, seg_x, seg_y, other_radius in (
+                cell_data["players"] + cell_data["tombstones"]
+            ):
                 if other_pid == pid or other_pid in dead_players:
                     continue
-                fdx, fdy = toroidal_delta(
-                    hx, hy, seg_x, seg_y, state.grid_width, state.grid_height
-                )
+                fdx, fdy = toroidal_delta(hx, hy, seg_x, seg_y, state.grid_width, state.grid_height)
                 if fdx * fdx + fdy * fdy < (head_radius + other_radius * 0.8) ** 2:
                     return True, other_pid
     return False, None
@@ -74,8 +69,12 @@ def _process_player_death(state, pid: str, player, killer_pid: str | None) -> No
         for p in state.portal_manager.portal_slots:
             if p is not None and p.state != "dead":
                 eff_radius = p.radius * p.current_scale
-                dist1 = toroidal_distance(player.head_x, player.head_y, p.x1, p.y1, state.grid_width, state.grid_height)
-                dist2 = toroidal_distance(player.head_x, player.head_y, p.x2, p.y2, state.grid_width, state.grid_height)
+                dist1 = toroidal_distance(
+                    player.head_x, player.head_y, p.x1, p.y1, state.grid_width, state.grid_height
+                )
+                dist2 = toroidal_distance(
+                    player.head_x, player.head_y, p.x2, p.y2, state.grid_width, state.grid_height
+                )
                 if dist1 < eff_radius or dist2 < eff_radius:
                     spawn_tombstone = False
                     break
@@ -113,5 +112,6 @@ class CollisionSystem:
 
     def update(self, world):
         check(world)
+
 
 system = CollisionSystem()

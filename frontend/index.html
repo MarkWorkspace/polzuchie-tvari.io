@@ -1,13 +1,33 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>frontend-vite</title>
+    <link
+      rel="preload"
+      href="/fonts/outfit-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#2b2d34" />
+    <meta
+      name="description"
+      content="Polzuchie-tvari.io — браузерная многопользовательская змейка с процедурным 3D-миром."
+    />
+    <title>Polzuchie-tvari.io</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div class="boot-screen">
+        <div class="boot-spinner" aria-hidden="true"></div>
+        <p>Polzuchie-tvari.io</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

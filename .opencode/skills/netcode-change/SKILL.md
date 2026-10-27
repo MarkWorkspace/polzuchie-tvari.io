@@ -30,6 +30,7 @@ Use this skill when a change touches any of these:
    - run `python tests/generate_frame_fixtures.py` from `backend/`;
    - review the fixture diff;
    - run backend pytest and frontend vitest.
-7. Run `uv sync` and `uv run --frozen ruff check .` from `backend/`, then
-   `uv run --frozen pytest tests/ -q`; from `frontend/` run `npm test` and
-   `npm run build`.
+7. Run `uv sync`, `uv run --frozen ruff format --check .` and
+   `uv run --frozen ruff check .` from `backend/`, then
+   `uv run --frozen pytest tests/ -q`; from `frontend/` run `npm run lint`,
+   `npm run typecheck`, `npm test` and `npm run build`.

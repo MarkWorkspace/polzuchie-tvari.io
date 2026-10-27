@@ -3,8 +3,8 @@ import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
 
 const APPLE_COLOR = 0xff3333; // красный
-const STEM_COLOR = 0x654321;  // коричневый
-const LEAF_COLOR = 0x2a9d8f;  // зеленый
+const STEM_COLOR = 0x654321; // коричневый
+const LEAF_COLOR = 0x2a9d8f; // зеленый
 
 function colorize(geomIn: THREE.BufferGeometry, hexColor: number): THREE.BufferGeometry {
   let geom = geomIn;
@@ -20,9 +20,9 @@ function colorize(geomIn: THREE.BufferGeometry, hexColor: number): THREE.BufferG
     colors[i * 3 + 2] = color.b;
   }
   geom.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  
+
   for (const name in geom.attributes) {
-    if (name !== 'position' && name !== 'normal' && name !== 'color') {
+    if (name !== "position" && name !== "normal" && name !== "color") {
       geom.deleteAttribute(name);
     }
   }
@@ -48,7 +48,7 @@ function createLeaf(): THREE.BufferGeometry {
   shape.moveTo(0, 0);
   shape.quadraticCurveTo(0.2, 0.2, 0.4, 0.0);
   shape.quadraticCurveTo(0.2, -0.2, 0, 0);
-  
+
   const geom = new THREE.ExtrudeGeometry(shape, { depth: 0.01, bevelEnabled: false });
   geom.translate(0, 0, -0.005);
   geom.rotateZ(Math.PI / 4);
@@ -67,15 +67,11 @@ function centerGeometry(geom: THREE.BufferGeometry): void {
 }
 
 export function createAppleGeometry(): THREE.BufferGeometry {
-  const geometries = [
-    createAppleBody(),
-    createStem(),
-    createLeaf()
-  ];
-  
+  const geometries = [createAppleBody(), createStem(), createLeaf()];
+
   const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
   centerGeometry(merged);
   merged.rotateX(Math.PI / 2);
-  
+
   return merged;
 }

@@ -3,7 +3,10 @@
 const USE_SHARED_BUFFER = typeof SharedArrayBuffer !== "undefined";
 
 if (!USE_SHARED_BUFFER) {
-  console.warn("%c[GrowableArray] SharedArrayBuffer is not available. Using ArrayBuffer fallback.", "color: orange; font-weight: bold;");
+  console.warn(
+    "%c[GrowableArray] SharedArrayBuffer is not available. Using ArrayBuffer fallback.",
+    "color: orange; font-weight: bold;",
+  );
 }
 
 export class GrowableFloat32Array {
@@ -11,7 +14,9 @@ export class GrowableFloat32Array {
   public length = 0;
 
   constructor(initialCapacity = 65536) {
-    const buf = USE_SHARED_BUFFER ? new SharedArrayBuffer(initialCapacity * 4) : new ArrayBuffer(initialCapacity * 4);
+    const buf = USE_SHARED_BUFFER
+      ? new SharedArrayBuffer(initialCapacity * 4)
+      : new ArrayBuffer(initialCapacity * 4);
     this.array = new Float32Array(buf);
   }
 
@@ -72,7 +77,9 @@ export class GrowableUint32Array {
   public length = 0;
 
   constructor(initialCapacity = 32768) {
-    const buf = USE_SHARED_BUFFER ? new SharedArrayBuffer(initialCapacity * 4) : new ArrayBuffer(initialCapacity * 4);
+    const buf = USE_SHARED_BUFFER
+      ? new SharedArrayBuffer(initialCapacity * 4)
+      : new ArrayBuffer(initialCapacity * 4);
     this.array = new Uint32Array(buf);
   }
 

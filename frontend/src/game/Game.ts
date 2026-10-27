@@ -1,11 +1,12 @@
 // ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
-import { SceneManager } from "../renderer/SceneManager";
-import { InputManager } from "./InputManager";
-import type { ControlMode } from "./InputManager";
-import { NetworkManager } from "./NetworkManager";
-import { GameCamera } from "./Camera";
-import { RenderOrchestrator } from "./RenderOrchestrator";
+
 import Stats from "stats.js";
+import { SceneManager } from "../renderer/SceneManager";
+import { GameCamera } from "./Camera";
+import type { ControlMode } from "./InputManager";
+import { InputManager } from "./InputManager";
+import { NetworkManager } from "./NetworkManager";
+import { RenderOrchestrator } from "./RenderOrchestrator";
 
 export class Game {
   private sceneManager: SceneManager;
@@ -91,9 +92,11 @@ export class Game {
       onControlModeChange: (mode: ControlMode) => {
         this.networkManager.send(`CONTROL_MODE:${mode}`);
         const status = this.isConnected ? "connected" : "connecting";
-        window.dispatchEvent(new CustomEvent("game-status", { detail: { status, controlMode: mode } }));
+        window.dispatchEvent(
+          new CustomEvent("game-status", { detail: { status, controlMode: mode } }),
+        );
       },
-      onInputUpdate: () => {}
+      onInputUpdate: () => {},
     });
   }
 
@@ -154,7 +157,11 @@ export class Game {
       onStatusChange: (status, msg, msgKey, msgParams) => {
         this.isConnected = status === "connected";
         const controlMode = this.inputManager.getControlMode();
-        window.dispatchEvent(new CustomEvent("game-status", { detail: { status, msg, msgKey, msgParams, controlMode } }));
+        window.dispatchEvent(
+          new CustomEvent("game-status", {
+            detail: { status, msg, msgKey, msgParams, controlMode },
+          }),
+        );
       },
       onPing: (latency) => {
         window.dispatchEvent(new CustomEvent("game-ping", { detail: latency }));
@@ -172,18 +179,20 @@ export class Game {
           window.dispatchEvent(new CustomEvent("game-leaderboard", { detail: msg.leaderboard }));
         }
         if (msg.kill_events) {
-          window.dispatchEvent(new CustomEvent("game-killfeed", {
-            detail: {
-              events: msg.kill_events,
-              players: msg.gameState?.players || {}
-            }
-          }));
+          window.dispatchEvent(
+            new CustomEvent("game-killfeed", {
+              detail: {
+                events: msg.kill_events,
+                players: msg.gameState?.players || {},
+              },
+            }),
+          );
         }
       },
       onDisconnect: () => {
         this.isConnected = false;
         window.dispatchEvent(new CustomEvent("game-disconnect"));
-      }
+      },
     });
   }
 
@@ -203,15 +212,20 @@ export class Game {
       this.networkManager.requestFrame(dt, this.myId, {
         turn: this.inputManager.getTurn(),
         accelerating: this.inputManager.isAccelerating(),
-        mode: this.inputManager.getControlMode()
+        mode: this.inputManager.getControlMode(),
       });
       this.sendNetworkInput();
     }
 
     if (this.latestFrame) {
       this.renderOrchestrator.updateAndRender(
-        dt, now, this.latestFrame, this.myId,
-        this.inputManager.isAccelerating(), this.debugMode, this.gameCamera
+        dt,
+        now,
+        this.latestFrame,
+        this.myId,
+        this.inputManager.isAccelerating(),
+        this.debugMode,
+        this.gameCamera,
       );
     }
 

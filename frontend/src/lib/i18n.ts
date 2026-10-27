@@ -28,7 +28,10 @@ const translations = {
   "menu.guide": { ru: "Подсказки", en: "Guide" },
   "menu.admin": { ru: "Админ-панель", en: "Admin Panel" },
   "menu.showFps": { ru: "Показать FPS", en: "Show FPS" },
-  "menu.showFpsDesc": { ru: "Отображать счетчик кадров и пинг", en: "Display frame rate and performance stats" },
+  "menu.showFpsDesc": {
+    ru: "Отображать счетчик кадров и пинг",
+    en: "Display frame rate and performance stats",
+  },
 
   // Control modes
   "control.touchDrag": { ru: "Сенсорный Драг", en: "Touch Drag" },
@@ -51,14 +54,35 @@ const translations = {
   "help.mouse": { ru: "мышь", en: "mouse" },
 
   // Mobile guide
-  "guide.touchSteer": { ru: "Тяните палец по холсту влево/вправо для плавного руления.", en: "Drag your finger left/right on the canvas to steer smoothly." },
-  "guide.touchBoost": { ru: "Нижняя часть экрана — зона буста. Ускоряйтесь при удержании.", en: "The bottom area is the boost zone. Hold to accelerate." },
-  "guide.tiltSteer": { ru: "Наклоняйте телефон влево/вправо для плавного руления.", en: "Tilt your phone left/right to steer smoothly." },
-  "guide.tiltBoost": { ru: "Нижняя зона экрана — зона ускорения. Удерживайте палец для буста.", en: "The bottom area is the boost zone. Hold your finger to boost." },
-  "guide.keySteer": { ru: "Используйте A/D или стрелочки для руления.", en: "Use A/D or arrows to steer." },
+  "guide.touchSteer": {
+    ru: "Тяните палец по холсту влево/вправо для плавного руления.",
+    en: "Drag your finger left/right on the canvas to steer smoothly.",
+  },
+  "guide.touchBoost": {
+    ru: "Нижняя часть экрана — зона буста. Ускоряйтесь при удержании.",
+    en: "The bottom area is the boost zone. Hold to accelerate.",
+  },
+  "guide.tiltSteer": {
+    ru: "Наклоняйте телефон влево/вправо для плавного руления.",
+    en: "Tilt your phone left/right to steer smoothly.",
+  },
+  "guide.tiltBoost": {
+    ru: "Нижняя зона экрана — зона ускорения. Удерживайте палец для буста.",
+    en: "The bottom area is the boost zone. Hold your finger to boost.",
+  },
+  "guide.keySteer": {
+    ru: "Используйте A/D или стрелочки для руления.",
+    en: "Use A/D or arrows to steer.",
+  },
   "guide.keyBoost": { ru: "Удерживайте Пробел для ускорения.", en: "Hold Space to boost." },
-  "guide.collectFood": { ru: "Очки собираются за поедание светящихся шариков еды.", en: "Collect points by eating glowing food orbs." },
-  "guide.collision": { ru: "Столкновение с телом другого игрока приводит к гибели!", en: "Colliding with another player's body will kill you!" },
+  "guide.collectFood": {
+    ru: "Очки собираются за поедание светящихся шариков еды.",
+    en: "Collect points by eating glowing food orbs.",
+  },
+  "guide.collision": {
+    ru: "Столкновение с телом другого игрока приводит к гибели!",
+    en: "Colliding with another player's body will kill you!",
+  },
 
   // Leaderboard
   "leaderboard.top": { ru: "Топ", en: "Top" },
@@ -71,20 +95,38 @@ const translations = {
 
   // Gyro permission alert
   "alert.gyroDenied": { ru: "Доступ к гироскопу отклонён.", en: "Gyroscope permission denied." },
-  "alert.gyroSecureRequired": { ru: "Управление наклоном работает только через безопасное соединение (HTTPS). На HTTP доступ к гироскопу заблокирован браузером.", en: "Tilt controls require a secure connection (HTTPS). On HTTP, sensor access is blocked by the browser." },
+  "alert.gyroSecureRequired": {
+    ru: "Управление наклоном работает только через безопасное соединение (HTTPS). На HTTP доступ к гироскопу заблокирован браузером.",
+    en: "Tilt controls require a secure connection (HTTPS). On HTTP, sensor access is blocked by the browser.",
+  },
 
   // Default player name
   "game.defaultPlayer": { ru: "Игрок", en: "Player" },
 
   // Status and guides
   "status.connecting": { ru: "Подключение к серверу...", en: "Connecting to server..." },
-  "status.reconnecting": { ru: "Соединение потеряно. Переподключение через {seconds}с...", en: "Connection lost. Reconnecting in {seconds}s..." },
+  "status.reconnecting": {
+    ru: "Соединение потеряно. Переподключение через {seconds}с...",
+    en: "Connection lost. Reconnecting in {seconds}s...",
+  },
   "status.serverRestart": { ru: "Сервер перезагружается...", en: "Server is restarting..." },
-  "status.kbdGuide": { ru: "A/D/Стрелочки — рулить | Пробел — ускорение | T — управление", en: "A/D/Arrows — steer | Space — boost | T — controls" },
-  "status.mouseGuide": { ru: "Движение за курсором | Пробел — ускорение | T — управление", en: "Move with cursor | Space — boost | T — controls" },
+  "status.kbdGuide": {
+    ru: "A/D/Стрелочки — рулить | Пробел — ускорение | T — управление",
+    en: "A/D/Arrows — steer | Space — boost | T — controls",
+  },
+  "status.mouseGuide": {
+    ru: "Движение за курсором | Пробел — ускорение | T — управление",
+    en: "Move with cursor | Space — boost | T — controls",
+  },
   "status.wall": { ru: "Стена", en: "Wall" },
-  "debug.enterScore": { ru: "Укажите новое значение очков для вашей змейки (от 0):", en: "Enter a new score value for your snake (0 or greater):" },
-  "debug.invalidScore": { ru: "Пожалуйста, введите корректное неотрицательное целое число.", en: "Please enter a valid non-negative integer." },
+  "debug.enterScore": {
+    ru: "Укажите новое значение очков для вашей змейки (от 0):",
+    en: "Enter a new score value for your snake (0 or greater):",
+  },
+  "debug.invalidScore": {
+    ru: "Пожалуйста, введите корректное неотрицательное целое число.",
+    en: "Please enter a valid non-negative integer.",
+  },
 } as const;
 
 type TranslationKey = keyof typeof translations;

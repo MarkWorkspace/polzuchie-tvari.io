@@ -1,8 +1,8 @@
 // ROLE: Меши змеек, сплайны, тени. Не физика, не HUD.
 import * as THREE from "three";
-import { patchSnakeMaterial } from "./shaders/snakeBody.glsl";
-import { WORLD_WIDTH, WORLD_HEIGHT, gridSize } from "../game/Config";
+import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { patchSnakeMaterial } from "./shaders/snakeBody.glsl";
 
 export class SnakeRenderer {
   private scene: THREE.Scene;
@@ -24,7 +24,12 @@ export class SnakeRenderer {
     this.initMeshes();
   }
 
-  public update(msg: any, _camera?: THREE.PerspectiveCamera, _width?: number, _height?: number): void {
+  public update(
+    msg: any,
+    _camera?: THREE.PerspectiveCamera,
+    _width?: number,
+    _height?: number,
+  ): void {
     const isSpectator = msg.myId === "spectator_id";
     this.bodyMesh.count = isSpectator ? 1 : 9;
 
@@ -39,7 +44,9 @@ export class SnakeRenderer {
       this.scene.remove(mesh);
       mesh.geometry.dispose();
     });
-    [this.bodyMaterial, this.eyeMaterial, this.pupilMaterial, this.glowMaterial].forEach((mat) => mat.dispose());
+    [this.bodyMaterial, this.eyeMaterial, this.pupilMaterial, this.glowMaterial].forEach((mat) => {
+      mat.dispose();
+    });
   }
 
   private updateUniforms(msg: any): void {
@@ -78,7 +85,12 @@ export class SnakeRenderer {
     this._updateGlow(activePlayers, baseGlowRadius);
   }
 
-  private _updateSingleEyeMesh(mesh: THREE.InstancedMesh, matrices: Float32Array, colors: Float32Array, count: number): void {
+  private _updateSingleEyeMesh(
+    mesh: THREE.InstancedMesh,
+    matrices: Float32Array,
+    colors: Float32Array,
+    count: number,
+  ): void {
     mesh.instanceMatrix.array.set(matrices);
     mesh.instanceMatrix.clearUpdateRanges();
     mesh.instanceMatrix.addUpdateRange(0, count * 16);
@@ -98,7 +110,12 @@ export class SnakeRenderer {
   private _updateEyes(msg: any, count: number): void {
     if (count > 0 && msg.eyeMatrices) {
       this._updateSingleEyeMesh(this.eyeMesh, msg.eyeMatrices, msg.eyeColors, count);
-      this._updateSingleEyeMesh(this.pupilMesh, msg.pupilMatrices, msg.pupilColors, msg.pupilCount || 0);
+      this._updateSingleEyeMesh(
+        this.pupilMesh,
+        msg.pupilMatrices,
+        msg.pupilColors,
+        msg.pupilCount || 0,
+      );
     } else {
       this.eyeMesh.count = 0;
       this.pupilMesh.count = 0;
@@ -133,7 +150,7 @@ export class SnakeRenderer {
     const uInit = {
       uTime: { value: 0.0 },
       uMapWidth: { value: WORLD_WIDTH * gridSize },
-      uMapHeight: { value: WORLD_HEIGHT * gridSize }
+      uMapHeight: { value: WORLD_HEIGHT * gridSize },
     };
 
     this.bodyMaterial = new THREE.MeshStandardMaterial({
@@ -141,7 +158,7 @@ export class SnakeRenderer {
       metalness: 0.2,
       transparent: true,
       depthWrite: true,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
     });
     this.bodyMaterial.userData.uniforms = uInit;
     this.bodyMaterial.onBeforeCompile = (shader) => {
@@ -153,7 +170,7 @@ export class SnakeRenderer {
 
     this.glowMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        uColor: { value: new THREE.Color(1.0, 0.6, 0.1) } // Warm orange glow
+        uColor: { value: new THREE.Color(1.0, 0.6, 0.1) }, // Warm orange glow
       },
       vertexShader: `
         varying vec2 vUv;
@@ -175,7 +192,7 @@ export class SnakeRenderer {
       `,
       transparent: true,
       depthWrite: false,
-      blending: THREE.AdditiveBlending
+      blending: THREE.AdditiveBlending,
     });
   }
 
@@ -186,10 +203,12 @@ export class SnakeRenderer {
 
   private _initBodyMesh(): void {
     const geom = new THREE.BufferGeometry();
-    geom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+    geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3), 3));
     this.bodyMesh = new THREE.InstancedMesh(geom, this.bodyMaterial, 9);
     geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1000000);
-    geom.computeBoundingSphere = () => { /* no-op */ };
+    geom.computeBoundingSphere = () => {
+      /* no-op */
+    };
     RenderConfig.configureMesh(this.bodyMesh, RenderLayer.SnakeBody, { castShadow: true });
     this._setWrapMatrices(WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize);
     this.scene.add(this.bodyMesh);
@@ -208,10 +227,15 @@ export class SnakeRenderer {
     this.wrapWidth = width;
     this.wrapHeight = height;
     const offsets: [number, number][] = [
-      [0, 0], [width, 0], [-width, 0],
-      [0, height], [0, -height],
-      [width, height], [-width, height],
-      [width, -height], [-width, -height]
+      [0, 0],
+      [width, 0],
+      [-width, 0],
+      [0, height],
+      [0, -height],
+      [width, height],
+      [-width, height],
+      [width, -height],
+      [-width, -height],
     ];
     const mat = new THREE.Matrix4();
     for (let i = 0; i < offsets.length; i++) {
@@ -243,7 +267,12 @@ export class SnakeRenderer {
     this.scene.add(this.glowMesh);
   }
 
-  private updateDynamicAttr(geom: THREE.BufferGeometry, name: string, data: Float32Array, itemSize: number): void {
+  private updateDynamicAttr(
+    geom: THREE.BufferGeometry,
+    name: string,
+    data: Float32Array,
+    itemSize: number,
+  ): void {
     let attr = geom.getAttribute(name) as THREE.BufferAttribute | undefined;
     const requiredLength = data.length;
 

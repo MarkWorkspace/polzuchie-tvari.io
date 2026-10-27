@@ -19,7 +19,9 @@ export class InputManager {
   }
 
   private detectDevice(): void {
-    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent,
+    );
     this.controlMode = this.isMobile ? "mouse" : "keyboard";
   }
 
@@ -96,16 +98,20 @@ export class InputManager {
     if (e.repeat) return;
 
     const activeEl = document.activeElement;
-    const isInputActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
+    const isInputActive =
+      activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
     if (isInputActive) return;
-    
+
     e.stopPropagation();
 
     if (e.code === "KeyT") {
       this.setControlMode(this.controlMode === "keyboard" ? "mouse" : "keyboard");
       return;
     }
-    if (this.controlMode === "keyboard" && ["ArrowLeft", "KeyA", "ArrowRight", "KeyD"].includes(e.code)) {
+    if (
+      this.controlMode === "keyboard" &&
+      ["ArrowLeft", "KeyA", "ArrowRight", "KeyD"].includes(e.code)
+    ) {
       this.pressedKeys.add(e.code);
       this.recalculateTurn();
     }
@@ -117,11 +123,15 @@ export class InputManager {
 
   private handleKeyUp = (e: KeyboardEvent): void => {
     const activeEl = document.activeElement;
-    const isInputActive = activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
+    const isInputActive =
+      activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
     if (isInputActive) return;
     e.stopPropagation();
 
-    if (this.controlMode === "keyboard" && ["ArrowLeft", "KeyA", "ArrowRight", "KeyD"].includes(e.code)) {
+    if (
+      this.controlMode === "keyboard" &&
+      ["ArrowLeft", "KeyA", "ArrowRight", "KeyD"].includes(e.code)
+    ) {
       this.pressedKeys.delete(e.code);
       this.recalculateTurn();
     }
@@ -143,7 +153,7 @@ export class InputManager {
   private recalculateTurn(): void {
     const left = this.pressedKeys.has("ArrowLeft") || this.pressedKeys.has("KeyA");
     const right = this.pressedKeys.has("ArrowRight") || this.pressedKeys.has("KeyD");
-    const targetTurn = left && !right ? -1.0 : (right && !left ? 1.0 : 0.0);
+    const targetTurn = left && !right ? -1.0 : right && !left ? 1.0 : 0.0;
     if (this.turn !== targetTurn) {
       this.turn = targetTurn;
       this.onInputUpdateCallback?.();
@@ -169,18 +179,18 @@ export class InputManager {
 
   private handleDeviceOrientation = (e: DeviceOrientationEvent): void => {
     if (this.controlMode !== "tilt" || e.gamma === null) return;
-    
+
     if (this.calibrationGamma === null) {
       this.calibrationGamma = e.gamma;
     }
-    
+
     let diff = e.gamma - this.calibrationGamma;
     if (diff > 180) diff -= 360;
     if (diff < -180) diff += 360;
 
     const maxRoll = 30;
     const roll = Math.max(-maxRoll, Math.min(maxRoll, diff));
-    this.turn = Math.abs(roll) < 5 ? 0 : (roll > 0 ? (roll - 5) : (roll + 5)) / (maxRoll - 5);
+    this.turn = Math.abs(roll) < 5 ? 0 : (roll > 0 ? roll - 5 : roll + 5) / (maxRoll - 5);
     this.onInputUpdateCallback?.();
   };
 }

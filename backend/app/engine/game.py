@@ -5,6 +5,7 @@ from app.engine.registry import registry
 # Auto-discover all systems inside app.engine.systems
 registry.autodiscover()
 
+
 def tick(state) -> None:
     """
     Executes a single server tick by delegating to engine systems in sequence.

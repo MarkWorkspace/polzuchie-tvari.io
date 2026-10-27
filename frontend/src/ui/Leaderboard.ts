@@ -1,6 +1,14 @@
 // ROLE: Топ таблица.
 import { t } from "../lib/i18n";
 
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (char) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] ?? char,
+  );
+}
+
 interface LeaderboardEntry {
   id: string;
   score: number;
@@ -30,11 +38,11 @@ export class Leaderboard {
     this.container = container;
     this.options = options;
     this.limit = options.limit || 10;
-    
-    this.isMobile = typeof window !== "undefined" && (
-      window.matchMedia("(pointer: coarse)").matches || 
-      /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-    );
+
+    this.isMobile =
+      typeof window !== "undefined" &&
+      (window.matchMedia("(pointer: coarse)").matches ||
+        /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
 
     if (options.alwaysOpen) {
       this.isOpen = true;
@@ -65,7 +73,7 @@ export class Leaderboard {
       this.panel.style.boxShadow = "none";
       this.panel.style.padding = "0";
     }
-    
+
     if (!this.options.hideHeader) {
       const header = document.createElement("div");
       header.className = "leaderboard-header";
@@ -75,11 +83,11 @@ export class Leaderboard {
       header.style.justifyContent = "space-between";
       header.style.alignItems = "center";
       header.style.userSelect = "none";
-      
+
       const titleSpan = document.createElement("span");
       titleSpan.innerHTML = `🏆 ${t("leaderboard.top")} ${this.limit}`;
       header.appendChild(titleSpan);
-      
+
       if (canCollapse) {
         const arrowSpan = document.createElement("span");
         arrowSpan.className = "leaderboard-arrow";
@@ -90,7 +98,7 @@ export class Leaderboard {
         arrowSpan.textContent = "▲";
         arrowSpan.style.transform = this.isOpen ? "rotate(180deg)" : "rotate(0deg)";
         header.appendChild(arrowSpan);
-        
+
         header.addEventListener("click", () => {
           this.isOpen = !this.isOpen;
           const listEl = this.panel?.querySelector("#leaderboard-list") as HTMLElement;
@@ -98,18 +106,18 @@ export class Leaderboard {
           arrowSpan.style.transform = this.isOpen ? "rotate(180deg)" : "rotate(0deg)";
         });
 
-        header.addEventListener("mouseenter", () => header.style.color = "#60a5fa");
-        header.addEventListener("mouseleave", () => header.style.color = "");
+        header.addEventListener("mouseenter", () => (header.style.color = "#60a5fa"));
+        header.addEventListener("mouseleave", () => (header.style.color = ""));
       }
       this.panel.appendChild(header);
     }
-    
+
     const listEl = document.createElement("div");
     listEl.className = "leaderboard-list custom-scrollbar";
     listEl.id = "leaderboard-list";
     listEl.style.display = this.isOpen ? "flex" : "none";
     listEl.innerHTML = `<div style="color: var(--text-muted); text-align: center; padding: 10px 0; font-size: 13px;">${t("leaderboard.waiting")}</div>`;
-    
+
     this.panel.appendChild(listEl);
     this.container.appendChild(this.panel);
   }
@@ -138,10 +146,10 @@ export class Leaderboard {
   private createLeaderboardItem(player: LeaderboardEntry, rank: number): HTMLDivElement {
     const item = document.createElement("div");
     item.className = `leaderboard-item ${player.isMe ? "self" : ""}`;
-    
-    const displayName = player.nickname || player.id.substring(0, 8);
+
+    const displayName = escapeHtml(player.nickname || player.id.substring(0, 8));
     const scoreSize = this.options.noBackground ? "12px" : "14px";
-    
+
     item.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
         <span class="leaderboard-name" style="color: ${player.isMe ? "#4ade80" : "inherit"}; font-size: ${scoreSize};">
@@ -154,7 +162,7 @@ export class Leaderboard {
         <span title="${t("leaderboard.deaths")}">💀 ${player.deaths ?? 0}</span>
       </div>
     `;
-    
+
     item.style.flexDirection = "column";
     item.style.alignItems = "flex-start";
     if (this.options.noBackground) {

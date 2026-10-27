@@ -4,6 +4,7 @@ import pkgutil
 from pathlib import Path
 import app.engine.systems
 
+
 @runtime_checkable
 class System(Protocol):
     name: str
@@ -11,6 +12,7 @@ class System(Protocol):
 
     def update(self, world: Any) -> None:
         pass
+
 
 class SystemRegistry:
     def __init__(self):
@@ -31,5 +33,6 @@ class SystemRegistry:
             module = importlib.import_module(f"{package.__name__}.{module_name}")
             if hasattr(module, "system") and isinstance(module.system, System):
                 self.register(module.system)
+
 
 registry = SystemRegistry()

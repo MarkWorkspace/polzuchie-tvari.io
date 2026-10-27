@@ -1,6 +1,6 @@
 // ROLE: Камера для режима спектатора. Поддерживает панорамирование мышкой (перетаскивание) и зум колесиком.
-import * as THREE from "three";
-import { gridSize, WORLD_WIDTH, WORLD_HEIGHT } from "./Config";
+import type * as THREE from "three";
+import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "./Config";
 
 export class SpectatorCamera {
   private currentX = (WORLD_WIDTH / 2) * gridSize;
@@ -77,11 +77,14 @@ export class SpectatorCamera {
   private onWheel = (e: WheelEvent): void => {
     const zoomSpeed = 0.1;
     if (e.deltaY > 0) {
-      this.currentZoom *= (1 + zoomSpeed);
+      this.currentZoom *= 1 + zoomSpeed;
     } else {
-      this.currentZoom *= (1 - zoomSpeed);
+      this.currentZoom *= 1 - zoomSpeed;
     }
-    this.currentZoom = Math.max(50.0, Math.min(this.currentZoom, Math.max(this.mapWidth, this.mapHeight) * gridSize));
+    this.currentZoom = Math.max(
+      50.0,
+      Math.min(this.currentZoom, Math.max(this.mapWidth, this.mapHeight) * gridSize),
+    );
   };
 
   public update(camera: THREE.PerspectiveCamera): void {

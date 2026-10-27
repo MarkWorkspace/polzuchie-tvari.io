@@ -60,9 +60,7 @@ def _process_eating_for_player(
                 dist_x, dist_y = toroidal_delta(
                     hx, hy, f.x, f.y, state.grid_width, state.grid_height
                 )
-                if (dist_x * dist_x + dist_y * dist_y) < (
-                    (head_radius + f.radius) ** 2
-                ):
+                if (dist_x * dist_x + dist_y * dist_y) < ((head_radius + f.radius) ** 2):
                     eaten_value += f.value
                     f.eaten = True
                     state.food_manager.eaten_foods.append(f.id)
@@ -152,5 +150,6 @@ class Food_eatingSystem:
 
     def update(self, world):
         update(world)
+
 
 system = Food_eatingSystem()
