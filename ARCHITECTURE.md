@@ -143,8 +143,8 @@
    - **Формат границы:** Текстовый фрейм WebSocket (UTF-8 строка).
 
 5. **websocket.py (Сервер):**
-   - Принимает текстовые сообщения, проверяет размер (игнорирует > 20 символов).
-   - Выполняет rate limiting (максимум 30 команд в секунду).
+   - Принимает текстовые сообщения, проверяет размер (игнорирует > 32 символов).
+   - Выполняет rate limiting (максимум 50 команд в секунду).
    - Команды `"TURN:..."` парсятся во float и устанавливают флаг `steered_by_mouse = True`.
    - Клавишные команды устанавливают `turn = -1 / 1 / 0` и сбрасывают `steered_by_mouse = False`.
    - Команды пробела переключают `accelerating = True / False`.
@@ -191,7 +191,7 @@
    - В [PostProcessing.ts](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/renderer/PostProcessing.ts#L119) вычисления lensing-эффекта проводятся максимум для `10` черных дыр (соответствует размеру массива `uBlackHoles[10]` в шейдере `lensingMaterial`).
 4. **Сетевые лимиты:**
    - [websocket.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/api/websocket.py#L19) ограничивает количество одновременных подключений до `50` (`MAX_CONNECTIONS`).
-   - Rate limiting входящих сообщений от одного WebSocket-клиента равен `30` сообщений в секунду.
+   - Rate limiting входящих сообщений от одного WebSocket-клиента равен `50` сообщений в секунду.
    - Максимальная длина ника игрока — `16` символов, некорректные скины принудительно сбрасываются в `"#22c55e"`.
 5. **Тороидальный размер ячеек:**
    - Spatial partitioning на сервере ([collision.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/collision.py#L5), [food_eating.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/food_eating.py#L5), [gravity.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/gravity.py#L33), [serialization.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/engine/systems/serialization.py#L7)) и клиенте использует фиксированный размер ячейки `CELL_SIZE = 10.0`.

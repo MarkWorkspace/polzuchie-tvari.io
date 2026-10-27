@@ -7,7 +7,7 @@ from app.engine.state import World
 
 def _world(monkeypatch):
     world = World()
-    monkeypatch.setattr(world, "_save_config_to_disk", lambda: None)
+    monkeypatch.setattr(world, "_save_config_to_disk", lambda *args, **kwargs: None)
     return world
 
 

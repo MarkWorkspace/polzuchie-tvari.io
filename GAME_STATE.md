@@ -15,10 +15,10 @@
 - **`World.reset_state()` полностью очищает состояние:** игроки, спектаторы, очередь ввода, надгробия, spatial grid и кэши игроков.
 - **Лимит текстовой команды клиента увеличен до 32 символов** — `CONTROL_MODE:keyboard` (21 символ) больше не отбрасывается.
 - **Админка переведена на session-cookie:** в cookie хранится случайный токен с TTL, а не сам пароль; `require_admin` проверяет серверную сессию, добавлены `/admin/session` и `/admin/logout`. Cookie остаётся HttpOnly/SameSite=Strict, в production — Secure; login ограничен rate limit.
-- **Добавлены регрессионные тесты:** backend 49 тестов (включая spectator identity, cache race, dead player, BH timer, reset/resize, server resilience), frontend 66 тестов (включая React admin login, PlayerMetrics, Minimap, GrowableArray, NetworkManager). Настройки pytest и Ruff находятся в `backend/pyproject.toml`.
+- **Добавлены регрессионные тесты:** backend 55 тестов (включая spectator identity, cache race, dead player, BH timer, reset/resize, server resilience, config persistence), frontend 67 тестов (включая React admin login, ConfigEditor save errors, PlayerMetrics, Minimap, GrowableArray, NetworkManager). Настройки pytest и Ruff находятся в `backend/pyproject.toml`.
 - **Настроены git-хуки:** `pre-commit` проверяет гигиену, Ruff format/lint, Biome/tsc и тесты затронутого стека, `pre-push` — полный backend/frontend прогон и production-сборку. Конфиг: `.pre-commit-config.yaml`, runner: `scripts/run_checks.py`, установка: `uv sync --project backend && uv run --project backend pre-commit install`.
 - **Backend переведён на `pyproject.toml` + `uv`:** runtime/dev-зависимости и настройки pytest/Ruff живут в `backend/pyproject.toml`, версии фиксирует `backend/uv.lock`; `requirements*.txt` и `pytest.ini` удалены. CI, Dockerfile и `start_dev.bat` используют `uv sync`/`uv run`; Docker обновлён до Python 3.13, CI frontend — до Node 22.
-- **P0-модернизация:** FastAPI/Starlette/uvicorn/protobuf обновлены, `pip-audit` по runtime-зависимостям чист; Vite/Vitest/esbuild обновлены, `npm audit` чист. Добавлены Biome, `strict` TypeScript, отдельный typecheck тестов, self-hosted Outfit, nginx с `/ws`-прокси и security headers, атомарная запись runtime-конфига.
+- **P0-модернизация:** FastAPI/Starlette/uvicorn/protobuf обновлены, `pip-audit` по runtime-зависимостям чист; Vite/Vitest обновлены, `npm audit` чист. Добавлены Biome, `strict` TypeScript, отдельный typecheck тестов, self-hosted Outfit, nginx с `/ws`-прокси и security headers. Конфиг валидируется и сохраняется до применения к live state; для single-file bind mount есть fallback на запись на месте, ошибка сохранения возвращается как 503, а не теряется.
 - **Админка мигрирована на React 19:** `?admin=true`/`/admin` лениво монтирует React-приложение (`src/admin/react/`), старый строковый AdminPanel/ConfigRenderer/AdminDashboard удалён. `ConfigEditor` и `FoodSimulator` сохранены как data-layer; игровой UI и Three.js остаются императивными.
 
 ## ✅ Работает
@@ -106,7 +106,7 @@
 - Устранена утечка asyncio задач при перезапуске сервера через API админки (очистка и отмена `pending_disconnects` в `admin_restart_game`).
 - Оптимизация сборщика мусора (GC) в `collision.py`: предотвращено ежетиковое создание пустых списков для `tombstones`, когда массив пуст, что снижает нагрузку на GC. Устранены дублирующиеся циклы и проверки `player.is_dead` за счет фильтрации активных игроков один раз за тик.
 - Оптимизация сборщика мусора (GC) воркера клиента: устранена ежекадровая аллокация `Float32Array` в `_buildFoodMinimap` за счет использования переиспользуемого `GrowableFloat32Array`. В `FrameComputer.ts` убран дорогостоящий spread-оператор `...state` при формировании кадра, и оптимизирована передача массивов еды, порталов и черных дыр (zero-copy через добавление буферов в `transferables`), что значительно снижает GC-нагрузку.
-- Ограничены данные, возвращаемые `/health` эндпоинтом: теперь он возвращает только `{"status": "ok"}` (предотвращена незначительная утечка информации об онлайне).
+- Ограничены данные, возвращаемые публичным `/health` эндпоинтом: он возвращает только `{"status": "ok"}`. Счётчики игроков/спектаторов отдаёт защищённый `/admin/health`.
 - Оптимизация производительности: Внедрено глобальное кэширование парсинга формул роста (`formula_parser.py`), предотвращающее пересоздание и ре-эвалюацию регулярных выражений на каждое вычисление.
 - Рефакторинг UI (Фаза 9): Статические inline-стили из `main.ts` перенесены в соответствующие CSS-классы (`main.css` и `hud.css`), улучшая читаемость кода и разделение логики и стилей.
 - Очистка логики: Удален нерабочий мертвый код предсказания скорости (dead reckoning) в `CameraPredictor.ts`, значения которого безусловно перезаписывались серверными координатами.
@@ -186,7 +186,7 @@
    - Перемещение змеек через порталы с 5 состояниями конечного автомата (entering, in_transit, exiting и др.), задержкой телепортации и блокировкой повторного входа.
 
 7. **Панель Администратора:**
-   - Полноценную REST/WebSocket панель управления в [AdminPanel.ts](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/admin/AdminPanel.ts) и [admin.py](file:///c:/Users/Engineer/Desktop/snake%20AI/backend/app/api/admin.py).
+   - REST/WebSocket панель управления в React-приложении `frontend/src/admin/react/AdminApp.tsx` и `backend/app/api/admin.py`.
    - Редактирование всех параметров конфигурации в реальном времени, валидация математических формул роста на сервере через AST-дерево.
    - Canvas-симулятор распределения еды по алгоритму Box-Muller в [FoodSimulator.ts](file:///c:/Users/Engineer/Desktop/snake%20AI/frontend/src/admin/FoodSimulator.ts).
    - Удаленный перезапуск сервера с закрытием соединений.

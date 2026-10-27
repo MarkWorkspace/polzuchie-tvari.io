@@ -93,11 +93,12 @@ uv run --project backend python scripts/run_checks.py all
   growing them. Keep functions small and prefer extracting pure helpers.
 - Styles live in `frontend/src/styles/*.css`; avoid adding inline style objects
   in TypeScript except dynamic values (opacity, transforms).
-- Never edit generated files manually: `backend/app/engine/systems/snake_pb2.py`,
-  `frontend/src/worker/shared/snake_proto.js`, its `.d.ts`, or `backend/config.json`
-  (the latter is written by the admin panel).
+- Never edit generated files manually: `backend/app/engine/systems/snake_pb2.py`.
+  `backend/config.json` is runtime state written by the admin panel; edit
+  configuration through the admin API, not by hand.
 - Add a regression test before or with every bug fix. Backend tests use pytest
-  in `backend/tests/`; frontend tests use Vitest in `frontend/src/**/*.test.ts`.
+  in `backend/tests/`; frontend tests use Vitest in
+  `frontend/src/**/*.test.{ts,tsx}`.
 - For cross-stack changes, add/update parity tests or golden fixtures rather
   than relying on manual checks.
 - Prefer focused diffs. Do not reformat unrelated files or delete unfamiliar

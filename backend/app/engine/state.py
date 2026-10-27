@@ -3,6 +3,8 @@ import os
 import json
 import math
 import tempfile
+import errno
+from copy import deepcopy
 from pathlib import Path
 
 from game_config import GameConfig, validate_growth_formula, CELL_SIZE
@@ -147,25 +149,40 @@ class World:
         else:
             player.pending_growth = ideal_pending
 
-    def _save_config_to_disk(self):
+    def _save_config_to_disk(self, config=None):
         path = Path(self.config_file_path)
+        payload = (config or self.config).to_dict()
         temp_path = None
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
+            target_mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
             fd, temp_path = tempfile.mkstemp(
                 dir=str(path.parent),
                 prefix=f".{path.name}.",
                 suffix=".tmp",
                 text=True,
             )
+            os.chmod(temp_path, target_mode)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(self.config.to_dict(), f, indent=4, ensure_ascii=False)
+                json.dump(payload, f, indent=4, ensure_ascii=False)
                 f.write("\n")
-            os.replace(temp_path, path)
-            temp_path = None
+                f.flush()
+                os.fsync(f.fileno())
+            try:
+                os.replace(temp_path, path)
+            except OSError as exc:
+                # A single-file bind mount is a mount point: rename(2)
+                # can fail with EXDEV/EBUSY. Fall back to an in-place write.
+                if exc.errno not in (errno.EXDEV, errno.EBUSY):
+                    raise
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=4, ensure_ascii=False)
+                    f.write("\n")
+                    f.flush()
+                    os.fsync(f.fileno())
+            else:
+                temp_path = None
             print(f"[Config] Successfully saved config to {self.config_file_path}")
-        except Exception as e:
-            print(f"[Config] Failed to save config to disk: {e}")
         finally:
             if temp_path and os.path.exists(temp_path):
                 os.unlink(temp_path)
@@ -178,13 +195,16 @@ class World:
         old_height = self.grid_height
         old_cluster_count = self.config.world.cluster_count
 
-        self.config.apply_patch(patch)
+        # Validate the patch and persist it before mutating live state.
+        candidate = deepcopy(self.config)
+        candidate.apply_patch(patch)
+        self._save_config_to_disk(candidate)
+        self.config = candidate
         self._update_compiled_formulas()
         self._config_updated_this_tick = True
 
         for p in self.players.values():
             self.align_player_growth(p)
-        self._save_config_to_disk()
 
         self.grid_width = self.config.world.width
         self.grid_height = self.config.world.height

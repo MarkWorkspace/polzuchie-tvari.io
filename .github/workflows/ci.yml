@@ -1,6 +1,9 @@
 # ROLE: CI для проекта. uv/pytest/ruff для backend, npm/tsc/vite/vitest для frontend.
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, dev]
@@ -15,6 +18,7 @@ jobs:
   backend:
     name: Backend (uv + ruff + pytest)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -25,7 +29,7 @@ jobs:
           version: "0.11.2"
           python-version: "3.13"
           enable-cache: true
-          cache-dependency-glob: "backend/uv.lock"
+          cache-dependency-glob: "uv.lock"
           working-directory: backend
       - name: Verify lockfile is current
         run: uv lock --check
@@ -40,11 +44,12 @@ jobs:
       - name: Audit runtime dependencies
         run: |
           uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/backend-requirements.txt
-          uvx pip-audit -r /tmp/backend-requirements.txt
+          uvx pip-audit==2.10.1 -r /tmp/backend-requirements.txt
 
   frontend:
     name: Frontend (lint + typecheck + build + vitest)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -57,9 +62,6 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
-      # esbuild's postinstall may be skipped by npm's script policy in CI.
-      - name: Allow esbuild postinstall
-        run: node node_modules/esbuild/install.js
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -74,8 +76,13 @@ jobs:
   docker:
     name: Docker builds
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+      - name: Validate compose configuration
+        run: docker compose config --quiet
+        env:
+          ADMIN_PASSWORD: ci-only
       - name: Build backend image
         run: docker build -t polzuchie-backend:ci backend
       - name: Build frontend image

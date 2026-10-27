@@ -10,9 +10,8 @@ export default defineConfig({
     // Математика и декодер работают в чистом node — DOM не нужен.
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}"],
-    // Доступ к tests_shared/ на корне репо через алиас '@fixtures'.
+    // Доступ к tests_shared/ на корне репо через алиас '@shared-vectors'.
     alias: {
-      "@fixtures": fileURLToPath(new URL("./fixtures/", import.meta.url)),
       "@shared-vectors": fileURLToPath(new URL("../tests_shared/", import.meta.url)),
     },
   },

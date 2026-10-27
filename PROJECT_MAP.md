@@ -29,6 +29,8 @@ frontend/
 ├── vite.config.ts
 ├── package.json
 ├── package-lock.json
+├── tsconfig.json                       # ROLE: Production TypeScript config (strict, excludes tests).
+├── tsconfig.test.json                  # ROLE: Test TypeScript config (DOM + Node types).
 ├── biome.json                          # ROLE: Biome lint/format config for the frontend.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
 ├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
@@ -61,6 +63,10 @@ frontend/
     │   ├── AppleGeometry.ts            # ROLE: Процедурная генерация 3D-геометрии яблока. Не содержит инстансинга и рендеринга.
     │   ├── WatermelonGeometry.ts       # ROLE: Процедурная генерация 3D-геометрии арбуза для FoodRenderer.
     │   ├── GrapeGeometry.ts            # ROLE: Процедурная генерация 3D-геометрии винограда. Не содержит инстансинга и рендеринга.
+    │   ├── MelonGeometry.ts            # ROLE: Процедурная генерация 3D-геометрии дыни.
+    │   ├── MandarinGeometry.ts         # ROLE: Процедурная генерация 3D-геометрии мандарина.
+    │   ├── PearGeometry.ts             # ROLE: Процедурная генерация 3D-геометрии груши.
+    │   ├── PersimmonGeometry.ts        # ROLE: Процедурная генерация 3D-геометрии хурмы.
     │   ├── PortalRenderer.ts           # ROLE: Визуализация порталов.
     │   ├── BlackHoleRenderer.ts        # ROLE: Визуализация чёрных дыр.
     │   ├── TombstoneRenderer.ts        # ROLE: Инстансированные надгробия.
@@ -106,11 +112,14 @@ frontend/
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
     │   ├── Minimap.test.ts             # ROLE: Тесты разбора lightweight-игроков для миникарты.
     │   ├── KillFeed.ts                 # ROLE: Лента убийств.
+    │   ├── GameOverScreen.ts           # ROLE: Оверлей смерти и кнопка респавна.
     │   ├── SteeringIndicator.ts        # ROLE: Шкала поворота мыши.
     │   ├── MobileControls.ts           # ROLE: Мобильные элементы управления.
     │   └── SettingsPanel.ts            # ROLE: Боковая панель настроек.
     ├── admin/
+    │   ├── adminApi.ts                 # ROLE: Admin API URL/fetch helper (dev/prod prefix).
     │   ├── ConfigEditor.ts             # ROLE: Состояние и бизнес-логика конфигурации админ-панели. Без UI.
+    │   ├── ConfigEditor.test.ts        # ROLE: Regression tests for config save error handling.
     │   ├── FoodSimulator.ts            # ROLE: Canvas-симулятор распределения еды. Без UI.
     │   ├── AdminLabels.ts              # ROLE: Метаданные (названия полей, единицы измерения, подсказки) для панели администратора.
     │   └── react/
@@ -122,7 +131,6 @@ frontend/
     │       ├── MapSizeCard.tsx          # ROLE: Width/height editor.
     │       ├── MapSimulator.tsx         # ROLE: Food distribution preview wrapper.
     │       ├── FoodTypesEditor.tsx      # ROLE: Food type editor.
-    │       ├── adminApi.ts              # ROLE: Admin API URL/fetch helper.
     │       └── AdminLogin.test.tsx      # ROLE: React admin login regression tests.
     └── types/
         └── game.ts                     # ROLE: Типы GameState, Player, Food и др. Только типы, без логики.
@@ -241,7 +249,7 @@ tests_shared/
 ```
 .github/
 └── workflows/
-    └── ci.yml                          # ROLE: CI для проекта. Запускает pytest и vitest на push/PR.
+    └── ci.yml                          # ROLE: CI: Ruff/Biome/tsc/pytest/vitest, audits and Docker builds on push/PR.
 ```
 
 ---

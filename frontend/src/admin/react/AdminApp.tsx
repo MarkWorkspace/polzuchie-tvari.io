@@ -1,5 +1,6 @@
 // ROLE: React root for the admin dashboard. Wraps the legacy ConfigEditor model.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { adminFetch } from "../adminApi";
 import { ConfigEditor } from "../ConfigEditor";
 import {
   AdminDashboard,
@@ -8,7 +9,6 @@ import {
   type ServerHealth,
 } from "./AdminDashboard";
 import { AdminLogin } from "./AdminLogin";
-import { adminFetch } from "./adminApi";
 import "../../styles/admin_react.css";
 
 type AdminStatus = "loading" | "login" | "ready";
@@ -27,6 +27,7 @@ export function AdminApp() {
   const [notice, setNotice] = useState<AdminNotice | null>(null);
   const [formulaError, setFormulaError] = useState<string | null>(null);
   const [restartOpen, setRestartOpen] = useState(false);
+  const sessionChecked = useRef(false);
 
   const loadConfig = useCallback(async (currentEditor: ConfigEditor) => {
     setStatus("loading");
@@ -62,6 +63,8 @@ export function AdminApp() {
   );
 
   useEffect(() => {
+    if (sessionChecked.current) return;
+    sessionChecked.current = true;
     void checkSession(editor);
   }, [editor, checkSession]);
 
@@ -78,7 +81,14 @@ export function AdminApp() {
     const poll = async () => {
       const started = performance.now();
       try {
-        const response = await adminFetch("/health");
+        const response = await adminFetch("/admin/health");
+        if (response.status === 401 || response.status === 403) {
+          if (!cancelled) {
+            setStatus("login");
+            setLoginError("Admin session expired");
+          }
+          return;
+        }
         const data = (await response.json()) as { players?: number };
         if (!cancelled) {
           setHealth({
@@ -126,13 +136,19 @@ export function AdminApp() {
 
   const handleLogout = async () => {
     try {
-      await adminFetch("/admin/logout", { method: "POST" });
-    } finally {
-      setEditor(new ConfigEditor());
-      setStatus("login");
-      setLoginError("");
-      setNotice(null);
+      const response = await adminFetch("/admin/logout", { method: "POST" });
+      if (!response.ok && response.status !== 401) {
+        setNotice({ kind: "error", text: `Logout failed (${response.status})` });
+        return;
+      }
+    } catch (error) {
+      setNotice({ kind: "error", text: `Logout failed: ${String(error)}` });
+      return;
     }
+    setEditor(new ConfigEditor());
+    setStatus("login");
+    setLoginError("");
+    setNotice(null);
   };
 
   const handleFieldChange = (draftKey: string, value: string) => {
@@ -163,25 +179,19 @@ export function AdminApp() {
   };
 
   const handleSave = async () => {
-    const message = await editor.save();
-    const isError =
-      message.includes("Error") ||
-      message.includes("error") ||
-      message.includes("syntax") ||
-      message.includes("formula");
+    const result = await editor.save();
     if (
-      message.includes("Invalid password") ||
-      message.includes("Invalid admin session") ||
-      message.includes("Access error")
+      result.message.includes("Invalid password") ||
+      result.message.includes("Invalid admin session") ||
+      result.message.includes("Access error")
     ) {
       setStatus("login");
-      setLoginError(message);
+      setLoginError(result.message);
       return;
     }
-    if (message.toLowerCase().includes("formula") || message.toLowerCase().includes("syntax")) {
-      setFormulaError(message);
-    }
-    setNotice({ kind: isError ? "error" : "success", text: message });
+    const isFormulaError = /growth|segment|formula|math|variable/i.test(result.message);
+    setFormulaError(!result.ok && isFormulaError ? result.message : null);
+    setNotice({ kind: result.ok ? "success" : "error", text: result.message });
     setRevision((current) => current + 1);
   };
 
@@ -189,10 +199,18 @@ export function AdminApp() {
     setRestartOpen(false);
     try {
       const response = await adminFetch("/admin/restart", { method: "POST" });
+      if (response.status === 401 || response.status === 403) {
+        setStatus("login");
+        setLoginError("Admin session expired");
+        return;
+      }
       setNotice(
         response.ok
           ? { kind: "success", text: "Server restarted successfully." }
-          : { kind: "error", text: `Restart failed: ${response.statusText}` },
+          : {
+              kind: "error",
+              text: `Restart failed (${response.status}${response.statusText ? `: ${response.statusText}` : ""})`,
+            },
       );
     } catch (error) {
       setNotice({ kind: "error", text: `Restart error: ${String(error)}` });

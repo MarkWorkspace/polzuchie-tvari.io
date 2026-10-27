@@ -12,8 +12,9 @@ export function AdminLogin({ error, isSubmitting, onSubmit }: AdminLoginProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!password.trim() || isSubmitting) return;
-    await onSubmit(password);
+    const trimmedPassword = password.trim();
+    if (!trimmedPassword || isSubmitting) return;
+    await onSubmit(trimmedPassword);
   };
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {

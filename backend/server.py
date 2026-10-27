@@ -25,6 +25,7 @@ from app.api.admin import (
     get_admin_config,
     patch_admin_config,
     health_check,
+    admin_health,
     admin_restart_game,
     require_admin,
     admin_login,
@@ -159,6 +160,8 @@ app.get("/admin/session")(admin_session)
 app.get("/ws/admin/session")(admin_session)
 
 admin_router = APIRouter(dependencies=[Depends(require_admin)])
+admin_router.get("/admin/health")(admin_health)
+admin_router.get("/ws/admin/health")(admin_health)
 admin_router.get("/admin/config")(get_admin_config)
 admin_router.get("/ws/admin/config")(get_admin_config)
 admin_router.patch("/admin/config")(patch_admin_config)

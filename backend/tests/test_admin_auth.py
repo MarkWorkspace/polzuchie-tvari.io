@@ -12,6 +12,7 @@ from app.api.admin import (
     admin_logout,
     admin_password,
     admin_session,
+    health_check,
     require_admin,
 )
 
@@ -21,7 +22,7 @@ def _reset_admin_state():
     _login_attempts.clear()
 
 
-def _request(host: str = "test", scheme: str = "http") -> Request:
+def _request(host: str = "test", scheme: str = "http", headers=None) -> Request:
     return Request(
         {
             "type": "http",
@@ -29,7 +30,7 @@ def _request(host: str = "test", scheme: str = "http") -> Request:
             "server": ("test", 80),
             "path": "/admin/login",
             "client": (host, 123),
-            "headers": [],
+            "headers": headers or [],
             "query_string": b"",
             "root_path": "",
         }
@@ -118,6 +119,57 @@ async def test_admin_login_failure():
 
 
 @pytest.mark.asyncio
+async def test_correct_password_is_not_blocked_by_rate_limit():
+    original_env = os.environ.get("ADMIN_PASSWORD")
+    _reset_admin_state()
+    try:
+        os.environ["ADMIN_PASSWORD"] = "povelitel-polzunov"
+        for _ in range(10):
+            with pytest.raises(HTTPException):
+                await admin_login(LoginRequest(password="wrong"), Response(), _request())
+
+        response = Response()
+        result = await admin_login(
+            LoginRequest(password="povelitel-polzunov"), response, _request()
+        )
+        assert result == {"status": "ok"}
+    finally:
+        _reset_admin_state()
+        if original_env is not None:
+            os.environ["ADMIN_PASSWORD"] = original_env
+        else:
+            os.environ.pop("ADMIN_PASSWORD", None)
+
+
+@pytest.mark.asyncio
+async def test_login_rate_limit_is_per_forwarded_client():
+    original_env = os.environ.get("ADMIN_PASSWORD")
+    _reset_admin_state()
+    try:
+        os.environ["ADMIN_PASSWORD"] = "povelitel-polzunov"
+        first = _request(headers=[(b"x-real-ip", b"203.0.113.1")])
+        second = _request(headers=[(b"x-real-ip", b"203.0.113.2")])
+
+        for _ in range(10):
+            with pytest.raises(HTTPException):
+                await admin_login(LoginRequest(password="wrong"), Response(), first)
+
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_login(LoginRequest(password="wrong"), Response(), first)
+        assert exc_info.value.status_code == 429
+
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_login(LoginRequest(password="wrong"), Response(), second)
+        assert exc_info.value.status_code == 401
+    finally:
+        _reset_admin_state()
+        if original_env is not None:
+            os.environ["ADMIN_PASSWORD"] = original_env
+        else:
+            os.environ.pop("ADMIN_PASSWORD", None)
+
+
+@pytest.mark.asyncio
 async def test_admin_cookie_uses_secure_only_on_https():
     original_env = os.environ.get("ADMIN_PASSWORD")
     _reset_admin_state()
@@ -136,14 +188,27 @@ async def test_admin_cookie_uses_secure_only_on_https():
             _request(scheme="https"),
         )
 
+        proxy_response = Response()
+        await admin_login(
+            LoginRequest(password="povelitel-polzunov"),
+            proxy_response,
+            _request(scheme="http", headers=[(b"x-forwarded-proto", b"https")]),
+        )
+
         assert "Secure" not in " ".join(http_response.headers.getlist("set-cookie"))
         assert "Secure" in " ".join(https_response.headers.getlist("set-cookie"))
+        assert "Secure" in " ".join(proxy_response.headers.getlist("set-cookie"))
     finally:
         _reset_admin_state()
         if original_env is not None:
             os.environ["ADMIN_PASSWORD"] = original_env
         else:
             os.environ.pop("ADMIN_PASSWORD", None)
+
+
+@pytest.mark.asyncio
+async def test_public_health_does_not_expose_player_counts():
+    assert await health_check() == {"status": "ok"}
 
 
 @pytest.mark.asyncio

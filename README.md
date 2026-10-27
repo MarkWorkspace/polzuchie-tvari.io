@@ -6,7 +6,7 @@ FastAPI, рендеринг на Three.js и вычисления геометр
 ## Стек
 
 - **Backend:** Python 3.13, FastAPI, WebSocket, Protobuf, uv.
-- **Frontend:** TypeScript, React 19 (admin/UI), Vite, Three.js, Web Worker, Vitest.
+- **Frontend:** TypeScript, React 19 (admin only), Vite, Three.js, Web Worker, Vitest.
 - **Данные:** общая Protobuf-схема и golden-фикстуры в `tests_shared/`.
 
 ## Быстрый старт
@@ -78,9 +78,14 @@ backend format/lint + pytest, frontend lint/typecheck + vitest и production bui
 
 ## Docker
 
+Задайте `ADMIN_PASSWORD` в `.env` (без него production-админка недоступна):
+
 ```bash
 docker compose up --build
 ```
+
+Порты по умолчанию опубликованы только на `127.0.0.1`: frontend — `3000`,
+backend — `8000`.
 
 ## Документация
 

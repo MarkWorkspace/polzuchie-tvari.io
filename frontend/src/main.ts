@@ -65,13 +65,27 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
   } else if (isAdmin) {
-    void import("./admin/react/mountAdmin").then(({ mountAdmin }) => {
-      mountAdmin(app);
-    });
+    showBootScreen(app, "Loading admin");
+    void import("./admin/react/mountAdmin")
+      .then(({ mountAdmin }) => {
+        mountAdmin(app);
+      })
+      .catch(() => {
+        showBootScreen(app, "Could not load the admin panel. Refresh the page.");
+      });
   } else {
     showLoginScreen(app);
   }
 });
+
+function showBootScreen(app: HTMLDivElement, message: string): void {
+  app.innerHTML = `
+    <div class="boot-screen">
+      <div class="boot-spinner" aria-hidden="true"></div>
+      <p>${message}</p>
+    </div>
+  `;
+}
 
 function showLoginScreen(app: HTMLDivElement): void {
   const login = new LoginScreen(app, (nickname, skin) => {

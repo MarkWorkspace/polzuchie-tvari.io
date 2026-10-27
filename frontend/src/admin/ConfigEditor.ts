@@ -1,5 +1,7 @@
 // ROLE: Состояние и бизнес-логика конфигурации админ-панели. Без UI.
+
 import { getNewSectionKey, HIDDEN_FIELDS } from "./AdminLabels";
+import { adminApiUrl } from "./adminApi";
 
 let nextFoodTypeKey = 0;
 
@@ -33,7 +35,7 @@ export class ConfigEditor {
 
   public async load(): Promise<string> {
     try {
-      const res = await fetch(this.getApiUrl(), { credentials: "include" });
+      const res = await fetch(adminApiUrl("/admin/config"), { credentials: "include" });
       if (!res.ok) return `Access error: Invalid password (${res.status})`;
       this.config = await res.json();
       this.resetLocalDrafts();
@@ -43,11 +45,13 @@ export class ConfigEditor {
     }
   }
 
-  public async save(): Promise<string> {
+  public async save(): Promise<{ ok: boolean; message: string }> {
     const patch = this.buildPatch();
-    if (Object.keys(patch).length === 0) return "No changes detected";
+    if (Object.keys(patch).length === 0) {
+      return { ok: true, message: "No changes detected" };
+    }
     try {
-      const res = await fetch(this.getApiUrl(), {
+      const res = await fetch(adminApiUrl("/admin/config"), {
         method: "PATCH",
         headers: { "content-type": "application/json" },
         credentials: "include",
@@ -55,13 +59,17 @@ export class ConfigEditor {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
-        return err?.detail || `Error saving config: ${res.status}`;
+        const detail = err?.detail;
+        const message = Array.isArray(detail)
+          ? detail.map((item: { msg?: string }) => item.msg ?? String(item)).join("; ")
+          : detail || `Error saving config: ${res.status}`;
+        return { ok: false, message };
       }
       this.config = await res.json();
       this.resetLocalDrafts();
-      return "✓ Configuration successfully updated in real-time!";
+      return { ok: true, message: "✓ Configuration successfully updated in real-time!" };
     } catch (e) {
-      return `Network error: ${String(e)}`;
+      return { ok: false, message: `Network error: ${String(e)}` };
     }
   }
 
@@ -178,15 +186,5 @@ export class ConfigEditor {
       patch.food.types = cleanTypes;
     }
     return patch;
-  }
-
-  private getApiUrl(): string {
-    const host = window.location.hostname || "127.0.0.1";
-    const protocol = window.location.protocol;
-    const isDev = import.meta.env.DEV;
-    const port = isDev ? "8000" : window.location.port || "";
-    const portStr = port ? `:${port}` : "";
-    const pathPrefix = isDev ? "" : "/ws";
-    return `${protocol}//${host}${portStr}${pathPrefix}/admin/config`;
   }
 }

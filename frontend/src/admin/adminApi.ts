@@ -1,4 +1,4 @@
-// ROLE: URL helpers and fetch wrappers for the React admin UI. Not game logic.
+// ROLE: URL helpers and fetch wrappers for the admin UI. Not game logic.
 
 export function adminApiUrl(path: string): string {
   const host = window.location.hostname || "127.0.0.1";

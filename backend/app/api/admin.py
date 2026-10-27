@@ -67,9 +67,27 @@ def _is_valid_admin_session(token: str | None) -> bool:
 
 
 def _login_key(request: Request | None) -> str:
-    if request is None or request.client is None:
+    if request is None:
+        return "unknown"
+    # nginx is the only ingress in the shipped compose stack; it sets
+    # X-Real-IP to the browser address. Fall back to the socket peer.
+    forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0]
+    if not forwarded.strip():
+        forwarded = request.headers.get("x-real-ip", "")
+    if forwarded.strip():
+        return forwarded.strip()
+    if request.client is None:
         return "unknown"
     return request.client.host
+
+
+def _prune_login_attempts(now: float | None = None) -> None:
+    now = time.time() if now is None else now
+    for key, attempts in list(_login_attempts.items()):
+        while attempts and attempts[0] < now - LOGIN_RATE_WINDOW_SECONDS:
+            attempts.popleft()
+        if not attempts:
+            _login_attempts.pop(key, None)
 
 
 def _is_login_rate_limited(key: str) -> bool:
@@ -94,15 +112,19 @@ class LoginRequest(BaseModel):
 
 
 async def admin_login(req: LoginRequest, response: Response, request: Request):
+    _prune_login_attempts()
     key = _login_key(request)
-    if _is_login_rate_limited(key):
-        raise HTTPException(status_code=429, detail="Too many login attempts")
-
-    _record_login_attempt(key)
     expected_password = admin_password()
     if not expected_password:
         raise HTTPException(status_code=403, detail="ADMIN_PASSWORD is not configured")
-    if not hmac.compare_digest(req.password, expected_password):
+    if not hmac.compare_digest(req.password.encode(), expected_password.encode()):
+        if _is_login_rate_limited(key):
+            raise HTTPException(
+                status_code=429,
+                detail="Too many login attempts",
+                headers={"Retry-After": str(LOGIN_RATE_WINDOW_SECONDS)},
+            )
+        _record_login_attempt(key)
         raise HTTPException(status_code=401, detail="Invalid admin password")
 
     _login_attempts.pop(key, None)
@@ -153,9 +175,18 @@ async def patch_admin_config(patch: dict, request: Request):
         return request.app.state.world.update_config(patch)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Configuration was validated but could not be persisted",
+        ) from exc
 
 
-async def health_check(request: Request):
+async def health_check():
+    return {"status": "ok"}
+
+
+async def admin_health(request: Request):
     world = getattr(request.app.state, "world", None)
     return {
         "status": "ok",
