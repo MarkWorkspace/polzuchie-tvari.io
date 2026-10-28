@@ -24,7 +24,7 @@ describe("SettingsPanel", () => {
     render(
       <SettingsPanel
         inputManager={inputManager}
-        callbacks={{ onDebugToggle: vi.fn(), onAdminClick: vi.fn(), onFpsToggle }}
+        callbacks={{ onAdminClick: vi.fn(), onFpsToggle }}
       />,
     );
 
@@ -42,7 +42,7 @@ describe("SettingsPanel", () => {
     render(
       <SettingsPanel
         inputManager={null}
-        callbacks={{ onDebugToggle: vi.fn(), onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
+        callbacks={{ onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
       />,
     );
 
@@ -63,7 +63,7 @@ describe("SettingsPanel", () => {
     render(
       <SettingsPanel
         inputManager={null}
-        callbacks={{ onDebugToggle: vi.fn(), onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
+        callbacks={{ onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
       />,
     );
 
@@ -89,7 +89,7 @@ describe("SettingsPanel", () => {
     render(
       <SettingsPanel
         inputManager={null}
-        callbacks={{ onDebugToggle: vi.fn(), onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
+        callbacks={{ onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
         qualityControl={qualityControl}
       />,
     );

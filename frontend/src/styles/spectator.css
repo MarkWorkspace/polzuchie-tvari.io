@@ -1,0 +1,102 @@
+/* ROLE: Player-facing spectator HUD and admin-only debug panels. */
+
+.spectator-badge {
+  grid-column: 1 / span 2;
+  grid-row: 1;
+  justify-self: start;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 240px;
+  padding: 14px 16px;
+}
+
+.spectator-badge-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.spectator-badge-status,
+.spectator-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.spectator-hint {
+  margin: 0;
+}
+
+.spectator-debug-panel {
+  position: absolute;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-family: monospace;
+  font-size: 12px;
+  pointer-events: auto;
+}
+
+.spectator-debug-panel--top {
+  top: 70px;
+  left: 10px;
+}
+
+.spectator-debug-panel--global {
+  top: 300px;
+  left: 10px;
+}
+
+.spectator-debug-panel--snake {
+  right: 10px;
+  bottom: 10px;
+  min-width: 200px;
+  pointer-events: none;
+}
+
+.spectator-debug-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: sans-serif;
+  font-size: 12px;
+  opacity: 0.9;
+  cursor: pointer;
+}
+
+.spectator-debug-label {
+  margin-top: 5px;
+  font-family: sans-serif;
+  font-size: 12px;
+}
+
+.spectator-debug-select {
+  padding: 4px;
+  border: 1px solid #555;
+  background: #222;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .spectator-badge {
+    max-width: 170px;
+    padding: 10px 12px;
+  }
+
+  .spectator-debug-panel--top {
+    top: 12px;
+    left: 12px;
+  }
+
+  .spectator-debug-panel--global {
+    top: 240px;
+  }
+}

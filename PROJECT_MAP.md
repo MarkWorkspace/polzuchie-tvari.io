@@ -36,7 +36,7 @@ frontend/
 ├── e2e/
 │   ├── game.spec.ts                    # ROLE: Smoke login, HUD и настроек качества.
 │   ├── death.spec.ts                   # ROLE: Реальная смерть от чёрной дыры, game-over и respawn.
-│   ├── spectator.spec.ts               # ROLE: Spectator-режим без player identity.
+│   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор (HUD vs админ-панели).
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
 ├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
@@ -47,15 +47,16 @@ frontend/
     ├── main.ts                         # ROLE: Route selection and lazy loading; no game logic.
     ├── game/
     │   ├── bootstrap.ts                # ROLE: Lazy game UI bootstrap (login, HUD, game lifecycle).
-    │   ├── spectatorBootstrap.ts       # ROLE: Lazy spectator UI bootstrap.
+    │   ├── spectatorBootstrap.ts       # ROLE: Lazy spectator bootstrap; выбирает player-HUD или debug-панели.
+    │   ├── spectatorMode.ts            # ROLE: Чистый разбор `?spectator=` / `?debug=` в player/debug режим.
+    │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
     │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
     │   ├── NetworkManager.test.ts      # ROLE: Тесты идентичности player/spectator и storage-ключей.
-    │   ├── SpectatorApp.ts             # ROLE: Приложение режима спектатора. Камера, отладочные панели. Не игровая логика.
-    │   ├── spectatorLeaderboard.ts     # ROLE: Чистая проекция player-снимков в строки spectator-leaderboard.
-    │   ├── spectatorLeaderboard.test.ts # ROLE: Тесты id/сортировки/лимита spectator-leaderboard.
+    │   ├── SpectatorApp.ts             # ROLE: Ядро спектатора: камера, сеть, рендер; debug UI вынесен отдельно.
+    │   ├── SpectatorDebugOverlay.ts    # ROLE: Админские debug-панели спектатора (статы, выбор змейки).
     │   ├── SpectatorCamera.ts          # ROLE: Свободная камера спектатора (pan/zoom), границы карты.
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум. Не рендеринг.
     │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
@@ -133,6 +134,9 @@ frontend/
     │       ├── HudPanel.tsx            # ROLE: React score panel, score feed и ping.
     │       ├── Leaderboard.tsx         # ROLE: React топ-таблица для HUD и настроек.
     │       ├── KillFeed.tsx            # ROLE: React лента убийств.
+    │       ├── SpectatorHud.tsx        # ROLE: Player-facing spectator HUD: бейдж, live-статус, лидерборд.
+    │       ├── SpectatorHud.test.tsx   # ROLE: Тесты spectator HUD.
+    │       ├── mountSpectatorHud.tsx   # ROLE: Mount/unmount React spectator HUD.
     │       ├── mountGameHud.tsx        # ROLE: Mount/unmount React HUD в grid-контейнере.
     │       ├── GameHud.test.tsx        # ROLE: React HUD regression tests.
     │       ├── LoginScreen.tsx         # ROLE: React login and skin selection.

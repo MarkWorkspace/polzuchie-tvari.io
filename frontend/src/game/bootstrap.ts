@@ -58,9 +58,6 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
     settingsContainer,
     game.getInputManager(),
     {
-      onDebugToggle: () => {
-        game.toggleDebug();
-      },
       onAdminClick: () => {
         window.location.search = "?admin=true";
       },

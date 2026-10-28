@@ -1,9 +1,14 @@
-// ROLE: Lazy spectator UI bootstrap. Not renderer or network logic.
+// ROLE: Lazy spectator UI bootstrap. Splits the player-facing view from the admin debug view.
 import { attachGameUiBridge } from "../ui/react/gameUiStore";
 import { mountSettingsPanel } from "../ui/react/mountSettingsPanel";
+import { mountSpectatorHud } from "../ui/react/mountSpectatorHud";
 import { SpectatorApp } from "./SpectatorApp";
 
-export function mountSpectator(app: HTMLDivElement): void {
+export interface SpectatorOptions {
+  debug: boolean;
+}
+
+export function mountSpectator(app: HTMLDivElement, options: SpectatorOptions): void {
   app.replaceChildren();
 
   const canvasContainer = document.createElement("div");
@@ -16,14 +21,15 @@ export function mountSpectator(app: HTMLDivElement): void {
   app.appendChild(hudContainer);
 
   const detachGameUi = attachGameUiBridge();
-  const spectator = new SpectatorApp(canvasContainer);
+  const spectator = new SpectatorApp(canvasContainer, { debug: options.debug });
+  const unmountHud = options.debug ? () => {} : mountSpectatorHud(hudContainer);
+
   const settingsContainer = document.createElement("div");
   app.appendChild(settingsContainer);
   const unmountSettings = mountSettingsPanel(
     settingsContainer,
     null,
     {
-      onDebugToggle: () => {},
       onAdminClick: () => {
         window.location.search = "?admin=true";
       },
@@ -36,6 +42,7 @@ export function mountSpectator(app: HTMLDivElement): void {
 
   window.addEventListener("beforeunload", () => {
     spectator.destroy();
+    unmountHud();
     unmountSettings();
     detachGameUi();
   });

@@ -104,6 +104,14 @@ const translations = {
     en: "Colliding with another player's body will kill you!",
   },
 
+  // Spectator
+  "spectator.title": { ru: "Наблюдение", en: "Spectating" },
+  "spectator.live": { ru: "В эфире", en: "Live" },
+  "spectator.hint": {
+    ru: "Перетаскивайте карту и меняйте масштаб колесом.",
+    en: "Drag the map and scroll to zoom.",
+  },
+
   // Leaderboard
   "leaderboard.top": { ru: "Топ", en: "Top" },
   "leaderboard.kills": { ru: "Убийства", en: "Kills" },

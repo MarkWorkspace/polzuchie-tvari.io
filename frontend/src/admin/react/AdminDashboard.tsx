@@ -123,6 +123,14 @@ export function AdminDashboard({
           <a className="login-button admin-secondary-button" href="/?debug=true">
             🐛 Debug
           </a>
+          <a
+            className="login-button admin-secondary-button"
+            href="/?spectator=debug"
+            target="_blank"
+            rel="noreferrer"
+          >
+            👁 Spectator
+          </a>
           <button
             type="button"
             className="login-button admin-danger-button"

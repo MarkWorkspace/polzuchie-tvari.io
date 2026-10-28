@@ -6,6 +6,9 @@ import "./styles/hud.css";
 import "./styles/admin.css";
 import "./styles/minimap.css";
 import "./styles/settings.css";
+import "./styles/spectator.css";
+
+import { resolveSpectatorMode } from "./game/spectatorMode";
 
 document.addEventListener("DOMContentLoaded", () => {
   // Prevent pinch-to-zoom gestures on iOS devices
@@ -22,12 +25,12 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.pathname.startsWith("/admin") ||
     window.location.hash.startsWith("#admin") ||
     window.location.hash.startsWith("#/admin");
-  const isSpectator = urlParams.has("spectator");
+  const spectatorMode = resolveSpectatorMode(urlParams);
 
-  if (isSpectator) {
+  if (spectatorMode.enabled) {
     showBootScreen(app, "Loading spectator");
     void import("./game/spectatorBootstrap")
-      .then(({ mountSpectator }) => mountSpectator(app))
+      .then(({ mountSpectator }) => mountSpectator(app, { debug: spectatorMode.debug }))
       .catch(() => showBootScreen(app, "Could not load the spectator. Refresh the page."));
   } else if (isAdmin) {
     showBootScreen(app, "Loading admin");

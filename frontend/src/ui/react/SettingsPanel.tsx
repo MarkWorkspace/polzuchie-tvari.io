@@ -6,7 +6,6 @@ import type { RenderQuality, RenderQualityControl } from "../../renderer/RenderQ
 import { Leaderboard } from "./Leaderboard";
 
 export interface SettingsCallbacks {
-  onDebugToggle: () => void;
   onAdminClick: () => void;
   onFpsToggle: (enabled: boolean) => void;
 }
@@ -211,12 +210,12 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
             <button
               type="button"
               className="drawer-control-option"
-              onClick={() => window.open("/?spectator=true", "_blank")}
+              onClick={() => window.open("/?spectator=debug", "_blank")}
             >
               <span className="control-icon">👁</span>
               <span className="control-text">
-                <span className="control-title">Open Spectator</span>
-                <span className="control-desc">Open debug map view in new tab</span>
+                <span className="control-title">Open Debug Spectator</span>
+                <span className="control-desc">Open admin debug map view in a new tab</span>
               </span>
             </button>
           </section>
