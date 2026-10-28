@@ -42,11 +42,19 @@ describe("AdaptiveResolution", () => {
     expect(adaptive.getRatio()).toBe(0.6);
   });
 
-  it("ignores long frame gaps such as a hidden tab", () => {
+  it("lowers the ratio for very slow frames instead of ignoring them", () => {
+    const adaptive = new AdaptiveResolution(0.6, 2, 1);
+
+    expect(runWindow(adaptive, 400, 10)).toBeNull();
+    expect(runWindow(adaptive, 400, 45)).toBe(0.9);
+    expect(adaptive.getRatio()).toBe(0.9);
+  });
+
+  it("ignores multi-second stalls", () => {
     const adaptive = new AdaptiveResolution(0.6, 2, 1);
 
     for (let frame = 0; frame < 100; frame += 1) {
-      expect(adaptive.sample(300)).toBeNull();
+      expect(adaptive.sample(3000)).toBeNull();
     }
     expect(adaptive.getRatio()).toBe(1);
   });

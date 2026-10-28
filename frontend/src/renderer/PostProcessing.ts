@@ -64,6 +64,7 @@ export class PostProcessing {
   private lensingEffect!: LensingEffect;
   private ssaoEnabled: boolean;
   private bloomEnabled: boolean;
+  private pipelineReady = false;
 
   private bhPositionsArray = new Float32Array(30);
   private tempVec3 = new THREE.Vector3();
@@ -86,6 +87,7 @@ export class PostProcessing {
     this.bloomEnabled = options.bloom ?? true;
 
     this.buildPipeline();
+    this.pipelineReady = true;
     this.resize(width, height);
   }
 
@@ -93,7 +95,7 @@ export class PostProcessing {
   public setOptions(options: PostProcessingOptions): void {
     const ssao = options.ssao ?? true;
     const bloom = options.bloom ?? true;
-    if (ssao === this.ssaoEnabled && bloom === this.bloomEnabled) return;
+    if (this.pipelineReady && ssao === this.ssaoEnabled && bloom === this.bloomEnabled) return;
 
     this.ssaoEnabled = ssao;
     this.bloomEnabled = bloom;
@@ -101,7 +103,10 @@ export class PostProcessing {
     const oldPasses = [...this.composer.passes];
     this.composer.removeAllPasses();
     for (const pass of oldPasses) pass.dispose();
+
+    this.pipelineReady = false;
     this.buildPipeline();
+    this.pipelineReady = true;
   }
 
   private buildPipeline(): void {

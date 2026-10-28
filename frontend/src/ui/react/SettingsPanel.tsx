@@ -1,5 +1,5 @@
 // ROLE: React settings drawer (controls, FPS, guide, admin link, leaderboard).
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ControlMode, InputManager } from "../../game/InputManager";
 import { t } from "../../lib/i18n";
 import type { RenderQuality, RenderQualityControl } from "../../renderer/RenderQuality";
@@ -28,7 +28,29 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
   const [quality, setQuality] = useState<RenderQuality>(
     () => qualityControl?.getQuality() ?? "auto",
   );
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
   const debugMode = new URLSearchParams(window.location.search).get("debug") === "true";
+
+  useEffect(() => {
+    if (!open) {
+      if (wasOpen.current) {
+        wasOpen.current = false;
+        triggerRef.current?.focus();
+      }
+      return;
+    }
+
+    wasOpen.current = true;
+    closeRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open]);
 
   const selectMode = (nextMode: ControlMode) => {
     inputManager?.setControlMode(nextMode);
@@ -52,6 +74,7 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         className={`settings-trigger ${open ? "hidden" : ""}`}
         aria-label={t("menu.settings")}
@@ -66,7 +89,7 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
       <button
         type="button"
         className={`settings-overlay ${open ? "visible" : ""}`}
-        aria-label="Close settings"
+        aria-label={t("menu.closeOverlay")}
         aria-hidden={!open}
         disabled={!open}
         tabIndex={-1}
@@ -76,11 +99,20 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
       <aside
         className={`settings-drawer custom-scrollbar ${open ? "open" : ""}`}
         aria-hidden={!open}
+        aria-label={t("menu.title")}
+        aria-modal="true"
+        role="dialog"
         inert={!open}
       >
         <div className="drawer-header">
           <span className="drawer-title">{t("menu.title")}</span>
-          <button type="button" className="drawer-close" onClick={() => setOpen(false)}>
+          <button
+            ref={closeRef}
+            type="button"
+            className="drawer-close"
+            aria-label={t("menu.close")}
+            onClick={() => setOpen(false)}
+          >
             ✕
           </button>
         </div>
@@ -190,9 +222,11 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
           </section>
         ) : null}
 
-        <div className="drawer-leaderboard">
-          <Leaderboard limit={10} alwaysOpen plain />
-        </div>
+        {open ? (
+          <div className="drawer-leaderboard">
+            <Leaderboard limit={10} alwaysOpen plain />
+          </div>
+        ) : null}
 
         <button type="button" className="drawer-admin-link" onClick={callbacks.onAdminClick}>
           <span>⚙</span> Admin Panel

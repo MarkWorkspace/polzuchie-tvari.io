@@ -52,8 +52,28 @@ describe("SettingsPanel", () => {
     expect(trigger).toHaveClass("hidden");
     expect(trigger).toHaveAttribute("aria-hidden", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: "✕" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close menu" }));
     expect(document.querySelector(".settings-drawer")).not.toHaveClass("open");
+  });
+
+  it("focuses the close button, closes on Escape and restores trigger focus", () => {
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+    render(
+      <SettingsPanel
+        inputManager={null}
+        callbacks={{ onDebugToggle: vi.fn(), onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Settings" });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("button", { name: "Close menu" })).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.querySelector(".settings-drawer")).not.toHaveClass("open");
+    expect(trigger).toHaveFocus();
   });
 
   it("changes graphics quality through the control", () => {

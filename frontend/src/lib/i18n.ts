@@ -28,6 +28,8 @@ const translations = {
   "menu.guide": { ru: "Подсказки", en: "Guide" },
   "menu.admin": { ru: "Админ-панель", en: "Admin Panel" },
   "menu.showFps": { ru: "Показать FPS", en: "Show FPS" },
+  "menu.close": { ru: "Закрыть меню", en: "Close menu" },
+  "menu.closeOverlay": { ru: "Закрыть настройки", en: "Close settings" },
   "menu.showFpsDesc": {
     ru: "Отображать счетчик кадров и пинг",
     en: "Display frame rate and performance stats",

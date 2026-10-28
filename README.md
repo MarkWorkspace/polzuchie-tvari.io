@@ -75,7 +75,9 @@ npm run test:e2e
 ```
 
 Перед первым запуском на Linux CI браузер ставится с системными зависимостями:
-`npx playwright install --with-deps chromium`.
+`npx playwright install --with-deps chromium`. Playwright всегда поднимает свой
+backend на `:8000` с `ADMIN_PASSWORD=e2e-admin`; если локальный backend уже
+запущен, остановите его.
 
 ## Git hooks
 

@@ -4,7 +4,8 @@ const TARGET_FPS = 57;
 const LOW_FPS = 45;
 const SAMPLE_WINDOW_MS = 1000;
 const MIN_SAMPLES = 45;
-const MAX_FRAME_GAP_MS = 250;
+// Hidden tabs are filtered in SceneManager; here we only ignore multi-second stalls.
+const MAX_FRAME_GAP_MS = 2000;
 
 export class AdaptiveResolution {
   private readonly minRatio: number;

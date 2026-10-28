@@ -22,11 +22,17 @@ test("plays the game, changes quality and respawns", async ({ page }) => {
   await expect(quality).toHaveValue(/^(auto|high|medium|low)$/);
   await quality.selectOption("low");
   await expect(quality).toHaveValue("low");
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("snake-quality")))
-    .toBe("low");
+  // Re-enable SSAO/bloom and the normal pass, then go back to the cheap preset.
+  await quality.selectOption("high");
+  await expect(quality).toHaveValue("high");
+  await quality.selectOption("low");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("snake-quality"))).toBe("low");
 
-  await page.getByRole("button", { name: "✕", exact: true }).click();
+  const adminLink = page.locator(".drawer-admin-link");
+  await adminLink.scrollIntoViewIfNeeded();
+  await expect(adminLink).toBeInViewport();
+
+  await page.getByRole("button", { name: "Close menu" }).click();
   await expect(drawer).not.toHaveClass(/open/);
 
   await expect

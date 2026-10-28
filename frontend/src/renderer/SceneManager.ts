@@ -146,6 +146,7 @@ export class SceneManager {
 
   private initialPixelRatio(preset: QualityPreset): number {
     const maxRatio = this.maxPixelRatio(preset);
+    // Start auto conservatively at 1x and let the sampler climb if there is headroom.
     return preset.adaptive ? Math.min(1, maxRatio) : maxRatio;
   }
 
@@ -170,6 +171,11 @@ export class SceneManager {
     if (!this.adaptiveResolution) return;
 
     const now = performance.now();
+    if (document.visibilityState !== "visible") {
+      this.lastFrameTime = now;
+      return;
+    }
+
     const delta = now - this.lastFrameTime;
     this.lastFrameTime = now;
 
