@@ -121,7 +121,7 @@ function _handleRequestFrame(msg: any) {
     return;
   }
 
-  const { dt, localInput, gridSize, isSpectator, showAllInMainCopy } = msg;
+  const { dt, localInput, gridSize, isSpectator, showAllInMainCopy, spectatorCam } = msg;
   const tickRate = currentGameState?.server_simulation?.tick_rate ?? 30;
 
   const interpolated = interpolator.interpolate(dt, tickRate);
@@ -150,6 +150,7 @@ function _handleRequestFrame(msg: any) {
       myId,
       isSpectator,
       showAllInMainCopy,
+      spectatorCam,
       camera,
       particles,
       eyes,

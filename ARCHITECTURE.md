@@ -79,7 +79,7 @@
 
 6. **FrameComputer & SnakeProcessor (Воркер):**
    - По запросу `REQUEST_FRAME` от главного потока воркер вызывает `computeFrame`.
-   - Выполняет предсказание локального игрока с помощью [CameraPredictor.predict](frontend/src/worker/CameraPredictor.ts#L27).
+   - Выполняет предсказание локального игрока с помощью [CameraPredictor.predict](frontend/src/worker/CameraPredictor.ts#L27). Для спектатора в запросе передаётся позиция камеры (`spectatorCam`), которая задаёт `localX/localY` и обёртку мира вокруг текущего вида.
    - Вычисляет сплайны змеек ([SplineComputer.computeSplinePaths](frontend/src/worker/SplineComputer.ts#L14)), строит буферы геометрии ([MeshBuilder.appendSnakeMesh](frontend/src/worker/MeshBuilder.ts#L15)), вычисляет позиции глаз (`eyes.addEyes`), симулирует частицы (`ParticleComputer`).
    - Преобразует данные в плоские типизированные массивы `Float32Array` и `Uint32Array` (буферы вершин, индексов, матриц инстансов).
    - **Формат границы:** Сообщение `FRAME_DATA` с набором типизированных массивов в качестве `Transferable Objects` для исключения сборки мусора (GC).
@@ -137,6 +137,7 @@
 
 3. **CameraPredictor (Воркер):**
    - На каждом локальном запросе кадра (`REQUEST_FRAME`), используя значения локального ввода, мгновенно предсказывает позицию игрока (`localX`, `localY`) и угол наклона камеры (`localAngle`) для сглаживания движения камеры до получения подтверждения от сервера.
+   - Для спектатора игрока нет: `localX/localY` берутся из переданной позиции `SpectatorCamera`, чтобы обёртка сущностей и follow-камера работали от текущего вида, а не от центра карты.
 
 4. **WebSocketClient (Воркер):**
    - Пересылает текстовые команды без изменений в WebSocket.

@@ -75,6 +75,25 @@
   transition: var(--transition-smooth);
 }
 
+.leaderboard-item--selectable {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.leaderboard-item--selectable:hover {
+  background: hsla(210, 100%, 50%, 0.08);
+}
+
+.leaderboard-item--selectable.selected {
+  border-color: var(--accent-cyan);
+  background: hsla(190, 100%, 50%, 0.12);
+}
+
 .leaderboard-item-main {
   display: flex;
   justify-content: space-between;

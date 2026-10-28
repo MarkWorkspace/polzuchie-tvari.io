@@ -30,17 +30,21 @@ export class CameraPredictor {
     lastState: GameState | null,
     progress: number,
     gridSize: number,
+    spectatorCam?: { x: number; y: number },
   ): { camX: number; camY: number; camAngle: number } {
     const mapW = state.server_world?.width ?? 100;
     const mapH = state.server_world?.height ?? 100;
     const myPlayer = state.players[myId];
 
     if (!myPlayer) {
-      return {
-        camX: (mapW * gridSize) / 2,
-        camY: -(mapH * gridSize) / 2,
-        camAngle: 0.0,
-      };
+      const camX = spectatorCam?.x ?? (mapW * gridSize) / 2;
+      const camY = spectatorCam?.y ?? -(mapH * gridSize) / 2;
+      // SnakeProcessor wraps around camera.localX/localY, so keep them in sync
+      // with the spectator view instead of the map center.
+      this.localX = (camX - gridSize / 2) / gridSize;
+      this.localY = (-camY - gridSize / 2) / gridSize;
+      this.localAngle = 0.0;
+      return { camX, camY, camAngle: 0.0 };
     }
 
     if (!this.isInitialized) {

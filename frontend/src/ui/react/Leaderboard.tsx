@@ -9,6 +9,8 @@ export interface LeaderboardProps {
   plain?: boolean;
   alwaysOpen?: boolean;
   showMobileTitle?: boolean;
+  selectedId?: string | null;
+  onSelect?: (id: string) => void;
 }
 
 function detectMobile(): boolean {
@@ -23,6 +25,8 @@ export function Leaderboard({
   plain = false,
   alwaysOpen = false,
   showMobileTitle = false,
+  selectedId = null,
+  onSelect,
 }: LeaderboardProps) {
   const entries = useGameLeaderboard();
   const [isMobile] = useState(detectMobile);
@@ -70,23 +74,48 @@ export function Leaderboard({
           {entries.length === 0 ? (
             <div className="leaderboard-empty">{t("leaderboard.waiting")}</div>
           ) : (
-            entries.slice(0, limit).map((player, index) => (
-              <div key={player.id} className={`leaderboard-item ${player.isMe ? "self" : ""}`}>
-                <div className="leaderboard-item-main">
-                  <span className={`leaderboard-name ${player.isMe ? "self" : ""}`}>
-                    <span className="leaderboard-rank">{index + 1}.</span>{" "}
-                    {player.nickname || player.id.substring(0, 8)}
-                  </span>
-                  <span className={`leaderboard-score ${player.isMe ? "self" : ""}`}>
-                    {player.score}
-                  </span>
-                </div>
-                <div className="leaderboard-stats">
-                  <span title={t("leaderboard.kills")}>⚔️ {player.kills ?? 0}</span>
-                  <span title={t("leaderboard.deaths")}>💀 {player.deaths ?? 0}</span>
-                </div>
-              </div>
-            ))
+            entries.slice(0, limit).map((player, index) => {
+              const className = `leaderboard-item ${player.isMe ? "self" : ""} ${
+                onSelect ? "leaderboard-item--selectable" : ""
+              } ${selectedId === player.id ? "selected" : ""}`;
+              const content = (
+                <>
+                  <div className="leaderboard-item-main">
+                    <span className={`leaderboard-name ${player.isMe ? "self" : ""}`}>
+                      <span className="leaderboard-rank">{index + 1}.</span>{" "}
+                      {player.nickname || player.id.substring(0, 8)}
+                    </span>
+                    <span className={`leaderboard-score ${player.isMe ? "self" : ""}`}>
+                      {player.score}
+                    </span>
+                  </div>
+                  <div className="leaderboard-stats">
+                    <span title={t("leaderboard.kills")}>⚔️ {player.kills ?? 0}</span>
+                    <span title={t("leaderboard.deaths")}>💀 {player.deaths ?? 0}</span>
+                  </div>
+                </>
+              );
+
+              if (!onSelect) {
+                return (
+                  <div key={player.id} className={className}>
+                    {content}
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  key={player.id}
+                  type="button"
+                  className={className}
+                  aria-pressed={selectedId === player.id}
+                  onClick={() => onSelect(player.id)}
+                >
+                  {content}
+                </button>
+              );
+            })
           )}
         </div>
       ) : null}

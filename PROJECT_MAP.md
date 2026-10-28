@@ -36,7 +36,7 @@ frontend/
 ├── e2e/
 │   ├── game.spec.ts                    # ROLE: Smoke login, HUD и настроек качества.
 │   ├── death.spec.ts                   # ROLE: Реальная смерть от чёрной дыры, game-over и respawn.
-│   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор (HUD vs админ-панели).
+│   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор, follow по клику и возврат к обзору.
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
 ├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
@@ -57,7 +57,9 @@ frontend/
     │   ├── NetworkManager.test.ts      # ROLE: Тесты идентичности player/spectator и storage-ключей.
     │   ├── SpectatorApp.ts             # ROLE: Ядро спектатора: камера, сеть, рендер; debug UI вынесен отдельно.
     │   ├── SpectatorDebugOverlay.ts    # ROLE: Админские debug-панели спектатора (статы, выбор змейки).
-    │   ├── SpectatorCamera.ts          # ROLE: Свободная камера спектатора (pan/zoom), границы карты.
+    │   ├── SpectatorCamera.ts          # ROLE: Камера спектатора: free-pan/zoom и плавное слежение за игроком.
+    │   ├── spectatorCameraMath.ts     # ROLE: Чистая тороидальная дельта для follow-камеры.
+    │   ├── spectatorCameraMath.test.ts # ROLE: Тесты перехода камеры через границу карты.
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум. Не рендеринг.
     │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
     ├── lib/
@@ -102,7 +104,8 @@ frontend/
     │   ├── StateInterpolation.ts       # ROLE: Очередь состояний, интерполяция между тиками.
     │   ├── SplineComputer.ts           # ROLE: Расчёт 3D-сплайнов змеек.
     │   ├── MeshBuilder.ts              # ROLE: Сборка vertex/index-буферов из сплайнов.
-    │   ├── CameraPredictor.ts          # ROLE: Клиентское предсказание позиции камеры.
+    │   ├── CameraPredictor.ts          # ROLE: Клиентское предсказание позиции камеры; для спектатора использует позицию камеры.
+    │   ├── CameraPredictor.test.ts     # ROLE: Тест обёртки/камеры спектатора в CameraPredictor.
     │   ├── FoodComputer.ts             # ROLE: Матрицы и цвета инстансов еды.
     │   ├── PortalComputer.ts           # ROLE: Матрицы инстансов порталов.
     │   ├── BlackHoleComputer.ts        # ROLE: Матрицы инстансов чёрных дыр.
@@ -134,8 +137,8 @@ frontend/
     │       ├── HudPanel.tsx            # ROLE: React score panel, score feed и ping.
     │       ├── Leaderboard.tsx         # ROLE: React топ-таблица для HUD и настроек.
     │       ├── KillFeed.tsx            # ROLE: React лента убийств.
-    │       ├── SpectatorHud.tsx        # ROLE: Player-facing spectator HUD: бейдж, live-статус, лидерборд.
-    │       ├── SpectatorHud.test.tsx   # ROLE: Тесты spectator HUD.
+    │       ├── SpectatorHud.tsx        # ROLE: Player-facing spectator HUD: бейдж, статус, follow и лидерборд.
+    │       ├── SpectatorHud.test.tsx   # ROLE: Тесты spectator HUD и follow-событий.
     │       ├── mountSpectatorHud.tsx   # ROLE: Mount/unmount React spectator HUD.
     │       ├── mountGameHud.tsx        # ROLE: Mount/unmount React HUD в grid-контейнере.
     │       ├── GameHud.test.tsx        # ROLE: React HUD regression tests.

@@ -42,3 +42,34 @@ test("debug spectator exposes the admin panels only", async ({ page }) => {
 
   expect(pageErrors).toEqual([]);
 });
+
+test("follows a selected player and returns to overview", async ({ page, context }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  const playerPage = await context.newPage();
+  playerPage.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await playerPage.goto("/");
+  await playerPage.getByLabel("Your nickname").fill("Follow Target");
+  await playerPage.getByRole("button", { name: "Play", exact: true }).click();
+  await expect(playerPage.locator(".hud-guide.connected")).toBeVisible();
+
+  await page.goto("/?spectator=true");
+  const row = page.locator(".leaderboard-item--selectable").filter({ hasText: "Follow Target" });
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.locator(".spectator-following")).toContainText("Following: Follow Target");
+
+  await page.getByRole("button", { name: "Map overview" }).click();
+  await expect(page.locator(".spectator-following")).toHaveCount(0);
+
+  await row.click();
+  await expect(page.locator(".spectator-following")).toContainText("Following: Follow Target");
+
+  // Losing the followed player must clear the follow state automatically.
+  await playerPage.close();
+  await expect(page.locator(".spectator-following")).toHaveCount(0);
+
+  expect(pageErrors).toEqual([]);
+});

@@ -20,6 +20,7 @@ export class SpectatorApp {
   private latestFrame: any = null;
   private readonly debug: boolean;
   private readonly debugOverlay: SpectatorDebugOverlay | null;
+  private followedPlayerId: string | null = null;
   private displayedPing = 0;
   private lastPingUpdate = 0;
 
@@ -47,6 +48,8 @@ export class SpectatorApp {
         this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
       });
     }
+
+    window.addEventListener("spectator-follow", this.handleFollowRequest);
 
     this.networkManager.setCallbacks({
       onStatusChange: (status, msg, msgKey, msgParams) => {
@@ -81,6 +84,36 @@ export class SpectatorApp {
     this.networkManager.connect("Spectator", "spectator", "spectator");
 
     this.tick();
+  }
+
+  private handleFollowRequest = (event: Event): void => {
+    if (this.debug) return;
+    const playerId = (event as CustomEvent<string | null>).detail;
+    this.followedPlayerId = playerId || null;
+    if (!this.followedPlayerId) this.spectatorCamera.showOverview();
+  };
+
+  private stopFollowing(): void {
+    if (!this.followedPlayerId) return;
+    this.followedPlayerId = null;
+    this.spectatorCamera.showOverview();
+    window.dispatchEvent(new CustomEvent("spectator-follow-ended"));
+  }
+
+  private updateFollowTarget(): void {
+    if (!this.followedPlayerId || !this.latestFrame) return;
+
+    const activePlayers = this.latestFrame.activePlayers as
+      | Array<{ id: string; hx: number; hy: number }>
+      | undefined;
+    const target = activePlayers?.find((player) => player.id === this.followedPlayerId);
+    if (target && Number.isFinite(target.hx) && Number.isFinite(target.hy)) {
+      this.spectatorCamera.follow(target.hx, target.hy);
+      return;
+    }
+
+    // The followed snake died or disconnected; return to the free camera.
+    this.stopFollowing();
   }
 
   public getQuality(): RenderQuality {
@@ -119,14 +152,16 @@ export class SpectatorApp {
       dt,
       "spectator_id",
       { turn: 0, accelerating: false, mode: "mouse" },
-      this.debugOverlay ? this.debugOverlay.showAllInMainCopy : true,
+      this.debugOverlay ? this.debugOverlay.showAllInMainCopy : false,
+      this.spectatorCamera.getViewPosition(),
     );
 
     const serverWorld = this.latestFrame?.gameState?.server_world;
     if (serverWorld) {
       this.spectatorCamera.setMapSize(serverWorld.width, serverWorld.height);
     }
-    this.spectatorCamera.update(this.sceneManager.getCamera());
+    this.updateFollowTarget();
+    this.spectatorCamera.update(this.sceneManager.getCamera(), dt);
 
     if (this.debugOverlay) {
       this.raycaster.setFromCamera(this.mouse, this.sceneManager.getCamera());
@@ -157,6 +192,7 @@ export class SpectatorApp {
 
   public destroy(): void {
     cancelAnimationFrame(this.animFrameId);
+    window.removeEventListener("spectator-follow", this.handleFollowRequest);
     this.networkManager.close();
     this.spectatorCamera.destroy();
     this.renderOrchestrator.destroy();

@@ -35,8 +35,8 @@ npm run dev:host
 ```
 
 Админка доступна по `/admin` (или `/?admin=true`); для production nginx
-проксирует `/ws` на backend. Игровой спектатор — `/?spectator=true`,
-админский debug-спектатор — `/?spectator=debug`.
+проксирует `/ws` на backend. Игровой спектатор — `/?spectator=true` (клик по
+игроку в таблице включает слежение), админский debug-спектатор — `/?spectator=debug`.
 
 ## Проверки
 

@@ -204,6 +204,7 @@ export function computeFrame(
   myId: string,
   isSpectator: boolean,
   showAllInMainCopy: boolean,
+  spectatorCam: { x: number; y: number } | undefined,
   camera: CameraPredictor,
   particles: ParticleComputer,
   eyes: EyeComputer,
@@ -213,7 +214,16 @@ export function computeFrame(
   tempFoodColors: Float32Array,
   tempFoodImageIndices: Int32Array,
 ): FrameResult {
-  const cam = camera.predict(dt, myId, localInput, state, lastState, progress, gridSize);
+  const cam = camera.predict(
+    dt,
+    myId,
+    localInput,
+    state,
+    lastState,
+    progress,
+    gridSize,
+    spectatorCam,
+  );
   const myPlayer = state.players[myId];
   const startLength = state.server_snake?.start_length ?? 5;
   const fogRadiusWorld = _calcFogRadius(state, myPlayer, isSpectator);

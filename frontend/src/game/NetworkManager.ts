@@ -56,6 +56,7 @@ export class NetworkManager {
     myId: string,
     input: any,
     showAllInMainCopy: boolean = false,
+    spectatorCam?: { x: number; y: number },
   ): void {
     if (!this.worker || this.isWaitingForFrame) return;
 
@@ -70,6 +71,7 @@ export class NetworkManager {
       myId,
       isSpectator: myId === "spectator_id",
       showAllInMainCopy,
+      spectatorCam,
       gridSize,
       localInput: input,
       sentTime: performance.now(),

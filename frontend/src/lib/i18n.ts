@@ -111,6 +111,15 @@ const translations = {
     ru: "Перетаскивайте карту и меняйте масштаб колесом.",
     en: "Drag the map and scroll to zoom.",
   },
+  "spectator.followHint": {
+    ru: "Выберите игрока в таблице, чтобы следить за ним.",
+    en: "Select a player in the table to follow them.",
+  },
+  "spectator.following": {
+    ru: "Слежение: {name}",
+    en: "Following: {name}",
+  },
+  "spectator.overview": { ru: "Обзор карты", en: "Map overview" },
 
   // Leaderboard
   "leaderboard.top": { ru: "Топ", en: "Top" },
