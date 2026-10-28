@@ -29,7 +29,10 @@ export class TombstoneRenderer {
       this.MAX_INSTANCES,
     );
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    RenderConfig.configureMesh(this.mesh, RenderLayer.Opaque);
+    RenderConfig.configureMesh(this.mesh, RenderLayer.Opaque, {
+      castShadow: true,
+      receiveShadow: true,
+    });
 
     // Move up so it sits on the ground
     this.mesh.position.z = 0.4 * gridSize;

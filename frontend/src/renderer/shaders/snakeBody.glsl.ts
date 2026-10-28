@@ -83,6 +83,8 @@ export const fragmentColorReplace = `
     baseColor = vCustomColor;
   }
 
+  // Keep the body as the flat ribbon it was designed to be. Only the contour
+  // darkens slightly so the silhouette stays readable on the ground.
   float edge = smoothstep(0.85, 0.98, d_dist);
   vec3 finalColor = mix(baseColor, baseColor * 0.8, edge);
 

@@ -5,6 +5,7 @@ import type { EyeComputer } from "./EyeComputer";
 import { appendSnakeMesh, type GeometryBuffers } from "./MeshBuilder";
 import type { ParticleComputer } from "./ParticleComputer";
 import { computeSplinePaths } from "./SplineComputer";
+import { resolveSkinGlowColor } from "./shared/ColorUtils";
 
 function _processSingleSnake(
   playerId: string,
@@ -93,6 +94,7 @@ function _processSingleSnake(
     activePlayerObj.hx = finalHx;
     activePlayerObj.hy = finalHy;
     activePlayerObj.radius = pRadius;
+    activePlayerObj.glowColor = resolveSkinGlowColor(p.skin || "#22c55e");
 
     eyes.addEyes(finalHx, finalHy, pRadius * gridSize, snakeZ, headAngle, fogAmt);
 

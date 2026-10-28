@@ -28,13 +28,35 @@ const FOG_VERTEX_SHADER = `
 const FOG_FRAGMENT_SHADER = `
   uniform vec2 uHeadPos;
   uniform float uRadius;
+  uniform float uTime;
   uniform vec3 uFogColor;
   varying vec2 vWorldPos;
 
+  float hash21(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+  }
+
+  float valueNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(hash21(i), hash21(i + vec2(1.0, 0.0)), u.x),
+      mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x),
+      u.y
+    );
+  }
+
   void main() {
     float dist = length(vWorldPos - uHeadPos);
-    float alpha = smoothstep(uRadius * 0.7, uRadius, dist);
-    gl_FragColor = vec4(uFogColor, alpha);
+    float wobble = (valueNoise(vWorldPos * 0.012 + vec2(uTime * 0.015, -uTime * 0.01)) - 0.5) * uRadius * 0.1;
+    float edge = smoothstep(uRadius * 0.68, uRadius * 0.98, dist + wobble);
+    float haze = smoothstep(uRadius * 0.62, uRadius * 0.82, dist) * (1.0 - smoothstep(uRadius * 0.82, uRadius, dist));
+    vec3 color = uFogColor + vec3(0.018, 0.026, 0.045) * haze;
+    float dither = (hash21(gl_FragCoord.xy) - 0.5) / 255.0;
+    gl_FragColor = vec4(color, clamp(edge + dither, 0.0, 1.0));
   }
 `;
 
@@ -45,8 +67,9 @@ export class SceneManager {
   private camera!: THREE.PerspectiveCamera;
   private postProcessing!: PostProcessing;
 
-  private ambientLight!: THREE.AmbientLight;
+  private hemiLight!: THREE.HemisphereLight;
   private dirLight!: THREE.DirectionalLight;
+  private fillLight!: THREE.DirectionalLight;
   private groundMaterial!: THREE.MeshStandardMaterial;
   private groundMesh!: THREE.Mesh;
 
@@ -85,7 +108,7 @@ export class SceneManager {
     this.currentPixelRatio = this.initialPixelRatio(preset);
     this.renderer.setPixelRatio(this.currentPixelRatio);
     this.renderer.setSize(this.currentWidth, this.currentHeight);
-    this.renderer.setClearColor(0x050506, 1.0);
+    this.renderer.setClearColor(0x08090d, 1.0);
     this.renderer.shadowMap.enabled = preset.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.container.appendChild(this.renderer.domElement);
@@ -132,6 +155,7 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = preset.shadows;
     this.dirLight.castShadow = preset.shadows;
     this.groundMesh.receiveShadow = preset.shadows;
+    this.configureShadowQuality(preset);
 
     this.postProcessing.setOptions({ ssao: preset.ssao, bloom: preset.bloom });
 
@@ -222,15 +246,24 @@ export class SceneManager {
     this.updateAdaptiveResolution();
 
     if (msg) {
+      const camX = msg.camX || 0;
+      const camY = msg.camY || 0;
       this.updateGround(msg);
       this.updateFog(msg);
-      // Update light target to follow camera so shadows are always centered
-      this.dirLight.position.set(msg.camX + 0.1, msg.camY + 0.1, 300);
-      this.dirLight.target.position.set(msg.camX, msg.camY, 0);
-      this.dirLight.target.updateMatrixWorld();
 
-      // Dynamic shadow frustum matching fog radius, but clamped for spectator
-      const d = Math.min(msg.fogRadiusWorld ?? 300, 2000.0);
+      // Keep both light rigs centered on the camera. The key light is offset so
+      // shadows and fruit shading read directionally instead of top-down flat.
+      this.dirLight.position.set(camX + 160, camY + 120, 300);
+      this.dirLight.target.position.set(camX, camY, 0);
+      this.dirLight.target.updateMatrixWorld();
+      this.fillLight.position.set(camX - 180, camY - 140, 220);
+      this.fillLight.target.position.set(camX, camY, 0);
+      this.fillLight.target.updateMatrixWorld();
+
+      // The visible fog radius is 900+ units; shadowing all of it at 2048
+      // texels would be very coarse. Cover the useful near-field instead.
+      const fogRadius = Math.min(msg.fogRadiusWorld ?? 300, 2000.0);
+      const d = Math.min(900, Math.max(300, fogRadius * 0.8));
       const cam = this.dirLight.shadow.camera;
       if (cam.left !== -d || cam.right !== d || cam.top !== d || cam.bottom !== -d) {
         cam.left = -d;
@@ -247,43 +280,62 @@ export class SceneManager {
   }
 
   private setupLighting(): void {
-    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    this.scene.add(this.ambientLight);
+    // Cool sky bounce + warm ground bounce gives the flat scene much more
+    // depth than a single ambient light, for one cheap hemisphere sample.
+    this.hemiLight = new THREE.HemisphereLight(0xbcd2ff, 0x4c3a2c, 0.8);
+    this.scene.add(this.hemiLight);
 
-    this.dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-    this.dirLight.position.set(0.1, 0.1, 300);
+    this.dirLight = new THREE.DirectionalLight(0xfff1db, 1.45);
+    this.dirLight.position.set(160, 120, 300);
     this.dirLight.castShadow = QUALITY_PRESETS[this.quality].shadows;
+    this.configureShadowQuality(QUALITY_PRESETS[this.quality]);
 
-    // Configure shadow frustum size based on our view distance
-    const d = 300;
-    this.dirLight.shadow.camera.left = -d;
-    this.dirLight.shadow.camera.right = d;
-    this.dirLight.shadow.camera.top = d;
-    this.dirLight.shadow.camera.bottom = -d;
-    this.dirLight.shadow.camera.near = 0.5;
-    this.dirLight.shadow.camera.far = 1000;
-
-    this.dirLight.shadow.mapSize.width = 2048;
-    this.dirLight.shadow.mapSize.height = 2048;
-    // Bias to prevent shadow acne
-    this.dirLight.shadow.bias = -0.0005;
-    this.dirLight.shadow.radius = 6; // Soft shadow edges
+    // Shadowless cool fill from the opposite side. It sculpts fruit and
+    // tombstones without adding another shadow-map render pass.
+    this.fillLight = new THREE.DirectionalLight(0x86a8ff, 0.35);
+    this.fillLight.position.set(-180, -140, 220);
+    this.fillLight.castShadow = false;
 
     this.scene.add(this.dirLight);
     this.scene.add(this.dirLight.target);
+    this.scene.add(this.fillLight);
+    this.scene.add(this.fillLight.target);
+  }
+
+  private configureShadowQuality(preset: QualityPreset): void {
+    // Three r184 deprecated PCFSoftShadowMap; PCF plus a radius gives a
+    // similar soft edge with a smaller optional tap count.
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+
+    const shadow = this.dirLight.shadow;
+    shadow.mapSize.set(preset.shadowMapSize, preset.shadowMapSize);
+    shadow.map?.dispose();
+    shadow.map = null;
+    shadow.bias = -0.001;
+    shadow.normalBias = 0.5;
+    shadow.radius = preset.shadowRadius;
+
+    const d = 900;
+    shadow.camera.left = -d;
+    shadow.camera.right = d;
+    shadow.camera.top = d;
+    shadow.camera.bottom = -d;
+    shadow.camera.near = 1;
+    shadow.camera.far = 2000;
+    shadow.camera.updateProjectionMatrix();
   }
 
   private setupGround(): void {
     const uniforms = {
-      uGroundColor: { value: new THREE.Color(0x9a8c84) },
-      uGridColor: { value: new THREE.Color(0x7a6e66) },
+      uGroundColor: { value: new THREE.Color(0x847a72) },
+      uGridColor: { value: new THREE.Color(0x5f574f) },
       uGridSize: { value: 20.0 },
       uWorldWidth: { value: WORLD_WIDTH },
       uWorldHeight: { value: WORLD_HEIGHT },
     };
 
     this.groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0x9a8c84,
+      color: 0x847a72,
       roughness: 1.0,
       metalness: 0.0,
     });
@@ -307,9 +359,9 @@ export class SceneManager {
   private updateGround(msg: any): void {
     const mapW = msg.gameState?.server_world?.width ?? WORLD_WIDTH;
     const mapH = msg.gameState?.server_world?.height ?? WORLD_HEIGHT;
-    const isSpectator = msg.myId === "spectator_id";
-
-    const multiplier = isSpectator ? 1 : 4;
+    // Keep the same generous ground apron in spectator mode too; a map-sized
+    // plane leaves a hard black half-screen when following a player near an edge.
+    const multiplier = 4;
 
     this.groundMesh.position.set((mapW * gridSize) / 2, -(mapH * gridSize) / 2, -2.0);
     this.groundMesh.scale.set(
@@ -329,7 +381,8 @@ export class SceneManager {
     const uniforms = {
       uHeadPos: { value: new THREE.Vector2(0, 0) },
       uRadius: { value: 300.0 },
-      uFogColor: { value: new THREE.Color(5 / 255, 5 / 255, 6 / 255) }, // Almost black
+      uTime: { value: 0.0 },
+      uFogColor: { value: new THREE.Color(8 / 255, 9 / 255, 13 / 255) },
     };
 
     this.fogMaterial = new THREE.ShaderMaterial({
@@ -365,6 +418,7 @@ export class SceneManager {
       const uniforms = this.fogMaterial.uniforms;
       uniforms.uHeadPos.value.set(camX, camY);
       uniforms.uRadius.value = msg.fogRadiusWorld || 300.0;
+      uniforms.uTime.value = performance.now() * 0.001;
     }
   }
 

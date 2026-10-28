@@ -5,6 +5,8 @@ export interface QualityPreset {
   pixelRatioCap: number;
   adaptive: boolean;
   shadows: boolean;
+  shadowMapSize: number;
+  shadowRadius: number;
   ssao: boolean;
   bloom: boolean;
 }
@@ -13,10 +15,42 @@ export const DEFAULT_RENDER_QUALITY: RenderQuality = "auto";
 export const RENDER_QUALITY_STORAGE_KEY = "snake-quality";
 
 export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
-  auto: { pixelRatioCap: 2, adaptive: true, shadows: true, ssao: true, bloom: true },
-  high: { pixelRatioCap: 2, adaptive: false, shadows: true, ssao: true, bloom: true },
-  medium: { pixelRatioCap: 1.5, adaptive: false, shadows: true, ssao: false, bloom: true },
-  low: { pixelRatioCap: 1, adaptive: false, shadows: false, ssao: false, bloom: false },
+  auto: {
+    pixelRatioCap: 2,
+    adaptive: true,
+    shadows: true,
+    shadowMapSize: 2048,
+    shadowRadius: 6,
+    ssao: true,
+    bloom: true,
+  },
+  high: {
+    pixelRatioCap: 2,
+    adaptive: false,
+    shadows: true,
+    shadowMapSize: 2048,
+    shadowRadius: 6,
+    ssao: true,
+    bloom: true,
+  },
+  medium: {
+    pixelRatioCap: 1.5,
+    adaptive: false,
+    shadows: true,
+    shadowMapSize: 1024,
+    shadowRadius: 3,
+    ssao: false,
+    bloom: true,
+  },
+  low: {
+    pixelRatioCap: 1,
+    adaptive: false,
+    shadows: false,
+    shadowMapSize: 512,
+    shadowRadius: 0,
+    ssao: false,
+    bloom: false,
+  },
 };
 
 export interface RenderQualityControl {

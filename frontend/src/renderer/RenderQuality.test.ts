@@ -27,9 +27,32 @@ describe("RenderQuality", () => {
   });
 
   it("keeps the expected effects per preset", () => {
-    expect(QUALITY_PRESETS.auto).toMatchObject({ adaptive: true, shadows: true, ssao: true });
-    expect(QUALITY_PRESETS.high).toMatchObject({ adaptive: false, shadows: true, ssao: true });
-    expect(QUALITY_PRESETS.medium).toMatchObject({ ssao: false, bloom: true });
-    expect(QUALITY_PRESETS.low).toMatchObject({ shadows: false, ssao: false, bloom: false });
+    expect(QUALITY_PRESETS.auto).toMatchObject({
+      adaptive: true,
+      shadows: true,
+      shadowMapSize: 2048,
+      shadowRadius: 6,
+      ssao: true,
+    });
+    expect(QUALITY_PRESETS.high).toMatchObject({
+      adaptive: false,
+      shadows: true,
+      shadowMapSize: 2048,
+      shadowRadius: 6,
+      ssao: true,
+    });
+    expect(QUALITY_PRESETS.medium).toMatchObject({
+      shadowMapSize: 1024,
+      shadowRadius: 3,
+      ssao: false,
+      bloom: true,
+    });
+    expect(QUALITY_PRESETS.low).toMatchObject({
+      shadows: false,
+      shadowMapSize: 512,
+      shadowRadius: 0,
+      ssao: false,
+      bloom: false,
+    });
   });
 });

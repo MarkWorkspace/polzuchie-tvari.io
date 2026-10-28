@@ -1,22 +1,48 @@
-// ROLE: Система частиц (свечение хвоста).
+// ROLE: Система частиц (свечение хвоста). Не симулирует физику и не знает про игроков.
 import * as THREE from "three";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class ParticleRenderer {
   private scene: THREE.Scene;
-  private material: THREE.MeshBasicMaterial;
+  private material: THREE.ShaderMaterial;
   private mesh: THREE.InstancedMesh;
   private maxInstances = 2000;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
 
-    // Create Basic Instanced Particle Material
-    this.material = new THREE.MeshBasicMaterial({
-      side: THREE.DoubleSide,
-      vertexColors: true,
+    // Soft additive sprite instead of a hard square: one texture-free quad.
+    this.material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vColor;
+        void main() {
+          vUv = uv;
+          #ifdef USE_INSTANCING_COLOR
+            vColor = instanceColor;
+          #else
+            vColor = vec3(1.0);
+          #endif
+          gl_Position = projectionMatrix * viewMatrix * modelMatrix * instanceMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec2 vUv;
+        varying vec3 vColor;
+        void main() {
+          float d = length(vUv - 0.5) * 2.0;
+          if (d > 1.0) discard;
+          float core = pow(max(0.0, 1.0 - d), 2.2);
+          float glow = pow(max(0.0, 1.0 - d), 0.7) * 0.35;
+          float alpha = (core + glow) * 0.8;
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(vColor * (0.85 + core * 0.7), alpha);
+        }
+      `,
     });
 
     const geom = new THREE.PlaneGeometry(1, 1);

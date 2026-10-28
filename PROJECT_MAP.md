@@ -68,8 +68,9 @@ frontend/
     │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
     ├── renderer/
-    │   ├── SceneManager.ts             # ROLE: Three.js сцена, свет, рендерер, пресеты качества и adaptive pixel ratio.
-    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, сплайны, тени. Не физика, не HUD.
+    │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, тени, туман, пресеты качества и adaptive pixel ratio.
+    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, сплайны, flat-нормали для света/AO, тени и skin-tinted head glow. Не физика, не HUD.
+    │   ├── AtmosphereEffect.ts         # ROLE: Дешёвый финальный grade: vignette, split-tone, saturation и dither. Без знания сцены.
     │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
     │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.
     │   ├── CherryGeometry.ts           # ROLE: Процедурная генерация 3D-геометрии вишни. Не содержит инстансинга и рендеринга.
@@ -86,9 +87,9 @@ frontend/
     │   ├── PortalRenderer.ts           # ROLE: Визуализация порталов.
     │   ├── BlackHoleRenderer.ts        # ROLE: Визуализация чёрных дыр.
     │   ├── TombstoneRenderer.ts        # ROLE: Инстансированные надгробия.
-    │   ├── ParticleRenderer.ts         # ROLE: Система частиц (свечение хвоста).
-    │   ├── PostProcessing.ts           # ROLE: Tone mapping, bloom/SSAO по пресету, линзирование чёрных дыр.
-    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low) и их persisted-выбор.
+    │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
+    │   ├── PostProcessing.ts           # ROLE: Tone mapping, mipmap-bloom/SSAO по пресету, линзирование чёрных дыр и atmosphere grade.
+    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), размер/радиус shadow map и persisted-выбор.
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
     │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
@@ -96,11 +97,11 @@ frontend/
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
     │   ├── DebugRenderer.test.ts       # ROLE: Тест кратности debug-буферов размеру атрибута.
     │   └── shaders/
-    │       ├── snakeBody.glsl.ts       # ROLE: Шейдер тела змейки (5 скинов, GPU-клиппинг).
+    │       ├── snakeBody.glsl.ts       # ROLE: Шейдер плоской ленты змейки (5 скинов, GPU-клиппинг, контур).
     │       ├── food.glsl.ts            # ROLE: Шейдер еды.
     │       ├── portal.glsl.ts          # ROLE: Шейдер портала.
     │       ├── blackHole.glsl.ts       # ROLE: Шейдер чёрной дыры.
-    │       └── ground.glsl.ts          # ROLE: Шейдер бесконечного пола с сеткой и туманом.
+    │       └── ground.glsl.ts          # ROLE: Шейдер пола: AA-сетка, процедурная фактура и distance fade.
     ├── worker/
     │   ├── worker.ts                   # ROLE: Точка входа воркера, onmessage-роутер. Не содержит вычислений.
     │   ├── StateInterpolation.ts       # ROLE: Очередь состояний, интерполяция между тиками.
@@ -125,7 +126,8 @@ frontend/
     │       ├── PlayerMetrics.test.ts   # ROLE: Тесты размеров/тумана без DOM.
     │       ├── GrowableArray.ts        # ROLE: Динамически расширяемые массивы Float32 и Uint32 для буферов геометрии.
     │       ├── GrowableArray.test.ts   # ROLE: Тесты копирования буферов (без SharedArrayBuffer alias).
-    │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex.
+    │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex, glow-тинт для специальных скинов.
+    │       ├── ColorUtils.test.ts      # ROLE: Тесты парсинга цветов и glow-тинтов скинов.
     │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.

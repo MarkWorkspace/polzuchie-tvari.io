@@ -14,6 +14,7 @@ import {
 } from "postprocessing";
 import * as THREE from "three";
 import { gridSize } from "../game/Config";
+import { AtmosphereEffect } from "./AtmosphereEffect";
 
 const lensingFragmentShader = `
   uniform vec3 uBlackHoles[10];
@@ -62,6 +63,7 @@ export class PostProcessing {
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
   private lensingEffect!: LensingEffect;
+  private atmosphereEffect!: AtmosphereEffect;
   private ssaoEnabled: boolean;
   private bloomEnabled: boolean;
   private pipelineReady = false;
@@ -133,15 +135,16 @@ export class PostProcessing {
     }
 
     this.lensingEffect = new LensingEffect({ bhPositionsArray: this.bhPositionsArray });
+    this.atmosphereEffect = new AtmosphereEffect();
 
     if (useBloom) {
       effects.push(
         new BloomEffect({
-          intensity: 3.0,
-          luminanceThreshold: 0.7,
-          luminanceSmoothing: 0.6,
-          mipmapBlur: false,
-          resolutionScale: 1.0,
+          intensity: 2.2,
+          luminanceThreshold: 0.75,
+          luminanceSmoothing: 0.5,
+          // Mipmap blur is both smoother and cheaper than many tap passes.
+          mipmapBlur: true,
         }),
       );
     }
@@ -151,6 +154,7 @@ export class PostProcessing {
         mode: ToneMappingMode.ACES_FILMIC,
       }),
       this.lensingEffect,
+      this.atmosphereEffect,
     );
 
     this.composer.addPass(new EffectPass(this.camera, ...effects));

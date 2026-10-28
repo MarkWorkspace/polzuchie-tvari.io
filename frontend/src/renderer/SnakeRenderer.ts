@@ -66,6 +66,7 @@ export class SnakeRenderer {
     const bodyGeom = this.bodyMesh.geometry;
     if (msg.bodyVertices && msg.bodyVertices.length > 0) {
       this.updateDynamicAttr(bodyGeom, "position", msg.bodyVertices, 3);
+      this.ensureFlatNormals(bodyGeom);
       this.updateDynamicAttr(bodyGeom, "uv", msg.bodyUVs, 2);
       this.updateDynamicAttr(bodyGeom, "customColor", msg.bodyColors, 3);
       this.updateDynamicAttr(bodyGeom, "snakeParams", msg.bodySnakeParams, 2);
@@ -124,16 +125,25 @@ export class SnakeRenderer {
 
   private _updateGlow(activePlayers: any[], baseGlowRadius: number): void {
     let glowCount = 0;
+    const colors = this.glowMesh.instanceColor?.array as Float32Array | undefined;
     if (baseGlowRadius > 0.0) {
       const dummy = new THREE.Object3D();
       for (let i = 0; i < activePlayers.length; i++) {
         const ap = activePlayers[i];
         if (ap.hx !== undefined && ap.hy !== undefined) {
-          const finalRadius = ap.radius * gridSize + baseGlowRadius * gridSize;
+          const finalRadius = ap.radius * gridSize + baseGlowRadius * gridSize * 0.2;
           dummy.position.set(ap.hx, ap.hy, -0.1);
           dummy.scale.set(finalRadius, finalRadius, 1.0);
           dummy.updateMatrix();
           this.glowMesh.setMatrixAt(glowCount, dummy.matrix);
+
+          if (colors) {
+            const color = ap.glowColor ?? 0xffa64d;
+            const offset = glowCount * 3;
+            colors[offset] = ((color >> 16) & 255) / 255;
+            colors[offset + 1] = ((color >> 8) & 255) / 255;
+            colors[offset + 2] = (color & 255) / 255;
+          }
           glowCount++;
         }
       }
@@ -141,6 +151,11 @@ export class SnakeRenderer {
         this.glowMesh.instanceMatrix.clearUpdateRanges();
         this.glowMesh.instanceMatrix.addUpdateRange(0, glowCount * 16);
         this.glowMesh.instanceMatrix.needsUpdate = true;
+        if (this.glowMesh.instanceColor) {
+          this.glowMesh.instanceColor.clearUpdateRanges();
+          this.glowMesh.instanceColor.addUpdateRange(0, glowCount * 3);
+          this.glowMesh.instanceColor.needsUpdate = true;
+        }
       }
     }
     this.glowMesh.count = glowCount;
@@ -169,25 +184,29 @@ export class SnakeRenderer {
     this.pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
     this.glowMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        uColor: { value: new THREE.Color(1.0, 0.6, 0.1) }, // Warm orange glow
-      },
       vertexShader: `
         varying vec2 vUv;
+        varying vec3 vGlowColor;
         void main() {
           vUv = uv;
+          #ifdef USE_INSTANCING_COLOR
+            vGlowColor = instanceColor;
+          #else
+            vGlowColor = vec3(1.0, 0.65, 0.3);
+          #endif
           gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
-        uniform vec3 uColor;
         varying vec2 vUv;
+        varying vec3 vGlowColor;
         void main() {
           float dist = length(vUv - 0.5) * 2.0;
           float alpha = smoothstep(1.0, 0.0, dist);
-          alpha = pow(alpha, 1.5) * 0.2;
+          alpha = pow(alpha, 2.0) * 0.14;
           if (alpha < 0.01) discard;
-          gl_FragColor = vec4(uColor, alpha);
+          vec3 glowTint = mix(vGlowColor, vec3(1.0), 0.35);
+          gl_FragColor = vec4(glowTint, alpha);
         }
       `,
       transparent: true,
@@ -204,6 +223,7 @@ export class SnakeRenderer {
   private _initBodyMesh(): void {
     const geom = new THREE.BufferGeometry();
     geom.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3), 3));
+    this.ensureFlatNormals(geom);
     this.bodyMesh = new THREE.InstancedMesh(geom, this.bodyMaterial, 9);
     geom.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1000000);
     geom.computeBoundingSphere = () => {
@@ -263,8 +283,29 @@ export class SnakeRenderer {
     const glowGeom = new THREE.PlaneGeometry(2, 2);
     this.glowMesh = new THREE.InstancedMesh(glowGeom, this.glowMaterial, 1000);
     this.glowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const glowColors = new THREE.InstancedBufferAttribute(new Float32Array(1000 * 3), 3);
+    glowColors.setUsage(THREE.DynamicDrawUsage);
+    this.glowMesh.instanceColor = glowColors;
     RenderConfig.configureMesh(this.glowMesh, RenderLayer.Shadow);
     this.scene.add(this.glowMesh);
+  }
+
+  /**
+   * The ribbon lies in the XY plane, so a single static +Z normal is enough.
+   * Keeping it out of the worker payload avoids another large per-frame copy.
+   */
+  private ensureFlatNormals(geom: THREE.BufferGeometry): void {
+    const position = geom.getAttribute("position") as THREE.BufferAttribute | undefined;
+    const required = position?.array.length ?? 0;
+    const normals = geom.getAttribute("normal") as THREE.BufferAttribute | undefined;
+    if (normals && normals.array.length >= required) return;
+
+    const size = Math.max(required, 500000);
+    const array = new Float32Array(size);
+    for (let i = 2; i < size; i += 3) array[i] = 1;
+    const attr = new THREE.BufferAttribute(array, 3);
+    attr.setUsage(THREE.DynamicDrawUsage);
+    geom.setAttribute("normal", attr);
   }
 
   private updateDynamicAttr(
