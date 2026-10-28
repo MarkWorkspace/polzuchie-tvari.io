@@ -144,14 +144,14 @@ export class PostProcessing {
   private buildPipeline(): void {
     const useSsao = this.ssaoEnabled;
     const useBloom = this.bloomEnabled;
-    const effects: Effect[] = [];
+    const baseEffects: Effect[] = [];
 
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
     if (useSsao) {
       const normalPass = new BaseLayerNormalPass(this.scene, this.camera);
       this.composer.addPass(normalPass);
-      effects.push(
+      baseEffects.push(
         new SSAOEffect(this.camera, normalPass.texture, {
           intensity: 1.5,
           radius: 0.05,
@@ -164,30 +164,35 @@ export class PostProcessing {
       );
     }
 
-    this.lensingEffect = new LensingEffect({ bhPositionsArray: this.bhPositionsArray });
-    this.atmosphereEffect = new AtmosphereEffect();
-
     if (useBloom) {
-      effects.push(
+      baseEffects.push(
         new BloomEffect({
-          intensity: 2.2,
-          luminanceThreshold: 0.75,
-          luminanceSmoothing: 0.5,
+          intensity: 1.1,
+          // Low effective threshold so saturated body colors bloom; the
+          // selection-less bloom is kept cheap and only affects bright pixels.
+          luminanceThreshold: 0.18,
+          luminanceSmoothing: 0.2,
+          // A tighter mipmap radius keeps the body halo readable instead of
+          // turning the whole screen into a green fog.
+          radius: 0.45,
           // Mipmap blur is both smoother and cheaper than many tap passes.
           mipmapBlur: true,
         }),
       );
     }
 
-    effects.push(
+    baseEffects.push(
       new ToneMappingEffect({
         mode: ToneMappingMode.ACES_FILMIC,
       }),
-      this.lensingEffect,
-      this.atmosphereEffect,
     );
+    this.composer.addPass(new EffectPass(this.camera, ...baseEffects));
 
-    this.composer.addPass(new EffectPass(this.camera, ...effects));
+    // Lensing samples the input buffer to distort the image. It must live in a
+    // separate pass, after bloom/tonemapping, otherwise it overwrites them.
+    this.lensingEffect = new LensingEffect({ bhPositionsArray: this.bhPositionsArray });
+    this.atmosphereEffect = new AtmosphereEffect();
+    this.composer.addPass(new EffectPass(this.camera, this.lensingEffect, this.atmosphereEffect));
   }
 
   public resize(width: number, height: number): void {
