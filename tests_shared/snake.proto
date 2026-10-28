@@ -125,15 +125,15 @@ message Player {
   optional int32 deaths = 4;
   optional bool accelerating = 5;
   optional bool is_dead = 6;
-  
+
   optional string teleport_state = 7;
   optional float teleport_out_x = 8;
   optional float teleport_out_y = 9;
   optional float teleport_timer_ratio = 10;
-  
+
   optional string skin = 11;
   optional string nickname = 12;
-  
+
   repeated float body = 13 [packed=true];
   repeated float new_heads = 14 [packed=true];
   optional int32 length = 15;
@@ -157,13 +157,13 @@ message GameStateFrame {
   repeated Tombstone tombstones = 9;
   repeated Portal portals = 10;
   repeated BlackHole black_holes = 11;
-  
+
   optional WorldConfig server_world = 12;
   optional SimulationConfig server_simulation = 13;
   optional SnakeConfig server_snake = 14;
   optional VisualConfig server_visual = 15;
   optional FoodConfig server_food = 16;
-  
+
   optional string your_id = 17;
   optional string restart_message = 18;
 }
