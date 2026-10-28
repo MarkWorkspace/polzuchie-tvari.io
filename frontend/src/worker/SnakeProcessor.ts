@@ -96,6 +96,23 @@ function _processSingleSnake(
     activePlayerObj.radius = pRadius;
     activePlayerObj.glowColor = resolveSkinGlowColor(p.skin || "#22c55e");
 
+    // A single body-light at the midpoint reads much better than head-only
+    // lighting on long snakes; keep the delta toroidal.
+    const segmentCount = Math.floor(p.body.length / 2);
+    const midIndex = Math.max(0, Math.floor(segmentCount / 2) - 1) * 2;
+    const tailIndex = Math.max(0, segmentCount - 1) * 2;
+    const bodyPoint = (index: number) => {
+      let dx = p.body[index] - p.body[0];
+      let dy = p.body[index + 1] - p.body[1];
+      if (dx > mapW / 2) dx -= mapW;
+      else if (dx < -mapW / 2) dx += mapW;
+      if (dy > mapH / 2) dy -= mapH;
+      else if (dy < -mapH / 2) dy += mapH;
+      return [finalHx + dx * gridSize, finalHy - dy * gridSize] as const;
+    };
+    [activePlayerObj.mx, activePlayerObj.my] = bodyPoint(midIndex);
+    [activePlayerObj.tx, activePlayerObj.ty] = bodyPoint(tailIndex);
+
     eyes.addEyes(finalHx, finalHy, pRadius * gridSize, snakeZ, headAngle, fogAmt);
 
     nicknames.push({

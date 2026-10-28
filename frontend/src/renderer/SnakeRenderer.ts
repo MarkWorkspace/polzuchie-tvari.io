@@ -214,7 +214,7 @@ export class SnakeRenderer {
         void main() {
           float dist = length(vUv - 0.5) * 2.0;
           float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
-          alpha = pow(alpha, 10.0) * 0.14;
+          alpha = pow(alpha, 10.0) * 0.07;
           if (alpha < 0.01) discard;
           // Glow colors are packed in sRGB; convert before additive blending.
           vec3 glowLinear = pow(max(vGlowColor, vec3(0.0)), vec3(2.2));

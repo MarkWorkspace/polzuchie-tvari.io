@@ -6,12 +6,12 @@ import { SnakeLightPool } from "./SnakeLightPool";
 describe("SnakeLightPool", () => {
   it("prioritizes the local player and respects the active count", () => {
     const scene = new THREE.Scene();
-    const pool = new SnakeLightPool(scene, 2);
+    const pool = new SnakeLightPool(scene, 3);
 
     pool.update(
       [
         { hx: 40, hy: 0, glowColor: 0xff0000, isMe: false },
-        { hx: 0, hy: 0, glowColor: 0x00ff00, isMe: true },
+        { hx: 0, hy: 0, mx: 5, my: 0, tx: 10, ty: 0, glowColor: 0x00ff00, isMe: true },
         { hx: 20, hy: 0, glowColor: 0x0000ff, isMe: false },
       ],
       0,
@@ -22,10 +22,11 @@ describe("SnakeLightPool", () => {
       (child): child is THREE.PointLight => child instanceof THREE.PointLight,
     );
     expect(lights).toHaveLength(4);
-    expect(lights.filter((light) => light.visible)).toHaveLength(2);
-    expect(lights[0].position.x).toBe(0);
+    expect(lights.filter((light) => light.visible)).toHaveLength(3);
+    expect(lights[0].position.x).toBe(5);
     expect(lights[0].color.getHex()).toBe(0x00ff00);
-    expect(lights[1].position.x).toBe(20);
+    expect(lights[1].position.x).toBe(10);
+    expect(lights[2].position.x).toBe(20);
 
     pool.setCount(0);
     expect(lights.every((light) => !light.visible)).toBe(true);
