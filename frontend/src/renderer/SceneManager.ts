@@ -11,6 +11,7 @@ import {
   type RenderQuality,
   saveRenderQuality,
 } from "./RenderQuality";
+import { SnakeLightPool } from "./SnakeLightPool";
 import { patchGroundMaterial } from "./shaders/ground.glsl";
 
 const MIN_PIXEL_RATIO = 0.6;
@@ -70,6 +71,7 @@ export class SceneManager {
   private hemiLight!: THREE.HemisphereLight;
   private dirLight!: THREE.DirectionalLight;
   private fillLight!: THREE.DirectionalLight;
+  private snakeLights!: SnakeLightPool;
   private groundMaterial!: THREE.MeshStandardMaterial;
   private groundMesh!: THREE.Mesh;
 
@@ -92,6 +94,7 @@ export class SceneManager {
     this.initRenderer();
     this.initSceneAndCamera();
     this.setupLighting();
+    this.setupSnakeLights();
     this.setupGround();
     this.setupFog();
     this.initPostProcessing();
@@ -157,6 +160,7 @@ export class SceneManager {
     this.dirLight.castShadow = preset.shadows;
     this.groundMesh.receiveShadow = preset.shadows;
     this.configureShadowQuality(preset);
+    this.snakeLights.setCount(preset.snakeLights);
 
     this.postProcessing.setOptions({ ssao: preset.ssao, bloom: preset.bloom });
 
@@ -210,6 +214,7 @@ export class SceneManager {
 
   public destroy(): void {
     window.removeEventListener("resize", this.handleResize);
+    this.snakeLights.destroy();
     this.postProcessing.destroy();
     this.fogMesh.geometry.dispose();
     this.fogMaterial.dispose();
@@ -251,6 +256,7 @@ export class SceneManager {
       const camY = msg.camY || 0;
       this.updateGround(msg);
       this.updateFog(msg);
+      this.snakeLights.update(msg.activePlayers, camX, camY);
 
       // Keep both light rigs centered on the camera. The key light is offset so
       // shadows and fruit shading read directionally instead of top-down flat.
@@ -301,6 +307,10 @@ export class SceneManager {
     this.scene.add(this.dirLight.target);
     this.scene.add(this.fillLight);
     this.scene.add(this.fillLight.target);
+  }
+
+  private setupSnakeLights(): void {
+    this.snakeLights = new SnakeLightPool(this.scene, QUALITY_PRESETS[this.quality].snakeLights);
   }
 
   private configureShadowQuality(preset: QualityPreset): void {

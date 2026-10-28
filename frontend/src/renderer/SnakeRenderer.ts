@@ -1,4 +1,4 @@
-// ROLE: Меши змеек, плоские нормали для света/AO, тени и skin-tinted head glow. Не физика, не HUD.
+// ROLE: Меши змеек, плоские нормали, emissive-скины, тени и skin-tinted head glow. Не физика, не HUD.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { headGlowRadiusWorld, OVERLAY_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
@@ -180,8 +180,8 @@ export class SnakeRenderer {
     };
 
     this.bodyMaterial = new THREE.MeshStandardMaterial({
-      roughness: 0.8,
-      metalness: 0.2,
+      roughness: 0.85,
+      metalness: 0.0,
       transparent: true,
       depthWrite: true,
       side: THREE.DoubleSide,
@@ -216,7 +216,9 @@ export class SnakeRenderer {
           float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
           alpha = pow(alpha, 10.0) * 0.14;
           if (alpha < 0.01) discard;
-          vec3 glowTint = mix(vGlowColor, vec3(1.0), 0.35);
+          // Glow colors are packed in sRGB; convert before additive blending.
+          vec3 glowLinear = pow(max(vGlowColor, vec3(0.0)), vec3(2.2));
+          vec3 glowTint = mix(glowLinear, vec3(1.0), 0.15);
           gl_FragColor = vec4(glowTint, alpha);
         }
       `,

@@ -32,6 +32,7 @@ describe("RenderQuality", () => {
       shadows: true,
       shadowMapSize: 2048,
       shadowRadius: 6,
+      snakeLights: 3,
       ssao: true,
     });
     expect(QUALITY_PRESETS.high).toMatchObject({
@@ -39,11 +40,13 @@ describe("RenderQuality", () => {
       shadows: true,
       shadowMapSize: 2048,
       shadowRadius: 6,
+      snakeLights: 3,
       ssao: true,
     });
     expect(QUALITY_PRESETS.medium).toMatchObject({
       shadowMapSize: 1024,
       shadowRadius: 3,
+      snakeLights: 2,
       ssao: false,
       bloom: true,
     });
@@ -51,6 +54,7 @@ describe("RenderQuality", () => {
       shadows: false,
       shadowMapSize: 512,
       shadowRadius: 0,
+      snakeLights: 1,
       ssao: false,
       bloom: false,
     });

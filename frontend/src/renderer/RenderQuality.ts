@@ -1,4 +1,4 @@
-// ROLE: Graphics quality presets (including shadow-map budget), persistence and the quality control contract. No rendering.
+// ROLE: Graphics quality presets (shadow map + snake-light budget), persistence and the quality control contract. No rendering.
 export type RenderQuality = "auto" | "high" | "medium" | "low";
 
 export interface QualityPreset {
@@ -7,6 +7,7 @@ export interface QualityPreset {
   shadows: boolean;
   shadowMapSize: number;
   shadowRadius: number;
+  snakeLights: number;
   ssao: boolean;
   bloom: boolean;
 }
@@ -21,6 +22,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     shadows: true,
     shadowMapSize: 2048,
     shadowRadius: 6,
+    snakeLights: 3,
     ssao: true,
     bloom: true,
   },
@@ -30,6 +32,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     shadows: true,
     shadowMapSize: 2048,
     shadowRadius: 6,
+    snakeLights: 3,
     ssao: true,
     bloom: true,
   },
@@ -39,6 +42,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     shadows: true,
     shadowMapSize: 1024,
     shadowRadius: 3,
+    snakeLights: 2,
     ssao: false,
     bloom: true,
   },
@@ -48,6 +52,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     shadows: false,
     shadowMapSize: 512,
     shadowRadius: 0,
+    snakeLights: 1,
     ssao: false,
     bloom: false,
   },

@@ -1,4 +1,4 @@
-// ROLE: Шейдер тела змейки (наследует свет, тени, туман и AO).
+// ROLE: Шейдер плоской ленты: свет/AO, sRGB→linear скины, emissive и контур.
 
 export const vertexShaderPrefix = `
   attribute vec3 customColor;
@@ -25,6 +25,11 @@ export const fragmentShaderPrefix = `
   uniform float uTime;
   uniform float uMapWidth;
   uniform float uMapHeight;
+  vec3 bodyFinalColor;
+
+  vec3 srgbToLinear(vec3 color) {
+    return pow(max(color, vec3(0.0)), vec3(2.2));
+  }
 
   vec3 hslToRgb(float h, float s, float l) {
     float c = (1.0 - abs(2.0 * l - 1.0)) * s;
@@ -83,12 +88,32 @@ export const fragmentColorReplace = `
     baseColor = vCustomColor;
   }
 
+  // Skin hex values are authored/parsed in sRGB, while the lighting pipeline
+  // works in linear space. Converting here keeps red from turning pastel.
+  baseColor = srgbToLinear(baseColor);
+
   // Keep the body as the flat ribbon it was designed to be. Only the contour
   // darkens slightly so the silhouette stays readable on the ground.
   float edge = smoothstep(0.85, 0.98, d_dist);
   vec3 finalColor = mix(baseColor, baseColor * 0.8, edge);
 
-  diffuseColor = vec4(finalColor, opacity);
+  // Keep the ribbon readable as a colored light source; a lower diffuse term
+  // prevents white ambient from washing the skin out to pastel.
+  bodyFinalColor = finalColor;
+  diffuseColor = vec4(finalColor * 0.35, opacity);
+`;
+
+export const emissiveReplace = `
+  #include <emissivemap_fragment>
+  // A self-lit term keeps the skin saturated under the cool ambient.
+  totalEmissiveRadiance += bodyFinalColor * 0.55;
+`;
+
+export const saturationReplace = `
+  // Counteract ACES/ambient desaturation on the bodies without touching the world.
+  float bodyLuma = dot(outgoingLight, vec3(0.2126, 0.7152, 0.0722));
+  outgoingLight = mix(vec3(bodyLuma), outgoingLight, 1.05);
+  #include <opaque_fragment>
 `;
 
 export function patchSnakeMaterial(shader: any, uniforms: any) {
@@ -106,5 +131,13 @@ export function patchSnakeMaterial(shader: any, uniforms: any) {
   shader.fragmentShader = shader.fragmentShader.replace(
     "#include <color_fragment>",
     fragmentColorReplace,
+  );
+  shader.fragmentShader = shader.fragmentShader.replace(
+    "#include <emissivemap_fragment>",
+    emissiveReplace,
+  );
+  shader.fragmentShader = shader.fragmentShader.replace(
+    "#include <opaque_fragment>",
+    saturationReplace,
   );
 }

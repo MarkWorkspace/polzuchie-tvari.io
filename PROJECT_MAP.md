@@ -68,8 +68,10 @@ frontend/
     │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
     ├── renderer/
-    │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, тени, туман, пресеты качества и adaptive pixel ratio.
-    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, сплайны, flat-нормали для света/AO, тени и skin-tinted head glow. Не физика, не HUD.
+    │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, цветные snake-light'ы, тени, туман, пресеты качества и adaptive pixel ratio.
+    │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 цветных PointLight для ближайших змей; без теней и геймплея.
+    │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
+    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, сплайны, flat-нормали, emissive-скины, тени и skin-tinted head glow. Не физика, не HUD.
     │   ├── AtmosphereEffect.ts         # ROLE: Дешёвый финальный grade: vignette, split-tone, saturation и dither. Без знания сцены.
     │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
     │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.
@@ -91,7 +93,7 @@ frontend/
     │   ├── TombstoneGeometry.test.ts   # ROLE: Тест габаритов/ориентации и наличия нормалей надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
     │   ├── PostProcessing.ts           # ROLE: Tone mapping, mipmap-bloom/SSAO по пресету, линзирование чёрных дыр и atmosphere grade.
-    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), размер/радиус shadow map и persisted-выбор.
+    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map и snake-light budget.
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
     │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
@@ -100,7 +102,8 @@ frontend/
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
     │   ├── DebugRenderer.test.ts       # ROLE: Тест кратности debug-буферов размеру атрибута.
     │   └── shaders/
-    │       ├── snakeBody.glsl.ts       # ROLE: Шейдер плоской ленты змейки (5 скинов, GPU-клиппинг, контур).
+    │       ├── snakeBody.glsl.ts       # ROLE: Шейдер плоской ленты: 5 скинов, sRGB→linear, emissive, контур.
+    │       ├── snakeBody.glsl.test.ts  # ROLE: Тест точек patch'а тела (linear color, emissive, saturation).
     │       ├── food.glsl.ts            # ROLE: Шейдер еды.
     │       ├── portal.glsl.ts          # ROLE: Шейдер портала.
     │       ├── blackHole.glsl.ts       # ROLE: Шейдер чёрной дыры.
