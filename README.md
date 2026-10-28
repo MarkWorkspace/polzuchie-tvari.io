@@ -101,6 +101,12 @@ docker compose up --build
 Порты по умолчанию опубликованы только на `127.0.0.1`: frontend — `3000`,
 backend — `8000`.
 
+Локальные переопределения не коммитятся: `.env.*` (кроме `.env.example`),
+`docker-compose.override.yml`, `compose.override.yaml` и
+`backend/config.local.json`. Путь к локальному конфигу backend задаётся через
+`CONFIG_PATH` (например, `CONFIG_PATH=config.local.json` при запуске из
+`backend/`).
+
 ## Документация
 
 - `PROJECT_MAP.md` — структура и ответственность файлов.

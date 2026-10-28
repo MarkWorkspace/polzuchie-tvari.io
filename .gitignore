@@ -1,5 +1,7 @@
 # Environment
 .env
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -14,6 +16,15 @@ venv/
 node_modules/
 frontend/dist/
 dist/
+
+# Local overrides
+docker-compose.override.yml
+docker-compose.override.yaml
+compose.override.yml
+compose.override.yaml
+backend/config.local.json
+backend/config.*.local.json
+backend/config.override.json
 
 # OpenCode
 .opencode/plans/
