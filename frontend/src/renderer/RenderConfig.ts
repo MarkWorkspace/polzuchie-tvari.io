@@ -29,6 +29,21 @@ export const RenderLayer = {
 
 export type RenderLayer = (typeof RenderLayer)[keyof typeof RenderLayer];
 
+/**
+ * Overlay objects on this layer are visible to the main camera but excluded
+ * from the normal pass, so the fog/glow/particles do not flatten SSAO normals.
+ */
+export const OVERLAY_LAYER = 1;
+
+/** Converts the configured glow radius from map cells to world units. */
+export function headGlowRadiusWorld(
+  headRadiusWorld: number,
+  glowRadiusCells: number,
+  gridSize: number,
+): number {
+  return headRadiusWorld + Math.max(0, glowRadiusCells) * gridSize;
+}
+
 export class RenderConfig {
   /**
    * Configures a mesh with standard anti-bug settings.

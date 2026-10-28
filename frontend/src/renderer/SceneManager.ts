@@ -1,9 +1,9 @@
-// ROLE: Инициализация Three.js сцены, свет, рендерер.
+// ROLE: Инициализация Three.js сцены, hemisphere/key/fill свет, тени, туман и рендерер.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { AdaptiveResolution } from "./AdaptiveResolution";
 import { PostProcessing } from "./PostProcessing";
-import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { OVERLAY_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 import {
   loadRenderQuality,
   QUALITY_PRESETS,
@@ -122,6 +122,7 @@ export class SceneManager {
       15.0,
       15000.0,
     );
+    this.camera.layers.enable(OVERLAY_LAYER);
   }
 
   private initPostProcessing(): void {
@@ -329,9 +330,7 @@ export class SceneManager {
     const uniforms = {
       uGroundColor: { value: new THREE.Color(0x847a72) },
       uGridColor: { value: new THREE.Color(0x5f574f) },
-      uGridSize: { value: 20.0 },
-      uWorldWidth: { value: WORLD_WIDTH },
-      uWorldHeight: { value: WORLD_HEIGHT },
+      uGridSize: { value: gridSize },
     };
 
     this.groundMaterial = new THREE.MeshStandardMaterial({
@@ -359,22 +358,11 @@ export class SceneManager {
   private updateGround(msg: any): void {
     const mapW = msg.gameState?.server_world?.width ?? WORLD_WIDTH;
     const mapH = msg.gameState?.server_world?.height ?? WORLD_HEIGHT;
-    // Keep the same generous ground apron in spectator mode too; a map-sized
-    // plane leaves a hard black half-screen when following a player near an edge.
-    const multiplier = 4;
 
+    // The geometry is a 4x apron, so a plain map-size scale gives both player
+    // and spectator the same generous ground coverage near map edges.
     this.groundMesh.position.set((mapW * gridSize) / 2, -(mapH * gridSize) / 2, -2.0);
-    this.groundMesh.scale.set(
-      (mapW / WORLD_WIDTH) * (multiplier / 4),
-      (mapH / WORLD_HEIGHT) * (multiplier / 4),
-      1.0,
-    );
-
-    const uniforms = this.groundMaterial.userData.uniforms;
-    if (uniforms) {
-      uniforms.uWorldWidth.value = mapW;
-      uniforms.uWorldHeight.value = mapH;
-    }
+    this.groundMesh.scale.set(mapW / WORLD_WIDTH, mapH / WORLD_HEIGHT, 1.0);
   }
 
   private setupFog(): void {
@@ -400,6 +388,7 @@ export class SceneManager {
     this.fogMesh = new THREE.Mesh(geom, this.fogMaterial);
 
     RenderConfig.configureMesh(this.fogMesh, RenderLayer.FogOverlay);
+    this.fogMesh.layers.set(OVERLAY_LAYER);
     this.fogMesh.position.set((WORLD_WIDTH * gridSize) / 2, -(WORLD_HEIGHT * gridSize) / 2, 50.0);
     this.scene.add(this.fogMesh);
   }

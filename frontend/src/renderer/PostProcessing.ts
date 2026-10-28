@@ -1,4 +1,4 @@
-// ROLE: EffectComposer-пайплайн: tone mapping, опциональные SSAO/bloom, линзирование чёрных дыр.
+// ROLE: EffectComposer-пайплайн: tone mapping, SSAO без overlay-слоя, bloom, линзирование ЧД и atmosphere grade.
 
 import {
   BlendFunction,
@@ -50,6 +50,36 @@ class LensingEffect extends Effect {
         ["uBlackHoleCount", new THREE.Uniform(0)],
       ]),
     });
+  }
+}
+
+/**
+ * The fog, head glow and boost particles live on OVERLAY_LAYER. They must not
+ * write into the normal buffer, otherwise a full-screen fog plane overwrites
+ * every normal and SSAO sees a flat surface.
+ */
+class BaseLayerNormalPass extends NormalPass {
+  private readonly cameraRef: THREE.PerspectiveCamera;
+
+  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+    super(scene, camera);
+    this.cameraRef = camera;
+  }
+
+  public render(
+    renderer: THREE.WebGLRenderer,
+    inputBuffer: THREE.WebGLRenderTarget | null,
+    outputBuffer: THREE.WebGLRenderTarget | null,
+    deltaTime?: number,
+    stencilTest?: boolean,
+  ): void {
+    const mask = this.cameraRef.layers.mask;
+    this.cameraRef.layers.set(0);
+    try {
+      super.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
+    } finally {
+      this.cameraRef.layers.mask = mask;
+    }
   }
 }
 
@@ -119,7 +149,7 @@ export class PostProcessing {
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
     if (useSsao) {
-      const normalPass = new NormalPass(this.scene, this.camera);
+      const normalPass = new BaseLayerNormalPass(this.scene, this.camera);
       this.composer.addPass(normalPass);
       effects.push(
         new SSAOEffect(this.camera, normalPass.texture, {
@@ -169,6 +199,11 @@ export class PostProcessing {
   }
 
   public render(_scene: THREE.Scene, camera: THREE.PerspectiveCamera, msg: any): boolean {
+    // Lensing projects world points with the camera matrices, so refresh them
+    // before building the uniform array instead of after.
+    camera.updateMatrixWorld();
+    camera.updateProjectionMatrix();
+
     const state = msg?.gameState;
     let bhCount = 0;
 
@@ -177,9 +212,6 @@ export class PostProcessing {
     }
 
     this.lensingEffect.uniforms.get("uBlackHoleCount")!.value = bhCount;
-
-    camera.updateMatrixWorld();
-    camera.updateProjectionMatrix();
 
     this.composer.render();
     return true; // Tone mapping and black-hole lensing always use the composer.

@@ -93,7 +93,8 @@ frontend/
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
     │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
-    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, порядок, фабрики материалов.
+    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, overlay-layer для NormalPass, фабрики материалов и glow-конверсия.
+    │   ├── RenderConfig.test.ts        # ROLE: Тест перевода head_glow_radius из клеток в мировые единицы.
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
     │   ├── DebugRenderer.test.ts       # ROLE: Тест кратности debug-буферов размеру атрибута.
     │   └── shaders/

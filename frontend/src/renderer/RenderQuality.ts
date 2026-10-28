@@ -1,4 +1,4 @@
-// ROLE: Graphics quality presets, persistence and the quality control contract. No rendering.
+// ROLE: Graphics quality presets (including shadow-map budget), persistence and the quality control contract. No rendering.
 export type RenderQuality = "auto" | "high" | "medium" | "low";
 
 export interface QualityPreset {

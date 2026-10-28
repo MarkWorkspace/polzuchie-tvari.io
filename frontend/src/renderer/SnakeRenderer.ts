@@ -1,8 +1,16 @@
-// ROLE: Меши змеек, сплайны, тени. Не физика, не HUD.
+// ROLE: Меши змеек, плоские нормали для света/AO, тени и skin-tinted head glow. Не физика, не HUD.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
-import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { headGlowRadiusWorld, OVERLAY_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 import { patchSnakeMaterial } from "./shaders/snakeBody.glsl";
+
+const INITIAL_BUFFER_FLOATS = 500000;
+
+/** Growable buffer length that stays a whole number of attribute elements. */
+function bufferLength(required: number, itemSize: number): number {
+  const target = Math.max(required * 1.3, INITIAL_BUFFER_FLOATS);
+  return Math.ceil(target / itemSize) * itemSize;
+}
 
 export class SnakeRenderer {
   private scene: THREE.Scene;
@@ -15,6 +23,7 @@ export class SnakeRenderer {
   private pupilMesh!: THREE.InstancedMesh;
   private glowMesh!: THREE.InstancedMesh;
   private glowMaterial!: THREE.ShaderMaterial;
+  private readonly glowDummy = new THREE.Object3D();
   private wrapWidth = 0;
   private wrapHeight = 0;
 
@@ -127,11 +136,13 @@ export class SnakeRenderer {
     let glowCount = 0;
     const colors = this.glowMesh.instanceColor?.array as Float32Array | undefined;
     if (baseGlowRadius > 0.0) {
-      const dummy = new THREE.Object3D();
+      const dummy = this.glowDummy;
       for (let i = 0; i < activePlayers.length; i++) {
         const ap = activePlayers[i];
         if (ap.hx !== undefined && ap.hy !== undefined) {
-          const finalRadius = ap.radius * gridSize + baseGlowRadius * gridSize * 0.2;
+          // head_glow_radius is configured in cells; the shader's steep
+          // falloff keeps the visible core much smaller than this bound.
+          const finalRadius = headGlowRadiusWorld(ap.radius * gridSize, baseGlowRadius, gridSize);
           dummy.position.set(ap.hx, ap.hy, -0.1);
           dummy.scale.set(finalRadius, finalRadius, 1.0);
           dummy.updateMatrix();
@@ -202,8 +213,8 @@ export class SnakeRenderer {
         varying vec3 vGlowColor;
         void main() {
           float dist = length(vUv - 0.5) * 2.0;
-          float alpha = smoothstep(1.0, 0.0, dist);
-          alpha = pow(alpha, 2.0) * 0.14;
+          float alpha = 1.0 - smoothstep(0.0, 1.0, dist);
+          alpha = pow(alpha, 10.0) * 0.14;
           if (alpha < 0.01) discard;
           vec3 glowTint = mix(vGlowColor, vec3(1.0), 0.35);
           gl_FragColor = vec4(glowTint, alpha);
@@ -287,6 +298,7 @@ export class SnakeRenderer {
     glowColors.setUsage(THREE.DynamicDrawUsage);
     this.glowMesh.instanceColor = glowColors;
     RenderConfig.configureMesh(this.glowMesh, RenderLayer.Shadow);
+    this.glowMesh.layers.set(OVERLAY_LAYER);
     this.scene.add(this.glowMesh);
   }
 
@@ -300,7 +312,7 @@ export class SnakeRenderer {
     const normals = geom.getAttribute("normal") as THREE.BufferAttribute | undefined;
     if (normals && normals.array.length >= required) return;
 
-    const size = Math.max(required, 500000);
+    const size = bufferLength(required, 3);
     const array = new Float32Array(size);
     for (let i = 2; i < size; i += 3) array[i] = 1;
     const attr = new THREE.BufferAttribute(array, 3);
@@ -318,7 +330,7 @@ export class SnakeRenderer {
     const requiredLength = data.length;
 
     if (!attr || attr.array.length < requiredLength) {
-      const size = Math.max(Math.ceil(requiredLength * 1.3), 500000);
+      const size = bufferLength(requiredLength, itemSize);
       attr = new THREE.BufferAttribute(new Float32Array(size), itemSize);
       attr.setUsage(THREE.DynamicDrawUsage);
       geom.setAttribute(name, attr);
@@ -332,7 +344,7 @@ export class SnakeRenderer {
     const requiredLength = indices.length;
 
     if (!attr || attr.array.length < requiredLength) {
-      const size = Math.max(Math.ceil(requiredLength * 1.3), 500000);
+      const size = bufferLength(requiredLength, 1);
       attr = new THREE.BufferAttribute(new Uint32Array(size), 1);
       attr.setUsage(THREE.DynamicDrawUsage);
       geom.setIndex(attr);

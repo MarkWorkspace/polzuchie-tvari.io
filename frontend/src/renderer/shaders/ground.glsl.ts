@@ -4,8 +4,6 @@ export function patchGroundMaterial(shader: any, uniforms: any) {
   shader.uniforms.uGroundColor = uniforms.uGroundColor;
   shader.uniforms.uGridColor = uniforms.uGridColor;
   shader.uniforms.uGridSize = uniforms.uGridSize;
-  shader.uniforms.uWorldWidth = uniforms.uWorldWidth;
-  shader.uniforms.uWorldHeight = uniforms.uWorldHeight;
 
   shader.vertexShader = `
     varying vec3 vWorldPosition;
@@ -23,8 +21,6 @@ export function patchGroundMaterial(shader: any, uniforms: any) {
     uniform vec3 uGroundColor;
     uniform vec3 uGridColor;
     uniform float uGridSize;
-    uniform float uWorldWidth;
-    uniform float uWorldHeight;
     varying vec3 vWorldPosition;
 
     float hash21(vec2 p) {

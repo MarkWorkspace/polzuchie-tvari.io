@@ -1,6 +1,6 @@
 // ROLE: Система частиц (свечение хвоста). Не симулирует физику и не знает про игроков.
 import * as THREE from "three";
-import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { OVERLAY_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 
 export class ParticleRenderer {
   private scene: THREE.Scene;
@@ -49,6 +49,7 @@ export class ParticleRenderer {
     this.mesh = new THREE.InstancedMesh(geom, this.material, this.maxInstances);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.mesh, RenderLayer.Particle);
+    this.mesh.layers.set(OVERLAY_LAYER);
     this.scene.add(this.mesh);
   }
 

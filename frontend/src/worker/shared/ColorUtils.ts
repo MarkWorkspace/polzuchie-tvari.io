@@ -1,4 +1,4 @@
-// ROLE: parseColor, lerpColors, hslToHex.
+// ROLE: parseColor and skin-specific glow tints. No rendering or game logic.
 
 const colorCache = new Map<string, number>();
 
