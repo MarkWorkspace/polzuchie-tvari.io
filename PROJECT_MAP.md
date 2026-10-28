@@ -34,7 +34,9 @@ frontend/
 ├── biome.json                          # ROLE: Biome lint/format config for the frontend.
 ├── playwright.config.ts                # ROLE: Playwright E2E config; поднимает backend и Vite.
 ├── e2e/
-│   ├── game.spec.ts                    # ROLE: Smoke login, HUD, settings и game-over.
+│   ├── game.spec.ts                    # ROLE: Smoke login, HUD и настроек качества.
+│   ├── death.spec.ts                   # ROLE: Реальная смерть от чёрной дыры, game-over и respawn.
+│   ├── spectator.spec.ts               # ROLE: Spectator-режим без player identity.
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
 ├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
@@ -52,6 +54,8 @@ frontend/
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
     │   ├── NetworkManager.test.ts      # ROLE: Тесты идентичности player/spectator и storage-ключей.
     │   ├── SpectatorApp.ts             # ROLE: Приложение режима спектатора. Камера, отладочные панели. Не игровая логика.
+    │   ├── spectatorLeaderboard.ts     # ROLE: Чистая проекция player-снимков в строки spectator-leaderboard.
+    │   ├── spectatorLeaderboard.test.ts # ROLE: Тесты id/сортировки/лимита spectator-leaderboard.
     │   ├── SpectatorCamera.ts          # ROLE: Свободная камера спектатора (pan/zoom), границы карты.
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум. Не рендеринг.
     │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
@@ -85,6 +89,7 @@ frontend/
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
     │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, порядок, фабрики материалов.
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
+    │   ├── DebugRenderer.test.ts       # ROLE: Тест кратности debug-буферов размеру атрибута.
     │   └── shaders/
     │       ├── snakeBody.glsl.ts       # ROLE: Шейдер тела змейки (5 скинов, GPU-клиппинг).
     │       ├── food.glsl.ts            # ROLE: Шейдер еды.

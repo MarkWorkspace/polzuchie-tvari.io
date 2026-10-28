@@ -9,6 +9,7 @@ import { gridSize } from "./Config";
 import { NetworkManager } from "./NetworkManager";
 import { RenderOrchestrator } from "./RenderOrchestrator";
 import { SpectatorCamera } from "./SpectatorCamera";
+import { buildSpectatorLeaderboard } from "./spectatorLeaderboard";
 
 export class SpectatorApp {
   private sceneManager: SceneManager;
@@ -155,17 +156,7 @@ export class SpectatorApp {
         this.updateDebugOverlay(msg, statsDiv);
 
         const players = msg.gameState?.players || {};
-        const sorted = Object.values(players)
-          .sort((a: any, b: any) => (b.score || 0) - (a.score || 0))
-          .slice(0, 10)
-          .map((p: any) => ({
-            id: p.id,
-            nickname: p.nickname,
-            score: Math.floor(p.score || 0),
-            kills: p.kills || 0,
-            deaths: p.deaths || 0,
-            isMe: false,
-          }));
+        const sorted = buildSpectatorLeaderboard(players);
         window.dispatchEvent(new CustomEvent("game-leaderboard", { detail: sorted }));
       },
     });

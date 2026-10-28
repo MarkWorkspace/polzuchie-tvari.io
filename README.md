@@ -67,6 +67,8 @@ npm run build
 ```
 
 E2E smoke-тесты (Playwright сам поднимает backend на `:8000` и Vite на `:5173`):
+`login → HUD → качество`, реальная смерть от чёрной дыры → respawn,
+spectator-режим и admin login/logout.
 
 ```bash
 cd frontend
@@ -77,7 +79,8 @@ npm run test:e2e
 Перед первым запуском на Linux CI браузер ставится с системными зависимостями:
 `npx playwright install --with-deps chromium`. Playwright всегда поднимает свой
 backend на `:8000` с `ADMIN_PASSWORD=e2e-admin`; если локальный backend уже
-запущен, остановите его.
+запущен, остановите его. Backend получает временную копию `backend/config.json`
+через `CONFIG_PATH`, поэтому изменения конфига из E2E не трогают файл в репозитории.
 
 ## Git hooks
 

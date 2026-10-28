@@ -1,7 +1,7 @@
-// ROLE: E2E smoke test for login, HUD, settings and the game-over overlay.
+// ROLE: E2E smoke test for login, HUD and settings.
 import { expect, test } from "@playwright/test";
 
-test("plays the game, changes quality and respawns", async ({ page }) => {
+test("plays the game and changes quality", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
@@ -38,27 +38,6 @@ test("plays the game, changes quality and respawns", async ({ page }) => {
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("snake_client_id")))
     .not.toBeNull();
-
-  await page.evaluate(() => {
-    const clientId = localStorage.getItem("snake_client_id");
-    if (!clientId) throw new Error("missing snake_client_id");
-    window.dispatchEvent(
-      new CustomEvent("game-killfeed", {
-        detail: {
-          events: [{ killer: "e2e-killer", victim: clientId }],
-          players: {
-            "e2e-killer": { nickname: "E2E Killer" },
-            [clientId]: { nickname: "E2E Snake", score: 12, kills: 1 },
-          },
-        },
-      }),
-    );
-  });
-
-  await expect(page.locator(".game-over-overlay")).toBeVisible();
-  await expect(page.locator(".game-over-title")).toHaveText("ПОТРАЧЕНО");
-  await page.getByRole("button", { name: "ИГРАТЬ СНОВА" }).click();
-  await expect(page.locator(".game-over-overlay")).toHaveCount(0);
 
   expect(pageErrors).toEqual([]);
 });

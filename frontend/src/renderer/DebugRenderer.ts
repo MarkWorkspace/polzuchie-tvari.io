@@ -3,6 +3,11 @@ import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
 
+export function attributeCapacity(requiredLength: number, itemSize: number): number {
+  const target = Math.max(requiredLength * 1.3, 512);
+  return Math.ceil(target / itemSize) * itemSize;
+}
+
 export class DebugRenderer {
   private scene: THREE.Scene;
   private gridMesh: THREE.LineSegments | null = null;
@@ -178,7 +183,7 @@ export class DebugRenderer {
     let attr = geom.getAttribute(name) as THREE.BufferAttribute | undefined;
     if (!attr || attr.array.length < data.length) {
       attr = new THREE.BufferAttribute(
-        new Float32Array(Math.max(data.length * 1.3, 512)),
+        new Float32Array(attributeCapacity(data.length, itemSize)),
         itemSize,
       );
       attr.setUsage(THREE.DynamicDrawUsage);
