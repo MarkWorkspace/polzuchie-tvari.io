@@ -154,6 +154,16 @@ def _should_boost(state, player, personality: str, target) -> bool:
     return target[1] < AGGRESSIVE_BOOST_RANGE and player.score > state.config.boost.min_score + 2
 
 
+def smooth_turn(
+    previous: float, target: float, max_step: float = 0.12, easing: float = 0.35
+) -> float:
+    """Ease a bot's turn command and cap how much it can change per tick."""
+    target = max(-1.0, min(1.0, target))
+    eased = previous + (target - previous) * easing
+    delta = max(-max_step, min(max_step, eased - previous))
+    return max(-1.0, min(1.0, previous + delta))
+
+
 def _path_clearance(state, player, angle) -> float:
     lookahead = max(2.5, state.config.simulation.base_speed_per_second * state.tick_interval * 4)
     x = (player.head_x + math.cos(angle) * lookahead) % state.grid_width

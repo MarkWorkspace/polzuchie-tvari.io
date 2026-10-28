@@ -1,8 +1,9 @@
 # ROLE: Bot lifecycle and per-tick steering. No rendering, networking or serialization.
-from app.bots.brain import PERSONALITIES, decide
+from app.bots.brain import PERSONALITIES, decide, smooth_turn
 
 BOT_ID_PREFIX = "bot-"
 BOT_SKINS = ("#ef4444", "#3b82f6", "#eab308", "#a855f7", "#ec4899", "#22c55e")
+BOT_TURN_STEP = 0.12
 
 
 class BotManager:
@@ -13,6 +14,7 @@ class BotManager:
         self._next_bot = 1
         self._respawn_remaining: dict[str, float] = {}
         self._personalities: dict[str, str] = {}
+        self._smoothed_turns: dict[str, float] = {}
 
     @property
     def enabled(self) -> bool:
@@ -69,8 +71,13 @@ class BotManager:
 
             self._respawn_remaining.pop(bot_id, None)
             personality = self._personalities.get(bot_id, "collector")
+            target_turn, accelerate = decide(self.world, player, personality)
             player.steered_by_mouse = True
-            player.turn, player.accelerating = decide(self.world, player, personality)
+            player.turn = smooth_turn(
+                self._smoothed_turns.get(bot_id, 0.0), target_turn, BOT_TURN_STEP
+            )
+            self._smoothed_turns[bot_id] = player.turn
+            player.accelerating = accelerate
 
     def _update_respawn(self, bot_id: str, player, tick_interval: float) -> None:
         remaining = self._respawn_remaining.get(
@@ -84,6 +91,7 @@ class BotManager:
         start_x, start_y = self.world.food_manager.get_safe_spawn_location()
         player.respawn(start_x, start_y)
         self._respawn_remaining.pop(bot_id, None)
+        self._smoothed_turns[bot_id] = 0.0
 
     def _spawn_bot(self) -> None:
         index = self._next_bot
@@ -95,12 +103,14 @@ class BotManager:
             BOT_SKINS[(index - 1) % len(BOT_SKINS)],
         )
         self._bot_ids.append(bot_id)
+        self._smoothed_turns[bot_id] = 0.0
 
     def _remove_bot(self, bot_id: str) -> None:
         self.world.players.pop(bot_id, None)
         self.world.client_visibility.pop(bot_id, None)
         self._respawn_remaining.pop(bot_id, None)
         self._personalities.pop(bot_id, None)
+        self._smoothed_turns.pop(bot_id, None)
         for visible_players in self.world.client_visibility.values():
             visible_players.discard(bot_id)
 

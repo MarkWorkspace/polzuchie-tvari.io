@@ -1,4 +1,7 @@
 # ROLE: Lifecycle, config sync and respawn tests for the isolated bot module.
+import pytest
+
+from app.bots.brain import smooth_turn
 from app.engine.state import World
 
 
@@ -84,6 +87,37 @@ def test_bot_respawns_after_death_delay(tmp_path, monkeypatch):
 
     assert not bot.is_dead
     assert bot.body_len > 0
+
+
+def test_bot_turn_changes_gradually_between_ticks(tmp_path, monkeypatch):
+    world = _world(tmp_path, monkeypatch)
+    world.config.bots.enabled = 1
+    world.config.bots.count = 1
+    world.config.bots.personality_mode = 1
+    world.bot_manager.start()
+
+    bot = world.players["bot-1"]
+    for food in world.food_manager.foods.values():
+        food.eaten = True
+    world.food_manager.spawn_specific_food(bot.head_x + 2, bot.head_y + 8, 100)
+
+    world.bot_manager.update()
+    first_turn = bot.turn
+    world.bot_manager.update()
+    second_turn = bot.turn
+
+    assert 0 < first_turn <= 0.12
+    assert abs(second_turn - first_turn) <= 0.12
+
+
+def test_smooth_turn_is_rate_limited_and_converges():
+    previous = 0.0
+    for _ in range(40):
+        next_turn = smooth_turn(previous, 1.0)
+        assert abs(next_turn - previous) <= 0.12 + 1e-9
+        previous = next_turn
+
+    assert previous == pytest.approx(1.0)
 
 
 def test_bot_steering_sets_normalized_turn_for_every_personality(tmp_path, monkeypatch):
