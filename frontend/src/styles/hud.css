@@ -296,9 +296,9 @@
 
 .game-over-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-  margin-bottom: 32px;
+  margin-bottom: 18px;
 }
 
 .stat-box {
@@ -328,6 +328,23 @@
 
 .stat-kills {
   color: #c084fc;
+}
+
+.stat-length {
+  color: #38bdf8;
+}
+
+.game-over-record {
+  margin-bottom: 20px;
+  color: #d1d5db;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.game-over-record.is-record {
+  color: #facc15;
+  text-shadow: 0 0 18px rgba(250, 204, 21, 0.5);
 }
 
 .respawn-btn {

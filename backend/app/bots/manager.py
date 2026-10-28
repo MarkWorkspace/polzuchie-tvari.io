@@ -1,5 +1,5 @@
 # ROLE: Bot lifecycle and per-tick steering. No rendering, networking or serialization.
-from app.bots.brain import choose_turn
+from app.bots.brain import PERSONALITIES, decide
 
 BOT_ID_PREFIX = "bot-"
 BOT_SKINS = ("#ef4444", "#3b82f6", "#eab308", "#a855f7", "#ec4899", "#22c55e")
@@ -12,6 +12,7 @@ class BotManager:
         self._bot_ids: list[str] = []
         self._next_bot = 1
         self._respawn_remaining: dict[str, float] = {}
+        self._personalities: dict[str, str] = {}
 
     @property
     def enabled(self) -> bool:
@@ -20,6 +21,10 @@ class BotManager:
     @property
     def target_count(self) -> int:
         return max(0, min(20, int(self.world.config.bots.count)))
+
+    @property
+    def bot_count(self) -> int:
+        return len(self._bot_ids)
 
     def start(self) -> None:
         self.active = True
@@ -44,6 +49,8 @@ class BotManager:
             self._remove_bot(self._bot_ids.pop())
         while len(self._bot_ids) < target:
             self._spawn_bot()
+        for position, bot_id in enumerate(self._bot_ids):
+            self._personalities[bot_id] = self._pick_personality(position + 1)
 
     def update(self) -> None:
         if not self.active:
@@ -61,9 +68,9 @@ class BotManager:
                 continue
 
             self._respawn_remaining.pop(bot_id, None)
+            personality = self._personalities.get(bot_id, "collector")
             player.steered_by_mouse = True
-            player.turn = choose_turn(self.world, player)
-            player.accelerating = False
+            player.turn, player.accelerating = decide(self.world, player, personality)
 
     def _update_respawn(self, bot_id: str, player, tick_interval: float) -> None:
         remaining = self._respawn_remaining.get(
@@ -93,8 +100,18 @@ class BotManager:
         self.world.players.pop(bot_id, None)
         self.world.client_visibility.pop(bot_id, None)
         self._respawn_remaining.pop(bot_id, None)
+        self._personalities.pop(bot_id, None)
         for visible_players in self.world.client_visibility.values():
             visible_players.discard(bot_id)
+
+    def _pick_personality(self, index: int) -> str:
+        mode = int(self.world.config.bots.personality_mode)
+        if mode == 0:
+            return PERSONALITIES[(index - 1) % len(PERSONALITIES)]
+        return PERSONALITIES[min(mode, len(PERSONALITIES)) - 1]
+
+    def personality_for(self, bot_id: str) -> str | None:
+        return self._personalities.get(bot_id)
 
     def _remove_all(self) -> None:
         while self._bot_ids:

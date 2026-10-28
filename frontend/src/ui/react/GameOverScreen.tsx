@@ -1,10 +1,19 @@
-// ROLE: React death overlay and respawn action.
+// ROLE: React death overlay, run summary, personal best and respawn action.
 import { useEffect, useRef, useState } from "react";
 import type { NetworkManager } from "../../game/NetworkManager";
+import { t } from "../../lib/i18n";
+import { type PersonalBest, type RunStats, updatePersonalBest } from "../personalStats";
 
 interface PlayerInfo {
   score?: number;
   kills?: number;
+  body_len?: number;
+}
+
+interface GameOverState {
+  stats: RunStats;
+  best: PersonalBest;
+  isNewRecord: boolean;
 }
 
 interface GameOverScreenProps {
@@ -13,7 +22,7 @@ interface GameOverScreenProps {
 }
 
 export function GameOverScreen({ networkManager, getMyId }: GameOverScreenProps) {
-  const [playerInfo, setPlayerInfo] = useState<PlayerInfo | null>(null);
+  const [state, setState] = useState<GameOverState | null>(null);
   const getMyIdRef = useRef(getMyId);
 
   useEffect(() => {
@@ -28,32 +37,49 @@ export function GameOverScreen({ networkManager, getMyId }: GameOverScreenProps)
       };
       const myId = getMyIdRef.current();
       if (!myId) return;
-      if (events.some((kill) => kill.victim === myId)) {
-        setPlayerInfo(players[myId] ?? {});
-      }
+      if (!events.some((kill) => kill.victim === myId)) return;
+
+      const player = players[myId] ?? {};
+      const stats: RunStats = {
+        score: Math.floor(player.score ?? 0),
+        length: Math.floor(player.body_len ?? 0),
+        kills: player.kills ?? 0,
+      };
+      const { best, isNewRecord } = updatePersonalBest(stats);
+      setState({ stats, best, isNewRecord });
     };
 
     window.addEventListener("game-killfeed", handleKillFeed);
     return () => window.removeEventListener("game-killfeed", handleKillFeed);
   }, []);
 
-  if (!playerInfo) return null;
+  if (!state) return null;
 
   return (
     <div className="game-over-overlay hud-interactive">
       <div className="game-over-modal glass-panel">
-        <h1 className="game-over-title">ПОТРАЧЕНО</h1>
-        <p className="game-over-subtitle">Твоя змейка стала кормом для других.</p>
+        <h1 className="game-over-title">{t("gameOver.title")}</h1>
+        <p className="game-over-subtitle">{t("gameOver.subtitle")}</p>
 
         <div className="game-over-stats">
           <div className="stat-box">
-            <div className="stat-label">Длина</div>
-            <div className="stat-value stat-score">{Math.floor(playerInfo.score ?? 0)}</div>
+            <div className="stat-label">{t("gameOver.score")}</div>
+            <div className="stat-value stat-score">{state.stats.score}</div>
           </div>
           <div className="stat-box">
-            <div className="stat-label">Фраги</div>
-            <div className="stat-value stat-kills">{playerInfo.kills ?? 0}</div>
+            <div className="stat-label">{t("gameOver.length")}</div>
+            <div className="stat-value stat-length">{state.stats.length}</div>
           </div>
+          <div className="stat-box">
+            <div className="stat-label">{t("gameOver.kills")}</div>
+            <div className="stat-value stat-kills">{state.stats.kills}</div>
+          </div>
+        </div>
+
+        <div className={`game-over-record ${state.isNewRecord ? "is-record" : ""}`}>
+          {state.isNewRecord
+            ? t("gameOver.newRecord")
+            : t("gameOver.best", { score: state.best.score })}
         </div>
 
         <button
@@ -61,10 +87,10 @@ export function GameOverScreen({ networkManager, getMyId }: GameOverScreenProps)
           className="respawn-btn"
           onClick={() => {
             networkManager.send("RESPAWN");
-            setPlayerInfo(null);
+            setState(null);
           }}
         >
-          ИГРАТЬ СНОВА
+          {t("gameOver.playAgain")}
         </button>
       </div>
     </div>

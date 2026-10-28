@@ -10,7 +10,7 @@ interface GameHudProps {
 export function GameHud({ isMobile }: GameHudProps) {
   return (
     <>
-      <HudPanel />
+      <HudPanel isMobile={isMobile} />
       <Leaderboard
         limit={isMobile ? 3 : 10}
         alwaysOpen={isMobile}

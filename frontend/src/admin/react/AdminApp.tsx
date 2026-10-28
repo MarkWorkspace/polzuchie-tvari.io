@@ -13,7 +13,7 @@ import "../../styles/admin_react.css";
 
 type AdminStatus = "loading" | "login" | "ready";
 
-const EMPTY_HEALTH: ServerHealth = { online: false, players: 0, ping: 0 };
+const EMPTY_HEALTH: ServerHealth = { online: false, players: 0, bots: 0, ping: 0 };
 
 export function AdminApp() {
   const [editor, setEditor] = useState(() => new ConfigEditor());
@@ -89,11 +89,12 @@ export function AdminApp() {
           }
           return;
         }
-        const data = (await response.json()) as { players?: number };
+        const data = (await response.json()) as { players?: number; bots?: number };
         if (!cancelled) {
           setHealth({
             online: true,
             players: data.players ?? 0,
+            bots: data.bots ?? 0,
             ping: Math.round(performance.now() - started),
           });
         }

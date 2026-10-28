@@ -29,7 +29,7 @@ def _apply_boost_drain(state, player, tick_interval: float, boost_cfg) -> None:
     if player.boost_drop >= boost_cfg.drain_interval_seconds:
         player.boost_drop -= boost_cfg.drain_interval_seconds
         drain = boost_cfg.drain_per_interval
-        player.score = max(0, player.score - drain)
+        player.score = max(0, int(player.score - drain))
         player.pending_growth -= drain
 
         if player.body_len > 0:

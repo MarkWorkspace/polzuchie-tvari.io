@@ -1,5 +1,7 @@
 // ROLE: Мобильные элементы управления.
+
 import type { InputManager } from "../game/InputManager";
+import { t } from "../lib/i18n";
 
 export class MobileControls {
   private container: HTMLDivElement;
@@ -39,7 +41,7 @@ export class MobileControls {
     this.boostZone = document.createElement("div");
     this.boostZone.id = "mobile-boost-zone";
     this.boostZone.className = "hud-interactive";
-    this.boostZone.textContent = "Hold here to Boost";
+    this.boostZone.textContent = t("boost.holdHere");
     this.container.appendChild(this.boostZone);
   }
 

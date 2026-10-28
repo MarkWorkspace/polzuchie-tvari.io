@@ -214,8 +214,8 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
             >
               <span className="control-icon">👁</span>
               <span className="control-text">
-                <span className="control-title">Open Debug Spectator</span>
-                <span className="control-desc">Open admin debug map view in a new tab</span>
+                <span className="control-title">{t("menu.openDebugSpectator")}</span>
+                <span className="control-desc">{t("menu.openDebugSpectatorDesc")}</span>
               </span>
             </button>
           </section>
@@ -228,7 +228,7 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
         ) : null}
 
         <button type="button" className="drawer-admin-link" onClick={callbacks.onAdminClick}>
-          <span>⚙</span> Admin Panel
+          <span>⚙</span> {t("menu.admin")}
         </button>
       </aside>
     </>

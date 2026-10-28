@@ -90,6 +90,7 @@ export type Player = {
   teleport_timer_ratio?: number;
   speed_mult?: number;
   is_dead?: boolean;
+  final_length?: number;
 };
 
 export type Portal = {

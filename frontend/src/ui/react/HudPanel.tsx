@@ -9,20 +9,26 @@ function pingClass(ping: number | null): string {
   return "good";
 }
 
-export function HudPanel() {
+export function HudPanel({ isMobile = false }: { isMobile?: boolean }) {
   const status = useGameStatus();
   const ping = useGamePing();
   const { score, feed } = useGameScore();
 
   const isConnected = status.status === "connected";
-  const guideKey = status.controlMode === "keyboard" ? "status.kbdGuide" : "status.mouseGuide";
+  const guideKey = isMobile
+    ? status.controlMode === "tilt"
+      ? "status.tiltGuide"
+      : "status.touchGuide"
+    : status.controlMode === "keyboard"
+      ? "status.kbdGuide"
+      : "status.mouseGuide";
   const pendingText =
     status.msg ?? (status.msgKey ? t(status.msgKey, status.msgParams) : t("status.connecting"));
 
   return (
     <>
       <div className="score-panel glass-panel hud-interactive">
-        <span className="score-title">Score</span>
+        <span className="score-title">{t("hud.score")}</span>
         <span className="score-value">{score}</span>
         <div className={`hud-guide ${isConnected ? "connected" : "pending"}`}>
           {isConnected ? (
@@ -52,8 +58,10 @@ export function HudPanel() {
       </div>
 
       <div className={`hud-ping ${pingClass(ping)}`}>
-        Ping:{" "}
-        <span className="ping-value">{ping === null ? "offline" : `${Math.round(ping)} ms`}</span>
+        {t("hud.ping")}:{" "}
+        <span className="ping-value">
+          {ping === null ? t("hud.offline") : `${Math.round(ping)} ms`}
+        </span>
       </div>
     </>
   );

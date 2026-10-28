@@ -50,6 +50,24 @@ def test_config_update_adds_and_removes_bots_without_kill_events(tmp_path, monke
     assert world.kill_events == []
 
 
+def test_bot_personalities_are_assigned_and_configurable(tmp_path, monkeypatch):
+    world = _world(tmp_path, monkeypatch)
+    world.config.bots.enabled = 1
+    world.config.bots.count = 3
+    world.config.bots.personality_mode = 0
+    world.bot_manager.start()
+
+    assert [world.bot_manager.personality_for(bot) for bot in _bot_ids(world)] == [
+        "collector",
+        "aggressive",
+        "coward",
+    ]
+
+    world.config.bots.personality_mode = 2
+    world.bot_manager.sync()
+    assert all(world.bot_manager.personality_for(bot) == "aggressive" for bot in _bot_ids(world))
+
+
 def test_bot_respawns_after_death_delay(tmp_path, monkeypatch):
     world = _world(tmp_path, monkeypatch)
     world.config.bots.enabled = 1
@@ -68,15 +86,18 @@ def test_bot_respawns_after_death_delay(tmp_path, monkeypatch):
     assert bot.body_len > 0
 
 
-def test_bot_steering_sets_normalized_turn(tmp_path, monkeypatch):
+def test_bot_steering_sets_normalized_turn_for_every_personality(tmp_path, monkeypatch):
     world = _world(tmp_path, monkeypatch)
     world.config.bots.enabled = 1
     world.config.bots.count = 1
     world.bot_manager.start()
 
-    world.bot_manager.update()
+    for mode, personality in ((1, "collector"), (2, "aggressive"), (3, "coward")):
+        world.config.bots.personality_mode = mode
+        world.bot_manager.sync()
+        world.bot_manager.update()
 
-    bot = world.players["bot-1"]
-    assert bot.steered_by_mouse is True
-    assert -1.0 <= bot.turn <= 1.0
-    assert bot.accelerating is False
+        bot = world.players["bot-1"]
+        assert world.bot_manager.personality_for("bot-1") == personality
+        assert bot.steered_by_mouse is True
+        assert -1.0 <= bot.turn <= 1.0

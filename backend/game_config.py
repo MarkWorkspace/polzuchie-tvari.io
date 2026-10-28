@@ -113,6 +113,7 @@ class BotsConfig:
     enabled: int = 1
     count: int = 3
     respawn_delay_seconds: float = 2.0
+    personality_mode: int = 0
 
 
 @dataclass
@@ -271,6 +272,7 @@ class GameConfig:
         _require_range("bots.enabled", self.bots.enabled, 0, 1)
         _require_range("bots.count", self.bots.count, 0, 20)
         _require_range("bots.respawn_delay_seconds", self.bots.respawn_delay_seconds, 0.5, 60.0)
+        _require_range("bots.personality_mode", self.bots.personality_mode, 0, 3)
 
 
 def _apply_dataclass_patch(target, patch):

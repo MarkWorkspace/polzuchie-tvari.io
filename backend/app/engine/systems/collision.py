@@ -90,6 +90,7 @@ def _process_player_death(state, pid: str, player, killer_pid: str | None) -> No
             }
         )
 
+    player.final_length = player.body_len
     player.is_dead = True
     player.accelerating = False
     player.turn = 0

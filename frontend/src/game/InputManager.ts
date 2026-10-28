@@ -19,9 +19,9 @@ export class InputManager {
   }
 
   private detectDevice(): void {
-    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent,
-    );
+    this.isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      window.innerWidth <= 768;
     this.controlMode = this.isMobile ? "mouse" : "keyboard";
   }
 

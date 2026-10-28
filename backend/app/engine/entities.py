@@ -114,6 +114,7 @@ class Player:
         self.new_heads_this_tick = []
         self.just_respawned = True
         self.is_dead = False
+        self.final_length = 0
         self.steered_by_mouse = False
         self.last_portal_exited = None
         self.length = self.config.snake.start_length

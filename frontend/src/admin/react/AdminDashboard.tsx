@@ -13,6 +13,7 @@ export type AdminTab = "all" | keyof typeof NEW_SECTIONS;
 export interface ServerHealth {
   online: boolean;
   players: number;
+  bots: number;
   ping: number;
 }
 
@@ -301,6 +302,8 @@ function HealthStatus({ health }: { health: ServerHealth }) {
       Server: <strong className="is-online">online</strong>
       <span className="admin-health-separator">|</span>
       <span>Players: {health.players}</span>
+      <span className="admin-health-separator">|</span>
+      <span>Bots: {health.bots}</span>
       <span className="admin-health-separator">|</span>
       <span>
         Ping: <strong className={pingClass(health.ping)}>{health.ping} ms</strong>

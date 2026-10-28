@@ -20,9 +20,14 @@ interface LoginScreenProps {
   onPlay: (nickname: string, skin: string) => void;
 }
 
+function getInitialSkin(): string {
+  const saved = localStorage.getItem("snake-skin");
+  return SKINS.some((skin) => skin.id === saved) ? (saved as string) : SKINS[3].id;
+}
+
 export function LoginScreen({ onPlay }: LoginScreenProps) {
   const [nickname, setNickname] = useState(() => localStorage.getItem("snake-nickname") || "");
-  const [selectedSkin, setSelectedSkin] = useState(SKINS[3].id);
+  const [selectedSkin, setSelectedSkin] = useState(getInitialSkin);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -33,6 +38,7 @@ export function LoginScreen({ onPlay }: LoginScreenProps) {
     event?.preventDefault();
     const name = nickname.trim() || t("game.defaultPlayer");
     localStorage.setItem("snake-nickname", name);
+    localStorage.setItem("snake-skin", selectedSkin);
     onPlay(name, selectedSkin);
   };
 

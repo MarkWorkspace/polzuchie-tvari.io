@@ -39,3 +39,16 @@ def test_collision_no_self_kill():
     spatial_index.update(state)
     collision.check(state)
     assert p1.deaths == 0
+
+
+def test_death_preserves_final_length_for_run_summary():
+    state = World()
+    player = Player("p1", 50.0, 50.0, state.config)
+    player.body = deque([50.0, 50.0, 49.0, 50.0, 48.0, 50.0, 47.0, 50.0])
+    state.players["p1"] = player
+
+    collision._process_player_death(state, "p1", player, None)
+
+    assert player.is_dead is True
+    assert player.body_len == 0
+    assert player.final_length == 4

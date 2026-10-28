@@ -188,9 +188,13 @@ async def health_check():
 
 async def admin_health(request: Request):
     world = getattr(request.app.state, "world", None)
+    bot_manager = getattr(world, "bot_manager", None) if world else None
+    bots = bot_manager.bot_count if bot_manager else 0
+    total_players = len(world.players) if world else 0
     return {
         "status": "ok",
-        "players": len(world.players) if world else 0,
+        "players": max(0, total_players - bots),
+        "bots": bots,
         "spectators": len(world.spectators) if world else 0,
     }
 

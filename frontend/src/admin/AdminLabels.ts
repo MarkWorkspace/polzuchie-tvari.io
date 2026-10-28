@@ -97,6 +97,7 @@ export const FIELD_LABELS: Record<string, string> = {
   enabled: "Bots Enabled",
   count: "Bot Count",
   respawn_delay_seconds: "Bot Respawn Delay",
+  personality_mode: "Bot Personality",
 };
 
 export const FIELD_UNITS: Record<string, string> = {
@@ -160,6 +161,7 @@ export const FIELD_UNITS: Record<string, string> = {
   enabled: "0/1",
   count: "pcs",
   respawn_delay_seconds: "sec",
+  personality_mode: "0–3",
 };
 
 export const HIDDEN_FIELDS = new Set(["types", "aoi_radius", "aoi_length_padding"]);
@@ -208,4 +210,5 @@ export const FIELD_TOOLTIPS: Record<string, string> = {
   enabled: "Enable/disable server-controlled bots.",
   count: "Number of bots maintained by the server.",
   respawn_delay_seconds: "Delay in seconds before a dead bot respawns.",
+  personality_mode: "0 = mixed, 1 = collector, 2 = aggressive, 3 = coward.",
 };

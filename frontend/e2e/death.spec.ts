@@ -33,12 +33,12 @@ test("dies to a black hole and respawns", async ({ page, request }) => {
     await page.getByRole("button", { name: "Play", exact: true }).click();
 
     await expect(page.locator(".game-over-overlay")).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator(".game-over-title")).toHaveText("ПОТРАЧЕНО");
+    await expect(page.locator(".game-over-title")).toHaveText("GAME OVER");
   } finally {
     await patchConfig(request, originalConfig);
   }
 
-  await page.getByRole("button", { name: "ИГРАТЬ СНОВА" }).click();
+  await page.getByRole("button", { name: "PLAY AGAIN" }).click();
   await expect(page.locator(".game-over-overlay")).toHaveCount(0);
   await expect(page.locator(".hud-guide.connected")).toBeVisible();
 

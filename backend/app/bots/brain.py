@@ -1,31 +1,121 @@
-# ROLE: Pure steering decisions for server bots. No lifecycle, networking or rendering.
+# ROLE: Pure steering decisions for server bots (collector / aggressive / coward). No lifecycle or networking.
 import math
 
 from app.engine.systems.math_utils import toroidal_delta, toroidal_distance
 from app.engine.systems.physics import max_turn_per_tick
 from game_config import CELL_SIZE
 
+PERSONALITIES = ("collector", "aggressive", "coward")
 CANDIDATE_OFFSETS = (0.0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4)
+MIN_CLEARANCE = {"collector": 0.3, "aggressive": -0.5, "coward": 1.5}
+COWARD_RADIUS = 18.0
+AGGRESSIVE_BOOST_RANGE = 7.0
 
 
-def choose_turn(state, player) -> float:
-    """Return a normalized turn in [-1, 1] for one bot tick."""
-    target = _best_food(state, player)
-    desired_angle = player.angle if target is None else math.atan2(target[1], target[0])
+def decide(state, player, personality: str = "collector") -> tuple[float, bool]:
+    """Return (normalized turn, accelerate) for one bot tick."""
+    target = _target(state, player, personality)
+    desired_angle = player.angle if target is None else target[0]
 
     best_angle = player.angle
     best_score = -math.inf
     for offset in CANDIDATE_OFFSETS:
         angle = player.angle + offset
         clearance = _path_clearance(state, player, angle)
-        score = _score_candidate(clearance, angle, desired_angle, target, offset)
+        score = _score_candidate(clearance, angle, desired_angle, target, offset, personality)
         if score > best_score:
             best_score = score
             best_angle = angle
 
     delta = _wrap_angle(best_angle - player.angle)
     turn_speed = max_turn_per_tick(state, player)
-    return max(-1.0, min(1.0, delta / max(turn_speed, 1e-6)))
+    turn = max(-1.0, min(1.0, delta / max(turn_speed, 1e-6)))
+    return turn, _should_boost(state, player, personality, target)
+
+
+def _target(state, player, personality: str):
+    if personality == "aggressive":
+        player_target = _nearest_player(state, player)
+        if player_target is not None:
+            angle, distance, is_player = player_target
+            return angle, distance, is_player
+    elif personality == "coward":
+        threat = _nearest_threat(state, player)
+        if threat is not None and threat[2] < COWARD_RADIUS:
+            return threat[0], threat[1], False
+
+    food = _best_food(state, player)
+    if food is None:
+        return None
+    dx, dy, distance = food
+    return math.atan2(dy, dx), distance, False
+
+
+def _nearest_player(state, player):
+    best = None
+    best_distance = math.inf
+    for other in state.players.values():
+        if other.id == player.id or other.is_dead or not other.body:
+            continue
+        dx, dy = toroidal_delta(
+            player.head_x,
+            player.head_y,
+            other.head_x,
+            other.head_y,
+            state.grid_width,
+            state.grid_height,
+        )
+        distance = math.hypot(dx, dy)
+        if distance >= best_distance:
+            continue
+        lead = min(4.0, 2.0 + other.body_len * 0.1)
+        target_x = (other.head_x + math.cos(other.angle) * lead) % state.grid_width
+        target_y = (other.head_y + math.sin(other.angle) * lead) % state.grid_height
+        tdx, tdy = toroidal_delta(
+            player.head_x, player.head_y, target_x, target_y, state.grid_width, state.grid_height
+        )
+        best_distance = distance
+        best = (math.atan2(tdy, tdx), distance, True)
+    return best
+
+
+def _nearest_threat(state, player):
+    best = None
+    best_distance = math.inf
+    for other in state.players.values():
+        if other.id == player.id or other.is_dead or not other.body:
+            continue
+        dx, dy = toroidal_delta(
+            player.head_x,
+            player.head_y,
+            other.head_x,
+            other.head_y,
+            state.grid_width,
+            state.grid_height,
+        )
+        distance = math.hypot(dx, dy)
+        if distance < best_distance:
+            best_distance = distance
+            best = (math.atan2(-dy, -dx), distance, False)
+
+    for black_hole in state.bh_manager.black_hole_slots:
+        if black_hole is None or black_hole.state == "dead" or black_hole.current_scale <= 0.01:
+            continue
+        boundary = black_hole.pull_radius * black_hole.current_scale
+        dx, dy = toroidal_delta(
+            player.head_x,
+            player.head_y,
+            black_hole.x,
+            black_hole.y,
+            state.grid_width,
+            state.grid_height,
+        )
+        distance = math.hypot(dx, dy)
+        edge_distance = max(0.0, distance - boundary)
+        if edge_distance < best_distance:
+            best_distance = edge_distance
+            best = (math.atan2(-dy, -dx), edge_distance, False)
+    return best
 
 
 def _best_food(state, player):
@@ -47,13 +137,21 @@ def _best_food(state, player):
     return best
 
 
-def _score_candidate(clearance, angle, desired_angle, target, offset) -> float:
-    if clearance <= 0:
-        return clearance
+def _score_candidate(clearance, angle, desired_angle, target, offset, personality) -> float:
+    threshold = MIN_CLEARANCE.get(personality, 0.3)
+    if clearance < threshold:
+        return clearance - threshold
     score = 1.0 + min(clearance, 5.0) * 0.5
     if target is not None:
-        score += max(0.0, math.cos(_wrap_angle(desired_angle - angle))) * 2.0
+        weight = 2.5 if personality == "aggressive" else 2.0
+        score += max(0.0, math.cos(_wrap_angle(desired_angle - angle))) * weight
     return score - abs(offset) * 0.05
+
+
+def _should_boost(state, player, personality: str, target) -> bool:
+    if personality != "aggressive" or target is None or not target[2]:
+        return False
+    return target[1] < AGGRESSIVE_BOOST_RANGE and player.score > state.config.boost.min_score + 2
 
 
 def _path_clearance(state, player, angle) -> float:

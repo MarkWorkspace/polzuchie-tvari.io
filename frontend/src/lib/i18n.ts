@@ -34,6 +34,11 @@ const translations = {
     ru: "Отображать счетчик кадров и пинг",
     en: "Display frame rate and performance stats",
   },
+  "menu.openDebugSpectator": { ru: "Открыть debug-спектатор", en: "Open Debug Spectator" },
+  "menu.openDebugSpectatorDesc": {
+    ru: "Открыть админский отладочный вид карты в новой вкладке",
+    en: "Open the admin debug map view in a new tab",
+  },
 
   // Graphics quality
   "menu.graphics": { ru: "Графика", en: "Graphics" },
@@ -48,8 +53,11 @@ const translations = {
   "quality.low": { ru: "Низкое", en: "Low" },
 
   // Control modes
-  "control.touchDrag": { ru: "Сенсорный Драг", en: "Touch Drag" },
-  "control.touchDragDesc": { ru: "Перетаскивание + зона буста", en: "Drag steering + Boost zone" },
+  "control.touchDrag": { ru: "Палец", en: "Finger" },
+  "control.touchDragDesc": {
+    ru: "Палец относительно центра экрана + нижняя зона буста",
+    en: "Finger relative to the screen center + bottom boost zone",
+  },
   "control.tilt": { ru: "Наклон телефона", en: "Phone Tilt" },
   "control.tiltDesc": { ru: "Наклон + зона буста", en: "Tilt steering + Boost zone" },
   "control.gyroPermission": { ru: "Разрешить гироскоп (iOS)", en: "Allow Gyroscope (iOS)" },
@@ -129,6 +137,25 @@ const translations = {
 
   // Boost zone
   "boost.label": { ru: "УСКОРЕНИЕ", en: "BOOST" },
+  "boost.holdHere": { ru: "Удерживайте для буста", en: "Hold here to boost" },
+
+  // HUD
+  "hud.score": { ru: "Счёт", en: "Score" },
+  "hud.ping": { ru: "Пинг", en: "Ping" },
+  "hud.offline": { ru: "офлайн", en: "offline" },
+
+  // Game over
+  "gameOver.title": { ru: "ПОТРАЧЕНО", en: "GAME OVER" },
+  "gameOver.subtitle": {
+    ru: "Твоя змейка стала кормом для других.",
+    en: "Your snake became food for the others.",
+  },
+  "gameOver.score": { ru: "Счёт", en: "Score" },
+  "gameOver.length": { ru: "Длина", en: "Length" },
+  "gameOver.kills": { ru: "Фраги", en: "Kills" },
+  "gameOver.playAgain": { ru: "ИГРАТЬ СНОВА", en: "PLAY AGAIN" },
+  "gameOver.best": { ru: "Рекорд: {score}", en: "Best: {score}" },
+  "gameOver.newRecord": { ru: "Новый рекорд!", en: "New record!" },
 
   // Gyro permission alert
   "alert.gyroDenied": { ru: "Доступ к гироскопу отклонён.", en: "Gyroscope permission denied." },
@@ -154,6 +181,14 @@ const translations = {
   "status.mouseGuide": {
     ru: "Движение за курсором | Пробел — ускорение | T — управление",
     en: "Move with cursor | Space — boost | T — controls",
+  },
+  "status.touchGuide": {
+    ru: "Палец от центра экрана — руление | Нижняя зона — буст",
+    en: "Finger from screen center — steer | Bottom zone — boost",
+  },
+  "status.tiltGuide": {
+    ru: "Наклон телефона — руление | Нижняя зона — буст",
+    en: "Tilt your phone — steer | Bottom zone — boost",
   },
   "status.wall": { ru: "Стена", en: "Wall" },
   "debug.enterScore": {

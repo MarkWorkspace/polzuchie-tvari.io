@@ -131,13 +131,15 @@ frontend/
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
     │   ├── Minimap.test.ts             # ROLE: Тесты разбора lightweight-игроков для миникарты.
     │   ├── SteeringIndicator.ts        # ROLE: Шкала поворота мыши.
-    │   ├── MobileControls.ts           # ROLE: Мобильные элементы управления.
+    │   ├── MobileControls.ts           # ROLE: Мобильное руление от центра экрана + нижняя зона буста.
+    │   ├── personalStats.ts             # ROLE: Личный рекорд (score/length/kills) и его localStorage-персистенция.
+    │   ├── personalStats.test.ts        # ROLE: Тесты рекорда: первый запуск, максимумы, битые данные.
     │   └── react/
     │       ├── gameUiStore.ts          # ROLE: Throttled window-event adapter + external store для игрового UI. Без рендеринга.
     │       ├── gameUiStore.test.ts     # ROLE: Тесты троттлинга лидерборда/счета и TTL killfeed.
     │       ├── GameHud.tsx             # ROLE: React-композиция HUD (счет, лидерборд, killfeed).
-    │       ├── HudPanel.tsx            # ROLE: React score panel, score feed и ping.
-    │       ├── Leaderboard.tsx         # ROLE: React топ-таблица для HUD и настроек.
+    │       ├── HudPanel.tsx            # ROLE: React score panel, score feed, ping и mobile-подсказки.
+    │       ├── Leaderboard.tsx         # ROLE: React топ-таблица для HUD и настроек (опциональный выбор игрока).
     │       ├── KillFeed.tsx            # ROLE: React лента убийств.
     │       ├── SpectatorHud.tsx        # ROLE: Player-facing spectator HUD: бейдж, статус, follow и лидерборд.
     │       ├── SpectatorHud.test.tsx   # ROLE: Тесты spectator HUD и follow-событий.
@@ -148,7 +150,7 @@ frontend/
     │       ├── mountLoginScreen.tsx    # ROLE: Mount/unmount React login.
     │       ├── SettingsPanel.tsx       # ROLE: React controls/settings drawer.
     │       ├── mountSettingsPanel.tsx  # ROLE: Mount/unmount React settings.
-    │       ├── GameOverScreen.tsx      # ROLE: React death overlay and respawn.
+    │       ├── GameOverScreen.tsx      # ROLE: React death overlay, run summary, personal best и respawn.
     │       ├── mountGameOverScreen.tsx # ROLE: Mount/unmount React game-over overlay.
     │       ├── LoginScreen.test.tsx    # ROLE: React login tests.
     │       ├── SettingsPanel.test.tsx  # ROLE: React settings tests.
@@ -209,8 +211,8 @@ backend/
     │   └── admin.py                    # ROLE: Admin REST API.
     ├── bots/
     │   ├── __init__.py                 # ROLE: Изолированный пакет ботов; удаляется вместе с 3 engine-хуками.
-    │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов по конфигу. Без сети и рендера.
-    │   └── brain.py                    # ROLE: Чистые решения руления (еда, объезд тел и чёрных дыр).
+    │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов, personalities по конфигу. Без сети и рендера.
+    │   └── brain.py                    # ROLE: Чистые решения руления (еда, перехват, отступление, объезд препятствий).
     └── engine/
         ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
         ├── registry.py                 # ROLE: Авто-дискавери и порядок систем.
@@ -247,7 +249,8 @@ backend/tests/
 ├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации. Проверяет парсинг пароля, очистку пробелов/кавычек и работу login-обработчика.
 ├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока. Проверяет Protobuf restart-frame и очистку соединений.
 ├── test_black_hole_timer.py           # ROLE: Таймеры чёрных дыр двигаются ровно один раз за тик.
-├── test_bots.py                       # ROLE: Lifecycle, live config sync, respawn и руление ботов.
+├── test_boost.py                      # ROLE: Буст сохраняет score целым; late join после буста не ломает FULL-синк.
+├── test_bots.py                       # ROLE: Lifecycle, live config sync, respawn, personalities и руление ботов.
 ├── test_client_messages.py            # ROLE: Лимит длины текстовых команд клиента.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
 ├── test_dead_player_systems.py         # ROLE: Мёртвый игрок не двигается/ест/бустит и не ломает телепорт.
