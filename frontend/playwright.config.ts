@@ -1,6 +1,6 @@
 // ROLE: Playwright E2E configuration and local backend/frontend web servers.
 
-import { copyFileSync } from "node:fs";
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,8 +10,13 @@ const isCi = Boolean(process.env.CI);
 const backendDir = fileURLToPath(new URL("../backend", import.meta.url));
 
 // Admin config edits during E2E must not mutate the tracked backend/config.json.
+// Bots are disabled for deterministic specs and are covered by a dedicated test
+// that enables them through the admin API.
 const e2eConfigPath = join(tmpdir(), `polzuchie-e2e-config-${process.pid}.json`);
 copyFileSync(fileURLToPath(new URL("../backend/config.json", import.meta.url)), e2eConfigPath);
+const e2eConfig = JSON.parse(readFileSync(e2eConfigPath, "utf8")) as Record<string, any>;
+e2eConfig.bots = { ...(e2eConfig.bots ?? {}), enabled: 0 };
+writeFileSync(e2eConfigPath, JSON.stringify(e2eConfig, null, 2));
 
 export default defineConfig({
   testDir: "./e2e",

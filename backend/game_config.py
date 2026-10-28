@@ -109,6 +109,13 @@ class VisualConfig:
 
 
 @dataclass
+class BotsConfig:
+    enabled: int = 1
+    count: int = 3
+    respawn_delay_seconds: float = 2.0
+
+
+@dataclass
 class GameConfig:
     world: WorldConfig = field(default_factory=WorldConfig)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
@@ -116,6 +123,7 @@ class GameConfig:
     boost: BoostConfig = field(default_factory=BoostConfig)
     food: FoodConfig = field(default_factory=FoodConfig)
     visual: VisualConfig = field(default_factory=VisualConfig)
+    bots: BotsConfig = field(default_factory=BotsConfig)
 
     def to_dict(self):
         return asdict(self)
@@ -259,6 +267,10 @@ class GameConfig:
         _require_range("visual.camera_y_offset", self.visual.camera_y_offset, -1.0, 1.0)
         _require_range("visual.mouse_sensitivity", self.visual.mouse_sensitivity, 0.1, 10.0)
         _require_range("visual.head_glow_radius", self.visual.head_glow_radius, 0.0, 50.0)
+
+        _require_range("bots.enabled", self.bots.enabled, 0, 1)
+        _require_range("bots.count", self.bots.count, 0, 20)
+        _require_range("bots.respawn_delay_seconds", self.bots.respawn_delay_seconds, 0.5, 60.0)
 
 
 def _apply_dataclass_patch(target, patch):

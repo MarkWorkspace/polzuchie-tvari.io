@@ -90,6 +90,7 @@ async def game_loop(world):
             for cid, data in world.input_queue:
                 world.update_direction(cid, data)
             world.input_queue.clear()
+            world.bot_manager.update()
             world.tick()
         except Exception:
             traceback.print_exc()
@@ -110,6 +111,7 @@ async def game_loop(world):
 @asynccontextmanager
 async def lifespan(app):
     world = World()
+    world.bot_manager.start()
     app.state.world = world
     task = asyncio.create_task(game_loop(world))
     yield
@@ -128,6 +130,7 @@ async def lifespan(app):
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await task
+    world.bot_manager.stop()
 
 
 app = FastAPI(lifespan=lifespan)

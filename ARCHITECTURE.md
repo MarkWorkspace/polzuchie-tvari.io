@@ -55,6 +55,7 @@
 **Детализация шагов и форматы данных:**
 1. **FastAPI Game State (Сервер):**
    - На каждом тике (30 Гц) оркестратор [game.py](backend/app/engine/game.py) вызывает физические и игровые системы, обновляющие состояние [GameState](backend/app/engine/state.py).
+   - Опциональные серверные боты живут в изолированном пакете `backend/app/bots/`: `server.py` запускает `BotManager` в lifespan, `game_loop` вызывает `world.bot_manager.update()` перед тиком. Боты — обычные `Player` в `state.players` без WebSocket-соединения, поэтому сериализация, коллизии, еда и лидерборд работают для них без специальных веток.
    - [serialization.py](backend/app/engine/systems/serialization.py) кэширует сериализованные словари игроков и собирает `GameStateFrame` по схеме `tests_shared/snake.proto`. Для экономии трафика координаты змеек сжимаются в плоские одномерные массивы `[x0, y0, x1, y1, ...]`.
    - В [server.py](backend/server.py) полученный Protobuf-кадр сжимается с помощью `zlib.compress(..., level=1)`.
    - **Формат границы:** Бинарный сжатый Protobuf (zlib/deflate).

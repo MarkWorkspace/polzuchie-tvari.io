@@ -21,12 +21,18 @@ export const NEW_SECTIONS: Record<string, { title: string; icon: string; old_sec
       icon: "🎨",
       old_sections: ["visual"],
     },
+    bots: {
+      title: "Bots",
+      icon: "🤖",
+      old_sections: ["bots"],
+    },
   };
 
 export const getNewSectionKey = (oldSec: string): string => {
   if (oldSec === "world" || oldSec === "network") return "world_network";
   if (oldSec === "snake" || oldSec === "simulation") return "snake_physics";
   if (oldSec === "food" || oldSec === "boost") return "food_boost";
+  if (oldSec === "bots") return "bots";
   return "camera_visual";
 };
 
@@ -88,6 +94,9 @@ export const FIELD_LABELS: Record<string, string> = {
   black_holes_pull_force: "Gravity Pull Force",
   black_holes_kill_radius: "Event Horizon Radius",
   black_holes_growth_time: "Black Hole Growth Time",
+  enabled: "Bots Enabled",
+  count: "Bot Count",
+  respawn_delay_seconds: "Bot Respawn Delay",
 };
 
 export const FIELD_UNITS: Record<string, string> = {
@@ -148,6 +157,9 @@ export const FIELD_UNITS: Record<string, string> = {
   black_holes_pull_force: "cells/s",
   black_holes_kill_radius: "cells",
   black_holes_growth_time: "sec",
+  enabled: "0/1",
+  count: "pcs",
+  respawn_delay_seconds: "sec",
 };
 
 export const HIDDEN_FIELDS = new Set(["types", "aoi_radius", "aoi_length_padding"]);
@@ -193,4 +205,7 @@ export const FIELD_TOOLTIPS: Record<string, string> = {
   black_holes_pull_force: "Gravity pull strength factor.",
   black_holes_kill_radius: "Event horizon range.",
   black_holes_growth_time: "Duration in seconds for a black hole to smoothly grow or collapse.",
+  enabled: "Enable/disable server-controlled bots.",
+  count: "Number of bots maintained by the server.",
+  respawn_delay_seconds: "Delay in seconds before a dead bot respawns.",
 };

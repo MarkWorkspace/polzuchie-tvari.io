@@ -8,6 +8,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from game_config import GameConfig, validate_growth_formula, CELL_SIZE
+from app.bots import BotManager
 from app.engine.entities import Player
 from app.engine.food_manager import FoodManager
 from app.engine.world_elements import PortalManager, BlackHoleManager
@@ -59,6 +60,7 @@ class World:
         self._config_updated_this_tick = False
         self._config_broadcast_needed = False
         self.input_queue = []
+        self.bot_manager = BotManager(self)
 
     def _recompute_grid_cells(self):
         self._grid_width_cells = max(1, int(math.ceil(self.grid_width / CELL_SIZE)))
@@ -232,6 +234,7 @@ class World:
         if black_holes_changed or size_changed:
             self.bh_manager.update_slots(force_roll=size_changed)
 
+        self.bot_manager.sync()
         return self.get_config()
 
     def add_player(self, player_id, nickname="Игрок", skin="#22c55e"):
@@ -373,5 +376,6 @@ class World:
         self.food_manager.clear()
         self.portal_manager.update_slots(force_roll=True)
         self.bh_manager.update_slots(force_roll=True)
+        self.bot_manager.reset()
         self._config_updated_this_tick = False
         self._config_broadcast_needed = False

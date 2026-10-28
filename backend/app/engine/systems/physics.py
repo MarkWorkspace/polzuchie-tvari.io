@@ -3,15 +3,24 @@
 import math
 
 
+def max_turn_per_tick(state, player) -> float:
+    """Maximum angle change (radians) available to this player in one tick."""
+    max_turn_deg_rad = state.config.simulation.max_turn_speed_deg_per_second * math.pi / 180
+    min_turn_radius_cfg = state.config.simulation.min_turn_radius
+    thickness_coeff = state.config.simulation.turn_radius_thickness_coeff
+    effective_radius = min_turn_radius_cfg + player.head_radius * thickness_coeff
+    max_turn_from_radius = state.config.simulation.base_speed_per_second / max(
+        effective_radius, 0.01
+    )
+    return min(max_turn_deg_rad, max_turn_from_radius) * state.tick_interval
+
+
 def update(state) -> None:
     """
     Updates all players' angles and moves their heads based on their speed and inputs.
     """
     tick_interval = state.tick_interval
     base_speed = state.config.simulation.base_speed_per_second * tick_interval
-    max_turn_deg_rad = state.config.simulation.max_turn_speed_deg_per_second * math.pi / 180
-    min_turn_radius_cfg = state.config.simulation.min_turn_radius
-    thickness_coeff = state.config.simulation.turn_radius_thickness_coeff
     idle_turn_smoothing = state.tick_smoothing(state.config.simulation.turn_idle_smoothing_at_20hz)
     active_turn_smoothing = state.tick_smoothing(
         state.config.simulation.turn_active_smoothing_at_20hz
@@ -24,11 +33,7 @@ def update(state) -> None:
         if player.teleport_state in ("entering", "in_transit"):
             player.teleport_timer = max(0.0, player.teleport_timer - tick_interval)
 
-        effective_radius = min_turn_radius_cfg + player.head_radius * thickness_coeff
-        max_turn_from_radius = state.config.simulation.base_speed_per_second / max(
-            effective_radius, 0.01
-        )
-        turn_speed = min(max_turn_deg_rad, max_turn_from_radius) * tick_interval
+        turn_speed = max_turn_per_tick(state, player)
 
         player.pending_steps += player.speed_mult
         steps_this_tick = int(player.pending_steps)

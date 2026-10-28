@@ -34,8 +34,10 @@ frontend/
 ├── biome.json                          # ROLE: Biome lint/format config for the frontend.
 ├── playwright.config.ts                # ROLE: Playwright E2E config; поднимает backend и Vite.
 ├── e2e/
+│   ├── adminApi.ts                     # ROLE: Общие REST-хелперы Playwright для админ-конфига.
 │   ├── game.spec.ts                    # ROLE: Smoke login, HUD и настроек качества.
 │   ├── death.spec.ts                   # ROLE: Реальная смерть от чёрной дыры, game-over и respawn.
+│   ├── bots.spec.ts                    # ROLE: Live-включение/выключение ботов через админку.
 │   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор, follow по клику и возврат к обзору.
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
@@ -195,7 +197,7 @@ frontend/src/styles/
 ```
 backend/
 ├── server.py                           # ROLE: Точка входа FastAPI. Не содержит игровой логики.
-├── game_config.py                      # ROLE: Конфигурация через датаклассы.
+├── game_config.py                      # ROLE: Конфигурация через датаклассы (включая секцию bots).
 ├── config.json                         # Runtime-конфигурация (атомарно пишется админкой; не редактировать вручную).
 ├── pyproject.toml                      # ROLE: PEP 621 metadata, runtime/dev dependencies, pytest + ruff config.
 ├── uv.lock                             # ROLE: [СГЕНЕРИРОВАНО] uv lockfile. Не редактировать вручную.
@@ -205,6 +207,10 @@ backend/
     ├── api/
     │   ├── websocket.py                # ROLE: WebSocket endpoint, rate limiting, spectator/player identity. Не игровая логика.
     │   └── admin.py                    # ROLE: Admin REST API.
+    ├── bots/
+    │   ├── __init__.py                 # ROLE: Изолированный пакет ботов; удаляется вместе с 3 engine-хуками.
+    │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов по конфигу. Без сети и рендера.
+    │   └── brain.py                    # ROLE: Чистые решения руления (еда, объезд тел и чёрных дыр).
     └── engine/
         ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
         ├── registry.py                 # ROLE: Авто-дискавери и порядок систем.
@@ -241,6 +247,7 @@ backend/tests/
 ├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации. Проверяет парсинг пароля, очистку пробелов/кавычек и работу login-обработчика.
 ├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока. Проверяет Protobuf restart-frame и очистку соединений.
 ├── test_black_hole_timer.py           # ROLE: Таймеры чёрных дыр двигаются ровно один раз за тик.
+├── test_bots.py                       # ROLE: Lifecycle, live config sync, respawn и руление ботов.
 ├── test_client_messages.py            # ROLE: Лимит длины текстовых команд клиента.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
 ├── test_dead_player_systems.py         # ROLE: Мёртвый игрок не двигается/ест/бустит и не ломает телепорт.
