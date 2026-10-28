@@ -9,10 +9,6 @@ const LIGHT_INTENSITY = 250;
 interface SnakeLightSource {
   hx?: number;
   hy?: number;
-  mx?: number;
-  my?: number;
-  tx?: number;
-  ty?: number;
   glowColor?: number;
   isMe?: boolean;
 }
@@ -56,23 +52,12 @@ export class SnakeLightPool {
     if (this.activeCount > 0 && activePlayers) {
       for (const player of activePlayers) {
         if (!Number.isFinite(player.hx) || !Number.isFinite(player.hy)) continue;
-        const color = player.glowColor ?? 0xffa64d;
-        const isMe = Boolean(player.isMe);
-
-        // The local snake gets a mid + tail light pair so its whole body
-        // colors the ground; other snakes get one body-centred light.
-        if (isMe) {
-          const midX = Number.isFinite(player.mx) ? player.mx! : player.hx!;
-          const midY = Number.isFinite(player.my) ? player.my! : player.hy!;
-          this.candidates.push({ x: midX, y: midY, color, isMe: true });
-          if (Number.isFinite(player.tx) && Number.isFinite(player.ty)) {
-            this.candidates.push({ x: player.tx!, y: player.ty!, color, isMe: true });
-          }
-        } else {
-          const x = Number.isFinite(player.mx) ? player.mx! : player.hx!;
-          const y = Number.isFinite(player.my) ? player.my! : player.hy!;
-          this.candidates.push({ x, y, color, isMe: false });
-        }
+        this.candidates.push({
+          x: player.hx!,
+          y: player.hy!,
+          color: player.glowColor ?? 0xffa64d,
+          isMe: Boolean(player.isMe),
+        });
       }
 
       this.candidates.sort((a, b) => {

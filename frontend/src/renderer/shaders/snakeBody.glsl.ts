@@ -100,13 +100,13 @@ export const fragmentColorReplace = `
   // Keep the ribbon readable as a colored light source; a lower diffuse term
   // prevents white ambient from washing the skin out to pastel.
   bodyFinalColor = finalColor;
-  diffuseColor = vec4(finalColor * 0.35, opacity);
+  diffuseColor = vec4(finalColor * 0.45, opacity);
 `;
 
 export const emissiveReplace = `
   #include <emissivemap_fragment>
   // A self-lit term keeps the skin saturated under the cool ambient.
-  totalEmissiveRadiance += bodyFinalColor * 0.55;
+  totalEmissiveRadiance += bodyFinalColor * 0.75;
 `;
 
 export const saturationReplace = `

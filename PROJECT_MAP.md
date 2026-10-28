@@ -69,9 +69,9 @@ frontend/
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
     ├── renderer/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, цветные snake-light'ы, тени, туман, пресеты качества и adaptive pixel ratio.
-    │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 цветных PointLight для ближайших змей; без теней и геймплея.
+    │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
-    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, сплайны, flat-нормали, emissive-скины, тени и skin-tinted head glow. Не физика, не HUD.
+    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, тени, skin-tinted head glow и body-glow эллипсы. Не физика, не HUD.
     │   ├── AtmosphereEffect.ts         # ROLE: Дешёвый финальный grade: vignette, split-tone, saturation и dither. Без знания сцены.
     │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
     │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.

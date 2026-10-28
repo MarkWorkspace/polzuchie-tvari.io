@@ -135,27 +135,75 @@ export class SnakeRenderer {
   private _updateGlow(activePlayers: any[], baseGlowRadius: number): void {
     let glowCount = 0;
     const colors = this.glowMesh.instanceColor?.array as Float32Array | undefined;
+    const dummy = this.glowDummy;
+
+    const writeGlow = (
+      x: number,
+      y: number,
+      scaleX: number,
+      scaleY: number,
+      angle: number,
+      color: number,
+      colorBoost = 1.0,
+    ) => {
+      if (glowCount >= 1000) return;
+      dummy.position.set(x, y, -0.15);
+      dummy.rotation.set(0, 0, angle);
+      dummy.scale.set(scaleX, scaleY, 1.0);
+      dummy.updateMatrix();
+      this.glowMesh.setMatrixAt(glowCount, dummy.matrix);
+
+      if (colors) {
+        const offset = glowCount * 3;
+        colors[offset] = (((color >> 16) & 255) / 255) * colorBoost;
+        colors[offset + 1] = (((color >> 8) & 255) / 255) * colorBoost;
+        colors[offset + 2] = ((color & 255) / 255) * colorBoost;
+      }
+      glowCount++;
+    };
+
+    const writeBodySegment = (
+      x1: number,
+      y1: number,
+      x2: number,
+      y2: number,
+      halfWidth: number,
+      color: number,
+    ) => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const length = Math.hypot(dx, dy);
+      if (length < 1.0) return;
+      writeGlow(
+        (x1 + x2) * 0.5,
+        (y1 + y2) * 0.5,
+        length * 0.5 + halfWidth * 0.8,
+        halfWidth,
+        Math.atan2(dy, dx),
+        color,
+        1.8,
+      );
+    };
+
     if (baseGlowRadius > 0.0) {
-      const dummy = this.glowDummy;
       for (let i = 0; i < activePlayers.length; i++) {
         const ap = activePlayers[i];
-        if (ap.hx !== undefined && ap.hy !== undefined) {
-          // head_glow_radius is configured in cells; the shader's steep
-          // falloff keeps the visible core much smaller than this bound.
-          const finalRadius = headGlowRadiusWorld(ap.radius * gridSize, baseGlowRadius, gridSize);
-          dummy.position.set(ap.hx, ap.hy, -0.1);
-          dummy.scale.set(finalRadius, finalRadius, 1.0);
-          dummy.updateMatrix();
-          this.glowMesh.setMatrixAt(glowCount, dummy.matrix);
+        if (ap.hx === undefined || ap.hy === undefined) continue;
 
-          if (colors) {
-            const color = ap.glowColor ?? 0xffa64d;
-            const offset = glowCount * 3;
-            colors[offset] = ((color >> 16) & 255) / 255;
-            colors[offset + 1] = ((color >> 8) & 255) / 255;
-            colors[offset + 2] = (color & 255) / 255;
+        const color = ap.glowColor ?? 0xffa64d;
+        // head_glow_radius is configured in cells; the shader's steep
+        // falloff keeps the visible core much smaller than this bound.
+        const headRadius = headGlowRadiusWorld(ap.radius * gridSize, baseGlowRadius, gridSize);
+        writeGlow(ap.hx, ap.hy, headRadius, headRadius, 0, color);
+
+        // A soft additive ribbon approximation follows the body and gives the
+        // snake a screen glow without extra point lights.
+        const bodyHalfWidth = ap.radius * gridSize * 1.6 + baseGlowRadius * gridSize * 0.22;
+        if (ap.mx !== undefined && ap.my !== undefined) {
+          writeBodySegment(ap.hx, ap.hy, ap.mx, ap.my, bodyHalfWidth, color);
+          if (ap.tx !== undefined && ap.ty !== undefined) {
+            writeBodySegment(ap.mx, ap.my, ap.tx, ap.ty, bodyHalfWidth, color);
           }
-          glowCount++;
         }
       }
       if (glowCount > 0) {
