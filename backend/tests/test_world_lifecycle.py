@@ -28,6 +28,7 @@ def test_reset_state_clears_all_transient_state(monkeypatch):
     world.spectators.add("spectator")
     world.input_queue.append(("a", "LEFT_DOWN"))
     world.tombstones.append({"id": "tomb", "x": 1, "y": 2, "nickname": "A", "time_left": 60})
+    world.tombstone_seq = 7
     world.full_players_cache["a"] = object()
     world.mini_players_cache["a"] = object()
     world.spatial_grid[(0, 0)] = {"players": [], "foods": [], "tombstones": []}
@@ -38,6 +39,7 @@ def test_reset_state_clears_all_transient_state(monkeypatch):
     assert world.spectators == set()
     assert world.input_queue == []
     assert world.tombstones == []
+    assert world.tombstone_seq == 0
     assert world.full_players_cache == {}
     assert world.mini_players_cache == {}
     assert world.spatial_grid == {}

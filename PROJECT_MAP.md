@@ -86,7 +86,9 @@ frontend/
     │   ├── PersimmonGeometry.ts        # ROLE: Процедурная генерация 3D-геометрии хурмы.
     │   ├── PortalRenderer.ts           # ROLE: Визуализация порталов.
     │   ├── BlackHoleRenderer.ts        # ROLE: Визуализация чёрных дыр.
-    │   ├── TombstoneRenderer.ts        # ROLE: Инстансированные надгробия.
+    │   ├── TombstoneRenderer.ts        # ROLE: Инстансированные upright-надгробия: позиция, yaw, тени, emissive-подъём.
+    │   ├── TombstoneGeometry.ts        # ROLE: Процедурная плита с аркой и основанием. Не рендерит и не анимирует.
+    │   ├── TombstoneGeometry.test.ts   # ROLE: Тест габаритов/ориентации и наличия нормалей надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
     │   ├── PostProcessing.ts           # ROLE: Tone mapping, mipmap-bloom/SSAO по пресету, линзирование чёрных дыр и atmosphere grade.
     │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), размер/радиус shadow map и persisted-выбор.
@@ -230,7 +232,7 @@ backend/
         └── systems/
             ├── physics.py              # ROLE: Движение, тороидальное оборачивание. Не коллизии.
             ├── spatial_index.py        # ROLE: Единая пространственная сетка за тик.
-            ├── collision.py            # ROLE: Столкновения змейка-змейка (коэфф. 0.95). Не движение, не еда.
+            ├── collision.py            # ROLE: Столкновения змейка-змейка и надгробия, death/tombstone lifecycle. Не движение, не еда.
             ├── teleportation.py        # ROLE: FSM телепортации (5 состояний).
             ├── gravity.py              # ROLE: Притяжение еды чёрными дырами; таймеры ЧД обновляет game.py.
             ├── food_eating.py          # ROLE: Поедание и притяжение еды.
@@ -257,6 +259,7 @@ backend/tests/
 ├── test_client_messages.py            # ROLE: Лимит длины текстовых команд клиента.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
 ├── test_dead_player_systems.py         # ROLE: Мёртвый игрок не двигается/ест/бустит и не ломает телепорт.
+├── test_tombstones.py                  # ROLE: Уникальные ID после респавна и collision-radius надгробия.
 ├── test_events.py                      # ROLE: Тесты EventBus.
 ├── test_formula_parser.py              # ROLE: Тесты парсера формул роста.
 ├── test_frame_parity.py                # ROLE: Round-trip parity-тест сетевого кадра. Кодирует → декодирует → сравнивает с .expected.json.

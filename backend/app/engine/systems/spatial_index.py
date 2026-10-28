@@ -1,6 +1,10 @@
 from collections import defaultdict
 from game_config import CELL_SIZE
 
+# The rendered headstone is about 0.6 cells wide; keep the collision circle
+# close to the visible stone instead of using the old boulder-sized radius.
+TOMBSTONE_COLLISION_RADIUS = 0.5
+
 
 def update(state) -> None:
     """
@@ -17,7 +21,9 @@ def update(state) -> None:
             continue
         cx = int(tomb["x"] / CELL_SIZE) % grid_w
         cy = int(tomb["y"] / CELL_SIZE) % grid_h
-        state.spatial_grid[(cx, cy)]["tombstones"].append(("tombstone", tomb["x"], tomb["y"], 1.2))
+        state.spatial_grid[(cx, cy)]["tombstones"].append(
+            ("tombstone", tomb["x"], tomb["y"], TOMBSTONE_COLLISION_RADIUS)
+        )
 
     # 2. Add Players
     for pid, player in state.players.items():

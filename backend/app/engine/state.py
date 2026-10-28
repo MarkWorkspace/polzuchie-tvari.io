@@ -47,6 +47,7 @@ class World:
         self.mini_players_cache = {}
         self.kill_events = []
         self.tombstones = []
+        self.tombstone_seq = 0
         self.spatial_grid = {}
 
         self.events = EventBus()
@@ -363,6 +364,7 @@ class World:
         self.client_visibility.clear()
         self.kill_events.clear()
         self.tombstones.clear()
+        self.tombstone_seq = 0
         self.input_queue.clear()
         self.full_players_cache.clear()
         self.mini_players_cache.clear()

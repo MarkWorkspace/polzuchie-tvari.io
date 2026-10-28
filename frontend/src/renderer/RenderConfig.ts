@@ -78,21 +78,4 @@ export class RenderConfig {
       fog: false,
     });
   }
-
-  /**
-   * Creates a standard opaque material (like Tombstones).
-   * Enforces disabled fog to prevent gamma/lighting shifts.
-   */
-  static createOpaqueMaterial(
-    color: number,
-    roughness = 0.8,
-    metalness = 0.1,
-  ): THREE.MeshStandardMaterial {
-    return new THREE.MeshStandardMaterial({
-      color,
-      roughness,
-      metalness,
-      fog: false,
-    });
-  }
 }

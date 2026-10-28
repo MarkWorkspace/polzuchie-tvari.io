@@ -1,8 +1,11 @@
-// ROLE: Отрисовка надгробий мертвых игроков через Three.js
+// ROLE: Отрисовка upright-надгробий мертвых игроков через Three.js.
 import * as THREE from "three";
 import { gridSize } from "../game/Config";
 import type { Tombstone } from "../types/game";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { createTombstoneGeometry } from "./TombstoneGeometry";
+
+const GROUND_Z = -1.95;
 
 export class TombstoneRenderer {
   private mesh: THREE.InstancedMesh | null = null;
@@ -19,9 +22,17 @@ export class TombstoneRenderer {
   }
 
   private initMesh() {
-    this.tombstoneGeometry = new THREE.DodecahedronGeometry(1.2 * gridSize, 0);
-    // Gray stone with roughness
-    this.tombstoneMaterial = RenderConfig.createOpaqueMaterial(0x888888, 0.8, 0.1);
+    this.tombstoneGeometry = createTombstoneGeometry();
+    this.tombstoneMaterial = new THREE.MeshStandardMaterial({
+      color: 0xa8adb0,
+      roughness: 0.9,
+      metalness: 0.05,
+      // The key light sits opposite the camera on some headings; a small
+      // emissive lift keeps the stone readable instead of pitch black.
+      emissive: 0x585e62,
+      emissiveIntensity: 0.5,
+      fog: false,
+    });
 
     this.mesh = new THREE.InstancedMesh(
       this.tombstoneGeometry,
@@ -33,9 +44,6 @@ export class TombstoneRenderer {
       castShadow: true,
       receiveShadow: true,
     });
-
-    // Move up so it sits on the ground
-    this.mesh.position.z = 0.4 * gridSize;
 
     this.scene.add(this.mesh);
   }
@@ -60,10 +68,9 @@ export class TombstoneRenderer {
     if (!this.mesh) return;
     const tx = tomb.x * gridSize + gridSize / 2;
     const ty = -(tomb.y * gridSize + gridSize / 2);
-    this.dummy.position.set(tx, ty, 0);
-    this.dummy.rotation.x = Math.PI / 2;
+    this.dummy.position.set(tx, ty, GROUND_Z);
     const hash = tomb.id.split("").reduce((a, b) => (a << 5) - a + b.charCodeAt(0), 0);
-    this.dummy.rotation.y = ((hash % 100) / 100.0) * 0.4 - 0.2;
+    this.dummy.rotation.set(0, 0, ((hash % 100) / 100.0) * 0.4 - 0.2);
     this.dummy.scale.set(1, 1, 1);
     this.dummy.updateMatrix();
     this.mesh.setMatrixAt(i, this.dummy.matrix);

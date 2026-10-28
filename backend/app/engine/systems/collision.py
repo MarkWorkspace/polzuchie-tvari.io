@@ -80,9 +80,10 @@ def _process_player_death(state, pid: str, player, killer_pid: str | None) -> No
                     break
 
     if player.body and spawn_tombstone:
+        state.tombstone_seq += 1
         state.tombstones.append(
             {
-                "id": f"tomb_{pid}_{len(state.kill_events)}",
+                "id": f"tomb_{pid}_{state.tombstone_seq}",
                 "x": player.head_x,
                 "y": player.head_y,
                 "nickname": player.nickname or "Игрок",

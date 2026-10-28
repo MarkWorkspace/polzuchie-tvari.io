@@ -358,7 +358,7 @@ function _addTombstoneNicknames(state: GameState, nicknames: any[], gridSize: nu
       nickname: tomb.nickname,
       x: tx,
       y: ty,
-      z: 5,
+      z: gridSize * 1.6,
       opacity: Number(opacity.toFixed(2)),
       isTombstone: true,
     });
