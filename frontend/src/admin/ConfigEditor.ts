@@ -60,7 +60,13 @@ export class ConfigEditor {
         const err = await res.json().catch(() => null);
         const detail = err?.detail;
         const message = Array.isArray(detail)
-          ? detail.map((item: { msg?: string }) => item.msg ?? String(item)).join("; ")
+          ? detail
+              .map((item: { loc?: unknown[]; msg?: string }) => {
+                const path = Array.isArray(item.loc) ? item.loc.slice(1).join(".") : "";
+                const text = item.msg ?? String(item);
+                return path ? `${path}: ${text}` : text;
+              })
+              .join("; ")
           : detail || `Error saving config: ${res.status}`;
         return { ok: false, message };
       }

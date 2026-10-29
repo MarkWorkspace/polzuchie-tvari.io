@@ -2,6 +2,7 @@
 import os
 import asyncio
 import hmac
+import logging
 import secrets
 import time
 import zlib
@@ -12,6 +13,7 @@ from pydantic import BaseModel
 
 from app.engine.systems import snake_pb2
 
+from app.api.config_schema import AdminConfigPatch
 from app.api.websocket import (
     active_connections,
     replace_queued_state,
@@ -28,6 +30,7 @@ LOGIN_RATE_WINDOW_SECONDS = 5 * 60
 _admin_sessions: dict[str, float] = {}
 _login_attempts: dict[str, deque[float]] = {}
 _default_password_warned = False
+logger = logging.getLogger(__name__)
 
 
 def admin_password():
@@ -37,8 +40,8 @@ def admin_password():
         return password.strip(" \t\r\n\"'")
     if os.getenv("ENVIRONMENT") != "production":
         if not _default_password_warned:
-            print(
-                "[WARNING] Using default admin password 'admin'. Set ADMIN_PASSWORD env var for production!"
+            logger.warning(
+                "Using default admin password 'admin'. Set ADMIN_PASSWORD env var for production!"
             )
             _default_password_warned = True
         return "admin"
@@ -46,7 +49,8 @@ def admin_password():
 
 
 def _prune_admin_sessions(now: float | None = None) -> None:
-    now = time.time() if now is None else now
+    # Monotonic time: NTP jumps must not extend or expire in-memory sessions.
+    now = time.monotonic() if now is None else now
     expired = [token for token, expires_at in _admin_sessions.items() if expires_at <= now]
     for token in expired:
         _admin_sessions.pop(token, None)
@@ -55,7 +59,7 @@ def _prune_admin_sessions(now: float | None = None) -> None:
 def _create_admin_session() -> str:
     _prune_admin_sessions()
     token = secrets.token_urlsafe(32)
-    _admin_sessions[token] = time.time() + ADMIN_SESSION_TTL_SECONDS
+    _admin_sessions[token] = time.monotonic() + ADMIN_SESSION_TTL_SECONDS
     return token
 
 
@@ -63,7 +67,7 @@ def _is_valid_admin_session(token: str | None) -> bool:
     if not token:
         return False
     _prune_admin_sessions()
-    return _admin_sessions.get(token, 0.0) > time.time()
+    return _admin_sessions.get(token, 0.0) > time.monotonic()
 
 
 def _login_key(request: Request | None) -> str:
@@ -82,7 +86,7 @@ def _login_key(request: Request | None) -> str:
 
 
 def _prune_login_attempts(now: float | None = None) -> None:
-    now = time.time() if now is None else now
+    now = time.monotonic() if now is None else now
     for key, attempts in list(_login_attempts.items()):
         while attempts and attempts[0] < now - LOGIN_RATE_WINDOW_SECONDS:
             attempts.popleft()
@@ -91,7 +95,7 @@ def _prune_login_attempts(now: float | None = None) -> None:
 
 
 def _is_login_rate_limited(key: str) -> bool:
-    now = time.time()
+    now = time.monotonic()
     attempts = _login_attempts.setdefault(key, deque())
     while attempts and attempts[0] < now - LOGIN_RATE_WINDOW_SECONDS:
         attempts.popleft()
@@ -99,7 +103,7 @@ def _is_login_rate_limited(key: str) -> bool:
 
 
 def _record_login_attempt(key: str) -> None:
-    _login_attempts.setdefault(key, deque()).append(time.time())
+    _login_attempts.setdefault(key, deque()).append(time.monotonic())
 
 
 def _is_secure_request(request: Request) -> bool:
@@ -170,9 +174,9 @@ async def get_admin_config(request: Request):
     return request.app.state.world.get_config()
 
 
-async def patch_admin_config(patch: dict, request: Request):
+async def patch_admin_config(patch: AdminConfigPatch, request: Request):
     try:
-        return request.app.state.world.update_config(patch)
+        return request.app.state.world.update_config(patch.model_dump(exclude_unset=True))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:
@@ -207,24 +211,24 @@ def _build_restart_message() -> bytes:
 
 
 async def _queue_restart_message(shutdown_message: bytes) -> None:
-    for client_id, connection in list(active_connections.items()):
+    for connection in list(active_connections.values()):
         try:
             replace_queued_state(connection["queue"], (shutdown_message, set(), True))
             await asyncio.sleep(0.01)
         except Exception:
-            pass
+            logger.debug("Failed to queue restart message", exc_info=True)
 
 
 async def _close_active_connections() -> None:
-    for client_id, connection in list(active_connections.items()):
+    for connection in list(active_connections.values()):
         try:
             await connection["websocket"].close(code=1012, reason="Server restart")
         except Exception:
-            pass
+            logger.debug("Failed to close WebSocket during restart", exc_info=True)
         try:
             connection["task"].cancel()
         except Exception:
-            pass
+            logger.debug("Failed to cancel connection task during restart", exc_info=True)
     active_connections.clear()
 
 
@@ -235,12 +239,12 @@ def _cancel_pending_disconnects() -> None:
 
 
 async def admin_restart_game(request: Request):
-    print("[Admin] Game restart requested. Notifying all clients...")
+    logger.info("Game restart requested. Notifying all clients...")
 
     await _queue_restart_message(_build_restart_message())
     await _close_active_connections()
     _cancel_pending_disconnects()
     request.app.state.world.reset_state()
 
-    print("[Admin] Game state reset complete. Clients will auto-reconnect.")
+    logger.info("Game state reset complete. Clients will auto-reconnect.")
     return {"status": "ok", "message": "Game restarted"}
