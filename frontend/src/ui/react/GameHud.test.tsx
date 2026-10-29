@@ -71,20 +71,26 @@ describe("GameHud", () => {
     expect(screen.getAllByTitle("Kills")[0]).toHaveTextContent("⚔️ 1");
   });
 
-  it("renders kill feed names and the wall label", () => {
+  it("resolves player names and environmental kill causes", () => {
     render(<GameHud isMobile={false} />);
 
     dispatch("game-killfeed", {
       events: [
         { killer: "k", victim: "v" },
         { killer: "", victim: "v" },
+        { killer: "black_hole", victim: "v" },
+        { killer: "tomb_k_3", victim: "v" },
       ],
       players: { k: { nickname: "Killer" }, v: { nickname: "Victim" } },
     });
 
     expect(screen.getByText("Killer")).toBeInTheDocument();
-    expect(screen.getAllByText("Victim")).toHaveLength(2);
-    expect(screen.getByText("Wall")).toBeInTheDocument();
+    expect(screen.getAllByText("Victim")).toHaveLength(4);
+    expect(screen.getByText("Environment")).toBeInTheDocument();
+    expect(screen.getByText("Black hole")).toBeInTheDocument();
+    expect(screen.getByText("Tombstone")).toBeInTheDocument();
+    // Raw server ids must never leak into the HUD.
+    expect(screen.queryByText(/black_hole|tomb_/)).not.toBeInTheDocument();
   });
 
   it("limits the leaderboard to three rows and hides the header on mobile", () => {

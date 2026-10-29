@@ -190,7 +190,9 @@ const translations = {
     ru: "Наклон телефона — руление | Нижняя зона — буст",
     en: "Tilt your phone — steer | Bottom zone — boost",
   },
-  "status.wall": { ru: "Стена", en: "Wall" },
+  "status.environment": { ru: "Среда", en: "Environment" },
+  "status.blackHole": { ru: "Чёрная дыра", en: "Black hole" },
+  "status.tombstone": { ru: "Надгробие", en: "Tombstone" },
   "debug.enterScore": {
     ru: "Укажите новое значение очков для вашей змейки (от 0):",
     en: "Enter a new score value for your snake (0 or greater):",

@@ -1,13 +1,24 @@
-// ROLE: Tests for deterministic grass placement, toroidal wrap, culling and budget caps.
+// ROLE: Tests for deterministic grass clumping and prop placement, toroidal wrap, culling and split budgets.
 import { describe, expect, it } from "vitest";
 import {
+  clumpDensity,
   createCellTufts,
+  createDecorPropBuffer,
   createGrassTuftBuffer,
+  DECOR_BUDGET_CAPS,
+  type DecorPropType,
+  GRASS_CLUSTER_CELLS,
+  GRASS_CLUSTER_MIN,
   GRASS_SEED,
+  GRASS_TUFTS_PER_CELL_MAX,
   type GrassFieldConfig,
   hashCell,
+  MAX_DECOR_INSTANCES,
+  PROP_VARIANT_COUNTS,
+  placeDecorProps,
   placeGrassTufts,
   sampleCellTufts,
+  splitDecorBudget,
   toroidalDistance,
 } from "./DecorField";
 import {
@@ -99,7 +110,7 @@ describe("sampleCellTufts", () => {
 
     expect(first.count).toBeGreaterThan(0);
     expect(second).toEqual(first);
-    expect(first.count).toBeLessThanOrEqual(2);
+    expect(first.count).toBeLessThanOrEqual(GRASS_TUFTS_PER_CELL_MAX);
   });
 
   it("wraps cell coordinates toroidally", () => {
@@ -140,6 +151,17 @@ describe("sampleCellTufts", () => {
         expect(Number.isFinite(out.scale[i])).toBe(true);
         expect(Number.isFinite(out.colorMix[i])).toBe(true);
       }
+    }
+
+    const nanCell = createCellTufts();
+    const nanCount = sampleCellTufts(Number.NaN, Number.NaN, denseConfig, nanCell);
+    expect(Number.isFinite(nanCount)).toBe(true);
+    for (let i = 0; i < nanCount; i++) {
+      expect(Number.isFinite(nanCell.x[i])).toBe(true);
+      expect(Number.isFinite(nanCell.y[i])).toBe(true);
+      expect(Number.isFinite(nanCell.yaw[i])).toBe(true);
+      expect(Number.isFinite(nanCell.scale[i])).toBe(true);
+      expect(Number.isFinite(nanCell.colorMix[i])).toBe(true);
     }
   });
 });
@@ -248,6 +270,281 @@ describe("placeGrassTufts", () => {
         expect(Number.isFinite(buffer.y[i])).toBe(true);
         expect(Number.isFinite(buffer.yaw[i])).toBe(true);
         expect(Number.isFinite(buffer.scale[i])).toBe(true);
+        expect(Number.isFinite(buffer.colorMix[i])).toBe(true);
+      }
+    }
+    expect(cases[2].count).toBe(0);
+    expect(cases[3].count).toBe(0);
+  });
+});
+
+describe("grass clumping", () => {
+  it("keeps the cluster factor inside its band and varies across the map", () => {
+    const values = new Set<number>();
+    let min = 1;
+    let max = 0;
+    for (let cy = 0; cy < config.mapCellsY; cy += 7) {
+      for (let cx = 0; cx < config.mapCellsX; cx += 7) {
+        const value = clumpDensity(cx, cy, config.mapCellsX, config.mapCellsY, GRASS_SEED);
+        expect(Number.isFinite(value)).toBe(true);
+        expect(value).toBeGreaterThanOrEqual(GRASS_CLUSTER_MIN);
+        expect(value).toBeLessThanOrEqual(1);
+        values.add(value);
+        min = Math.min(min, value);
+        max = Math.max(max, value);
+      }
+    }
+    // Both lush and nearly bare patches must exist, with real contrast between them.
+    expect(values.size).toBeGreaterThan(4);
+    expect(max - min).toBeGreaterThan(0.4);
+    expect(Number.isFinite(clumpDensity(Number.NaN, Number.NaN, 100, 100, GRASS_SEED))).toBe(true);
+  });
+
+  it("wraps cell coordinates toroidally", () => {
+    expect(clumpDensity(3, 5, 100, 100, GRASS_SEED)).toBe(
+      clumpDensity(3 + 100, 5 - 200, 100, 100, GRASS_SEED),
+    );
+    expect(clumpDensity(-1, 99, 100, 100, GRASS_SEED)).toBe(
+      clumpDensity(99, 99, 100, 100, GRASS_SEED),
+    );
+  });
+
+  it("is constant inside one super-cell and seed dependent", () => {
+    const baseX = GRASS_CLUSTER_CELLS * 5;
+    const baseY = GRASS_CLUSTER_CELLS * 6;
+    const cases = [
+      [baseX, baseY],
+      [baseX + 1, baseY + GRASS_CLUSTER_CELLS - 1],
+      [baseX + GRASS_CLUSTER_CELLS - 1, baseY],
+    ];
+    const reference = clumpDensity(cases[0][0], cases[0][1], 100, 100, GRASS_SEED);
+    for (const [cx, cy] of cases) {
+      expect(clumpDensity(cx, cy, 100, 100, GRASS_SEED)).toBe(reference);
+    }
+    expect(clumpDensity(baseX, baseY, 100, 100, GRASS_SEED + 1)).not.toBe(reference);
+  });
+
+  it("makes cells sparser in bare patches than in lush ones", () => {
+    let lushX = 0;
+    let lushY = 0;
+    let bareX = 0;
+    let bareY = 0;
+    let max = -1;
+    let min = 2;
+    for (let sy = 0; sy < 12; sy++) {
+      for (let sx = 0; sx < 12; sx++) {
+        const cellX = sx * GRASS_CLUSTER_CELLS;
+        const cellY = sy * GRASS_CLUSTER_CELLS;
+        const value = clumpDensity(cellX, cellY, 100, 100, GRASS_SEED);
+        if (value > max) {
+          max = value;
+          lushX = cellX;
+          lushY = cellY;
+        }
+        if (value < min) {
+          min = value;
+          bareX = cellX;
+          bareY = cellY;
+        }
+      }
+    }
+
+    const occupied = (startX: number, startY: number) => {
+      let count = 0;
+      const out = createCellTufts();
+      for (let cy = 0; cy < GRASS_CLUSTER_CELLS; cy++) {
+        for (let cx = 0; cx < GRASS_CLUSTER_CELLS; cx++) {
+          if (sampleCellTufts(startX + cx, startY + cy, denseConfig, out) > 0) count++;
+        }
+      }
+      return count;
+    };
+
+    const lush = occupied(lushX, lushY);
+    const bare = occupied(bareX, bareY);
+    expect(lush).toBeGreaterThan(bare * 1.5);
+    expect(lush).toBeGreaterThan(GRASS_CLUSTER_CELLS * GRASS_CLUSTER_CELLS * 0.4);
+    expect(bare).toBeLessThan(GRASS_CLUSTER_CELLS * GRASS_CLUSTER_CELLS * 0.6);
+  });
+});
+
+describe("splitDecorBudget", () => {
+  it("splits the rich preset into the documented shares", () => {
+    expect(splitDecorBudget(1200)).toEqual({
+      grass: 780,
+      stones: 240,
+      bones: 96,
+      mushrooms: 84,
+    });
+    expect(splitDecorBudget(600)).toEqual({
+      grass: 390,
+      stones: 120,
+      bones: 48,
+      mushrooms: 42,
+    });
+  });
+
+  it("always sums to the budget and respects every cap", () => {
+    for (const budget of [0, 1, 2, 3, 4, 7, 42, 120, 599, 600, 601, 1200]) {
+      const split = splitDecorBudget(budget);
+      const sum = split.grass + split.stones + split.bones + split.mushrooms;
+      expect(sum).toBe(budget);
+      expect(split.grass).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.grass);
+      expect(split.stones).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.stones);
+      expect(split.bones).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.bones);
+      expect(split.mushrooms).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.mushrooms);
+      for (const value of Object.values(split)) {
+        expect(Number.isInteger(value)).toBe(true);
+        expect(value).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  it("clamps oversized and hostile budgets without NaN", () => {
+    for (const budget of [5000, Number.POSITIVE_INFINITY, Number.NaN, -40]) {
+      const split = splitDecorBudget(budget);
+      const sum = split.grass + split.stones + split.bones + split.mushrooms;
+      expect(sum).toBeLessThanOrEqual(MAX_DECOR_INSTANCES);
+      expect(split.stones).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.stones);
+      expect(split.mushrooms).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.mushrooms);
+      for (const value of Object.values(split)) expect(Number.isFinite(value)).toBe(true);
+    }
+    expect(splitDecorBudget(Number.NaN)).toEqual({
+      grass: 0,
+      stones: 0,
+      bones: 0,
+      mushrooms: 0,
+    });
+  });
+});
+
+const PROP_TYPES: DecorPropType[] = ["stone", "bone", "mushroom"];
+
+function collectProps(
+  type: DecorPropType,
+  camX: number,
+  camY: number,
+  radius: number,
+  budget: number,
+  cfg = config,
+) {
+  const buffer = createDecorPropBuffer(Math.max(0, budget));
+  const count = placeDecorProps(type, camX, camY, radius, budget, cfg, buffer);
+  return { buffer, count };
+}
+
+function snapshotProps(
+  type: DecorPropType,
+  camX: number,
+  camY: number,
+  radius: number,
+  budget: number,
+) {
+  const { buffer, count } = collectProps(type, camX, camY, radius, budget);
+  return {
+    count,
+    x: Array.from(buffer.x.subarray(0, count)),
+    y: Array.from(buffer.y.subarray(0, count)),
+    yaw: Array.from(buffer.yaw.subarray(0, count)),
+    scale: Array.from(buffer.scale.subarray(0, count)),
+    variant: Array.from(buffer.variant.subarray(0, count)),
+    colorMix: Array.from(buffer.colorMix.subarray(0, count)),
+  };
+}
+
+describe("placeDecorProps", () => {
+  it("is deterministic per prop family", () => {
+    for (const type of PROP_TYPES) {
+      const first = snapshotProps(type, 1200, -1400, 900, DECOR_BUDGET_CAPS.stones);
+      const second = snapshotProps(type, 1200, -1400, 900, DECOR_BUDGET_CAPS.stones);
+      expect(first.count).toBeGreaterThan(0);
+      expect(second).toEqual(first);
+    }
+  });
+
+  it("returns identical props when the camera crosses the map seam", () => {
+    for (const type of PROP_TYPES) {
+      const here = snapshotProps(type, 0, 0, 500, 120);
+      const wrapped = snapshotProps(type, worldWidth, -worldHeight, 500, 120);
+      expect(here.count).toBeGreaterThan(0);
+      expect(wrapped).toEqual(here);
+    }
+  });
+
+  it("keeps every prop inside the cull radius, including across the seam", () => {
+    for (const [camX, camY] of [
+      [1000, -1000],
+      [6, -6],
+      [worldWidth - 4, -(worldHeight - 4)],
+    ]) {
+      for (const type of PROP_TYPES) {
+        const { buffer, count } = collectProps(type, camX, camY, 320, 240);
+        expect(count).toBeGreaterThan(0);
+        for (let i = 0; i < count; i++) {
+          const distance = toroidalDistance(
+            buffer.x[i],
+            buffer.y[i],
+            camX,
+            camY,
+            worldWidth,
+            worldHeight,
+          );
+          expect(distance).toBeLessThanOrEqual(320 + 1e-6);
+        }
+      }
+    }
+  });
+
+  it("never exceeds the family budget and hides at zero", () => {
+    for (const type of PROP_TYPES) {
+      for (const budget of [0, 1, 5, 40, 240]) {
+        expect(collectProps(type, 900, -900, 900, budget).count).toBeLessThanOrEqual(budget);
+      }
+      expect(collectProps(type, 900, -900, 900, 0).count).toBe(0);
+    }
+  });
+
+  it("uses every baked silhouette across a large sample", () => {
+    for (const type of PROP_TYPES) {
+      const seen = new Set<number>();
+      const { buffer, count } = collectProps(type, 700, -700, 1100, DECOR_BUDGET_CAPS.stones);
+      expect(count).toBeGreaterThan(40);
+      for (let i = 0; i < count; i++) {
+        const variant = buffer.variant[i];
+        expect(Number.isInteger(variant)).toBe(true);
+        expect(variant).toBeGreaterThanOrEqual(0);
+        expect(variant).toBeLessThan(PROP_VARIANT_COUNTS[type]);
+        expect(buffer.scale[i]).toBeGreaterThan(0);
+        expect(buffer.colorMix[i]).toBeGreaterThanOrEqual(0);
+        expect(buffer.colorMix[i]).toBeLessThan(1);
+        seen.add(variant);
+      }
+      expect(seen.size).toBe(PROP_VARIANT_COUNTS[type]);
+    }
+  });
+
+  it("produces no NaN for hostile inputs", () => {
+    const cases = [
+      collectProps("stone", Number.NaN, Number.NaN, 400, 100),
+      collectProps("bone", 10, -10, Number.POSITIVE_INFINITY, 100),
+      collectProps("mushroom", 10, -10, Number.NaN, 100),
+      collectProps("stone", 10, -10, 400, Number.NaN),
+      collectProps("bone", 10, -10, 400, 100, { ...config, density: Number.NaN }),
+      collectProps("mushroom", 10, -10, 400, 100, {
+        ...config,
+        gridSize: 0,
+        mapCellsX: 0,
+        mapCellsY: -5,
+      }),
+    ];
+
+    for (const { buffer, count } of cases) {
+      for (let i = 0; i < count; i++) {
+        expect(Number.isFinite(buffer.x[i])).toBe(true);
+        expect(Number.isFinite(buffer.y[i])).toBe(true);
+        expect(Number.isFinite(buffer.yaw[i])).toBe(true);
+        expect(Number.isFinite(buffer.scale[i])).toBe(true);
+        expect(Number.isFinite(buffer.variant[i])).toBe(true);
         expect(Number.isFinite(buffer.colorMix[i])).toBe(true);
       }
     }

@@ -8,6 +8,7 @@ import { GRASS_GROUND_Z, GrassRenderer } from "../renderer/GrassRenderer";
 import { NicknameRenderer } from "../renderer/NicknameRenderer";
 import { ParticleRenderer } from "../renderer/ParticleRenderer";
 import { PortalRenderer } from "../renderer/PortalRenderer";
+import { PropRenderer } from "../renderer/PropRenderer";
 import { QUALITY_PRESETS } from "../renderer/RenderQuality";
 import type { SceneManager } from "../renderer/SceneManager";
 import { SnakeRenderer } from "../renderer/SnakeRenderer";
@@ -25,6 +26,7 @@ export class RenderOrchestrator {
   private debugRenderer: DebugRenderer;
   private tombstoneRenderer: TombstoneRenderer;
   private grassRenderer: GrassRenderer;
+  private propRenderer: PropRenderer;
   private postRenderCallbacks: ((frame: any, myId: string) => void)[] = [];
   private readonly grassForward = new THREE.Vector3();
   private readonly grassView = { x: 0, y: 0, halfExtent: 0 };
@@ -42,6 +44,7 @@ export class RenderOrchestrator {
     this.debugRenderer = new DebugRenderer(scene);
     this.tombstoneRenderer = new TombstoneRenderer(scene);
     this.grassRenderer = new GrassRenderer(scene);
+    this.propRenderer = new PropRenderer(scene);
   }
 
   public onPostRender(callback: (frame: any, myId: string) => void): void {
@@ -66,9 +69,18 @@ export class RenderOrchestrator {
       gameCamera.update(camera, frame, dt, myId, isAccelerating);
     }
     this.resolveGrassView(camera, frame);
+    const grassBudget = QUALITY_PRESETS[this.sceneManager.getQuality()].grass;
     this.grassRenderer.update(
       frame,
-      QUALITY_PRESETS[this.sceneManager.getQuality()].grass,
+      grassBudget,
+      now,
+      this.grassView.x,
+      this.grassView.y,
+      this.grassView.halfExtent,
+    );
+    this.propRenderer.update(
+      frame,
+      grassBudget,
       now,
       this.grassView.x,
       this.grassView.y,
@@ -100,6 +112,7 @@ export class RenderOrchestrator {
     this.debugRenderer.destroy();
     this.tombstoneRenderer.destroy();
     this.grassRenderer.destroy();
+    this.propRenderer.destroy();
   }
 
   /**

@@ -5,19 +5,18 @@ import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import {
   createGrassTuftBuffer,
+  DECOR_BUDGET_CAPS,
   GRASS_CELL_DENSITY,
   GRASS_SEED,
   type GrassFieldConfig,
   type GrassTuftBuffer,
   placeGrassTufts,
+  splitDecorBudget,
 } from "./DecorField";
+import { DecorUpdateGate, type DecorViewState } from "./DecorUpdateGate";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
 
-const MAX_INSTANCES = 1200;
-const REBUILD_INTERVAL_MS = 250;
-const CAMERA_MOVE_SQ = 16; // 4 world units
-const RADIUS_CHANGE_MIN = 24;
-const RADIUS_CHANGE_RATIO = 0.05;
+const MAX_INSTANCES = DECOR_BUDGET_CAPS.grass;
 const FALLBACK_FOG_RADIUS = 900;
 export const GRASS_GROUND_Z = -1.9;
 const GRASS_PUSH_DISABLED = 1e6;
@@ -32,8 +31,8 @@ export const GRASS_LOD_SCALE_MAX = 2.6;
 export const GRASS_LOD_EXTENT = 300;
 
 const BLADE_HEIGHT = 6.5;
-const BLADE_BASE_WIDTH = 2.0;
-const BLADE_TIP_WIDTH = 0.7;
+const BLADE_BASE_WIDTH = 2.35;
+const BLADE_TIP_WIDTH = 0.82;
 const BLADE_COUNT = 3;
 
 // Base-to-tip shade. Multiplied by the per-instance colour.
@@ -172,15 +171,7 @@ export class GrassRenderer {
   private readonly shadeColor = new THREE.Color(SHADE_COLOR);
   private readonly lightColor = new THREE.Color(LIGHT_COLOR);
   private readonly scratchColor = new THREE.Color();
-
-  private lastBuildAt = Number.NEGATIVE_INFINITY;
-  private lastCamX = Number.NaN;
-  private lastCamY = Number.NaN;
-  private lastMapX = -1;
-  private lastMapY = -1;
-  private lastBudget = -1;
-  private lastRadius = Number.NaN;
-  private lastViewExtent = Number.NaN;
+  private readonly gate = new DecorUpdateGate();
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -234,18 +225,16 @@ export class GrassRenderer {
     this.uniforms.uTime.value = nowMs * 0.001;
     this.uniforms.uPlayerPos.value.set(pushX, pushY);
 
-    const instanceBudget = Number.isFinite(budget) ? Math.min(budget, MAX_INSTANCES) : 0;
+    const instanceBudget = splitDecorBudget(budget).grass;
     if (instanceBudget <= 0) {
       this.mesh.count = 0;
       this.mesh.visible = false;
-      this.lastBudget = 0;
+      this.gate.invalidate();
       return;
     }
 
     const mapX = Math.max(1, Math.floor(frame?.gameState?.server_world?.width ?? WORLD_WIDTH));
     const mapY = Math.max(1, Math.floor(frame?.gameState?.server_world?.height ?? WORLD_HEIGHT));
-    const mapChanged = mapX !== this.lastMapX || mapY !== this.lastMapY;
-    const budgetChanged = instanceBudget !== this.lastBudget;
 
     const fogRadius =
       Number.isFinite(frame?.fogRadiusWorld) && frame.fogRadiusWorld > 0
@@ -253,31 +242,21 @@ export class GrassRenderer {
         : FALLBACK_FOG_RADIUS;
     const cullRadius = grassCullRadius(fogRadius, viewHalfExtent);
     const lodScale = grassLodScale(viewHalfExtent);
-    const radiusChanged =
-      !Number.isFinite(this.lastRadius) ||
-      Math.abs(cullRadius - this.lastRadius) >
-        Math.max(RADIUS_CHANGE_MIN, cullRadius * RADIUS_CHANGE_RATIO);
-    const viewChanged =
-      !Number.isFinite(this.lastViewExtent) ||
-      Math.abs(viewHalfExtent - this.lastViewExtent) >
-        Math.max(RADIUS_CHANGE_MIN, viewHalfExtent * RADIUS_CHANGE_RATIO);
 
-    const rebuildDue = nowMs - this.lastBuildAt >= REBUILD_INTERVAL_MS;
-    const moved = this.hasTargetMoved(camX, camY);
-    if (!mapChanged && !budgetChanged && !(rebuildDue && (moved || radiusChanged || viewChanged)))
-      return;
-
-    this.rebuild(
-      instanceBudget,
-      mapX,
-      mapY,
+    const state: DecorViewState = {
+      nowMs,
       camX,
       camY,
+      mapX,
+      mapY,
+      budget: instanceBudget,
       cullRadius,
-      lodScale,
-      viewHalfExtent,
-      nowMs,
-    );
+      viewExtent: viewHalfExtent,
+    };
+    if (!this.gate.shouldRebuild(state)) return;
+
+    this.rebuild(instanceBudget, mapX, mapY, camX, camY, cullRadius, lodScale);
+    this.gate.markBuilt(state);
   }
 
   public destroy(): void {
@@ -288,14 +267,6 @@ export class GrassRenderer {
     this.mesh.instanceColor?.dispose();
   }
 
-  private hasTargetMoved(camX: number, camY: number): boolean {
-    if (!Number.isFinite(this.lastCamX) || !Number.isFinite(this.lastCamY)) return true;
-
-    const dx = camX - this.lastCamX;
-    const dy = camY - this.lastCamY;
-    return dx * dx + dy * dy >= CAMERA_MOVE_SQ;
-  }
-
   private rebuild(
     budget: number,
     mapX: number,
@@ -304,8 +275,6 @@ export class GrassRenderer {
     camY: number,
     cullRadius: number,
     lodScale: number,
-    viewHalfExtent: number,
-    nowMs: number,
   ): void {
     this.fieldConfig.mapCellsX = mapX;
     this.fieldConfig.mapCellsY = mapY;
@@ -317,15 +286,6 @@ export class GrassRenderer {
     this.mesh.visible = count > 0;
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
-
-    this.lastBuildAt = nowMs;
-    this.lastCamX = camX;
-    this.lastCamY = camY;
-    this.lastMapX = mapX;
-    this.lastMapY = mapY;
-    this.lastBudget = budget;
-    this.lastRadius = cullRadius;
-    this.lastViewExtent = viewHalfExtent;
   }
 
   private writeInstances(count: number, lodScale: number): void {

@@ -99,7 +99,7 @@ describe("gameUiStore", () => {
     expect(gameUi.killFeed.getSnapshot()).toEqual([]);
   });
 
-  it("marks wall kills with a null killer", () => {
+  it("marks environmental deaths with a null killer", () => {
     dispatch("game-killfeed", {
       events: [{ killer: "", victim: "v" }],
       players: { v: { nickname: "Victim" } },
