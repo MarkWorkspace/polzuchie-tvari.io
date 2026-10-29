@@ -25,6 +25,11 @@ const GRASS_PUSH_DISABLED = 1e6;
 export const GRASS_MIN_CULL_RADIUS = 550;
 /** Cap for the cull radius: a fixed instance budget cannot cover more without turning to dust. */
 export const GRASS_MAX_CULL_RADIUS = 1200;
+/**
+ * Grass itself is placed inside this tighter radius. The same instance budget
+ * then reads as a dense near field, while the fog hides where the field ends.
+ */
+export const GRASS_FIELD_RADIUS_CAP = 420;
 /** Tuft scale cap for far cameras, so the field stays legible in the overview. */
 export const GRASS_LOD_SCALE_MAX = 2.6;
 /** View half-extent (world units) at which tufts reach their maximum LOD scale. */
@@ -240,7 +245,10 @@ export class GrassRenderer {
       Number.isFinite(frame?.fogRadiusWorld) && frame.fogRadiusWorld > 0
         ? frame.fogRadiusWorld
         : FALLBACK_FOG_RADIUS;
-    const cullRadius = grassCullRadius(fogRadius, viewHalfExtent);
+    // Player view concentrates the budget in the near field; the spectator
+    // overview keeps the wider field so the whole arena still gets grass.
+    const fieldCap = isSpectator ? GRASS_MAX_CULL_RADIUS : GRASS_FIELD_RADIUS_CAP;
+    const cullRadius = Math.min(grassCullRadius(fogRadius, viewHalfExtent), fieldCap);
     const lodScale = grassLodScale(viewHalfExtent);
 
     const state: DecorViewState = {

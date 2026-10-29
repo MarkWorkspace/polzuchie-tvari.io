@@ -10,16 +10,16 @@ export const GRASS_CELL_DENSITY = 0.85;
 export const GRASS_DENSITY_FALLOFF = 1.5;
 
 /** Upper bound of tufts a single occupied cell may produce. */
-export const GRASS_TUFTS_PER_CELL_MAX = 3;
+export const GRASS_TUFTS_PER_CELL_MAX = 5;
 
 /** Expected tufts per occupied cell; used to calibrate density against the instance budget. */
-export const GRASS_MEAN_TUFTS_PER_CELL = 2.55;
+export const GRASS_MEAN_TUFTS_PER_CELL = 3.85;
 
 /** Side of the coarse super-cell that decides whether a patch of lawn is lush or bare. */
 export const GRASS_CLUSTER_CELLS = 4;
 
-/** Lowest density factor a super-cell may reach; some patches are nearly bare, never dead. */
-export const GRASS_CLUSTER_MIN = 0.08;
+/** Lowest density factor a super-cell may reach; sparse patches stay grassy, never dead. */
+export const GRASS_CLUSTER_MIN = 0.3;
 
 /** Mean of the smoothstep cluster factor; placement divides by it so the budget still lands. */
 export const GRASS_CLUSTER_MEAN = (GRASS_CLUSTER_MIN + 1) / 2;
@@ -27,20 +27,16 @@ export const GRASS_CLUSTER_MEAN = (GRASS_CLUSTER_MIN + 1) / 2;
 /** Total decorative instances at the richest preset; every family shares this budget. */
 export const MAX_DECOR_INSTANCES = 1200;
 
-/** Share of the decor budget per family. */
+/** Share of the decor budget per family: grass is the biome, stones are accents. */
 export const DECOR_BUDGET_SHARE = {
-  grass: 0.65,
-  stones: 0.2,
-  bones: 0.08,
-  mushrooms: 0.07,
+  grass: 0.88,
+  stones: 0.12,
 } as const;
 
 /** Hard per-family caps, equal to the richest preset's split. */
 export const DECOR_BUDGET_CAPS = {
-  grass: 780,
-  stones: 240,
-  bones: 96,
-  mushrooms: 84,
+  grass: 1056,
+  stones: 144,
 } as const;
 
 /** Prop anchor block in map cells; two cells keep props sparse but not grid-like. */
@@ -50,16 +46,13 @@ export const PROP_BLOCK_CELLS = 2;
 export const PROP_DENSITY_FALLOFF = 1.1;
 
 /**
- * Prop occupancy of the block lattice. Props are landmarks, not clutter: this
- * keeps them sparser than the family budget while the split still reports the
- * full allocation.
+ * Stone occupancy of the block lattice. With the small stone budget this keeps
+ * a default screen at roughly a dozen small rocks.
  */
-export const PROP_OCCUPANCY_SHARE = 0.45;
+export const PROP_OCCUPANCY_SHARE = 0.34;
 
 export const PROP_VARIANT_COUNTS = {
   stone: 3,
-  bone: 2,
-  mushroom: 2,
 } as const;
 
 export type DecorPropType = keyof typeof PROP_VARIANT_COUNTS;
@@ -67,8 +60,6 @@ export type DecorPropType = keyof typeof PROP_VARIANT_COUNTS;
 export interface DecorBudgetSplit {
   grass: number;
   stones: number;
-  bones: number;
-  mushrooms: number;
 }
 
 const SALT_OCCUPANCY = 0x11;
@@ -78,8 +69,6 @@ const SALT_TUFT_STEP = 0x17;
 const SALT_CLUSTER = 0x53;
 const SALT_PROP = {
   stone: 0x61,
-  bone: 0x73,
-  mushroom: 0x85,
 } as const;
 
 const TAU = Math.PI * 2;
@@ -166,14 +155,9 @@ export function createDecorPropBuffer(capacity: number): DecorPropBuffer {
 export function splitDecorBudget(total: number): DecorBudgetSplit {
   const safeTotal = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
   const budget = Math.min(safeTotal, MAX_DECOR_INSTANCES);
-  if (budget <= 0) return { grass: 0, stones: 0, bones: 0, mushrooms: 0 };
+  if (budget <= 0) return { grass: 0, stones: 0 };
 
-  const shares = [
-    DECOR_BUDGET_SHARE.grass,
-    DECOR_BUDGET_SHARE.stones,
-    DECOR_BUDGET_SHARE.bones,
-    DECOR_BUDGET_SHARE.mushrooms,
-  ];
+  const shares = [DECOR_BUDGET_SHARE.grass, DECOR_BUDGET_SHARE.stones];
   const raw = shares.map((share) => budget * share);
   const counts = raw.map((value) => Math.floor(value));
   const remainder = budget - counts.reduce((sum, value) => sum + value, 0);
@@ -189,8 +173,6 @@ export function splitDecorBudget(total: number): DecorBudgetSplit {
   return {
     grass: Math.min(DECOR_BUDGET_CAPS.grass, counts[0]),
     stones: Math.min(DECOR_BUDGET_CAPS.stones, counts[1]),
-    bones: Math.min(DECOR_BUDGET_CAPS.bones, counts[2]),
-    mushrooms: Math.min(DECOR_BUDGET_CAPS.mushrooms, counts[3]),
   };
 }
 
@@ -339,20 +321,23 @@ function sampleNormalizedCell(
   const localDensity = Math.min(1, (density * clump) / GRASS_CLUSTER_MEAN);
   if (hashUnit(hashCell(cx, cy, SALT_OCCUPANCY, seed)) >= localDensity) return 0;
 
-  const count = 2 + (hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) < 0.45 ? 0 : 1);
+  const count =
+    3 +
+    (hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) < 0.55 ? 1 : 0) +
+    (hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT + 1, seed)) < 0.3 ? 1 : 0);
 
   for (let i = 0; i < count; i++) {
     const salt = SALT_TUFT_BASE + i * SALT_TUFT_STEP;
-    // Tufts stay inside the middle half of their cell, so a populated cell
-    // reads as one clump instead of a thin scatter across 20 world units.
-    const jitterX = 0.28 + 0.44 * hashUnit(hashCell(cx, cy, salt, seed));
-    const jitterY = 0.28 + 0.44 * hashUnit(hashCell(cx, cy, salt + 1, seed));
+    // Tufts stay close to the cell centre, so a populated cell is one visible
+    // clump of 3-5 tufts instead of a thin scatter across 20 world units.
+    const jitterX = 0.34 + 0.32 * hashUnit(hashCell(cx, cy, salt, seed));
+    const jitterY = 0.34 + 0.32 * hashUnit(hashCell(cx, cy, salt + 1, seed));
     // Map cell (cx, cy) -> world units. Y is negated because the scene maps
     // server grid rows downwards (world Y in [-height * gridSize, 0]).
     out.x[i] = (cx + jitterX) * gridSize;
     out.y[i] = -((cy + jitterY) * gridSize);
     out.yaw[i] = hashUnit(hashCell(cx, cy, salt + 2, seed)) * TAU;
-    out.scale[i] = 0.7 + 0.5 * hashUnit(hashCell(cx, cy, salt + 3, seed));
+    out.scale[i] = 0.9 + 0.55 * hashUnit(hashCell(cx, cy, salt + 3, seed));
     out.colorMix[i] = hashUnit(hashCell(cx, cy, salt + 4, seed));
   }
 
@@ -511,10 +496,8 @@ export function placeGrassTufts(
 }
 
 const PROP_SCALE_RANGE: Record<DecorPropType, readonly [number, number]> = {
-  // Diameter in world units: stones 20..25, bones 14..22, mushrooms 9..12.
-  stone: [10, 12.5],
-  bone: [7, 11],
-  mushroom: [4.5, 6],
+  // Footprint in world units: stones 8..12.
+  stone: [4, 6],
 };
 
 const SALT_PROP_VARIANT = 0x97;

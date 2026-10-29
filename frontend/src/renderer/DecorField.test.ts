@@ -370,29 +370,17 @@ describe("grass clumping", () => {
 
 describe("splitDecorBudget", () => {
   it("splits the rich preset into the documented shares", () => {
-    expect(splitDecorBudget(1200)).toEqual({
-      grass: 780,
-      stones: 240,
-      bones: 96,
-      mushrooms: 84,
-    });
-    expect(splitDecorBudget(600)).toEqual({
-      grass: 390,
-      stones: 120,
-      bones: 48,
-      mushrooms: 42,
-    });
+    expect(splitDecorBudget(1200)).toEqual({ grass: 1056, stones: 144 });
+    expect(splitDecorBudget(600)).toEqual({ grass: 528, stones: 72 });
   });
 
   it("always sums to the budget and respects every cap", () => {
     for (const budget of [0, 1, 2, 3, 4, 7, 42, 120, 599, 600, 601, 1200]) {
       const split = splitDecorBudget(budget);
-      const sum = split.grass + split.stones + split.bones + split.mushrooms;
+      const sum = split.grass + split.stones;
       expect(sum).toBe(budget);
       expect(split.grass).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.grass);
       expect(split.stones).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.stones);
-      expect(split.bones).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.bones);
-      expect(split.mushrooms).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.mushrooms);
       for (const value of Object.values(split)) {
         expect(Number.isInteger(value)).toBe(true);
         expect(value).toBeGreaterThanOrEqual(0);
@@ -403,22 +391,16 @@ describe("splitDecorBudget", () => {
   it("clamps oversized and hostile budgets without NaN", () => {
     for (const budget of [5000, Number.POSITIVE_INFINITY, Number.NaN, -40]) {
       const split = splitDecorBudget(budget);
-      const sum = split.grass + split.stones + split.bones + split.mushrooms;
+      const sum = split.grass + split.stones;
       expect(sum).toBeLessThanOrEqual(MAX_DECOR_INSTANCES);
       expect(split.stones).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.stones);
-      expect(split.mushrooms).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.mushrooms);
       for (const value of Object.values(split)) expect(Number.isFinite(value)).toBe(true);
     }
-    expect(splitDecorBudget(Number.NaN)).toEqual({
-      grass: 0,
-      stones: 0,
-      bones: 0,
-      mushrooms: 0,
-    });
+    expect(splitDecorBudget(Number.NaN)).toEqual({ grass: 0, stones: 0 });
   });
 });
 
-const PROP_TYPES: DecorPropType[] = ["stone", "bone", "mushroom"];
+const STONE: DecorPropType = "stone";
 
 function collectProps(
   type: DecorPropType,
@@ -453,84 +435,76 @@ function snapshotProps(
 }
 
 describe("placeDecorProps", () => {
-  it("is deterministic per prop family", () => {
-    for (const type of PROP_TYPES) {
-      const first = snapshotProps(type, 1200, -1400, 900, DECOR_BUDGET_CAPS.stones);
-      const second = snapshotProps(type, 1200, -1400, 900, DECOR_BUDGET_CAPS.stones);
-      expect(first.count).toBeGreaterThan(0);
-      expect(second).toEqual(first);
-    }
+  it("is deterministic for stones", () => {
+    const first = snapshotProps(STONE, 1200, -1400, 900, DECOR_BUDGET_CAPS.stones);
+    const second = snapshotProps(STONE, 1200, -1400, 900, DECOR_BUDGET_CAPS.stones);
+    expect(first.count).toBeGreaterThan(0);
+    expect(second).toEqual(first);
   });
 
-  it("returns identical props when the camera crosses the map seam", () => {
-    for (const type of PROP_TYPES) {
-      const here = snapshotProps(type, 0, 0, 500, 120);
-      const wrapped = snapshotProps(type, worldWidth, -worldHeight, 500, 120);
-      expect(here.count).toBeGreaterThan(0);
-      expect(wrapped).toEqual(here);
-    }
+  it("returns identical stones when the camera crosses the map seam", () => {
+    const here = snapshotProps(STONE, 0, 0, 500, 120);
+    const wrapped = snapshotProps(STONE, worldWidth, -worldHeight, 500, 120);
+    expect(here.count).toBeGreaterThan(0);
+    expect(wrapped).toEqual(here);
   });
 
-  it("keeps every prop inside the cull radius, including across the seam", () => {
+  it("keeps every stone inside the cull radius, including across the seam", () => {
     for (const [camX, camY] of [
       [1000, -1000],
       [6, -6],
       [worldWidth - 4, -(worldHeight - 4)],
     ]) {
-      for (const type of PROP_TYPES) {
-        const { buffer, count } = collectProps(type, camX, camY, 320, 240);
-        expect(count).toBeGreaterThan(0);
-        for (let i = 0; i < count; i++) {
-          const distance = toroidalDistance(
-            buffer.x[i],
-            buffer.y[i],
-            camX,
-            camY,
-            worldWidth,
-            worldHeight,
-          );
-          expect(distance).toBeLessThanOrEqual(320 + 1e-6);
-        }
-      }
-    }
-  });
-
-  it("never exceeds the family budget and hides at zero", () => {
-    for (const type of PROP_TYPES) {
-      for (const budget of [0, 1, 5, 40, 240]) {
-        expect(collectProps(type, 900, -900, 900, budget).count).toBeLessThanOrEqual(budget);
-      }
-      expect(collectProps(type, 900, -900, 900, 0).count).toBe(0);
-    }
-  });
-
-  it("uses every baked silhouette across a large sample", () => {
-    for (const type of PROP_TYPES) {
-      const seen = new Set<number>();
-      const { buffer, count } = collectProps(type, 700, -700, 1100, DECOR_BUDGET_CAPS.stones);
-      expect(count).toBeGreaterThan(40);
+      const { buffer, count } = collectProps(STONE, camX, camY, 320, 240);
+      expect(count).toBeGreaterThan(0);
       for (let i = 0; i < count; i++) {
-        const variant = buffer.variant[i];
-        expect(Number.isInteger(variant)).toBe(true);
-        expect(variant).toBeGreaterThanOrEqual(0);
-        expect(variant).toBeLessThan(PROP_VARIANT_COUNTS[type]);
-        expect(buffer.scale[i]).toBeGreaterThan(0);
-        expect(buffer.colorMix[i]).toBeGreaterThanOrEqual(0);
-        expect(buffer.colorMix[i]).toBeLessThan(1);
-        seen.add(variant);
+        const distance = toroidalDistance(
+          buffer.x[i],
+          buffer.y[i],
+          camX,
+          camY,
+          worldWidth,
+          worldHeight,
+        );
+        expect(distance).toBeLessThanOrEqual(320 + 1e-6);
       }
-      expect(seen.size).toBe(PROP_VARIANT_COUNTS[type]);
     }
+  });
+
+  it("never exceeds the stone budget and hides at zero", () => {
+    for (const budget of [0, 1, 5, 40, DECOR_BUDGET_CAPS.stones]) {
+      expect(collectProps(STONE, 900, -900, 900, budget).count).toBeLessThanOrEqual(budget);
+    }
+    expect(collectProps(STONE, 900, -900, 900, 0).count).toBe(0);
+  });
+
+  it("uses every baked silhouette and stays within the stone size band", () => {
+    const seen = new Set<number>();
+    const { buffer, count } = collectProps(STONE, 700, -700, 1100, DECOR_BUDGET_CAPS.stones * 5);
+    expect(count).toBeGreaterThan(40);
+    for (let i = 0; i < count; i++) {
+      const variant = buffer.variant[i];
+      expect(Number.isInteger(variant)).toBe(true);
+      expect(variant).toBeGreaterThanOrEqual(0);
+      expect(variant).toBeLessThan(PROP_VARIANT_COUNTS.stone);
+      // Authored around unit radius, so scale 4..6 is an 8..12 world-unit footprint.
+      expect(buffer.scale[i]).toBeGreaterThanOrEqual(4);
+      expect(buffer.scale[i]).toBeLessThanOrEqual(6);
+      expect(buffer.colorMix[i]).toBeGreaterThanOrEqual(0);
+      expect(buffer.colorMix[i]).toBeLessThan(1);
+      seen.add(variant);
+    }
+    expect(seen.size).toBe(PROP_VARIANT_COUNTS.stone);
   });
 
   it("produces no NaN for hostile inputs", () => {
     const cases = [
-      collectProps("stone", Number.NaN, Number.NaN, 400, 100),
-      collectProps("bone", 10, -10, Number.POSITIVE_INFINITY, 100),
-      collectProps("mushroom", 10, -10, Number.NaN, 100),
-      collectProps("stone", 10, -10, 400, Number.NaN),
-      collectProps("bone", 10, -10, 400, 100, { ...config, density: Number.NaN }),
-      collectProps("mushroom", 10, -10, 400, 100, {
+      collectProps(STONE, Number.NaN, Number.NaN, 400, 100),
+      collectProps(STONE, 10, -10, Number.POSITIVE_INFINITY, 100),
+      collectProps(STONE, 10, -10, Number.NaN, 100),
+      collectProps(STONE, 10, -10, 400, Number.NaN),
+      collectProps(STONE, 10, -10, 400, 100, { ...config, density: Number.NaN }),
+      collectProps(STONE, 10, -10, 400, 100, {
         ...config,
         gridSize: 0,
         mapCellsX: 0,
