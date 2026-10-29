@@ -1,6 +1,6 @@
 // ROLE: Визуализация чёрных дыр.
 import * as THREE from "three";
-import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { BLOOM_MASK_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 import {
   blackHoleCoreShader,
   blackHoleGravityShader,
@@ -61,11 +61,15 @@ export class BlackHoleRenderer {
     this.ringMesh = new THREE.InstancedMesh(geom, this.ringMaterial, this.maxInstances);
     this.ringMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.ringMesh, RenderLayer.BlackHoleRing);
+    // Core and accretion ring bloom around themselves; the soft gravity field
+    // stays unmasked so the pull area keeps its haze.
+    this.ringMesh.layers.enable(BLOOM_MASK_LAYER);
     this.scene.add(this.ringMesh);
 
     this.coreMesh = new THREE.InstancedMesh(geom, this.coreMaterial, this.maxInstances);
     this.coreMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.coreMesh, RenderLayer.BlackHoleCore);
+    this.coreMesh.layers.enable(BLOOM_MASK_LAYER);
     this.scene.add(this.coreMesh);
   }
 

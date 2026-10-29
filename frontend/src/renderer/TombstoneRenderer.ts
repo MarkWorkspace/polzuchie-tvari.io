@@ -2,7 +2,7 @@
 import * as THREE from "three";
 import { gridSize } from "../game/Config";
 import type { Tombstone } from "../types/game";
-import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { BLOOM_MASK_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 import { createTombstoneGeometry } from "./TombstoneGeometry";
 
 const GROUND_Z = -1.95;
@@ -44,6 +44,8 @@ export class TombstoneRenderer {
       castShadow: true,
       receiveShadow: true,
     });
+    // Emissive stone reads better with bloom around it than over it.
+    this.mesh.layers.enable(BLOOM_MASK_LAYER);
 
     this.scene.add(this.mesh);
   }

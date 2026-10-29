@@ -1,6 +1,6 @@
 // ROLE: Визуализация порталов.
 import * as THREE from "three";
-import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { BLOOM_MASK_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 import { portalDiskShader, portalRingShader } from "./shaders/portal.glsl";
 
 export class PortalRenderer {
@@ -89,11 +89,14 @@ export class PortalRenderer {
     this.diskMesh = new THREE.InstancedMesh(geom, this.diskMaterial, this.maxInstances);
     this.diskMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.diskMesh, RenderLayer.PortalDisk);
+    // Disk and ring are solid shapes; the additive glow sprite stays unmasked.
+    this.diskMesh.layers.enable(BLOOM_MASK_LAYER);
     this.scene.add(this.diskMesh);
 
     this.ringMesh = new THREE.InstancedMesh(geom, this.ringMaterial, this.maxInstances);
     this.ringMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     RenderConfig.configureMesh(this.ringMesh, RenderLayer.PortalRing);
+    this.ringMesh.layers.enable(BLOOM_MASK_LAYER);
     this.scene.add(this.ringMesh);
 
     this.glowMesh = new THREE.InstancedMesh(geom, this.glowMaterial, this.maxInstances);

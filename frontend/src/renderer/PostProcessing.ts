@@ -76,7 +76,9 @@ class BloomMaskEffect extends Effect {
       blendFunction: BlendFunction.NORMAL,
       uniforms: new Map<string, any>([
         ["uBloomMask", new THREE.Uniform(maskTexture)],
-        ["uBloomMaskStrength", new THREE.Uniform(1)],
+        // Slightly under 1 so a little bloom still rolls over the object edge
+        // instead of cutting the halo off with a hard rim.
+        ["uBloomMaskStrength", new THREE.Uniform(0.85)],
       ]),
     });
   }

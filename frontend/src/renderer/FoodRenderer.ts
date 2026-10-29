@@ -9,7 +9,7 @@ import { createPeachGeometry } from "./PeachGeometry";
 import { createPearGeometry } from "./PearGeometry";
 import { createPersimmonGeometry } from "./PersimmonGeometry";
 import { createPineappleGeometry } from "./PineappleGeometry";
-import { RenderConfig, RenderLayer } from "./RenderConfig";
+import { BLOOM_MASK_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 import { createStrawberryGeometry } from "./StrawberryGeometry";
 import { foodShader } from "./shaders/food.glsl";
 import { createWatermelonGeometry } from "./WatermelonGeometry";
@@ -64,7 +64,10 @@ export class FoodRenderer {
       };
 
       this.fruitMaterials.push(mat);
-      this.fruitMeshes.push(this._createMesh(mat, factory()));
+      const mesh = this._createMesh(mat, factory());
+      // Solid fruit keep a crisp core; bloom is left around them only.
+      mesh.layers.enable(BLOOM_MASK_LAYER);
+      this.fruitMeshes.push(mesh);
     }
   }
 
