@@ -1,6 +1,7 @@
 # ROLE: Контейнер игрового состояния, загрузка конфигурации, управление игроками. Не содержит игровой логики тика.
 import os
 import json
+import logging
 import math
 import tempfile
 import errno
@@ -15,6 +16,8 @@ from app.engine.world_elements import PortalManager, BlackHoleManager
 from app.engine.systems.formula_parser import evaluate_formula
 from app.engine.events import EventBus
 import app.engine.game as game_orchestrator
+
+logger = logging.getLogger(__name__)
 
 VALID_ACTIONS = frozenset(
     {
@@ -81,9 +84,9 @@ class World:
                     patch = json.load(f)
                 if isinstance(patch, dict):
                     self.config.apply_patch(patch)
-                    print(f"[Config] Successfully loaded config from {self.config_file_path}")
+                    logger.info("Successfully loaded config from %s", self.config_file_path)
             except Exception as e:
-                print(f"[Config] Failed to load config from disk: {e}")
+                logger.warning("Failed to load config from disk: %s", e)
         self._update_compiled_formulas()
 
     def _update_compiled_formulas(self):
@@ -96,10 +99,11 @@ class World:
             self.growth_segment_cost_func = lambda score, length: evaluate_formula(
                 formula, score, length
             )
-            print(f"[Config] Bound growth segment cost function: {formula}")
+            logger.info("Bound growth segment cost function: %s", formula)
         except Exception as e:
-            print(
-                f"[Config] Error compiling growth formula: {e}. Falling back to lambda score, length: 10.0"
+            logger.error(
+                "Error compiling growth formula: %s. Falling back to lambda score, length: 10.0",
+                e,
             )
             self.growth_segment_cost_func = lambda score, length: 10.0
 
@@ -185,7 +189,7 @@ class World:
                     os.fsync(f.fileno())
             else:
                 temp_path = None
-            print(f"[Config] Successfully saved config to {self.config_file_path}")
+            logger.info("Successfully saved config to %s", self.config_file_path)
         finally:
             if temp_path and os.path.exists(temp_path):
                 os.unlink(temp_path)

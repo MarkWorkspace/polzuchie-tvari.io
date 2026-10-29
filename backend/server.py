@@ -3,7 +3,7 @@ import sys
 import os
 import asyncio
 import contextlib
-import traceback
+import logging
 from app.engine.systems import snake_pb2
 import uvicorn
 import zlib
@@ -16,6 +16,7 @@ backend_dir = os.path.dirname(os.path.abspath(__file__))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 from app.engine.state import World
+from app.logging_setup import configure_logging
 from app.api.websocket import (
     active_connections,
     websocket_endpoint,
@@ -32,6 +33,12 @@ from app.api.admin import (
     admin_logout,
     admin_session,
 )
+
+configure_logging()
+logger = logging.getLogger(__name__)
+
+WS_MAX_CLIENT_MESSAGE_BYTES = 4096
+# Keep in sync with --ws-max-size in Dockerfile, start_dev.bat, README and Playwright.
 
 
 async def process_client(client_id, connection, world):
@@ -79,13 +86,13 @@ async def _safe_process_client(client_id, connection, world) -> None:
     try:
         await process_client(client_id, connection, world)
     except Exception:
-        traceback.print_exc()
+        logger.exception("Failed to serialize client %s", client_id)
 
 
 async def game_loop(world):
     """Global game loop executing physics ticks and broadcasting states"""
     while True:
-        start_time = asyncio.get_event_loop().time()
+        start_time = asyncio.get_running_loop().time()
         try:
             for cid, data in world.input_queue:
                 world.update_direction(cid, data)
@@ -93,8 +100,8 @@ async def game_loop(world):
             world.bot_manager.update()
             world.tick()
         except Exception:
-            traceback.print_exc()
-            elapsed = asyncio.get_event_loop().time() - start_time
+            logger.exception("Game tick failed")
+            elapsed = asyncio.get_running_loop().time() - start_time
             await asyncio.sleep(max(0.0, world.tick_interval - elapsed))
             continue
 
@@ -104,7 +111,7 @@ async def game_loop(world):
         if tasks:
             await asyncio.gather(*tasks)
 
-        elapsed = asyncio.get_event_loop().time() - start_time
+        elapsed = asyncio.get_running_loop().time() - start_time
         await asyncio.sleep(max(0.0, world.tick_interval - elapsed))
 
 
@@ -115,17 +122,17 @@ async def lifespan(app):
     app.state.world = world
     task = asyncio.create_task(game_loop(world))
     yield
-    print("[Server] Graceful shutdown initiated...")
+    logger.info("Graceful shutdown initiated...")
     frame = snake_pb2.GameStateFrame()
     frame.type = snake_pb2.GameStateFrame.FrameType.SERVER_RESTART
     frame.restart_message = "Сервер перезагружается для обновления..."
     shutdown_message = zlib.compress(frame.SerializeToString())
-    for client_id, connection in list(active_connections.items()):
+    for connection in list(active_connections.values()):
         try:
             replace_queued_state(connection["queue"], (shutdown_message, set(), True))
             await asyncio.sleep(0.01)
         except Exception:
-            pass
+            logger.debug("Failed to queue shutdown message", exc_info=True)
 
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
@@ -188,4 +195,8 @@ if __name__ == "__main__":
         port=8000,
         reload=is_dev,
         reload_excludes=["*venv*", "*__pycache__*"] if is_dev else None,
+        # Frames are already zlib-compressed in process_client; permessage-deflate
+        # would deflate them a second time and only add CPU and framing bytes.
+        ws_per_message_deflate=False,
+        ws_max_size=WS_MAX_CLIENT_MESSAGE_BYTES,
     )

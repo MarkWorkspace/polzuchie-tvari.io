@@ -27,12 +27,16 @@ Backend: http://localhost:8000 (`/health`), frontend: http://localhost:5173.
 ```bash
 # backend
 cd backend
-uv run --frozen uvicorn server:app --host 0.0.0.0 --port 8000 --reload
+uv run --frozen uvicorn server:app --host 0.0.0.0 --port 8000 --reload \
+  --ws-per-message-deflate false --ws-max-size 4096
 
 # frontend
 cd frontend
 npm run dev:host
 ```
+
+Флаги WebSocket обязательны: кадры уже сжимаются zlib в приложении, поэтому
+`permessage-deflate` только тратит CPU; клиентские команды не превышают 32 байт.
 
 Админка доступна по `/admin` (или `/?admin=true`); для production nginx
 проксирует `/ws` на backend. Игровой спектатор — `/?spectator=true` (клик по

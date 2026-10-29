@@ -15,7 +15,7 @@ if errorlevel 1 (
 )
 
 echo Starting Backend (FastAPI)...
-start "Snake AI Backend" cmd /k "cd backend && uv sync && uv run --frozen uvicorn server:app --host 0.0.0.0 --port 8000 --reload --reload-exclude *venv* --reload-exclude *__pycache__*"
+start "Snake AI Backend" cmd /k "cd backend && uv sync && uv run --frozen uvicorn server:app --host 0.0.0.0 --port 8000 --reload --reload-exclude *venv* --reload-exclude *__pycache__* --ws-per-message-deflate false --ws-max-size 4096"
 
 echo Starting Frontend (Vite)...
 start "Snake AI Frontend" cmd /k "cd frontend && (if not exist node_modules npm ci) && npm run dev:host"

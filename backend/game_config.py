@@ -1,8 +1,13 @@
+# ROLE: Game config dataclasses, validation and patching. Not runtime state.
+import ast
 import copy
+import logging
+import math
 import typing
 from dataclasses import asdict, dataclass, field, fields, is_dataclass
 
 CELL_SIZE = 10.0
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -280,7 +285,7 @@ def _apply_dataclass_patch(target, patch):
     hints = typing.get_type_hints(type(target))
     for key, value in patch.items():
         if key not in field_map:
-            print(f"[Config] Warning: Skipping unknown config key '{key}'")
+            logger.warning("Skipping unknown config key '%s'", key)
             continue
         current_value = getattr(target, key)
         if is_dataclass(current_value):
@@ -317,8 +322,6 @@ def _require_range(name, value, minimum, maximum):
 
 
 def validate_growth_formula(formula_str: str) -> None:
-    import ast
-
     if not isinstance(formula_str, str):
         formula_str = str(formula_str)
 
@@ -330,14 +333,12 @@ def validate_growth_formula(formula_str: str) -> None:
         return
     except ValueError as e:
         if "Growth segment cost" in str(e):
-            raise e
-        # Otherwise, proceed with AST formula validation
-        pass
+            raise
 
     try:
         tree = ast.parse(formula_str, mode="eval")
     except Exception as e:
-        raise ValueError(f"Syntax error in formula: {str(e)}")
+        raise ValueError(f"Syntax error in formula: {str(e)}") from e
 
     allowed_names = {"s", "S", "score", "SCORE", "l", "L", "len", "LEN", "pi", "e"}
     allowed_funcs = {
@@ -389,8 +390,6 @@ def validate_growth_formula(formula_str: str) -> None:
             raise ValueError(f"Expression type '{type(node).__name__}' is not allowed in formula")
 
     # Test evaluation
-    import math
-
     safe_env = {
         "s": 10.0,
         "S": 10.0,
@@ -444,5 +443,5 @@ def validate_growth_formula(formula_str: str) -> None:
 
     except Exception as e:
         if not isinstance(e, ValueError):
-            raise ValueError(f"Failed to evaluate formula: {str(e)}")
-        raise e
+            raise ValueError(f"Failed to evaluate formula: {str(e)}") from e
+        raise

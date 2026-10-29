@@ -38,7 +38,8 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], channel: "chromium" } }],
   webServer: [
     {
-      command: "uv run --frozen uvicorn server:app --host 127.0.0.1 --port 8000",
+      command:
+        "uv run --frozen uvicorn server:app --host 127.0.0.1 --port 8000 --ws-per-message-deflate false --ws-max-size 4096",
       cwd: backendDir,
       url: "http://127.0.0.1:8000/health",
       timeout: 120_000,

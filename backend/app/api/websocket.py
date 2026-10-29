@@ -1,6 +1,7 @@
 # ROLE: WebSocket endpoint, rate limiting. Не игровая логика.
 import asyncio
 import contextlib
+import logging
 import re
 import uuid
 import zlib
@@ -10,6 +11,7 @@ from fastapi import WebSocket
 
 active_connections = {}
 pending_disconnects = {}
+logger = logging.getLogger(__name__)
 
 MAX_CONNECTIONS = 50
 RATE_LIMIT_PER_SECOND = 50
@@ -29,7 +31,7 @@ async def sender_loop(client_id, websocket, queue, world):
     except asyncio.CancelledError:
         raise
     except Exception:
-        pass  # Cleanup handled by websocket_endpoint finally block
+        logger.debug("Sender loop stopped", exc_info=True)
 
 
 def replace_queued_state(queue, data_tuple):
@@ -155,7 +157,7 @@ async def _run_receive_loop(client_id: str, websocket: WebSocket, world):
         if len(data) > MAX_CLIENT_MESSAGE_LENGTH:
             continue
 
-        now = asyncio.get_event_loop().time()
+        now = asyncio.get_running_loop().time()
         while msg_timestamps and msg_timestamps[0] < now - 1.0:
             msg_timestamps.popleft()
         if len(msg_timestamps) >= RATE_LIMIT_PER_SECOND:
@@ -219,7 +221,7 @@ async def websocket_endpoint(
         initialized = True
         await _run_receive_loop(client_id, websocket, world)
     except Exception:
-        pass
+        logger.debug("WebSocket session failed", exc_info=True)
     finally:
         await _cleanup_connection(client_id, websocket, world)
         if not initialized:

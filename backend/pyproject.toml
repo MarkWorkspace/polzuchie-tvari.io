@@ -37,7 +37,7 @@ line-length = 100
 extend-exclude = ["app/engine/systems/snake_pb2.py"]
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F"]
+select = ["E4", "E7", "E9", "F", "B", "ASYNC"]
 
 [tool.ruff.lint.per-file-ignores]
 # server.py inserts its own directory into sys.path before app imports.

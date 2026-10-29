@@ -18,7 +18,7 @@ def update(state) -> None:
     attraction_speed = state.config.food.attraction_speed * state.tick_interval
     attracted_ids = set()
 
-    for pid, player in state.players.items():
+    for player in state.players.values():
         if player.is_dead or not player.body or player.teleport_state == "in_transit":
             continue
         _process_eating_for_player(

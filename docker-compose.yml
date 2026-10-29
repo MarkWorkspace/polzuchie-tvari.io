@@ -8,6 +8,7 @@ services:
     environment:
       - ENVIRONMENT=production
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - ./backend/config.json:/app/config.json
     restart: unless-stopped
