@@ -59,6 +59,13 @@ cd backend
 uv lock
 ```
 
+После изменения `tests_shared/snake.proto` перегенерируйте Python-код:
+
+```bash
+cd backend
+uv run --frozen python scripts/generate_proto.py
+```
+
 По отдельности:
 
 ```bash
