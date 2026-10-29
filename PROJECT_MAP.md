@@ -93,7 +93,7 @@ frontend/
     │   ├── TombstoneGeometry.test.ts   # ROLE: Тест габаритов/ориентации и наличия нормалей надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
     │   ├── PostProcessing.ts           # ROLE: Bloom/SSAO/tone mapping в одном pass, маска bloom по силуэту змейки, линзирование ЧД отдельным pass, atmosphere grade.
-    │   ├── BloomMaskRenderer.ts        # ROLE: Растеризует силуэт змеек в маленькую маску, чтобы bloom не накладывался на саму ленту. Не свет, не пост-эффекты.
+    │   ├── BloomMaskRenderer.ts        # ROLE: Растеризует силуэт змеек реальным материалом в half-res маску (покрытие в alpha), чтобы bloom не накладывался на ленту. Не свет, не пост-эффекты.
     │   ├── BloomMaskRenderer.test.ts   # ROLE: Тесты размера mask-таргета под pixel ratio.
     │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map и snake-light budget.
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.

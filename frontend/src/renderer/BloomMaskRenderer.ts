@@ -1,9 +1,12 @@
-// ROLE: Rasterizes the snake body silhouette into a small mask texture so bloom can be suppressed on the ribbon itself. No gameplay, no lighting, no post effects.
+// ROLE: Rasterizes the snake body silhouette into a small mask texture so bloom can be suppressed on the ribbon itself. No gameplay, no lighting setup, no post effects.
 import * as THREE from "three";
 import { BLOOM_MASK_LAYER } from "./RenderConfig";
 
-/** The mask is quarter resolution; bilinear upsampling feathers the silhouette edge. */
-export const BLOOM_MASK_SCALE = 4;
+/**
+ * Half resolution keeps the mask edge tight against the ribbon; bilinear
+ * upsampling feathers the last couple of pixels.
+ */
+export const BLOOM_MASK_SCALE = 2;
 
 export interface BloomMaskSize {
   width: number;
@@ -20,25 +23,18 @@ export function bloomMaskSize(width: number, height: number, pixelRatio: number)
 }
 
 /**
- * Draws every mesh on BLOOM_MASK_LAYER as flat white into an offscreen target.
- * Post-processing samples it to keep the additive bloom off the body core while
- * the halo around the ribbon stays untouched.
+ * Renders the meshes on BLOOM_MASK_LAYER into an offscreen target with their
+ * real materials, so the mask inherits the body shader's rounded head/tail
+ * discard and matches the visible silhouette exactly. Coverage lives in the
+ * alpha channel: opaque body fragments write 1, the discarded contour stays 0.
  */
 export class BloomMaskRenderer {
   public readonly texture: THREE.Texture;
   private readonly target: THREE.WebGLRenderTarget;
-  private readonly material = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    side: THREE.DoubleSide,
-    depthTest: false,
-    depthWrite: false,
-    fog: false,
-    toneMapped: false,
-  });
 
   constructor() {
     this.target = new THREE.WebGLRenderTarget(1, 1, {
-      depthBuffer: false,
+      depthBuffer: true,
       stencilBuffer: false,
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -63,21 +59,19 @@ export class BloomMaskRenderer {
     const previousClearAlpha = renderer.getClearAlpha();
     const previousShadowAutoUpdate = renderer.shadowMap.autoUpdate;
     const previousBackground = scene.background;
-    const previousOverrideMaterial = scene.overrideMaterial;
     const previousCameraMask = camera.layers.mask;
 
     try {
       renderer.setRenderTarget(this.target);
-      renderer.setClearColor(0x000000, 1);
+      // Alpha is the coverage channel, so the cleared backdrop must be transparent.
+      renderer.setClearColor(0x000000, 0);
       renderer.shadowMap.autoUpdate = false;
       scene.background = null;
-      scene.overrideMaterial = this.material;
       camera.layers.set(BLOOM_MASK_LAYER);
       renderer.clear(true, true, false);
       renderer.render(scene, camera);
     } finally {
       camera.layers.mask = previousCameraMask;
-      scene.overrideMaterial = previousOverrideMaterial;
       scene.background = previousBackground;
       renderer.shadowMap.autoUpdate = previousShadowAutoUpdate;
       renderer.setClearColor(previousClearColor, previousClearAlpha);
@@ -87,6 +81,5 @@ export class BloomMaskRenderer {
 
   public dispose(): void {
     this.target.dispose();
-    this.material.dispose();
   }
 }

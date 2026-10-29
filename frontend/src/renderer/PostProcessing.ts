@@ -59,13 +59,14 @@ const bloomMaskFragmentShader = `
   uniform float uBloomMaskStrength;
 
   void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
-    vec3 maskSample = texture2D(uBloomMask, uv).rgb;
-    float occluded = max(max(maskSample.r, maskSample.g), maskSample.b) * uBloomMaskStrength;
+    // The mask stores body coverage in alpha, so it follows the shader's exact
+    // rounded head/tail silhouette instead of the raw quad.
+    float coverage = texture2D(uBloomMask, uv).a * uBloomMaskStrength;
     // Inside this pass inputBuffer still holds the pre-bloom image, so mixing
     // back to it removes the bloom exactly over the ribbon silhouette while the
     // halo just outside it is untouched.
     vec3 unbloomed = texture2D(inputBuffer, uv).rgb;
-    outputColor = vec4(mix(inputColor.rgb, unbloomed, clamp(occluded, 0.0, 1.0)), inputColor.a);
+    outputColor = vec4(mix(inputColor.rgb, unbloomed, clamp(coverage, 0.0, 1.0)), inputColor.a);
   }
 `;
 
