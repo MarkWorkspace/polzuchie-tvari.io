@@ -15,7 +15,8 @@ import {
 import * as THREE from "three";
 import { gridSize } from "../game/Config";
 import { AtmosphereEffect } from "./AtmosphereEffect";
-import { BloomMaskRenderer } from "./BloomMaskRenderer";
+import { BLOOM_MASK_LAYER, SNAKE_OCCLUSION_LAYER } from "./RenderConfig";
+import { SilhouetteRenderer } from "./SilhouetteRenderer";
 
 const lensingFragmentShader = `
   uniform vec3 uBlackHoles[10];
@@ -84,6 +85,47 @@ class BloomMaskEffect extends Effect {
   }
 }
 
+const snakeOcclusionFragmentShader = `
+  uniform sampler2D uOcclusionMask;
+  uniform vec2 uOcclusionTexel;
+  uniform float uOcclusionRadius;
+  uniform float uOcclusionStrength;
+
+  void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+    float center = texture2D(uOcclusionMask, uv).a;
+    vec2 o = uOcclusionTexel * uOcclusionRadius;
+    float blur =
+      texture2D(uOcclusionMask, uv + vec2(o.x, 0.0)).a +
+      texture2D(uOcclusionMask, uv - vec2(o.x, 0.0)).a +
+      texture2D(uOcclusionMask, uv + vec2(0.0, o.y)).a +
+      texture2D(uOcclusionMask, uv - vec2(0.0, o.y)).a +
+      texture2D(uOcclusionMask, uv + o * 0.7071).a +
+      texture2D(uOcclusionMask, uv - o * 0.7071).a +
+      texture2D(uOcclusionMask, uv + vec2(o.x, -o.y) * 0.7071).a +
+      texture2D(uOcclusionMask, uv + vec2(-o.x, o.y) * 0.7071).a;
+    blur *= 0.125;
+
+    // The blurred silhouette minus the sharp one is the ground ring hugging the
+    // ribbon, which reads as cheap ambient occlusion instead of a second shadow.
+    float occlusion = clamp((blur - center) * 1.8, 0.0, 1.0);
+    outputColor = vec4(inputColor.rgb * (1.0 - occlusion * uOcclusionStrength), inputColor.a);
+  }
+`;
+
+class SnakeOcclusionEffect extends Effect {
+  constructor(maskTexture: THREE.Texture, texel: THREE.Vector2) {
+    super("SnakeOcclusionEffect", snakeOcclusionFragmentShader, {
+      blendFunction: BlendFunction.NORMAL,
+      uniforms: new Map<string, any>([
+        ["uOcclusionMask", new THREE.Uniform(maskTexture)],
+        ["uOcclusionTexel", new THREE.Uniform(texel)],
+        ["uOcclusionRadius", new THREE.Uniform(5.0)],
+        ["uOcclusionStrength", new THREE.Uniform(0.65)],
+      ]),
+    });
+  }
+}
+
 /**
  * The fog, head glow and boost particles live on OVERLAY_LAYER. They must not
  * write into the normal buffer, otherwise a full-screen fog plane overwrites
@@ -124,7 +166,9 @@ export class PostProcessing {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly bloomMask = new BloomMaskRenderer();
+  private readonly bloomMask = new SilhouetteRenderer(BLOOM_MASK_LAYER, 2);
+  private readonly snakeOcclusion = new SilhouetteRenderer(SNAKE_OCCLUSION_LAYER, 4);
+  private readonly occlusionTexel = new THREE.Vector2(1 / 4, 1 / 4);
   private lensingEffect!: LensingEffect;
   private atmosphereEffect!: AtmosphereEffect;
   private ssaoEnabled: boolean;
@@ -200,6 +244,7 @@ export class PostProcessing {
 
     if (useBloom) {
       baseEffects.push(
+        new SnakeOcclusionEffect(this.snakeOcclusion.texture, this.occlusionTexel),
         new BloomEffect({
           intensity: 1.1,
           // Low effective threshold so saturated body colors bloom; the
@@ -234,11 +279,16 @@ export class PostProcessing {
 
   public resize(width: number, height: number): void {
     this.composer.setSize(width, height);
-    this.bloomMask.resize(width, height, this.renderer.getPixelRatio());
+    const pixelRatio = this.renderer.getPixelRatio();
+    this.bloomMask.resize(width, height, pixelRatio);
+    this.snakeOcclusion.resize(width, height, pixelRatio);
+    const occlusionSize = this.snakeOcclusion.size();
+    this.occlusionTexel.set(1 / occlusionSize.width, 1 / occlusionSize.height);
   }
 
   public destroy(): void {
     this.bloomMask.dispose();
+    this.snakeOcclusion.dispose();
     this.composer.dispose();
   }
 
@@ -261,6 +311,7 @@ export class PostProcessing {
     // camera matrices are refreshed and before the composer samples it.
     if (this.bloomEnabled) {
       this.bloomMask.render(this.renderer, this.scene, this.camera);
+      this.snakeOcclusion.render(this.renderer, this.scene, this.camera);
     }
 
     this.composer.render();

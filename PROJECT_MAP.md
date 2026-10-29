@@ -71,7 +71,7 @@ frontend/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, цветные snake-light'ы, тени, туман, пресеты качества и adaptive pixel ratio.
     │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
-    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, тени и skin-tinted head glow. Тело попадает в bloom-маску через BLOOM_MASK_LAYER. Не физика, не HUD.
+    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, тени (depth-материал с тем же контуром) и skin-tinted head glow. Тело попадает в bloom-маску и contact-AO через отдельные слои. Не физика, не HUD.
     │   ├── AtmosphereEffect.ts         # ROLE: Дешёвый финальный grade: vignette, split-tone, saturation и dither. Без знания сцены.
     │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
     │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.
@@ -92,9 +92,9 @@ frontend/
     │   ├── TombstoneGeometry.ts        # ROLE: Процедурная плита с аркой и основанием. Не рендерит и не анимирует.
     │   ├── TombstoneGeometry.test.ts   # ROLE: Тест габаритов/ориентации и наличия нормалей надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
-    │   ├── PostProcessing.ts           # ROLE: Bloom/SSAO/tone mapping в одном pass, bloom-маска по силуэтам светящихся объектов, линзирование ЧД отдельным pass, atmosphere grade.
-    │   ├── BloomMaskRenderer.ts        # ROLE: Растеризует силуэты светящихся объектов (змейка, плоды, надгробия, портал, ядро/кольцо ЧД) их материалами в half-res маску (покрытие в alpha). Не свет, не пост-эффекты.
-    │   ├── BloomMaskRenderer.test.ts   # ROLE: Тесты размера mask-таргета под pixel ratio.
+    │   ├── PostProcessing.ts           # ROLE: Bloom/SSAO/contact-AO/tone mapping в одном pass, bloom-маска по силуэтам светящихся объектов, линзирование ЧД отдельным pass, atmosphere grade.
+    │   ├── SilhouetteRenderer.ts       # ROLE: Растеризует слой в маленький alpha-таргет (bloom-маска и contact-AO). Не свет, не пост-эффекты.
+    │   ├── SilhouetteRenderer.test.ts  # ROLE: Тесты размера silhouette-таргета под pixel ratio и downscale.
     │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map и snake-light budget.
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
     │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.

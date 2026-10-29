@@ -46,9 +46,12 @@ export const fragmentShaderPrefix = `
   }
 `;
 
-export const fragmentColorReplace = `
-  #include <color_fragment>
-
+/**
+ * Shared by the visible body and its shadow depth material. Both must round the
+ * head and tail the same way, otherwise the cast shadow keeps square ends.
+ * Leaves the normalized contour distance in d_dist for the edge shading.
+ */
+export const snakeContourGlsl = `
   float r = vSnakeParams.x;
   float L = vSnakeParams.y;
   float x = (vUv.x - 0.5) * 2.0 * r;
@@ -57,13 +60,18 @@ export const fragmentColorReplace = `
   float d_dist = 0.0;
   if (y < 0.0) {
     d_dist = length(vec2(x, y)) / r;
-    if (d_dist > 1.0) discard;
   } else if (y > L) {
     d_dist = length(vec2(x, y - L)) / r;
-    if (d_dist > 1.0) discard;
   } else {
     d_dist = abs(x) / r;
   }
+  if (d_dist > 1.0) discard;
+`;
+
+export const fragmentColorReplace = `
+  #include <color_fragment>
+
+  ${snakeContourGlsl}
 
   float skinType = vCustomColor.r;
   vec3 baseColor;
@@ -139,5 +147,34 @@ export function patchSnakeMaterial(shader: any, uniforms: any) {
   shader.fragmentShader = shader.fragmentShader.replace(
     "#include <opaque_fragment>",
     saturationReplace,
+  );
+}
+
+/**
+ * Depth-only counterpart of the body shader. Shadow maps run MeshDepthMaterial,
+ * which never sees the body's fragment discard, so without this the cast shadow
+ * stays a rectangle with square head/tail caps.
+ */
+export function patchSnakeShadowMaterial(shader: any) {
+  shader.vertexShader = `
+    attribute vec2 snakeParams;
+    varying vec2 vUv;
+    varying vec2 vSnakeParams;
+  ${shader.vertexShader}`;
+  shader.vertexShader = shader.vertexShader.replace(
+    "#include <begin_vertex>",
+    `#include <begin_vertex>
+     vUv = uv;
+     vSnakeParams = snakeParams;`,
+  );
+
+  shader.fragmentShader = `
+    varying vec2 vUv;
+    varying vec2 vSnakeParams;
+  ${shader.fragmentShader}`;
+  shader.fragmentShader = shader.fragmentShader.replace(
+    "#include <clipping_planes_fragment>",
+    `#include <clipping_planes_fragment>
+     ${snakeContourGlsl}`,
   );
 }

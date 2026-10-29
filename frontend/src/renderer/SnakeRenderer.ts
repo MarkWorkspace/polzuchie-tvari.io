@@ -7,8 +7,9 @@ import {
   OVERLAY_LAYER,
   RenderConfig,
   RenderLayer,
+  SNAKE_OCCLUSION_LAYER,
 } from "./RenderConfig";
-import { patchSnakeMaterial } from "./shaders/snakeBody.glsl";
+import { patchSnakeMaterial, patchSnakeShadowMaterial } from "./shaders/snakeBody.glsl";
 
 const INITIAL_BUFFER_FLOATS = 500000;
 
@@ -60,6 +61,7 @@ export function headGlowPlacements(
 export class SnakeRenderer {
   private scene: THREE.Scene;
   private bodyMaterial!: THREE.MeshStandardMaterial;
+  private bodyShadowMaterial!: THREE.MeshDepthMaterial;
   private eyeMaterial!: THREE.MeshBasicMaterial;
   private pupilMaterial!: THREE.MeshBasicMaterial;
 
@@ -98,7 +100,13 @@ export class SnakeRenderer {
       this.scene.remove(mesh);
       mesh.geometry.dispose();
     });
-    [this.bodyMaterial, this.eyeMaterial, this.pupilMaterial, this.glowMaterial].forEach((mat) => {
+    [
+      this.bodyMaterial,
+      this.bodyShadowMaterial,
+      this.eyeMaterial,
+      this.pupilMaterial,
+      this.glowMaterial,
+    ].forEach((mat) => {
       mat.dispose();
     });
   }
@@ -230,6 +238,15 @@ export class SnakeRenderer {
       patchSnakeMaterial(shader, uInit);
     };
 
+    // Shadow maps use MeshDepthMaterial, which does not see the body's fragment
+    // discard. Patching it keeps the cast shadow on the same rounded silhouette.
+    this.bodyShadowMaterial = new THREE.MeshDepthMaterial({
+      depthPacking: THREE.RGBADepthPacking,
+    });
+    this.bodyShadowMaterial.onBeforeCompile = (shader) => {
+      patchSnakeShadowMaterial(shader);
+    };
+
     this.eyeMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
     this.pupilMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
@@ -285,6 +302,9 @@ export class SnakeRenderer {
     // The bloom mask pass rasterizes only this layer, so the ribbon can keep a
     // crisp core while the halo around it stays.
     this.bodyMesh.layers.enable(BLOOM_MASK_LAYER);
+    // The contact-occlusion pass uses the ribbon alone.
+    this.bodyMesh.layers.enable(SNAKE_OCCLUSION_LAYER);
+    this.bodyMesh.customDepthMaterial = this.bodyShadowMaterial;
     this._setWrapMatrices(WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize);
     this.scene.add(this.bodyMesh);
   }
