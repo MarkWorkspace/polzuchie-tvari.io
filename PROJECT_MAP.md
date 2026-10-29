@@ -68,10 +68,12 @@ frontend/
     │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
     ├── renderer/
-    │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, цветные snake-light'ы, тени, туман, пресеты качества и adaptive pixel ratio.
+    │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, цветные snake-light'ы, тени, туман, adaptive world-space contact shadow, пресеты качества и adaptive pixel ratio.
+    │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.067, 0.8), два separable Gaussian-прохода в world units и один quad на земле. Не свет, не shadow map, не пост-эффект.
+    │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
     │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
-    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, тени (depth-материал с тем же контуром) и skin-tinted head glow. Тело попадает в bloom-маску и contact-AO через отдельные слои. Не физика, не HUD.
+    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, skin-tinted head glow. Тело попадает в bloom-маску и top-down contact-shadow маску через отдельные слои; само тень не кастует. Не физика, не HUD.
     │   ├── AtmosphereEffect.ts         # ROLE: Дешёвый финальный grade: vignette, split-tone, saturation и dither. Без знания сцены.
     │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
     │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.
@@ -86,20 +88,24 @@ frontend/
     │   ├── MandarinGeometry.ts         # ROLE: Процедурная генерация 3D-геометрии мандарина.
     │   ├── PearGeometry.ts             # ROLE: Процедурная генерация 3D-геометрии груши.
     │   ├── PersimmonGeometry.ts        # ROLE: Процедурная генерация 3D-геометрии хурмы.
+    │   ├── FruitGeometryUtils.ts       # ROLE: Общая пост-обработка фруктов: удаляет вырожденные треугольники, центрирует и нормирует bounding sphere к 1.0.
+    │   ├── FoodGeometry.test.ts        # ROLE: Регрессионные тесты инвариантов всех 11 фруктовых геометрий (unit-радиус, центр, нормали, бюджет).
     │   ├── PortalRenderer.ts           # ROLE: Визуализация порталов.
     │   ├── BlackHoleRenderer.ts        # ROLE: Визуализация чёрных дыр.
     │   ├── TombstoneRenderer.ts        # ROLE: Инстансированные upright-надгробия: позиция, yaw, тени, emissive-подъём.
     │   ├── TombstoneGeometry.ts        # ROLE: Процедурная плита с аркой и основанием. Не рендерит и не анимирует.
     │   ├── TombstoneGeometry.test.ts   # ROLE: Тест габаритов/ориентации и наличия нормалей надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
-    │   ├── PostProcessing.ts           # ROLE: SSAO отдельным pass; bloom/contact-AO/tone mapping и bloom-маска в общем pass; линзирование ЧД отдельным pass; atmosphere grade.
-    │   ├── SilhouetteRenderer.ts       # ROLE: Растеризует слой в маленький alpha-таргет (bloom-маска и contact-AO). Не свет, не пост-эффекты.
+    │   ├── GlobeLens.ts                # ROLE: Чистая математика globe warp/overscan и финальный screen-space GlobeEffect с limb darkening. Без знания сцены.
+    │   ├── GlobeLens.test.ts           # ROLE: Тесты warp-функции и overscan для разных aspect/curvature.
+    │   ├── PostProcessing.ts           # ROLE: SSAO отдельным pass (временно выключен флагом в buildPipeline); bloom/tone mapping и bloom-маска в общем pass; линзирование ЧД отдельным pass; atmosphere grade; globe warp финальным pass.
+    │   ├── SilhouetteRenderer.ts       # ROLE: Растеризует слой в маленький alpha-таргет (bloom-маска). Не свет, не пост-эффекты.
     │   ├── SilhouetteRenderer.test.ts  # ROLE: Тесты размера silhouette-таргета под pixel ratio и downscale.
-    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map и snake-light budget.
+    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map, contact-shadow base resolution, grass и snake-light budget.
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
     │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
-    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, overlay-layer для NormalPass, bloom-mask layer, фабрики материалов и glow-конверсия.
+    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, overlay-layer для NormalPass, bloom-mask и snake-shadow mask layers, фабрики материалов и glow-конверсия.
     │   ├── RenderConfig.test.ts        # ROLE: Тест перевода head_glow_radius из клеток в мировые единицы.
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
     │   ├── DebugRenderer.test.ts       # ROLE: Тест кратности debug-буферов размеру атрибута.

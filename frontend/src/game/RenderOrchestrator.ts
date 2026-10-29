@@ -1,11 +1,14 @@
 // ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены. Не содержит логики ввода или сети.
 
+import * as THREE from "three";
 import { BlackHoleRenderer } from "../renderer/BlackHoleRenderer";
 import { DebugRenderer } from "../renderer/DebugRenderer";
 import { FoodRenderer } from "../renderer/FoodRenderer";
+import { GRASS_GROUND_Z, GrassRenderer } from "../renderer/GrassRenderer";
 import { NicknameRenderer } from "../renderer/NicknameRenderer";
 import { ParticleRenderer } from "../renderer/ParticleRenderer";
 import { PortalRenderer } from "../renderer/PortalRenderer";
+import { QUALITY_PRESETS } from "../renderer/RenderQuality";
 import type { SceneManager } from "../renderer/SceneManager";
 import { SnakeRenderer } from "../renderer/SnakeRenderer";
 import { TombstoneRenderer } from "../renderer/TombstoneRenderer";
@@ -21,7 +24,10 @@ export class RenderOrchestrator {
   private particleRenderer: ParticleRenderer;
   private debugRenderer: DebugRenderer;
   private tombstoneRenderer: TombstoneRenderer;
+  private grassRenderer: GrassRenderer;
   private postRenderCallbacks: ((frame: any, myId: string) => void)[] = [];
+  private readonly grassForward = new THREE.Vector3();
+  private readonly grassView = { x: 0, y: 0, halfExtent: 0 };
 
   constructor(sceneManager: SceneManager) {
     this.sceneManager = sceneManager;
@@ -35,6 +41,7 @@ export class RenderOrchestrator {
     this.particleRenderer = new ParticleRenderer(scene);
     this.debugRenderer = new DebugRenderer(scene);
     this.tombstoneRenderer = new TombstoneRenderer(scene);
+    this.grassRenderer = new GrassRenderer(scene);
   }
 
   public onPostRender(callback: (frame: any, myId: string) => void): void {
@@ -58,6 +65,15 @@ export class RenderOrchestrator {
     if (gameCamera) {
       gameCamera.update(camera, frame, dt, myId, isAccelerating);
     }
+    this.resolveGrassView(camera, frame);
+    this.grassRenderer.update(
+      frame,
+      QUALITY_PRESETS[this.sceneManager.getQuality()].grass,
+      now,
+      this.grassView.x,
+      this.grassView.y,
+      this.grassView.halfExtent,
+    );
     this.foodRenderer.update(frame);
     this.portalRenderer.update(frame, now / 1000.0);
     this.blackHoleRenderer.update(frame, now / 1000.0);
@@ -83,5 +99,41 @@ export class RenderOrchestrator {
     this.particleRenderer.destroy();
     this.debugRenderer.destroy();
     this.tombstoneRenderer.destroy();
+    this.grassRenderer.destroy();
+  }
+
+  /**
+   * Grass follows the camera's actual ground target, which exists in both player
+   * and spectator modes (spectator frames do not carry usable camX/camY).
+   * Intersects the camera forward ray with the grass plane and returns the
+   * half-extent of the visible ground for cull-radius scaling.
+   */
+  private resolveGrassView(camera: THREE.PerspectiveCamera, frame: any): void {
+    let x = Number.isFinite(frame?.camX) ? frame.camX : 0;
+    let y = Number.isFinite(frame?.camY) ? frame.camY : 0;
+    let halfExtent = 0;
+
+    const camX = camera.position.x;
+    const camY = camera.position.y;
+    const camZ = camera.position.z;
+
+    if (Number.isFinite(camX) && Number.isFinite(camY) && Number.isFinite(camZ)) {
+      const forward = camera.getWorldDirection(this.grassForward);
+      const t = Math.abs(forward.z) >= 1e-4 ? (GRASS_GROUND_Z - camZ) / forward.z : Number.NaN;
+
+      if (Number.isFinite(t) && t > 0) {
+        x = camX + forward.x * t;
+        y = camY + forward.y * t;
+        halfExtent = t * Math.tan((camera.fov * Math.PI) / 360);
+      } else {
+        // Camera parallel to the plane or looking away: stay above the camera.
+        x = camX;
+        y = camY;
+      }
+    }
+
+    this.grassView.x = x;
+    this.grassView.y = y;
+    this.grassView.halfExtent = halfExtent;
   }
 }
