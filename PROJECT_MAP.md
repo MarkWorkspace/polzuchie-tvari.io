@@ -71,7 +71,7 @@ frontend/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, цветные snake-light'ы, тени, туман, пресеты качества и adaptive pixel ratio.
     │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
-    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, тени и skin-tinted head glow. Экранный glow тела даёт BloomEffect. Не физика, не HUD.
+    │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, тени и skin-tinted head glow. Тело попадает в bloom-маску через BLOOM_MASK_LAYER. Не физика, не HUD.
     │   ├── AtmosphereEffect.ts         # ROLE: Дешёвый финальный grade: vignette, split-tone, saturation и dither. Без знания сцены.
     │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
     │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.
@@ -92,12 +92,14 @@ frontend/
     │   ├── TombstoneGeometry.ts        # ROLE: Процедурная плита с аркой и основанием. Не рендерит и не анимирует.
     │   ├── TombstoneGeometry.test.ts   # ROLE: Тест габаритов/ориентации и наличия нормалей надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
-    │   ├── PostProcessing.ts           # ROLE: Bloom/SSAO/tone mapping в одном pass, линзирование ЧД отдельным pass, atmosphere grade.
+    │   ├── PostProcessing.ts           # ROLE: Bloom/SSAO/tone mapping в одном pass, маска bloom по силуэту змейки, линзирование ЧД отдельным pass, atmosphere grade.
+    │   ├── BloomMaskRenderer.ts        # ROLE: Растеризует силуэт змеек в маленькую маску, чтобы bloom не накладывался на саму ленту. Не свет, не пост-эффекты.
+    │   ├── BloomMaskRenderer.test.ts   # ROLE: Тесты размера mask-таргета под pixel ratio.
     │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map и snake-light budget.
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
     │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
-    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, overlay-layer для NormalPass, фабрики материалов и glow-конверсия.
+    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, overlay-layer для NormalPass, bloom-mask layer, фабрики материалов и glow-конверсия.
     │   ├── RenderConfig.test.ts        # ROLE: Тест перевода head_glow_radius из клеток в мировые единицы.
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
     │   ├── DebugRenderer.test.ts       # ROLE: Тест кратности debug-буферов размеру атрибута.

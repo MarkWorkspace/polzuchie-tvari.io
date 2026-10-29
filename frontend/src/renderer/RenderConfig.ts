@@ -35,6 +35,12 @@ export type RenderLayer = (typeof RenderLayer)[keyof typeof RenderLayer];
  */
 export const OVERLAY_LAYER = 1;
 
+/**
+ * Body meshes also live on this layer. A dedicated pass rasterizes them into a
+ * mask so bloom can be cut out exactly over the ribbon silhouette.
+ */
+export const BLOOM_MASK_LAYER = 2;
+
 /** Converts the configured glow radius from map cells to world units. */
 export function headGlowRadiusWorld(
   headRadiusWorld: number,

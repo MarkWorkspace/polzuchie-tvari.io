@@ -1,7 +1,13 @@
 // ROLE: Меши змеек, плоские нормали, emissive-скины, тени и skin-tinted head glow. Не физика, не HUD.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
-import { headGlowRadiusWorld, OVERLAY_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
+import {
+  BLOOM_MASK_LAYER,
+  headGlowRadiusWorld,
+  OVERLAY_LAYER,
+  RenderConfig,
+  RenderLayer,
+} from "./RenderConfig";
 import { patchSnakeMaterial } from "./shaders/snakeBody.glsl";
 
 const INITIAL_BUFFER_FLOATS = 500000;
@@ -276,6 +282,9 @@ export class SnakeRenderer {
       /* no-op */
     };
     RenderConfig.configureMesh(this.bodyMesh, RenderLayer.SnakeBody, { castShadow: true });
+    // The bloom mask pass rasterizes only this layer, so the ribbon can keep a
+    // crisp core while the halo around it stays.
+    this.bodyMesh.layers.enable(BLOOM_MASK_LAYER);
     this._setWrapMatrices(WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize);
     this.scene.add(this.bodyMesh);
   }

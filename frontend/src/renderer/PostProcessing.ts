@@ -15,6 +15,7 @@ import {
 import * as THREE from "three";
 import { gridSize } from "../game/Config";
 import { AtmosphereEffect } from "./AtmosphereEffect";
+import { BloomMaskRenderer } from "./BloomMaskRenderer";
 
 const lensingFragmentShader = `
   uniform vec3 uBlackHoles[10];
@@ -48,6 +49,33 @@ class LensingEffect extends Effect {
       uniforms: new Map<string, any>([
         ["uBlackHoles", new THREE.Uniform(options.bhPositionsArray || new Float32Array(30))],
         ["uBlackHoleCount", new THREE.Uniform(0)],
+      ]),
+    });
+  }
+}
+
+const bloomMaskFragmentShader = `
+  uniform sampler2D uBloomMask;
+  uniform float uBloomMaskStrength;
+
+  void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+    vec3 maskSample = texture2D(uBloomMask, uv).rgb;
+    float occluded = max(max(maskSample.r, maskSample.g), maskSample.b) * uBloomMaskStrength;
+    // Inside this pass inputBuffer still holds the pre-bloom image, so mixing
+    // back to it removes the bloom exactly over the ribbon silhouette while the
+    // halo just outside it is untouched.
+    vec3 unbloomed = texture2D(inputBuffer, uv).rgb;
+    outputColor = vec4(mix(inputColor.rgb, unbloomed, clamp(occluded, 0.0, 1.0)), inputColor.a);
+  }
+`;
+
+class BloomMaskEffect extends Effect {
+  constructor(maskTexture: THREE.Texture) {
+    super("BloomMaskEffect", bloomMaskFragmentShader, {
+      blendFunction: BlendFunction.NORMAL,
+      uniforms: new Map<string, any>([
+        ["uBloomMask", new THREE.Uniform(maskTexture)],
+        ["uBloomMaskStrength", new THREE.Uniform(1)],
       ]),
     });
   }
@@ -90,8 +118,10 @@ export interface PostProcessingOptions {
 
 export class PostProcessing {
   private readonly composer: EffectComposer;
+  private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
+  private readonly bloomMask = new BloomMaskRenderer();
   private lensingEffect!: LensingEffect;
   private atmosphereEffect!: AtmosphereEffect;
   private ssaoEnabled: boolean;
@@ -112,6 +142,7 @@ export class PostProcessing {
   ) {
     this.scene = scene;
     this.camera = camera;
+    this.renderer = renderer;
     this.composer = new EffectComposer(renderer, {
       frameBufferType: THREE.HalfFloatType,
     });
@@ -178,6 +209,9 @@ export class PostProcessing {
           // Mipmap blur is both smoother and cheaper than many tap passes.
           mipmapBlur: true,
         }),
+        // Must stay right after the bloom: the mask restores the pre-bloom color
+        // on the body silhouette and leaves the surrounding halo intact.
+        new BloomMaskEffect(this.bloomMask.texture),
       );
     }
 
@@ -197,9 +231,11 @@ export class PostProcessing {
 
   public resize(width: number, height: number): void {
     this.composer.setSize(width, height);
+    this.bloomMask.resize(width, height, this.renderer.getPixelRatio());
   }
 
   public destroy(): void {
+    this.bloomMask.dispose();
     this.composer.dispose();
   }
 
@@ -217,6 +253,12 @@ export class PostProcessing {
     }
 
     this.lensingEffect.uniforms.get("uBlackHoleCount")!.value = bhCount;
+
+    // The bloom mask depends on the camera, so it has to be rasterized after the
+    // camera matrices are refreshed and before the composer samples it.
+    if (this.bloomEnabled) {
+      this.bloomMask.render(this.renderer, this.scene, this.camera);
+    }
 
     this.composer.render();
     return true; // Tone mapping and black-hole lensing always use the composer.
