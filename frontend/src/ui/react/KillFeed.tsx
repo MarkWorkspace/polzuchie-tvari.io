@@ -21,7 +21,12 @@ export function KillFeed() {
     <div className="killfeed-panel hud-interactive">
       {items.map((item) => (
         <div key={item.id} className="kill-message">
-          <span className="kill-killer">{killCauseLabel(item.killer)}</span> killed{" "}
+          <span className="kill-killer">{killCauseLabel(item.killer)}</span>
+          {/* Language-neutral separator: the HUD has no localized verb for
+              "killed", and a hardcoded English word looked wrong in RU. */}
+          <span className="kill-arrow" aria-hidden="true">
+            →
+          </span>
           <span className="kill-victim">{item.victim}</span>
         </div>
       ))}

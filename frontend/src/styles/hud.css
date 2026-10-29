@@ -192,6 +192,12 @@
   font-weight: 600;
 }
 
+.kill-arrow {
+  margin: 0 7px;
+  opacity: 0.45;
+  font-size: 12px;
+}
+
 .kill-victim {
   color: var(--accent-blue);
   font-weight: 600;

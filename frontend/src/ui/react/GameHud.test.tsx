@@ -89,6 +89,9 @@ describe("GameHud", () => {
     expect(screen.getByText("Environment")).toBeInTheDocument();
     expect(screen.getByText("Black hole")).toBeInTheDocument();
     expect(screen.getByText("Tombstone")).toBeInTheDocument();
+    // The separator is an arrow, so no untranslated English verb leaks into RU.
+    expect(screen.getAllByText("→")).toHaveLength(4);
+    expect(screen.queryByText(/killed/)).not.toBeInTheDocument();
     // Raw server ids must never leak into the HUD.
     expect(screen.queryByText(/black_hole|tomb_/)).not.toBeInTheDocument();
   });
