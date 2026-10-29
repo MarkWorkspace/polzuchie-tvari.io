@@ -1,4 +1,4 @@
-// ROLE: React login screen for nickname and skin selection.
+// ROLE: React login screen for nickname and skin selection, including cross-tab session conflicts.
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { SKINS } from "../../game/Config";
 import { type TranslationKey, t } from "../../lib/i18n";
@@ -16,8 +16,18 @@ const SKIN_KEYS: Record<string, TranslationKey> = {
   cyberpunk: "skin.cyberpunk",
 };
 
-interface LoginScreenProps {
-  onPlay: (nickname: string, skin: string) => void;
+export type PlayResult = "started" | "busy";
+export type TakeOverResult = "started" | "timeout";
+
+export interface LoginScreenActions {
+  onPlay: (nickname: string, skin: string) => Promise<PlayResult>;
+  onTakeOver: (nickname: string, skin: string) => Promise<TakeOverResult>;
+  onSpectate: () => void;
+}
+
+interface ConflictProfile {
+  nickname: string;
+  skin: string;
 }
 
 function getInitialSkin(): string {
@@ -25,22 +35,100 @@ function getInitialSkin(): string {
   return SKINS.some((skin) => skin.id === saved) ? (saved as string) : SKINS[3].id;
 }
 
-export function LoginScreen({ onPlay }: LoginScreenProps) {
+function rememberProfile(nickname: string, skin: string): void {
+  localStorage.setItem("snake-nickname", nickname);
+  localStorage.setItem("snake-skin", skin);
+}
+
+export function LoginScreen({ onPlay, onTakeOver, onSpectate }: LoginScreenActions) {
   const [nickname, setNickname] = useState(() => localStorage.getItem("snake-nickname") || "");
   const [selectedSkin, setSelectedSkin] = useState(getInitialSkin);
+  const [busy, setBusy] = useState(false);
+  const [conflict, setConflict] = useState<ConflictProfile | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const handleSubmit = (event?: FormEvent) => {
+  const handleSubmit = async (event?: FormEvent) => {
     event?.preventDefault();
+    if (busy) return;
+
     const name = nickname.trim() || t("game.defaultPlayer");
-    localStorage.setItem("snake-nickname", name);
-    localStorage.setItem("snake-skin", selectedSkin);
-    onPlay(name, selectedSkin);
+    rememberProfile(name, selectedSkin);
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await onPlay(name, selectedSkin);
+      if (result === "busy") {
+        setConflict({ nickname: name, skin: selectedSkin });
+      }
+    } catch {
+      setError(t("session.startFailed"));
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const handleTakeOver = async () => {
+    if (!conflict || busy) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await onTakeOver(conflict.nickname, conflict.skin);
+      if (result === "timeout") {
+        setError(t("session.takeoverTimeout"));
+      }
+    } catch {
+      setError(t("session.startFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (conflict) {
+    return (
+      <div className="login-overlay">
+        <div className="login-card session-card">
+          <h1 className="login-logo">Polzuchie-tvari.io</h1>
+          <h2 className="session-title">{t("session.busyTitle")}</h2>
+          <p className="session-hint">{t("session.busyHint")}</p>
+          {error ? (
+            <p className="session-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className="session-actions">
+            <button type="button" className="login-button" disabled={busy} onClick={handleTakeOver}>
+              {busy ? t("session.waiting") : t("session.playHere")}
+            </button>
+            <button
+              type="button"
+              className="login-button login-secondary"
+              disabled={busy}
+              onClick={onSpectate}
+            >
+              {t("session.spectate")}
+            </button>
+            <button
+              type="button"
+              className="login-button login-ghost"
+              disabled={busy}
+              onClick={() => {
+                setConflict(null);
+                setError(null);
+              }}
+            >
+              {t("session.cancel")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-overlay">
@@ -78,8 +166,13 @@ export function LoginScreen({ onPlay }: LoginScreenProps) {
             aria-label={t("login.nickname")}
           />
         </div>
-        <button type="submit" className="login-button">
-          {t("login.play")}
+        {error ? (
+          <p className="session-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <button type="submit" className="login-button" disabled={busy}>
+          {busy ? t("session.waiting") : t("login.play")}
         </button>
       </form>
     </div>

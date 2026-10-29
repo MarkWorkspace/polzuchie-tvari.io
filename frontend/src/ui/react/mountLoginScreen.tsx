@@ -1,12 +1,9 @@
 // ROLE: Mount/unmount the React login screen.
 import { createRoot } from "react-dom/client";
-import { LoginScreen } from "./LoginScreen";
+import { LoginScreen, type LoginScreenActions } from "./LoginScreen";
 
-export function mountLoginScreen(
-  container: HTMLElement,
-  onPlay: (nickname: string, skin: string) => void,
-): () => void {
+export function mountLoginScreen(container: HTMLElement, actions: LoginScreenActions): () => void {
   const root = createRoot(container);
-  root.render(<LoginScreen onPlay={onPlay} />);
+  root.render(<LoginScreen {...actions} />);
   return () => root.unmount();
 }

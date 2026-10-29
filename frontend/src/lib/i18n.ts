@@ -8,6 +8,34 @@ const translations = {
   "login.nickname": { ru: "Ваш никнейм", en: "Your nickname" },
   "login.play": { ru: "Играть", en: "Play" },
 
+  // Cross-tab player session
+  "session.busyTitle": {
+    ru: "Игра уже открыта в другой вкладке",
+    en: "Game is already open in another tab",
+  },
+  "session.busyHint": {
+    ru: "Можно перенести сессию сюда — другая вкладка отключится. Или открыть режим наблюдателя.",
+    en: "You can move the session here — the other tab will disconnect. Or open spectator mode.",
+  },
+  "session.playHere": { ru: "Играть здесь", en: "Play here" },
+  "session.spectate": { ru: "Смотреть", en: "Spectate" },
+  "session.cancel": { ru: "Отмена", en: "Cancel" },
+  "session.waiting": { ru: "Ожидание...", en: "Waiting..." },
+  "session.takeoverTimeout": {
+    ru: "Другая вкладка не отвечает. Закройте её и попробуйте снова.",
+    en: "The other tab is not responding. Close it and try again.",
+  },
+  "session.startFailed": {
+    ru: "Не удалось запустить игру. Обновите страницу.",
+    en: "Could not start the game. Reload the page.",
+  },
+  "session.movedTitle": { ru: "Сессия перенесена", en: "Session moved" },
+  "session.movedHint": {
+    ru: "Игра продолжается в другой вкладке.",
+    en: "The game is now running in another tab.",
+  },
+  "session.reload": { ru: "Обновить", en: "Reload" },
+
   // Skin names
   "skin.red": { ru: "Красный", en: "Red" },
   "skin.blue": { ru: "Синий", en: "Blue" },

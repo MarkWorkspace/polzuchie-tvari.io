@@ -37,6 +37,7 @@ frontend/
 ├── e2e/
 │   ├── adminApi.ts                     # ROLE: Общие REST-хелперы Playwright для админ-конфига.
 │   ├── game.spec.ts                    # ROLE: Smoke login, HUD и настроек качества.
+│   ├── sessionLock.spec.ts             # ROLE: Web Locks: вторая player-вкладка, takeover и сохранение client_id.
 │   ├── death.spec.ts                   # ROLE: Реальная смерть от чёрной дыры, game-over и respawn.
 │   ├── bots.spec.ts                    # ROLE: Live-включение/выключение ботов через админку.
 │   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор, follow по клику и возврат к обзору.
@@ -58,6 +59,7 @@ frontend/
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
     │   ├── NetworkManager.test.ts      # ROLE: Тесты идентичности player/spectator и storage-ключей.
+    │   ├── PlayerSessionLock.ts        # ROLE: Web Locks + BroadcastChannel: одна player-вкладка, takeover между вкладками. Не сеть и не UI.
     │   ├── SpectatorApp.ts             # ROLE: Ядро спектатора: камера, сеть, рендер; debug UI вынесен отдельно.
     │   ├── SpectatorDebugOverlay.ts    # ROLE: Админские debug-панели спектатора (статы, выбор змейки).
     │   ├── SpectatorCamera.ts          # ROLE: Камера спектатора: free-pan/zoom и плавное слежение за игроком.
@@ -169,8 +171,10 @@ frontend/
     │       ├── mountSpectatorHud.tsx   # ROLE: Mount/unmount React spectator HUD.
     │       ├── mountGameHud.tsx        # ROLE: Mount/unmount React HUD в grid-контейнере.
     │       ├── GameHud.test.tsx        # ROLE: React HUD regression tests.
-    │       ├── LoginScreen.tsx         # ROLE: React login and skin selection.
+    │       ├── LoginScreen.tsx         # ROLE: React login, skin selection и cross-tab conflict flow.
     │       ├── mountLoginScreen.tsx    # ROLE: Mount/unmount React login.
+    │       ├── SessionMovedScreen.tsx  # ROLE: React-экран вкладки, у которой забрали player-сессию.
+    │       ├── mountSessionMovedScreen.tsx # ROLE: Mount/unmount React session-moved screen.
     │       ├── SettingsPanel.tsx       # ROLE: React controls/settings drawer.
     │       ├── mountSettingsPanel.tsx  # ROLE: Mount/unmount React settings.
     │       ├── GameOverScreen.tsx      # ROLE: React death overlay, run summary, personal best и respawn.

@@ -6,19 +6,73 @@ import { attachGameUiBridge } from "../ui/react/gameUiStore";
 import { mountGameHud } from "../ui/react/mountGameHud";
 import { mountGameOverScreen } from "../ui/react/mountGameOverScreen";
 import { mountLoginScreen } from "../ui/react/mountLoginScreen";
+import { mountSessionMovedScreen } from "../ui/react/mountSessionMovedScreen";
 import { mountSettingsPanel } from "../ui/react/mountSettingsPanel";
 import { SteeringIndicator } from "../ui/SteeringIndicator";
 import { Game } from "./Game";
+import { PlayerSessionLock } from "./PlayerSessionLock";
 
 export function showLoginScreen(app: HTMLDivElement): void {
   app.replaceChildren();
-  const unmountLogin = mountLoginScreen(app, (nickname, skin) => {
-    unmountLogin();
-    launchGame(app, nickname, skin);
+  const sessionLock = new PlayerSessionLock();
+  let unmountLogin: (() => void) | null = null;
+  let stopGame: (() => void) | null = null;
+
+  const beginGame = (nickname: string, skin: string): void => {
+    stopGame?.();
+    stopGame = null;
+    unmountLogin?.();
+    unmountLogin = null;
+    stopGame = launchGame(app, nickname, skin);
+  };
+
+  sessionLock.onTakeOver(() => {
+    stopGame?.();
+    stopGame = null;
+    unmountLogin?.();
+    unmountLogin = null;
+    sessionLock.dispose();
+    mountSessionMovedScreen(app, {
+      onReload: () => window.location.reload(),
+      onSpectate: () => {
+        window.location.search = "?spectator=true";
+      },
+    });
+  });
+
+  unmountLogin = mountLoginScreen(app, {
+    onPlay: async (nickname, skin) => {
+      if (!(await sessionLock.tryAcquire())) {
+        return "busy";
+      }
+      try {
+        beginGame(nickname, skin);
+      } catch (error) {
+        sessionLock.release();
+        throw error;
+      }
+      return "started";
+    },
+    onTakeOver: async (nickname, skin) => {
+      sessionLock.requestTakeOver();
+      if (!(await sessionLock.acquireWhenAvailable(4000))) {
+        return "timeout";
+      }
+      try {
+        beginGame(nickname, skin);
+      } catch (error) {
+        sessionLock.release();
+        throw error;
+      }
+      return "started";
+    },
+    onSpectate: () => {
+      window.location.search = "?spectator=true";
+    },
   });
 }
 
-function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
+function launchGame(app: HTMLDivElement, nickname: string, skin: string): () => void {
   const canvasContainer = document.createElement("div");
   canvasContainer.id = "game-canvas-container";
   canvasContainer.classList.add("game-canvas-container");
@@ -93,9 +147,11 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
     }
   });
 
-  game.start(nickname, skin);
-
-  window.addEventListener("beforeunload", () => {
+  let stopped = false;
+  const stop = (): void => {
+    if (stopped) return;
+    stopped = true;
+    window.removeEventListener("beforeunload", stop);
     game.destroy();
     unmountGameOver();
     unmountHud();
@@ -104,5 +160,17 @@ function launchGame(app: HTMLDivElement, nickname: string, skin: string): void {
     minimap.destroy();
     mobile.destroy();
     unmountSettings();
-  });
+    canvasContainer.remove();
+    hudContainer.remove();
+    settingsContainer.remove();
+  };
+
+  try {
+    game.start(nickname, skin);
+  } catch (error) {
+    stop();
+    throw error;
+  }
+  window.addEventListener("beforeunload", stop);
+  return stop;
 }

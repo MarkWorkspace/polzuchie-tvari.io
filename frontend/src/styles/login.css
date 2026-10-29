@@ -130,3 +130,65 @@
 .login-button:active {
   transform: translateY(0);
 }
+
+.login-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  filter: none;
+  transform: none;
+}
+
+.login-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: none;
+}
+
+.login-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  filter: none;
+}
+
+.login-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.login-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  filter: none;
+}
+
+.session-card {
+  text-align: center;
+}
+
+.session-title {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.session-hint {
+  margin: 0 0 18px;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.session-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.session-error {
+  margin: 0 0 14px;
+  color: #fca5a5;
+  font-size: 12px;
+  line-height: 1.5;
+}
