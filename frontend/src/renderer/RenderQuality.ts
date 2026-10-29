@@ -1,4 +1,4 @@
-// ROLE: Graphics quality presets (shadow map + snake-light budget), persistence and the quality control contract. No rendering.
+// ROLE: Graphics quality presets (shadow map, contact shadow, grass and snake-light budgets), persistence and the quality control contract. No rendering.
 export type RenderQuality = "auto" | "high" | "medium" | "low";
 
 export interface QualityPreset {
@@ -10,6 +10,10 @@ export interface QualityPreset {
   snakeLights: number;
   ssao: boolean;
   bloom: boolean;
+  /** Base resolution of the world-space snake contact shadow at the reference box. */
+  contactShadow: number;
+  /** Decorative grass tuft budget; 0 disables the field entirely. */
+  grass: number;
 }
 
 export const DEFAULT_RENDER_QUALITY: RenderQuality = "auto";
@@ -25,6 +29,8 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     snakeLights: 3,
     ssao: true,
     bloom: true,
+    contactShadow: 512,
+    grass: 1200,
   },
   high: {
     pixelRatioCap: 2,
@@ -35,6 +41,8 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     snakeLights: 3,
     ssao: true,
     bloom: true,
+    contactShadow: 512,
+    grass: 1200,
   },
   medium: {
     pixelRatioCap: 1.5,
@@ -45,6 +53,8 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     snakeLights: 2,
     ssao: false,
     bloom: true,
+    contactShadow: 512,
+    grass: 600,
   },
   low: {
     pixelRatioCap: 1,
@@ -55,6 +65,8 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     snakeLights: 1,
     ssao: false,
     bloom: false,
+    contactShadow: 256,
+    grass: 0,
   },
 };
 

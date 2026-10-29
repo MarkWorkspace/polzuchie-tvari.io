@@ -1,6 +1,7 @@
 // ROLE: Процедурная генерация 3D-геометрии яблока. Не содержит инстансинга и рендеринга.
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
 
 const APPLE_COLOR = 0xff3333; // красный
 const STEM_COLOR = 0x654321; // коричневый
@@ -49,29 +50,24 @@ function createLeaf(): THREE.BufferGeometry {
   shape.quadraticCurveTo(0.2, 0.2, 0.4, 0.0);
   shape.quadraticCurveTo(0.2, -0.2, 0, 0);
 
-  const geom = new THREE.ExtrudeGeometry(shape, { depth: 0.01, bevelEnabled: false });
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.01,
+    bevelEnabled: false,
+    curveSegments: 8,
+  });
   geom.translate(0, 0, -0.005);
   geom.rotateZ(Math.PI / 4);
   geom.rotateX(-Math.PI / 6);
-  geom.translate(0.05, 0.5, 0);
+  // The stem is tilted around Z, so attach the leaf where the stem exits the body.
+  geom.translate(-0.03, 0.5, 0);
   return colorize(geom, LEAF_COLOR);
-}
-
-function centerGeometry(geom: THREE.BufferGeometry): void {
-  geom.computeBoundingSphere();
-  if (geom.boundingSphere) {
-    const c = geom.boundingSphere.center;
-    geom.translate(-c.x, -c.y, -c.z);
-  }
-  geom.computeBoundingSphere();
 }
 
 export function createAppleGeometry(): THREE.BufferGeometry {
   const geometries = [createAppleBody(), createStem(), createLeaf()];
 
   const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
-  centerGeometry(merged);
   merged.rotateX(Math.PI / 2);
 
-  return merged;
+  return finalizeFruitGeometry(merged);
 }

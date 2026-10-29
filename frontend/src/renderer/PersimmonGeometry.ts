@@ -1,64 +1,66 @@
 // ROLE: Процедурная генерация 3D-геометрии хурмы. Не содержит логики рендеринга.
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
+
+const PERSIMMON_COLOR = 0xff6600;
+const LEAF_COLOR = 0x33aa33;
+
+function colorize(geomIn: THREE.BufferGeometry, hexColor: number): THREE.BufferGeometry {
+  let geom = geomIn;
+  if (geom.index) {
+    geom = geom.toNonIndexed();
+  }
+  const color = new THREE.Color(hexColor);
+  const count = geom.attributes.position.count;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+  geom.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+
+  for (const name in geom.attributes) {
+    if (name !== "position" && name !== "normal" && name !== "color") {
+      geom.deleteAttribute(name);
+    }
+  }
+  return geom;
+}
+
+function createBody(): THREE.BufferGeometry {
+  const geom = new THREE.SphereGeometry(1, 16, 12);
+  geom.scale(1, 0.85, 1); // Слегка приплюснутая форма
+  return colorize(geom, PERSIMMON_COLOR);
+}
+
+function createCalyxLeaf(angle: number): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  shape.quadraticCurveTo(0.3, 0.34, 0.62, 0);
+  shape.quadraticCurveTo(0.3, -0.34, 0, 0);
+
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.025,
+    bevelEnabled: false,
+    curveSegments: 6,
+  });
+  geom.translate(0, 0, -0.0125);
+  // Lay the leaf almost flat over the fruit shoulder, then fan it around.
+  geom.rotateX(-Math.PI / 2.2);
+  geom.rotateY(angle);
+  geom.translate(0, 0.8, 0);
+  return colorize(geom, LEAF_COLOR);
+}
 
 export function createPersimmonGeometry(): THREE.BufferGeometry {
-  const geometries: THREE.BufferGeometry[] = [];
-
-  // Основная сфера хурмы
-  const persimmonGeo = new THREE.SphereGeometry(1, 16, 16);
-  persimmonGeo.scale(1, 0.85, 1); // Слегка приплюснутая форма
-
-  const orangeColor = new THREE.Color(0xff6600);
-  const persimmonColors = [];
-  for (let i = 0; i < persimmonGeo.attributes.position.count; i++) {
-    persimmonColors.push(orangeColor.r, orangeColor.g, orangeColor.b);
-  }
-  persimmonGeo.setAttribute("color", new THREE.Float32BufferAttribute(persimmonColors, 3));
-
-  const nonIndexedPersimmon = persimmonGeo.toNonIndexed();
-  for (const key in nonIndexedPersimmon.attributes) {
-    if (key !== "position" && key !== "normal" && key !== "color") {
-      nonIndexedPersimmon.deleteAttribute(key);
-    }
-  }
-  geometries.push(nonIndexedPersimmon);
-
-  // 4 листика сверху
-  const leafColor = new THREE.Color(0x33aa33);
+  const geometries: THREE.BufferGeometry[] = [createBody()];
   for (let i = 0; i < 4; i++) {
-    const leafGeo = new THREE.PlaneGeometry(0.5, 0.6);
-
-    // Центр вращения - у основания листика
-    leafGeo.translate(0, 0.3, 0);
-
-    // Укладываем листик
-    leafGeo.rotateX(-Math.PI / 2.2);
-
-    // Размещаем крест-накрест
-    leafGeo.rotateY((i * Math.PI) / 2);
-
-    // Поднимаем наверх хурмы
-    leafGeo.translate(0, 0.8, 0);
-
-    const leafColors = [];
-    for (let j = 0; j < leafGeo.attributes.position.count; j++) {
-      leafColors.push(leafColor.r, leafColor.g, leafColor.b);
-    }
-    leafGeo.setAttribute("color", new THREE.Float32BufferAttribute(leafColors, 3));
-
-    const nonIndexedLeaf = leafGeo.toNonIndexed();
-    // Генерируем нормали (если они почему-то некорректны) или полагаемся на дефолтные нормали PlaneGeometry
-    for (const key in nonIndexedLeaf.attributes) {
-      if (key !== "position" && key !== "normal" && key !== "color") {
-        nonIndexedLeaf.deleteAttribute(key);
-      }
-    }
-    geometries.push(nonIndexedLeaf);
+    geometries.push(createCalyxLeaf((i * Math.PI) / 2 + Math.PI / 4));
   }
 
-  const merged = BufferGeometryUtils.mergeGeometries(geometries);
+  const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
   merged.rotateX(Math.PI / 2);
-
-  return merged;
+  return finalizeFruitGeometry(merged);
 }

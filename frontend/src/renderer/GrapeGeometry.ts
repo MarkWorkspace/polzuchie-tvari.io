@@ -1,6 +1,7 @@
 // ROLE: Процедурная генерация 3D-геометрии винограда. Не содержит инстансинга и рендеринга.
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
 
 const GRAPE_COLOR = 0x6a0dad;
 const STEM_COLOR = 0x8b4513; // Коричневый
@@ -61,7 +62,7 @@ function createGrapes(): THREE.BufferGeometry[] {
   }
 
   for (const pos of positions) {
-    const geom = new THREE.SphereGeometry(radius, 12, 12);
+    const geom = new THREE.SphereGeometry(radius, 8, 4);
     geom.translate(pos[0], pos[1], pos[2]);
     geometries.push(colorize(geom, GRAPE_COLOR));
   }
@@ -81,23 +82,13 @@ function createStem(): THREE.BufferGeometry {
       return target.set(x, y, z);
     }
   }
-  const stem = new THREE.TubeGeometry(new StemCurve(), 8, 0.04, 8, false);
+  const stem = new THREE.TubeGeometry(new StemCurve(), 8, 0.04, 5, false);
   return colorize(stem, STEM_COLOR);
-}
-
-function centerGeometry(geom: THREE.BufferGeometry): void {
-  geom.computeBoundingSphere();
-  if (geom.boundingSphere) {
-    const c = geom.boundingSphere.center;
-    geom.translate(-c.x, -c.y, -c.z);
-  }
-  geom.computeBoundingSphere();
 }
 
 export function createGrapeGeometry(): THREE.BufferGeometry {
   const geometries = [...createGrapes(), createStem()];
   const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
-  centerGeometry(merged);
   merged.rotateX(Math.PI / 2);
-  return merged;
+  return finalizeFruitGeometry(merged);
 }

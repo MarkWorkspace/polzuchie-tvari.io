@@ -1,6 +1,7 @@
 // ROLE: Процедурная генерация 3D-геометрии ананаса. Не содержит инстансинга и рендеринга.
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
 
 export function createPineappleGeometry(): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
@@ -71,5 +72,5 @@ export function createPineappleGeometry(): THREE.BufferGeometry {
   // Final rotation
   mergedGeometry.rotateX(Math.PI / 2);
 
-  return mergedGeometry;
+  return finalizeFruitGeometry(mergedGeometry);
 }

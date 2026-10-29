@@ -1,5 +1,6 @@
 // ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
 import * as THREE from "three";
+import { GLOBE_SPHERE, type GlobeParams, globeOverscan, globeScreenUv } from "./GlobeLens";
 
 export class NicknameRenderer {
   private nicknameContainer!: HTMLDivElement;
@@ -14,6 +15,15 @@ export class NicknameRenderer {
     const activeIds = new Set<string>();
 
     if (!msg.nicknames) return;
+
+    // The globe composer warps the rendered frame, so DOM tags must apply the
+    // inverse warp. Params are page-independent: compute them once per update.
+    const aspect = height > 0 ? width / height : 1;
+    const globe: GlobeParams = {
+      aspect,
+      sphere: GLOBE_SPHERE,
+      overscan: globeOverscan(GLOBE_SPHERE),
+    };
 
     for (let i = 0; i < msg.nicknames.length; i++) {
       const n = msg.nicknames[i];
@@ -32,8 +42,16 @@ export class NicknameRenderer {
         continue;
       }
 
-      const screenX = (this.tempV.x * 0.5 + 0.5) * width;
-      const screenY = (-(this.tempV.y * 0.5) + 0.5) * height;
+      const sourceUvX = this.tempV.x * 0.5 + 0.5;
+      const sourceUvY = -(this.tempV.y * 0.5) + 0.5;
+      // Off-screen projections are faded by opacity, so skip the extra math
+      // and leave them on the raw uv.
+      const onScreen = sourceUvX >= 0 && sourceUvX <= 1 && sourceUvY >= 0 && sourceUvY <= 1;
+      const warpedUv = onScreen
+        ? globeScreenUv(sourceUvX, sourceUvY, globe)
+        : { x: sourceUvX, y: sourceUvY };
+      const screenX = warpedUv.x * width;
+      const screenY = warpedUv.y * height;
 
       let el = this.nicknameElements.get(n.id);
       if (!el) {

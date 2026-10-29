@@ -1,6 +1,7 @@
 // ROLE: Процедурная генерация 3D-геометрии мандарина. Не содержит инстансинга и рендеринга.
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
 
 const MANDARIN_COLOR = 0xff8c00;
 const LEAF_COLOR = 0x2a9d8f;
@@ -41,7 +42,11 @@ function createLeaf(): THREE.BufferGeometry {
   shape.quadraticCurveTo(0.2, 0.2, 0.4, 0.0);
   shape.quadraticCurveTo(0.2, -0.2, 0, 0);
 
-  const geom = new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false });
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.02,
+    bevelEnabled: false,
+    curveSegments: 8,
+  });
   geom.translate(0, 0, -0.01);
   geom.rotateY(Math.PI / 6);
   geom.rotateZ(Math.PI / 4);
@@ -55,19 +60,9 @@ function createStem(): THREE.BufferGeometry {
   return colorize(geom, 0x4a5d23);
 }
 
-function centerGeometry(geom: THREE.BufferGeometry): void {
-  geom.computeBoundingSphere();
-  if (geom.boundingSphere) {
-    const c = geom.boundingSphere.center;
-    geom.translate(-c.x, -c.y, -c.z);
-  }
-  geom.computeBoundingSphere();
-}
-
 export function createMandarinGeometry(): THREE.BufferGeometry {
   const geometries = [createFruit(), createLeaf(), createStem()];
   const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
-  centerGeometry(merged);
   merged.rotateX(Math.PI / 2);
-  return merged;
+  return finalizeFruitGeometry(merged);
 }

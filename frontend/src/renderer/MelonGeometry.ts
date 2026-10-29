@@ -2,6 +2,7 @@
 
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
 
 export function createMelonGeometry(): THREE.BufferGeometry {
   const geometries: THREE.BufferGeometry[] = [];
@@ -58,5 +59,5 @@ export function createMelonGeometry(): THREE.BufferGeometry {
   // Поворачиваем финальную геометрию
   merged.rotateX(Math.PI / 2);
 
-  return merged;
+  return finalizeFruitGeometry(merged);
 }

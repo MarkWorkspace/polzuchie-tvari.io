@@ -15,7 +15,8 @@ import {
 import * as THREE from "three";
 import { gridSize } from "../game/Config";
 import { AtmosphereEffect } from "./AtmosphereEffect";
-import { BLOOM_MASK_LAYER, SNAKE_OCCLUSION_LAYER } from "./RenderConfig";
+import { GLOBE_SPHERE, GlobeEffect, globeOverscan } from "./GlobeLens";
+import { BLOOM_MASK_LAYER } from "./RenderConfig";
 import { SilhouetteRenderer } from "./SilhouetteRenderer";
 
 const lensingFragmentShader = `
@@ -85,47 +86,6 @@ class BloomMaskEffect extends Effect {
   }
 }
 
-const snakeOcclusionFragmentShader = `
-  uniform sampler2D uOcclusionMask;
-  uniform vec2 uOcclusionTexel;
-  uniform float uOcclusionRadius;
-  uniform float uOcclusionStrength;
-
-  void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
-    float center = texture2D(uOcclusionMask, uv).a;
-    vec2 o = uOcclusionTexel * uOcclusionRadius;
-    float blur =
-      texture2D(uOcclusionMask, uv + vec2(o.x, 0.0)).a +
-      texture2D(uOcclusionMask, uv - vec2(o.x, 0.0)).a +
-      texture2D(uOcclusionMask, uv + vec2(0.0, o.y)).a +
-      texture2D(uOcclusionMask, uv - vec2(0.0, o.y)).a +
-      texture2D(uOcclusionMask, uv + o * 0.7071).a +
-      texture2D(uOcclusionMask, uv - o * 0.7071).a +
-      texture2D(uOcclusionMask, uv + vec2(o.x, -o.y) * 0.7071).a +
-      texture2D(uOcclusionMask, uv + vec2(-o.x, o.y) * 0.7071).a;
-    blur *= 0.125;
-
-    // The blurred silhouette minus the sharp one is the ground ring hugging the
-    // ribbon, which reads as cheap ambient occlusion instead of a second shadow.
-    float occlusion = clamp((blur - center) * 1.8, 0.0, 1.0);
-    outputColor = vec4(inputColor.rgb * (1.0 - occlusion * uOcclusionStrength), inputColor.a);
-  }
-`;
-
-class SnakeOcclusionEffect extends Effect {
-  constructor(maskTexture: THREE.Texture, texel: THREE.Vector2) {
-    super("SnakeOcclusionEffect", snakeOcclusionFragmentShader, {
-      blendFunction: BlendFunction.NORMAL,
-      uniforms: new Map<string, any>([
-        ["uOcclusionMask", new THREE.Uniform(maskTexture)],
-        ["uOcclusionTexel", new THREE.Uniform(texel)],
-        ["uOcclusionRadius", new THREE.Uniform(5.0)],
-        ["uOcclusionStrength", new THREE.Uniform(0.65)],
-      ]),
-    });
-  }
-}
-
 /**
  * The fog, head glow and boost particles live on OVERLAY_LAYER. They must not
  * write into the normal buffer, otherwise a full-screen fog plane overwrites
@@ -167,10 +127,9 @@ export class PostProcessing {
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
   private readonly bloomMask = new SilhouetteRenderer(BLOOM_MASK_LAYER, 2);
-  private readonly snakeOcclusion = new SilhouetteRenderer(SNAKE_OCCLUSION_LAYER, 4);
-  private readonly occlusionTexel = new THREE.Vector2(1 / 4, 1 / 4);
   private lensingEffect!: LensingEffect;
   private atmosphereEffect!: AtmosphereEffect;
+  private globeEffect!: GlobeEffect;
   private ssaoEnabled: boolean;
   private bloomEnabled: boolean;
   private pipelineReady = false;
@@ -220,7 +179,13 @@ export class PostProcessing {
   }
 
   private buildPipeline(): void {
-    const useSsao = this.ssaoEnabled;
+    // TODO(contact-shadow): SSAO is temporarily off while the world-space snake
+    // contact shadow lands and is tuned. Its noisy 0.05-radius term was the
+    // third dark layer under the ribbon. RenderQuality.ts is edited by another
+    // change, so the preset flag stays untouched and the pass is skipped here;
+    // remove this flag to bring SSAO back without touching the code below.
+    const SSAO_TEMPORARILY_DISABLED: boolean = true;
+    const useSsao = this.ssaoEnabled && !SSAO_TEMPORARILY_DISABLED;
     const useBloom = this.bloomEnabled;
     const baseEffects: Effect[] = [];
 
@@ -250,7 +215,6 @@ export class PostProcessing {
 
     if (useBloom) {
       baseEffects.push(
-        new SnakeOcclusionEffect(this.snakeOcclusion.texture, this.occlusionTexel),
         new BloomEffect({
           intensity: 1.1,
           // Low effective threshold so saturated body colors bloom; the
@@ -281,20 +245,31 @@ export class PostProcessing {
     this.lensingEffect = new LensingEffect({ bhPositionsArray: this.bhPositionsArray });
     this.atmosphereEffect = new AtmosphereEffect();
     this.composer.addPass(new EffectPass(this.camera, this.lensingEffect, this.atmosphereEffect));
+
+    // The globe warp gets its own final pass so inputBuffer is the fully
+    // composited frame: lensing and atmosphere have already been applied, and
+    // the resample cannot overwrite them the way a shared pass would.
+    this.globeEffect = new GlobeEffect();
+    this.composer.addPass(new EffectPass(this.camera, this.globeEffect));
   }
 
   public resize(width: number, height: number): void {
     this.composer.setSize(width, height);
     const pixelRatio = this.renderer.getPixelRatio();
     this.bloomMask.resize(width, height, pixelRatio);
-    this.snakeOcclusion.resize(width, height, pixelRatio);
-    const occlusionSize = this.snakeOcclusion.size();
-    this.occlusionTexel.set(1 / occlusionSize.width, 1 / occlusionSize.height);
+
+    // buildPipeline runs before the first resize, so the effect can be missing
+    // only during construction.
+    if (this.globeEffect && height > 0) {
+      const aspect = width / height;
+      this.globeEffect.uniforms.get("uAspect")!.value = aspect;
+      this.globeEffect.uniforms.get("uSphere")!.value = GLOBE_SPHERE;
+      this.globeEffect.uniforms.get("uOverscan")!.value = globeOverscan(GLOBE_SPHERE);
+    }
   }
 
   public destroy(): void {
     this.bloomMask.dispose();
-    this.snakeOcclusion.dispose();
     this.composer.dispose();
   }
 
@@ -317,7 +292,6 @@ export class PostProcessing {
     // camera matrices are refreshed and before the composer samples it.
     if (this.bloomEnabled) {
       this.bloomMask.render(this.renderer, this.scene, this.camera);
-      this.snakeOcclusion.render(this.renderer, this.scene, this.camera);
     }
 
     this.composer.render();

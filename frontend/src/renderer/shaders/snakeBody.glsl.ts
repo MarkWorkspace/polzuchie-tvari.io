@@ -47,9 +47,9 @@ export const fragmentShaderPrefix = `
 `;
 
 /**
- * Shared by the visible body and its shadow depth material. Both must round the
- * head and tail the same way, otherwise the cast shadow keeps square ends.
- * Leaves the normalized contour distance in d_dist for the edge shading.
+ * Shared by the visible body and the white contact-shadow mask material. Both
+ * must round the head and tail the same way, otherwise the ground shadow keeps
+ * square ends. Leaves the normalized contour distance in d_dist for edge shading.
  */
 export const snakeContourGlsl = `
   float r = vSnakeParams.x;
@@ -151,9 +151,10 @@ export function patchSnakeMaterial(shader: any, uniforms: any) {
 }
 
 /**
- * Depth-only counterpart of the body shader. Shadow maps run MeshDepthMaterial,
- * which never sees the body's fragment discard, so without this the cast shadow
- * stays a rectangle with square head/tail caps.
+ * Silhouette counterpart of the body shader. The contact-shadow pass renders
+ * the body with a white MeshBasicMaterial via scene.overrideMaterial, which
+ * never sees the body's fragment discard; without this the mask would stay a
+ * rectangle with square head/tail caps.
  */
 export function patchSnakeShadowMaterial(shader: any) {
   shader.vertexShader = `

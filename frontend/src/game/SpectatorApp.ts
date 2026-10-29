@@ -2,6 +2,12 @@
 
 import Stats from "stats.js";
 import * as THREE from "three";
+import {
+  GLOBE_SPHERE,
+  type GlobeParams,
+  globeOverscan,
+  globeSampleUv,
+} from "../renderer/GlobeLens";
 import type { RenderQuality } from "../renderer/RenderQuality";
 import { SceneManager } from "../renderer/SceneManager";
 import { NetworkManager } from "./NetworkManager";
@@ -25,6 +31,7 @@ export class SpectatorApp {
   private lastPingUpdate = 0;
 
   private mouse = new THREE.Vector2();
+  private warpedMouse = new THREE.Vector2();
   private raycaster = new THREE.Raycaster();
   private cursorWorldX = 0;
   private cursorWorldY = 0;
@@ -164,7 +171,18 @@ export class SpectatorApp {
     this.spectatorCamera.update(this.sceneManager.getCamera(), dt);
 
     if (this.debugOverlay) {
-      this.raycaster.setFromCamera(this.mouse, this.sceneManager.getCamera());
+      // The composer warps the image after rendering, so convert the raw mouse
+      // NDC back through the inverse globe warp before raycasting. Mouse NDC y
+      // already matches the shader's uv orientation here; no flip needed.
+      const aspect = this.sceneManager.getWidth() / Math.max(1, this.sceneManager.getHeight());
+      const globe: GlobeParams = {
+        aspect,
+        sphere: GLOBE_SPHERE,
+        overscan: globeOverscan(GLOBE_SPHERE),
+      };
+      const sourceUv = globeSampleUv(this.mouse.x * 0.5 + 0.5, this.mouse.y * 0.5 + 0.5, globe);
+      this.warpedMouse.set(sourceUv.x * 2 - 1, sourceUv.y * 2 - 1);
+      this.raycaster.setFromCamera(this.warpedMouse, this.sceneManager.getCamera());
       const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
       const target = new THREE.Vector3();
       if (this.raycaster.ray.intersectPlane(plane, target)) {

@@ -1,6 +1,7 @@
 // ROLE: Процедурная генерация 3D-геометрии персика. Не содержит инстансинга и рендеринга.
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
 
 const PEACH_COLOR = 0xffa07a; // розовато-оранжевый (LightSalmon)
 const LEAF_COLOR = 0x2a9d8f;
@@ -30,7 +31,7 @@ function colorize(geomIn: THREE.BufferGeometry, hexColor: number): THREE.BufferG
 
 function createPeachBody(): THREE.BufferGeometry {
   const radius = 0.5;
-  const geom = new THREE.SphereGeometry(radius, 32, 32);
+  const geom = new THREE.SphereGeometry(radius, 20, 14);
   const pos = geom.attributes.position;
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -61,7 +62,11 @@ function createLeaf(): THREE.BufferGeometry {
   shape.quadraticCurveTo(0.2, 0.2, 0.4, 0.0);
   shape.quadraticCurveTo(0.2, -0.2, 0, 0);
 
-  const geom = new THREE.ExtrudeGeometry(shape, { depth: 0.01, bevelEnabled: false });
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.01,
+    bevelEnabled: false,
+    curveSegments: 8,
+  });
   geom.translate(0, 0, -0.005);
   // Наклоняем и прикрепляем к макушке
   geom.rotateZ(Math.PI / 4);
@@ -70,19 +75,9 @@ function createLeaf(): THREE.BufferGeometry {
   return colorize(geom, LEAF_COLOR);
 }
 
-function centerGeometry(geom: THREE.BufferGeometry): void {
-  geom.computeBoundingSphere();
-  if (geom.boundingSphere) {
-    const c = geom.boundingSphere.center;
-    geom.translate(-c.x, -c.y, -c.z);
-  }
-  geom.computeBoundingSphere();
-}
-
 export function createPeachGeometry(): THREE.BufferGeometry {
   const geometries = [createPeachBody(), createLeaf()];
   const merged = BufferGeometryUtils.mergeGeometries(geometries, false);
-  centerGeometry(merged);
   merged.rotateX(Math.PI / 2);
-  return merged;
+  return finalizeFruitGeometry(merged);
 }

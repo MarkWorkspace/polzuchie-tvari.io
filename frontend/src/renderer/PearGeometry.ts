@@ -1,6 +1,7 @@
 // ROLE: Создает процедурную геометрию груши для рендеринга еды.
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
 
 export function createPearGeometry(): THREE.BufferGeometry {
   // Нижняя часть (большая сфера)
@@ -15,7 +16,7 @@ export function createPearGeometry(): THREE.BufferGeometry {
   const pearColor = new THREE.Color(0x88cc44);
 
   // Веточка (цилиндр)
-  const stem = new THREE.CylinderGeometry(0.03, 0.03, 0.3, 8);
+  const stem = new THREE.CylinderGeometry(0.025, 0.035, 0.3, 8);
   stem.translate(0, 0.5, 0);
   const stemColor = new THREE.Color(0x553311);
 
@@ -60,5 +61,5 @@ export function createPearGeometry(): THREE.BufferGeometry {
     g.dispose();
   }
 
-  return merged;
+  return finalizeFruitGeometry(merged);
 }

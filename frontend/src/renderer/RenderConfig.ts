@@ -42,10 +42,11 @@ export const OVERLAY_LAYER = 1;
 export const BLOOM_MASK_LAYER = 2;
 
 /**
- * Snake bodies alone live here. Their silhouette drives the soft contact
- * occlusion that grounds the ribbon without a second shadow light.
+ * Snake bodies alone live here. A top-down ortho pass rasterizes them into the
+ * world-space contact-shadow mask, so the ground shadow follows the exact
+ * rounded ribbon silhouette instead of a shadow-map kernel.
  */
-export const SNAKE_OCCLUSION_LAYER = 3;
+export const SNAKE_SHADOW_LAYER = 3;
 
 /** Converts the configured glow radius from map cells to world units. */
 export function headGlowRadiusWorld(

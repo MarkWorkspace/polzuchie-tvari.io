@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { finalizeFruitGeometry } from "./FruitGeometryUtils";
 
 // ROLE: Процедурная генерация 3D-геометрии клубники (Strawberry)
 
@@ -88,5 +89,5 @@ export function createStrawberryGeometry(): THREE.BufferGeometry {
   // Поворот по оси X как указано в задании
   merged.rotateX(Math.PI / 2);
 
-  return merged;
+  return finalizeFruitGeometry(merged);
 }

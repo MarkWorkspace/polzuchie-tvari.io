@@ -1,4 +1,4 @@
-// ROLE: Инициализация Three.js сцены, hemisphere/key/fill свет, тени, туман и рендерер.
+// ROLE: Инициализация Three.js сцены, hemisphere/key/fill свет, тени, туман, world-space contact shadow и рендерер.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { AdaptiveResolution } from "./AdaptiveResolution";
@@ -11,11 +11,13 @@ import {
   type RenderQuality,
   saveRenderQuality,
 } from "./RenderQuality";
+import { SnakeContactShadow } from "./SnakeContactShadow";
 import { SnakeLightPool } from "./SnakeLightPool";
 import { patchGroundMaterial } from "./shaders/ground.glsl";
 
 const MIN_PIXEL_RATIO = 0.6;
 const MAX_PIXEL_RATIO = 3;
+const GROUND_Z = -2;
 
 const FOG_VERTEX_SHADER = `
   varying vec2 vWorldPos;
@@ -74,6 +76,7 @@ export class SceneManager {
   private snakeLights!: SnakeLightPool;
   private groundMaterial!: THREE.MeshStandardMaterial;
   private groundMesh!: THREE.Mesh;
+  private contactShadow!: SnakeContactShadow;
 
   private fogMaterial!: THREE.ShaderMaterial;
   private fogMesh!: THREE.Mesh;
@@ -97,6 +100,7 @@ export class SceneManager {
     this.setupSnakeLights();
     this.setupGround();
     this.setupFog();
+    this.setupContactShadow();
     this.initPostProcessing();
     window.addEventListener("resize", this.handleResize);
   }
@@ -161,6 +165,7 @@ export class SceneManager {
     this.groundMesh.receiveShadow = preset.shadows;
     this.configureShadowQuality(preset);
     this.snakeLights.setCount(preset.snakeLights);
+    this.contactShadow.setBaseResolution(preset.contactShadow);
 
     this.postProcessing.setOptions({ ssao: preset.ssao, bloom: preset.bloom });
 
@@ -215,6 +220,7 @@ export class SceneManager {
   public destroy(): void {
     window.removeEventListener("resize", this.handleResize);
     this.snakeLights.destroy();
+    this.contactShadow.dispose();
     this.postProcessing.destroy();
     this.fogMesh.geometry.dispose();
     this.fogMaterial.dispose();
@@ -254,9 +260,25 @@ export class SceneManager {
     if (msg) {
       const camX = msg.camX || 0;
       const camY = msg.camY || 0;
+      const mapW = msg.gameState?.server_world?.width ?? WORLD_WIDTH;
+      const mapH = msg.gameState?.server_world?.height ?? WORLD_HEIGHT;
       this.updateGround(msg);
       this.updateFog(msg);
       this.snakeLights.update(msg.activePlayers, camX, camY);
+
+      // The contact shadow is world-space and camera-relative: follow the same
+      // target as the ground, size its box from the view cone, and keep it
+      // below one map period so a toroidal wrap copy cannot add a second
+      // silhouette. The z term uses the ground plane the quad is baked onto.
+      const shadowDx = this.camera.position.x - camX;
+      const shadowDy = this.camera.position.y - camY;
+      const shadowDz = this.camera.position.z - GROUND_Z;
+      const shadowDistance = Math.sqrt(
+        shadowDx * shadowDx + shadowDy * shadowDy + shadowDz * shadowDz,
+      );
+      this.contactShadow.setMapSize(mapW * gridSize, mapH * gridSize);
+      this.contactShadow.setViewDistance(shadowDistance, this.camera.fov);
+      this.contactShadow.setTarget(camX, camY);
 
       // Keep both light rigs centered on the camera. The key light is offset so
       // shadows and fruit shading read directionally instead of top-down flat.
@@ -280,6 +302,9 @@ export class SceneManager {
         cam.updateProjectionMatrix();
       }
     }
+    // Rasterize before the composer so the ground quad is part of the same
+    // frame as the body whose silhouette it follows.
+    this.contactShadow.render(this.renderer, this.scene);
     const rendered = this.postProcessing.render(this.scene, this.camera, msg);
     if (!rendered) {
       this.renderer.render(this.scene, this.camera);
@@ -363,6 +388,13 @@ export class SceneManager {
     );
     this.groundMesh.receiveShadow = QUALITY_PRESETS[this.quality].shadows;
     this.scene.add(this.groundMesh);
+  }
+
+  private setupContactShadow(): void {
+    this.contactShadow = new SnakeContactShadow(this.scene, {
+      resolution: QUALITY_PRESETS[this.quality].contactShadow,
+      groundZ: GROUND_Z,
+    });
   }
 
   private updateGround(msg: any): void {
