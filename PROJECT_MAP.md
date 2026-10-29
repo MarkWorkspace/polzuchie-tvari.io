@@ -92,7 +92,7 @@ frontend/
     │   ├── TombstoneGeometry.ts        # ROLE: Процедурная плита с аркой и основанием. Не рендерит и не анимирует.
     │   ├── TombstoneGeometry.test.ts   # ROLE: Тест габаритов/ориентации и наличия нормалей надгробия.
     │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
-    │   ├── PostProcessing.ts           # ROLE: Bloom/SSAO/contact-AO/tone mapping в одном pass, bloom-маска по силуэтам светящихся объектов, линзирование ЧД отдельным pass, atmosphere grade.
+    │   ├── PostProcessing.ts           # ROLE: SSAO отдельным pass; bloom/contact-AO/tone mapping и bloom-маска в общем pass; линзирование ЧД отдельным pass; atmosphere grade.
     │   ├── SilhouetteRenderer.ts       # ROLE: Растеризует слой в маленький alpha-таргет (bloom-маска и contact-AO). Не свет, не пост-эффекты.
     │   ├── SilhouetteRenderer.test.ts  # ROLE: Тесты размера silhouette-таргета под pixel ratio и downscale.
     │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map и snake-light budget.

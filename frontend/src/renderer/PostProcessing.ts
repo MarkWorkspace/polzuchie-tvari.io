@@ -229,16 +229,22 @@ export class PostProcessing {
     if (useSsao) {
       const normalPass = new BaseLayerNormalPass(this.scene, this.camera);
       this.composer.addPass(normalPass);
-      baseEffects.push(
-        new SSAOEffect(this.camera, normalPass.texture, {
-          intensity: 1.5,
-          radius: 0.05,
-          samples: 16,
-          rings: 4,
-          distanceScaling: true,
-          distanceThreshold: 0.5,
-          distanceFalloff: 0.1,
-        }),
+      // SSAO gets its own pass so it is baked into the buffer that later passes
+      // read. In a shared pass inputBuffer stays pre-SSAO, and BloomMaskEffect
+      // restores inputBuffer over masked objects, which would erase their AO.
+      this.composer.addPass(
+        new EffectPass(
+          this.camera,
+          new SSAOEffect(this.camera, normalPass.texture, {
+            intensity: 1.5,
+            radius: 0.05,
+            samples: 16,
+            rings: 4,
+            distanceScaling: true,
+            distanceThreshold: 0.5,
+            distanceFalloff: 0.1,
+          }),
+        ),
       );
     }
 
