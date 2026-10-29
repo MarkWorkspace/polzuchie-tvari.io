@@ -4,38 +4,36 @@
 export const GRASS_SEED = 0x2f6e5b17;
 
 /** Share of world cells that carry at least one tuft at the field centre. */
-export const GRASS_CELL_DENSITY = 0.85;
+export const GRASS_CELL_DENSITY = 1;
 
 /** Radial falloff exponent: tufts concentrate near the camera and fade into the fog. */
 export const GRASS_DENSITY_FALLOFF = 1.5;
 
 /** Upper bound of tufts a single occupied cell may produce. */
-export const GRASS_TUFTS_PER_CELL_MAX = 5;
+export const GRASS_TUFTS_PER_CELL_MAX = 6;
 
 /** Expected tufts per occupied cell; used to calibrate density against the instance budget. */
-export const GRASS_MEAN_TUFTS_PER_CELL = 3.85;
+export const GRASS_MEAN_TUFTS_PER_CELL = 4.5;
 
-/** Side of the coarse super-cell that decides whether a patch of lawn is lush or bare. */
-export const GRASS_CLUSTER_CELLS = 4;
+/**
+ * Grass placement subdivides each 20-unit world cell into this many cells per
+ * axis. A 300-unit field has too few 20-unit cells to hold a dense 6000-tuft
+ * budget at 3-6 tufts per cell; 10-unit placement cells keep the clump grammar.
+ */
+export const GRASS_CELL_DIVISIONS = 2;
 
-/** Lowest density factor a super-cell may reach; sparse patches stay grassy, never dead. */
-export const GRASS_CLUSTER_MIN = 0.3;
+/** Side of the coarse super-cell that decides whether a patch of lawn is lush or bare, in placement cells. */
+export const GRASS_CLUSTER_CELLS = 8;
+
+/** Lowest density factor a super-cell may reach; most cells still carry grass. */
+export const GRASS_CLUSTER_MIN = 0.55;
 
 /** Mean of the smoothstep cluster factor; placement divides by it so the budget still lands. */
 export const GRASS_CLUSTER_MEAN = (GRASS_CLUSTER_MIN + 1) / 2;
 
-/** Total decorative instances at the richest preset; every family shares this budget. */
-export const MAX_DECOR_INSTANCES = 1200;
-
-/** Share of the decor budget per family: grass is the biome, stones are accents. */
-export const DECOR_BUDGET_SHARE = {
-  grass: 0.88,
-  stones: 0.12,
-} as const;
-
-/** Hard per-family caps, equal to the richest preset's split. */
+/** Hard per-family buffer caps: the dense grass field and the sparse stones. */
 export const DECOR_BUDGET_CAPS = {
-  grass: 1056,
+  grass: 10000,
   stones: 144,
 } as const;
 
@@ -56,11 +54,6 @@ export const PROP_VARIANT_COUNTS = {
 } as const;
 
 export type DecorPropType = keyof typeof PROP_VARIANT_COUNTS;
-
-export interface DecorBudgetSplit {
-  grass: number;
-  stones: number;
-}
 
 const SALT_OCCUPANCY = 0x11;
 const SALT_TUFT_COUNT = 0x23;
@@ -144,35 +137,6 @@ export function createDecorPropBuffer(capacity: number): DecorPropBuffer {
     scale: new Float32Array(size),
     variant: new Float32Array(size),
     colorMix: new Float32Array(size),
-  };
-}
-
-/**
- * Splits a quality budget between grass and props. Uses largest-remainder
- * rounding so the parts add up to the budget for every non-negative integer up
- * to MAX_DECOR_INSTANCES, and clamps to the per-family caps.
- */
-export function splitDecorBudget(total: number): DecorBudgetSplit {
-  const safeTotal = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
-  const budget = Math.min(safeTotal, MAX_DECOR_INSTANCES);
-  if (budget <= 0) return { grass: 0, stones: 0 };
-
-  const shares = [DECOR_BUDGET_SHARE.grass, DECOR_BUDGET_SHARE.stones];
-  const raw = shares.map((share) => budget * share);
-  const counts = raw.map((value) => Math.floor(value));
-  const remainder = budget - counts.reduce((sum, value) => sum + value, 0);
-
-  const order = raw
-    .map((value, index) => ({ index, fraction: value - Math.floor(value) }))
-    .sort((a, b) => b.fraction - a.fraction || a.index - b.index);
-
-  for (let i = 0; i < remainder; i++) {
-    counts[order[i].index] += 1;
-  }
-
-  return {
-    grass: Math.min(DECOR_BUDGET_CAPS.grass, counts[0]),
-    stones: Math.min(DECOR_BUDGET_CAPS.stones, counts[1]),
   };
 }
 
@@ -321,21 +285,20 @@ function sampleNormalizedCell(
   const localDensity = Math.min(1, (density * clump) / GRASS_CLUSTER_MEAN);
   if (hashUnit(hashCell(cx, cy, SALT_OCCUPANCY, seed)) >= localDensity) return 0;
 
-  const count =
-    3 +
-    (hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) < 0.55 ? 1 : 0) +
-    (hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT + 1, seed)) < 0.3 ? 1 : 0);
+  const count = 3 + Math.min(3, Math.floor(hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) * 4));
 
   for (let i = 0; i < count; i++) {
     const salt = SALT_TUFT_BASE + i * SALT_TUFT_STEP;
-    // Tufts stay close to the cell centre, so a populated cell is one visible
-    // clump of 3-5 tufts instead of a thin scatter across 20 world units.
-    const jitterX = 0.34 + 0.32 * hashUnit(hashCell(cx, cy, salt, seed));
-    const jitterY = 0.34 + 0.32 * hashUnit(hashCell(cx, cy, salt + 1, seed));
+    // Jitter may cross the 10-unit cell border, so neighbouring clumps
+    // interleave instead of forming rows on the fine placement grid.
+    const jitterX = -0.2 + 1.4 * hashUnit(hashCell(cx, cy, salt, seed));
+    const jitterY = -0.2 + 1.4 * hashUnit(hashCell(cx, cy, salt + 1, seed));
+    const worldCellX = wrapIndex(cx + jitterX, mapCellsX);
+    const worldCellY = wrapIndex(cy + jitterY, mapCellsY);
     // Map cell (cx, cy) -> world units. Y is negated because the scene maps
     // server grid rows downwards (world Y in [-height * gridSize, 0]).
-    out.x[i] = (cx + jitterX) * gridSize;
-    out.y[i] = -((cy + jitterY) * gridSize);
+    out.x[i] = worldCellX * gridSize;
+    out.y[i] = -(worldCellY * gridSize);
     out.yaw[i] = hashUnit(hashCell(cx, cy, salt + 2, seed)) * TAU;
     out.scale[i] = 0.9 + 0.55 * hashUnit(hashCell(cx, cy, salt + 3, seed));
     out.colorMix[i] = hashUnit(hashCell(cx, cy, salt + 4, seed));
@@ -439,7 +402,10 @@ export function placeGrassTufts(
   // same budget across the whole cull disc instead of a hard cut at its edge.
   const weightedCells = 0.4 * Math.max(1, visitedCells);
   const calibrated = requested / (GRASS_MEAN_TUFTS_PER_CELL * weightedCells);
-  const centerDensity = Math.min(cfg.density, calibrated);
+  // A config density of 1 means "no artificial cap": the calibrated density may
+  // exceed 1 in a dense field, and per-cell occupancy clamps at 1.
+  const densityCap = cfg.density >= 1 ? Number.POSITIVE_INFINITY : cfg.density;
+  const centerDensity = Math.min(calibrated, densityCap);
   if (!(centerDensity > 0)) return 0;
 
   const camCellX = Math.floor(safeX / gs);

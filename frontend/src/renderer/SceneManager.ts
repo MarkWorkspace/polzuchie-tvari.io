@@ -19,6 +19,28 @@ const MIN_PIXEL_RATIO = 0.6;
 const MAX_PIXEL_RATIO = 3;
 const GROUND_Z = -2;
 
+/**
+ * Sunny-day rig. The camera looks down at ~55 degrees and the ground fills the
+ * frame, so there is no sky dome to light the scene: the daylight read comes
+ * from this warm key, the cool sky/ground hemisphere and the aerial fog.
+ * Elevation is atan(270 / 300) ~= 42 degrees, which makes shadows long enough
+ * to read without stretching them across the whole screen.
+ */
+export const SUN_OFFSET = { x: 240, y: 180, z: 270 } as const;
+export const SUN_COLOR = 0xfff2dc;
+export const SUN_INTENSITY = 4.2;
+export const HEMI_SKY_COLOR = 0xb9d4ff;
+export const HEMI_GROUND_COLOR = 0x7a6242;
+export const HEMI_INTENSITY = 1.7;
+export const FILL_COLOR = 0x9fc2ff;
+export const FILL_INTENSITY = 0.12;
+export const TONE_MAPPING_EXPOSURE = 1.2;
+export const CLEAR_COLOR = 0x0b1420;
+export const AERIAL_FOG_COLOR = 0x9db4c8;
+/** Fog tint drifts toward the warm end when the camera looks into the sun. */
+export const AERIAL_FOG_COOL = 0x9fb8cf;
+export const AERIAL_FOG_WARM = 0xd6c6aa;
+
 const FOG_VERTEX_SHADER = `
   varying vec2 vWorldPos;
   void main() {
@@ -57,7 +79,7 @@ const FOG_FRAGMENT_SHADER = `
     float wobble = (valueNoise(vWorldPos * 0.012 + vec2(uTime * 0.015, -uTime * 0.01)) - 0.5) * uRadius * 0.1;
     float edge = smoothstep(uRadius * 0.68, uRadius * 0.98, dist + wobble);
     float haze = smoothstep(uRadius * 0.62, uRadius * 0.82, dist) * (1.0 - smoothstep(uRadius * 0.82, uRadius, dist));
-    vec3 color = uFogColor + vec3(0.018, 0.026, 0.045) * haze;
+    vec3 color = uFogColor + vec3(0.020, 0.030, 0.045) * haze;
     float dither = (hash21(gl_FragCoord.xy) - 0.5) / 255.0;
     gl_FragColor = vec4(color, clamp(edge + dither, 0.0, 1.0));
   }
@@ -88,6 +110,11 @@ export class SceneManager {
   private adaptiveResolution: AdaptiveResolution | null = null;
   private currentPixelRatio = 1;
   private lastFrameTime = 0;
+  /** Reused per frame so the aerial-fog update does not allocate. */
+  private readonly tmpForward = new THREE.Vector3();
+  private readonly tmpFogColor = new THREE.Color();
+  private readonly fogCool = new THREE.Color(AERIAL_FOG_COOL);
+  private readonly fogWarm = new THREE.Color(AERIAL_FOG_WARM);
 
   constructor(container: HTMLDivElement) {
     this.container = container;
@@ -115,7 +142,12 @@ export class SceneManager {
     this.currentPixelRatio = this.initialPixelRatio(preset);
     this.renderer.setPixelRatio(this.currentPixelRatio);
     this.renderer.setSize(this.currentWidth, this.currentHeight);
-    this.renderer.setClearColor(0x08090d, 1.0);
+    this.renderer.setClearColor(CLEAR_COLOR, 1.0);
+    // Tone mapping is owned by the composer's ToneMappingEffect. The renderer
+    // must not tone map as well, but it still feeds toneMappingExposure into
+    // the effect shader (the uniform lives in the shared chunk).
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
     this.renderer.shadowMap.enabled = preset.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.container.appendChild(this.renderer.domElement);
@@ -130,6 +162,9 @@ export class SceneManager {
       15000.0,
     );
     this.camera.layers.enable(OVERLAY_LAYER);
+    // Linear aerial haze. near/far are refreshed every frame from the camera
+    // distance so zoom and boost fov keep the same amount of distance haze.
+    this.scene.fog = new THREE.Fog(AERIAL_FOG_COLOR, 1400, 3300);
   }
 
   private initPostProcessing(): void {
@@ -238,6 +273,11 @@ export class SceneManager {
     return this.camera;
   }
 
+  /** Blurred contact mask for shaders that run before the shadow pass. */
+  public getContactShadowFrame(): ReturnType<SnakeContactShadow["getFrame"]> {
+    return this.contactShadow.getFrame();
+  }
+
   public getRenderer(): THREE.WebGLRenderer {
     return this.renderer;
   }
@@ -263,7 +303,6 @@ export class SceneManager {
       const mapW = msg.gameState?.server_world?.width ?? WORLD_WIDTH;
       const mapH = msg.gameState?.server_world?.height ?? WORLD_HEIGHT;
       this.updateGround(msg);
-      this.updateFog(msg);
       this.snakeLights.update(msg.activePlayers, camX, camY);
 
       // The contact shadow is world-space and camera-relative: follow the same
@@ -276,16 +315,18 @@ export class SceneManager {
       const shadowDistance = Math.sqrt(
         shadowDx * shadowDx + shadowDy * shadowDy + shadowDz * shadowDz,
       );
+      this.updateFog(msg);
+      this.updateAerialFog(shadowDistance);
       this.contactShadow.setMapSize(mapW * gridSize, mapH * gridSize);
       this.contactShadow.setViewDistance(shadowDistance, this.camera.fov);
       this.contactShadow.setTarget(camX, camY);
 
       // Keep both light rigs centered on the camera. The key light is offset so
       // shadows and fruit shading read directionally instead of top-down flat.
-      this.dirLight.position.set(camX + 160, camY + 120, 300);
+      this.dirLight.position.set(camX + SUN_OFFSET.x, camY + SUN_OFFSET.y, SUN_OFFSET.z);
       this.dirLight.target.position.set(camX, camY, 0);
       this.dirLight.target.updateMatrixWorld();
-      this.fillLight.position.set(camX - 180, camY - 140, 220);
+      this.fillLight.position.set(camX - SUN_OFFSET.x, camY - SUN_OFFSET.y, 220);
       this.fillLight.target.position.set(camX, camY, 0);
       this.fillLight.target.updateMatrixWorld();
 
@@ -312,20 +353,21 @@ export class SceneManager {
   }
 
   private setupLighting(): void {
-    // Cool sky bounce + warm ground bounce gives the flat scene much more
-    // depth than a single ambient light, for one cheap hemisphere sample.
-    this.hemiLight = new THREE.HemisphereLight(0xbcd2ff, 0x4c3a2c, 0.8);
+    // Pale blue sky bounce + dry-grass soil bounce. With no environment map
+    // this hemisphere term is the whole ambient budget, so it stays warm/cool
+    // rather than neutral grey.
+    this.hemiLight = new THREE.HemisphereLight(HEMI_SKY_COLOR, HEMI_GROUND_COLOR, HEMI_INTENSITY);
     this.scene.add(this.hemiLight);
 
-    this.dirLight = new THREE.DirectionalLight(0xfff1db, 1.45);
-    this.dirLight.position.set(160, 120, 300);
+    this.dirLight = new THREE.DirectionalLight(SUN_COLOR, SUN_INTENSITY);
+    this.dirLight.position.set(SUN_OFFSET.x, SUN_OFFSET.y, SUN_OFFSET.z);
     this.dirLight.castShadow = QUALITY_PRESETS[this.quality].shadows;
     this.configureShadowQuality(QUALITY_PRESETS[this.quality]);
 
-    // Shadowless cool fill from the opposite side. It sculpts fruit and
+    // Shadowless cool rim from the anti-sun side. It sculpts fruit and
     // tombstones without adding another shadow-map render pass.
-    this.fillLight = new THREE.DirectionalLight(0x86a8ff, 0.35);
-    this.fillLight.position.set(-180, -140, 220);
+    this.fillLight = new THREE.DirectionalLight(FILL_COLOR, FILL_INTENSITY);
+    this.fillLight.position.set(-SUN_OFFSET.x, -SUN_OFFSET.y, 220);
     this.fillLight.castShadow = false;
 
     this.scene.add(this.dirLight);
@@ -347,8 +389,8 @@ export class SceneManager {
     shadow.mapSize.set(preset.shadowMapSize, preset.shadowMapSize);
     shadow.map?.dispose();
     shadow.map = null;
-    shadow.bias = -0.001;
-    shadow.normalBias = 0.5;
+    shadow.bias = -0.0003;
+    shadow.normalBias = 0.2;
     shadow.radius = preset.shadowRadius;
 
     const d = 900;
@@ -363,13 +405,13 @@ export class SceneManager {
 
   private setupGround(): void {
     const uniforms = {
-      uGroundColor: { value: new THREE.Color(0x847a72) },
-      uGridColor: { value: new THREE.Color(0x5f574f) },
+      uGroundColor: { value: new THREE.Color(0x6d7a4d) },
+      uGridColor: { value: new THREE.Color(0x5a6540) },
       uGridSize: { value: gridSize },
     };
 
     this.groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0x847a72,
+      color: 0x6d7a4d,
       roughness: 1.0,
       metalness: 0.0,
     });
@@ -412,7 +454,7 @@ export class SceneManager {
       uHeadPos: { value: new THREE.Vector2(0, 0) },
       uRadius: { value: 300.0 },
       uTime: { value: 0.0 },
-      uFogColor: { value: new THREE.Color(8 / 255, 9 / 255, 13 / 255) },
+      uFogColor: { value: new THREE.Color(13 / 255, 24 / 255, 34 / 255) },
     };
 
     this.fogMaterial = new THREE.ShaderMaterial({
@@ -433,6 +475,33 @@ export class SceneManager {
     this.fogMesh.layers.set(OVERLAY_LAYER);
     this.fogMesh.position.set((WORLD_WIDTH * gridSize) / 2, -(WORLD_HEIGHT * gridSize) / 2, 50.0);
     this.scene.add(this.fogMesh);
+  }
+
+  /**
+   * Aerial perspective: linear fog from the camera to the ground target plus a
+   * small warm drift when looking toward the sun. The camera never sees sky, so
+   * this is what sells "outdoors in daylight" at distance.
+   */
+  private updateAerialFog(distance: number): void {
+    const fog = this.scene.fog as THREE.Fog | null;
+    if (!fog) return;
+
+    fog.near = distance * 1.8;
+    fog.far = distance * 4.0;
+
+    this.camera.getWorldDirection(this.tmpForward);
+    const horizontal = Math.hypot(this.tmpForward.x, this.tmpForward.y);
+    if (horizontal < 1e-4) return;
+
+    const sunLength = Math.hypot(SUN_OFFSET.x, SUN_OFFSET.y);
+    const facing =
+      (this.tmpForward.x * SUN_OFFSET.x + this.tmpForward.y * SUN_OFFSET.y) /
+      (horizontal * sunLength);
+    const warmMix = (0.5 + 0.5 * Math.min(1, Math.max(-1, facing))) * 0.2;
+
+    this.tmpFogColor.lerpColors(this.fogCool, this.fogWarm, warmMix);
+    // Slow lerp keeps a fast camera turn from popping the fog color.
+    fog.color.lerp(this.tmpFogColor, 0.08);
   }
 
   private updateFog(msg: any): void {

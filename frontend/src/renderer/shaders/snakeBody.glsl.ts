@@ -113,8 +113,9 @@ export const fragmentColorReplace = `
 
 export const emissiveReplace = `
   #include <emissivemap_fragment>
-  // A self-lit term keeps the skin saturated under the cool ambient.
-  totalEmissiveRadiance += bodyFinalColor * 0.75;
+  // A self-lit term keeps the skin saturated under the cool ambient. Daylight
+  // already lights the ribbon, so it only needs a small lift.
+  totalEmissiveRadiance += bodyFinalColor * 0.55;
 `;
 
 export const saturationReplace = `

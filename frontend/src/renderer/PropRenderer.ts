@@ -12,7 +12,6 @@ import {
   GRASS_SEED,
   type GrassFieldConfig,
   placeDecorProps,
-  splitDecorBudget,
   toroidalDelta,
 } from "./DecorField";
 import { DecorUpdateGate, type DecorViewState } from "./DecorUpdateGate";
@@ -103,7 +102,7 @@ export class PropRenderer {
 
   public update(
     frame: any,
-    budget: number,
+    stoneBudget: number,
     nowMs: number,
     targetX: number,
     targetY: number,
@@ -111,9 +110,10 @@ export class PropRenderer {
   ): void {
     const camX = finiteOr(targetX, finiteOr(frame?.camX, 0));
     const camY = finiteOr(targetY, finiteOr(frame?.camY, 0));
-    const stoneBudget = splitDecorBudget(budget).stones;
+    const requested = Number.isFinite(stoneBudget) ? Math.max(0, Math.floor(stoneBudget)) : 0;
+    const stones = Math.min(requested, DECOR_BUDGET_CAPS.stones);
 
-    if (stoneBudget <= 0) {
+    if (stones <= 0) {
       this.mesh.count = 0;
       this.mesh.visible = false;
       this.gate.invalidate();
@@ -135,7 +135,7 @@ export class PropRenderer {
       camY,
       mapX,
       mapY,
-      budget,
+      budget: stones,
       cullRadius,
       viewExtent: viewHalfExtent,
     };
@@ -150,7 +150,7 @@ export class PropRenderer {
       camX,
       camY,
       cullRadius,
-      stoneBudget,
+      stones,
       this.fieldConfig,
       this.buffer,
     );

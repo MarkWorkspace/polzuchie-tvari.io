@@ -69,18 +69,19 @@ export class RenderOrchestrator {
       gameCamera.update(camera, frame, dt, myId, isAccelerating);
     }
     this.resolveGrassView(camera, frame);
-    const grassBudget = QUALITY_PRESETS[this.sceneManager.getQuality()].grass;
+    const preset = QUALITY_PRESETS[this.sceneManager.getQuality()];
     this.grassRenderer.update(
       frame,
-      grassBudget,
+      preset.grass,
       now,
       this.grassView.x,
       this.grassView.y,
       this.grassView.halfExtent,
+      this.sceneManager.getContactShadowFrame(),
     );
     this.propRenderer.update(
       frame,
-      grassBudget,
+      preset.stones,
       now,
       this.grassView.x,
       this.grassView.y,

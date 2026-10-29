@@ -13,18 +13,18 @@ const fragmentShader = `
     float radius = length(centered);
     // The globe limb owns the edge falloff; keep only a light vignette here so
     // the two shapes do not stack into double edge darkening.
-    float vignette = 1.0 - smoothstep(0.55, 1.2, radius) * 0.26;
+    float vignette = 1.0 - smoothstep(0.55, 1.2, radius) * 0.20;
 
     vec3 color = inputColor.rgb * vignette;
     float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
 
     // Cool shadows and warm highlights tie the palette together.
-    vec3 shadowTint = vec3(0.9, 0.96, 1.08);
-    vec3 highlightTint = vec3(1.05, 1.01, 0.96);
+    vec3 shadowTint = vec3(0.92, 0.96, 1.05);
+    vec3 highlightTint = vec3(1.04, 1.01, 0.96);
     color *= mix(shadowTint, highlightTint, smoothstep(0.12, 0.85, luma));
 
     // A small saturation lift makes snake skins and fruit read better.
-    color = mix(vec3(luma), color, 1.1);
+    color = mix(vec3(luma), color, 1.06);
 
     // Ordered-ish noise dither breaks 8-bit banding in the fog and vignette.
     float dither = (hash21(gl_FragCoord.xy) - 0.5) / 255.0;

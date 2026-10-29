@@ -16,6 +16,7 @@ import {
   contactTexelSize,
   contactWorldRadiusToTexels,
   DEFAULT_CONTACT_SHADOW_BLUR_RADIUS,
+  DEFAULT_CONTACT_SHADOW_COLOR,
   DEFAULT_CONTACT_SHADOW_HALF_EXTENT,
   DEFAULT_CONTACT_SHADOW_LIGHT_OFFSET,
   DEFAULT_CONTACT_SHADOW_OPACITY,
@@ -89,11 +90,11 @@ describe("contact quad pose", () => {
 
 describe("directional light offset", () => {
   it("uses the key-light parallax for a body 2 units above the ground", () => {
-    const offset = contactShadowLightOffset(160, 120, 300, 2);
-    expect(offset.x).toBeCloseTo(16 / 15, 12);
-    expect(offset.y).toBeCloseTo(0.8, 12);
-    expect(DEFAULT_CONTACT_SHADOW_LIGHT_OFFSET.x).toBeCloseTo(16 / 15, 12);
-    expect(DEFAULT_CONTACT_SHADOW_LIGHT_OFFSET.y).toBeCloseTo(0.8, 12);
+    const offset = contactShadowLightOffset(240, 180, 270, 2);
+    expect(offset.x).toBeCloseTo(16 / 9, 12);
+    expect(offset.y).toBeCloseTo(4 / 3, 12);
+    expect(DEFAULT_CONTACT_SHADOW_LIGHT_OFFSET.x).toBeCloseTo(16 / 9, 12);
+    expect(DEFAULT_CONTACT_SHADOW_LIGHT_OFFSET.y).toBeCloseTo(4 / 3, 12);
   });
 
   it("keeps the offset a single vector, not a second shadow", () => {
@@ -169,9 +170,10 @@ describe("adaptive resolution", () => {
 });
 
 describe("default strength and softness", () => {
-  it("uses one stronger, softer term after the visual pass", () => {
-    expect(DEFAULT_CONTACT_SHADOW_BLUR_RADIUS).toBe(3);
-    expect(DEFAULT_CONTACT_SHADOW_OPACITY).toBe(0.7);
+  it("keeps one soft, sun-tinted term instead of a black hole", () => {
+    expect(DEFAULT_CONTACT_SHADOW_BLUR_RADIUS).toBe(4);
+    expect(DEFAULT_CONTACT_SHADOW_OPACITY).toBe(0.5);
+    expect(DEFAULT_CONTACT_SHADOW_COLOR).toBe(0x1a2635);
   });
 });
 

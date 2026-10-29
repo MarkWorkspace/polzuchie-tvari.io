@@ -31,30 +31,33 @@ describe("RenderQuality", () => {
       adaptive: true,
       shadows: true,
       shadowMapSize: 2048,
-      shadowRadius: 6,
+      shadowRadius: 3,
       snakeLights: 3,
       ssao: true,
       contactShadow: 512,
-      grass: 1200,
+      grass: 6000,
+      stones: 144,
     });
     expect(QUALITY_PRESETS.high).toMatchObject({
       adaptive: false,
       shadows: true,
       shadowMapSize: 2048,
-      shadowRadius: 6,
+      shadowRadius: 3,
       snakeLights: 3,
       ssao: true,
       contactShadow: 512,
-      grass: 1200,
+      grass: 6000,
+      stones: 144,
     });
     expect(QUALITY_PRESETS.medium).toMatchObject({
       shadowMapSize: 1024,
-      shadowRadius: 3,
+      shadowRadius: 2,
       snakeLights: 2,
       ssao: false,
       bloom: true,
       contactShadow: 512,
-      grass: 600,
+      grass: 2500,
+      stones: 72,
     });
     expect(QUALITY_PRESETS.low).toMatchObject({
       shadows: false,
@@ -65,8 +68,10 @@ describe("RenderQuality", () => {
       bloom: false,
       contactShadow: 256,
       grass: 0,
+      stones: 0,
     });
     expect(QUALITY_PRESETS.low.grass).toBe(0);
+    expect(QUALITY_PRESETS.low.stones).toBe(0);
     expect(QUALITY_PRESETS.low.contactShadow).toBe(256);
   });
 });

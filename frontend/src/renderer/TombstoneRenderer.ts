@@ -30,7 +30,7 @@ export class TombstoneRenderer {
       // The key light sits opposite the camera on some headings; a small
       // emissive lift keeps the stone readable instead of pitch black.
       emissive: 0x585e62,
-      emissiveIntensity: 0.5,
+      emissiveIntensity: 0.3,
       fog: false,
     });
 

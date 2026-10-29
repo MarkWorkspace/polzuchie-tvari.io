@@ -1,4 +1,4 @@
-// ROLE: Tests for deterministic grass clumping and prop placement, toroidal wrap, culling and split budgets.
+// ROLE: Tests for deterministic grass clumping and prop placement, toroidal wrap, culling and budget caps.
 import { describe, expect, it } from "vitest";
 import {
   clumpDensity,
@@ -13,12 +13,10 @@ import {
   GRASS_TUFTS_PER_CELL_MAX,
   type GrassFieldConfig,
   hashCell,
-  MAX_DECOR_INSTANCES,
   PROP_VARIANT_COUNTS,
   placeDecorProps,
   placeGrassTufts,
   sampleCellTufts,
-  splitDecorBudget,
   toroidalDistance,
 } from "./DecorField";
 import {
@@ -110,6 +108,7 @@ describe("sampleCellTufts", () => {
 
     expect(first.count).toBeGreaterThan(0);
     expect(second).toEqual(first);
+    expect(first.count).toBeGreaterThanOrEqual(3);
     expect(first.count).toBeLessThanOrEqual(GRASS_TUFTS_PER_CELL_MAX);
   });
 
@@ -368,35 +367,10 @@ describe("grass clumping", () => {
   });
 });
 
-describe("splitDecorBudget", () => {
-  it("splits the rich preset into the documented shares", () => {
-    expect(splitDecorBudget(1200)).toEqual({ grass: 1056, stones: 144 });
-    expect(splitDecorBudget(600)).toEqual({ grass: 528, stones: 72 });
-  });
-
-  it("always sums to the budget and respects every cap", () => {
-    for (const budget of [0, 1, 2, 3, 4, 7, 42, 120, 599, 600, 601, 1200]) {
-      const split = splitDecorBudget(budget);
-      const sum = split.grass + split.stones;
-      expect(sum).toBe(budget);
-      expect(split.grass).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.grass);
-      expect(split.stones).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.stones);
-      for (const value of Object.values(split)) {
-        expect(Number.isInteger(value)).toBe(true);
-        expect(value).toBeGreaterThanOrEqual(0);
-      }
-    }
-  });
-
-  it("clamps oversized and hostile budgets without NaN", () => {
-    for (const budget of [5000, Number.POSITIVE_INFINITY, Number.NaN, -40]) {
-      const split = splitDecorBudget(budget);
-      const sum = split.grass + split.stones;
-      expect(sum).toBeLessThanOrEqual(MAX_DECOR_INSTANCES);
-      expect(split.stones).toBeLessThanOrEqual(DECOR_BUDGET_CAPS.stones);
-      for (const value of Object.values(split)) expect(Number.isFinite(value)).toBe(true);
-    }
-    expect(splitDecorBudget(Number.NaN)).toEqual({ grass: 0, stones: 0 });
+describe("decor budget caps", () => {
+  it("keeps the dense grass capacity above every preset budget", () => {
+    expect(DECOR_BUDGET_CAPS.grass).toBeGreaterThanOrEqual(6000);
+    expect(DECOR_BUDGET_CAPS.stones).toBe(144);
   });
 });
 

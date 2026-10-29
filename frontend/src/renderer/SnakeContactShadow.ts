@@ -8,8 +8,10 @@ import { patchSnakeShadowMaterial } from "./shaders/snakeBody.glsl";
 
 export const DEFAULT_CONTACT_SHADOW_RESOLUTION = 512;
 export const DEFAULT_CONTACT_SHADOW_HALF_EXTENT = 180;
-export const DEFAULT_CONTACT_SHADOW_BLUR_RADIUS = 3;
-export const DEFAULT_CONTACT_SHADOW_OPACITY = 0.7;
+export const DEFAULT_CONTACT_SHADOW_BLUR_RADIUS = 4;
+export const DEFAULT_CONTACT_SHADOW_OPACITY = 0.5;
+/** Shadow tint. Pure black reads as a hole under a bright sun. */
+export const DEFAULT_CONTACT_SHADOW_COLOR = 0x1a2635;
 /** The quad floats just above the ground plane to avoid z-fighting. */
 export const CONTACT_SHADOW_GROUND_OFFSET = 0.05;
 
@@ -19,7 +21,7 @@ export const CONTACT_SHADOW_VIEW_MARGIN = 1.1;
 export const CONTACT_SHADOW_MIN_RESOLUTION = 256;
 export const CONTACT_SHADOW_MAX_RESOLUTION = 1024;
 /** Key light rig and ribbon height used for the cast-shadow parallax. */
-export const CONTACT_SHADOW_KEY_LIGHT = { x: 160, y: 120, z: 300 } as const;
+export const CONTACT_SHADOW_KEY_LIGHT = { x: 240, y: 180, z: 270 } as const;
 export const CONTACT_SHADOW_BODY_HEIGHT = 2;
 
 /** 9 taps total: one centre tap plus four taps on each side. */
@@ -341,7 +343,7 @@ export class SnakeContactShadow {
 
     const opacity = options.opacity ?? DEFAULT_CONTACT_SHADOW_OPACITY;
     this.compositeMaterial = new THREE.MeshBasicMaterial({
-      color: 0x000000,
+      color: DEFAULT_CONTACT_SHADOW_COLOR,
       map: this.blurTargetB.texture,
       transparent: true,
       opacity: Math.min(1, Math.max(0, opacity)),
@@ -381,6 +383,20 @@ export class SnakeContactShadow {
     this.targetY = y;
     this.maskCamera.position.set(x + this.lightOffsetX, y + this.lightOffsetY, this.groundZ + 100);
     this.quad.position.set(x, y, this.groundZ + CONTACT_SHADOW_GROUND_OFFSET);
+  }
+
+  /**
+   * The blurred mask and its world-square mapping, so opaque grass can tint
+   * blades inside the shadow instead of hiding the ground decal. Texture and
+   * target are one frame behind by construction; the blur hides that.
+   */
+  public getFrame(): { texture: THREE.Texture; x: number; y: number; halfExtent: number } {
+    return {
+      texture: this.blurTargetB.texture,
+      x: this.targetX,
+      y: this.targetY,
+      halfExtent: this.halfExtent,
+    };
   }
 
   /**

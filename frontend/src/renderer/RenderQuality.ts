@@ -12,8 +12,10 @@ export interface QualityPreset {
   bloom: boolean;
   /** Base resolution of the world-space snake contact shadow at the reference box. */
   contactShadow: number;
-  /** Decorative grass tuft budget; 0 disables the field entirely. */
+  /** Dense grass tuft budget; 0 disables the field entirely. */
   grass: number;
+  /** Stone accent budget; 0 disables props. */
+  stones: number;
 }
 
 export const DEFAULT_RENDER_QUALITY: RenderQuality = "auto";
@@ -25,36 +27,39 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     adaptive: true,
     shadows: true,
     shadowMapSize: 2048,
-    shadowRadius: 6,
+    shadowRadius: 3,
     snakeLights: 3,
     ssao: true,
     bloom: true,
     contactShadow: 512,
-    grass: 1200,
+    grass: 6000,
+    stones: 144,
   },
   high: {
     pixelRatioCap: 2,
     adaptive: false,
     shadows: true,
     shadowMapSize: 2048,
-    shadowRadius: 6,
+    shadowRadius: 3,
     snakeLights: 3,
     ssao: true,
     bloom: true,
     contactShadow: 512,
-    grass: 1200,
+    grass: 6000,
+    stones: 144,
   },
   medium: {
     pixelRatioCap: 1.5,
     adaptive: false,
     shadows: true,
     shadowMapSize: 1024,
-    shadowRadius: 3,
+    shadowRadius: 2,
     snakeLights: 2,
     ssao: false,
     bloom: true,
     contactShadow: 512,
-    grass: 600,
+    grass: 2500,
+    stones: 72,
   },
   low: {
     pixelRatioCap: 1,
@@ -67,6 +72,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     bloom: false,
     contactShadow: 256,
     grass: 0,
+    stones: 0,
   },
 };
 

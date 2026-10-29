@@ -47,17 +47,17 @@ export class FoodRenderer {
     ];
 
     for (const factory of factories) {
-      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4 });
+      const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
 
       mat.onBeforeCompile = (shader) => {
         shader.fragmentShader = shader.fragmentShader.replace(
           "#include <emissivemap_fragment>",
           `#include <emissivemap_fragment>
            #ifdef USE_COLOR
-             totalEmissiveRadiance += vColor.rgb * 1.5;
+             totalEmissiveRadiance += vColor.rgb * 0.5;
            #endif
            #ifdef USE_INSTANCING_COLOR
-             totalEmissiveRadiance += vInstancingColor.rgb * 1.5;
+             totalEmissiveRadiance += vInstancingColor.rgb * 0.5;
            #endif
           `,
         );

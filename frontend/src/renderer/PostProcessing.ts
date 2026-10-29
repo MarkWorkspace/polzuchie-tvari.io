@@ -216,14 +216,15 @@ export class PostProcessing {
     if (useBloom) {
       baseEffects.push(
         new BloomEffect({
-          intensity: 1.1,
-          // Low effective threshold so saturated body colors bloom; the
-          // selection-less bloom is kept cheap and only affects bright pixels.
-          luminanceThreshold: 0.18,
+          intensity: 0.7,
+          // Daylight threshold: sunlit ground, grass and stones sit below it, so
+          // only genuine specular/emissive pixels bloom. The body halo is muted
+          // in daylight by design; the mask and this pass stay for night later.
+          luminanceThreshold: 0.85,
           luminanceSmoothing: 0.2,
-          // A tighter mipmap radius keeps the body halo readable instead of
-          // turning the whole screen into a green fog.
-          radius: 0.45,
+          // A tighter mipmap radius keeps any halo readable instead of turning
+          // the whole screen into a green fog.
+          radius: 0.35,
           // Mipmap blur is both smoother and cheaper than many tap passes.
           mipmapBlur: true,
         }),
@@ -235,7 +236,9 @@ export class PostProcessing {
 
     baseEffects.push(
       new ToneMappingEffect({
-        mode: ToneMappingMode.ACES_FILMIC,
+        // PBR Neutral keeps the saturated stylized skins from shifting hue the
+        // way ACES does, while still rolling off bright sunlit surfaces.
+        mode: ToneMappingMode.NEUTRAL,
       }),
     );
     this.composer.addPass(new EffectPass(this.camera, ...baseEffects));
