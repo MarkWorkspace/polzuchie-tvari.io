@@ -348,8 +348,11 @@ function tryPlaceCell(
     if (dx * dx + dy * dy > radiusSq) continue;
 
     const slot = offset + placed;
-    out.x[slot] = placementCell.x[i];
-    out.y[slot] = placementCell.y[i];
+    // Write the wrapped copy nearest the camera. The cell content is canonical
+    // inside the map, but at the seam its absolute position is a full period
+    // away; drawing that copy would make half the field disappear.
+    out.x[slot] = camX + dx;
+    out.y[slot] = camY + dy;
     out.yaw[slot] = placementCell.yaw[i];
     out.scale[slot] = placementCell.scale[i];
     out.colorMix[slot] = placementCell.colorMix[i];
@@ -364,7 +367,8 @@ function tryPlaceCell(
  *
  * Density is lowered automatically when the budget cannot cover the cull disc,
  * so the same field radius is kept while quality presets only change how many
- * tufts appear. Positions are always inside `[0, width] x [-height, 0]`.
+ * tufts appear. Positions are wrapped to the camera side, so near the seam they
+ * can lie just outside the canonical `[0, width] x [-height, 0]` rectangle.
  */
 export function placeGrassTufts(
   camX: number,
@@ -496,8 +500,10 @@ function writeProp(
   const [minScale, maxScale] = PROP_SCALE_RANGE[type];
   const variantCount = PROP_VARIANT_COUNTS[type];
 
-  out.x[slot] = x;
-  out.y[slot] = y;
+  // Same seam rule as grass: draw the copy closest to the camera, not the
+  // canonical one a full map period away.
+  out.x[slot] = camX + dx;
+  out.y[slot] = camY + dy;
   out.yaw[slot] = hashUnit(hashCell(blockX, blockY, SALT_PROP_JITTER + 2, seed)) * TAU;
   out.scale[slot] =
     minScale +

@@ -17,6 +17,7 @@ import {
   placeDecorProps,
   placeGrassTufts,
   sampleCellTufts,
+  toroidalDelta,
   toroidalDistance,
 } from "./DecorField";
 import {
@@ -241,16 +242,28 @@ describe("placeGrassTufts", () => {
     expect(far).toBeGreaterThan(100);
   });
 
-  it("regenerates inside the map after a resize", () => {
+  it("regenerates inside the cull disc after a resize", () => {
     const resized: GrassFieldConfig = { ...config, mapCellsX: 40, mapCellsY: 64, density: 1 };
     const { buffer, count } = collect(200, -300, 500, 500, resized);
 
     expect(count).toBeGreaterThan(0);
     for (let i = 0; i < count; i++) {
-      expect(buffer.x[i]).toBeGreaterThanOrEqual(0);
-      expect(buffer.x[i]).toBeLessThan(40 * 20);
-      expect(buffer.y[i]).toBeLessThanOrEqual(0);
-      expect(buffer.y[i]).toBeGreaterThan(-64 * 20);
+      const distance = toroidalDistance(buffer.x[i], buffer.y[i], 200, -300, 40 * 20, 64 * 20);
+      expect(distance).toBeLessThanOrEqual(500 + 1e-6);
+    }
+  });
+
+  it("writes the seam copy on the camera side instead of a full period away", () => {
+    const camX = 3;
+    const camY = -3;
+    const { buffer, count } = collect(camX, camY, 240, 4000);
+    expect(count).toBeGreaterThan(0);
+
+    for (let i = 0; i < count; i++) {
+      // Absolute coordinates must be near the camera; a canonical wrapped copy
+      // at x ~ worldWidth would render on the far side of the torus.
+      expect(Math.abs(buffer.x[i] - camX)).toBeLessThanOrEqual(240 + 1e-6);
+      expect(Math.abs(buffer.y[i] - camY)).toBeLessThanOrEqual(240 + 1e-6);
     }
   });
 
@@ -416,11 +429,22 @@ describe("placeDecorProps", () => {
     expect(second).toEqual(first);
   });
 
-  it("returns identical stones when the camera crosses the map seam", () => {
+  it("returns the same stones when the camera crosses the map seam", () => {
     const here = snapshotProps(STONE, 0, 0, 500, 120);
     const wrapped = snapshotProps(STONE, worldWidth, -worldHeight, 500, 120);
     expect(here.count).toBeGreaterThan(0);
-    expect(wrapped).toEqual(here);
+    expect(wrapped.count).toBe(here.count);
+
+    for (let i = 0; i < here.count; i++) {
+      // The instances are drawn on the camera side of the seam, so only the
+      // toroidal delta is invariant, not the absolute coordinate.
+      expect(toroidalDelta(wrapped.x[i] - here.x[i], worldWidth)).toBeCloseTo(0, 2);
+      expect(toroidalDelta(wrapped.y[i] - here.y[i], worldHeight)).toBeCloseTo(0, 2);
+      expect(wrapped.yaw[i]).toBe(here.yaw[i]);
+      expect(wrapped.scale[i]).toBe(here.scale[i]);
+      expect(wrapped.variant[i]).toBe(here.variant[i]);
+      expect(wrapped.colorMix[i]).toBe(here.colorMix[i]);
+    }
   });
 
   it("keeps every stone inside the cull radius, including across the seam", () => {
