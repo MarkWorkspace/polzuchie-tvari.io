@@ -57,8 +57,9 @@
    - На каждом тике (30 Гц) оркестратор [game.py](backend/app/engine/game.py) вызывает физические и игровые системы, обновляющие состояние [GameState](backend/app/engine/state.py).
    - Опциональные серверные боты живут в изолированном пакете `backend/app/bots/`: `server.py` запускает `BotManager` в lifespan, `game_loop` вызывает `world.bot_manager.update()` перед тиком. Боты — обычные `Player` в `state.players` без WebSocket-соединения, поэтому сериализация, коллизии, еда и лидерборд работают для них без специальных веток.
    - [serialization.py](backend/app/engine/systems/serialization.py) кэширует сериализованные словари игроков и собирает `GameStateFrame` по схеме `tests_shared/snake.proto`. Для экономии трафика координаты змеек сжимаются в плоские одномерные массивы `[x0, y0, x1, y1, ...]`.
-   - В [server.py](backend/server.py) полученный Protobuf-кадр сжимается с помощью `zlib.compress(..., level=1)`.
-   - **Формат границы:** Бинарный сжатый Protobuf (zlib/deflate).
+   - В [server.py](backend/server.py) полученный Protobuf-кадр сжимается с помощью `zlib.compress(..., level=1)` в `asyncio.to_thread`, чтобы не блокировать event loop.
+   - **Формат границы:** Бинарный сжатый Protobuf (zlib/deflate). `permessage-deflate` на уровне WebSocket отключён (`--ws-per-message-deflate false`): кадр уже сжат, второй deflate только тратит CPU и добавляет байты. `--ws-max-size 4096` ограничивает входящие сообщения, которые по протоколу не превышают 32 байт.
+   - `snake_pb2.py` генерируется только скриптом `backend/scripts/generate_proto.py`; CI перегенерирует его и падает при расхождении с закоммиченным файлом.
 
 2. **WebSocket Connection (Сеть):**
    - Передача через WebSocket в бинарном режиме (`arraybuffer`).
@@ -195,6 +196,7 @@
    - [websocket.py](backend/app/api/websocket.py#L19) ограничивает количество одновременных подключений до `50` (`MAX_CONNECTIONS`).
    - Rate limiting входящих сообщений от одного WebSocket-клиента равен `50` сообщений в секунду.
    - Максимальная длина ника игрока — `16` символов, некорректные скины принудительно сбрасываются в `"#22c55e"`.
+   - `permessage-deflate` выключен, `ws_max_size` ограничен `4096` байтами: прикладной zlib — единственный слой сжатия, а клиентские команды не превышают `32` байт.
 5. **Тороидальный размер ячеек:**
    - Spatial partitioning на сервере ([collision.py](backend/app/engine/systems/collision.py#L5), [food_eating.py](backend/app/engine/systems/food_eating.py#L5), [gravity.py](backend/app/engine/systems/gravity.py#L33), [serialization.py](backend/app/engine/systems/serialization.py#L7)) и клиенте использует фиксированный размер ячейки `CELL_SIZE = 10.0`.
 6. **Идентичность spectator/player:**

@@ -13,6 +13,7 @@
 ├── .editorconfig                       # ROLE: Shared editor whitespace/charset conventions.
 ├── .gitattributes                      # ROLE: Line-ending and binary-file rules.
 ├── .pre-commit-config.yaml             # ROLE: Git hooks (Ruff/tests/build).
+├── .github/dependabot.yml              # ROLE: Weekly dependency updates for uv, npm, actions, Docker and hooks.
 ├── opencode.jsonc                      # ROLE: OpenCode V2 project config.
 ├── docker-compose.yml                  # ROLE: Local production-like stack.
 ├── start_dev.bat                       # ROLE: Windows dev launcher (uv + Vite).
@@ -71,6 +72,12 @@ frontend/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, hemisphere/key/fill свет, цветные snake-light'ы, тени, туман, adaptive world-space contact shadow, пресеты качества и adaptive pixel ratio.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.067, 0.8), два separable Gaussian-прохода в world units и один quad на земле. Не свет, не shadow map, не пост-эффект.
     │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
+    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: детерминированные пучки из сида, ветер и мягкое отталкивание от головы, бюджет по пресету. Декор без коллизий.
+    │   ├── DecorField.ts               # ROLE: Чистая математика декора: хэш клетки, тороидальная генерация куртин, раскладка камней, split бюджета и culling radius.
+    │   ├── DecorField.test.ts          # ROLE: Тесты детерминизма, тора, кластеров, бюджетов и устойчивости к NaN.
+    │   ├── PropRenderer.ts             # ROLE: Один instanced mesh вкопанных камней-акцентов. Декор без коллизий, без теней и bloom.
+    │   ├── PropGeometry.ts             # ROLE: Процедурные силуэты камней. Не рендерит.
+    │   ├── DecorUpdateGate.ts          # ROLE: Общий throttle перестроения декора (250 мс / 4 юнита) с инвалидацией при смене пресета.
     │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
     │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, skin-tinted head glow. Тело попадает в bloom-маску и top-down contact-shadow маску через отдельные слои; само тень не кастует. Не физика, не HUD.
@@ -220,11 +227,15 @@ backend/
 ├── pyproject.toml                      # ROLE: PEP 621 metadata, runtime/dev dependencies, pytest + ruff config.
 ├── uv.lock                             # ROLE: [СГЕНЕРИРОВАНО] uv lockfile. Не редактировать вручную.
 ├── .python-version                     # ROLE: Python version for uv (3.13).
-├── Dockerfile                          # ROLE: Production image на Python 3.13 + uv (non-root, healthcheck).
+├── Dockerfile                          # ROLE: Production image на Python 3.13 + uv (non-root, healthcheck, WS flags).
+├── scripts/
+│   └── generate_proto.py               # ROLE: Регенерация snake_pb2.py из tests_shared/snake.proto. Не runtime-код.
 └── app/
+    ├── logging_setup.py                # ROLE: Настройка stdlib logging и LOG_LEVEL. Не игровая логика.
     ├── api/
-    │   ├── websocket.py                # ROLE: WebSocket endpoint, rate limiting, spectator/player identity. Не игровая логика.
-    │   └── admin.py                    # ROLE: Admin REST API.
+    │   ├── admin.py                    # ROLE: Admin REST API.
+    │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
+    │   └── websocket.py                # ROLE: WebSocket endpoint, rate limiting, spectator/player identity. Не игровая логика.
     ├── bots/
     │   ├── __init__.py                 # ROLE: Изолированный пакет ботов; удаляется вместе с 3 engine-хуками.
     │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов, personalities и сглаживание руления. Без сети и рендера.
@@ -263,6 +274,7 @@ backend/
 ```
 backend/tests/
 ├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации. Проверяет парсинг пароля, очистку пробелов/кавычек и работу login-обработчика.
+├── test_admin_config_schema.py        # ROLE: Контракт Pydantic-схемы PATCH /admin/config: parity с GameConfig, неизвестные ключи, типы и 422/400 на маршруте.
 ├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока. Проверяет Protobuf restart-frame и очистку соединений.
 ├── test_black_hole_timer.py           # ROLE: Таймеры чёрных дыр двигаются ровно один раз за тик.
 ├── test_boost.py                      # ROLE: Буст сохраняет score целым; late join после буста не ломает FULL-синк.
