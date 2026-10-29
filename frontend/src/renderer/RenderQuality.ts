@@ -14,6 +14,8 @@ export interface QualityPreset {
   contactShadow: number;
   /** Dense grass tuft budget; 0 disables the field entirely. */
   grass: number;
+  /** Player-side grass field radius in world units; 0 disables the field. */
+  grassRadius: number;
   /** Stone accent budget; 0 disables props. */
   stones: number;
 }
@@ -32,7 +34,8 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     ssao: true,
     bloom: true,
     contactShadow: 512,
-    grass: 6000,
+    grass: 16000,
+    grassRadius: 450,
     stones: 144,
   },
   high: {
@@ -45,7 +48,8 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     ssao: true,
     bloom: true,
     contactShadow: 512,
-    grass: 6000,
+    grass: 16000,
+    grassRadius: 450,
     stones: 144,
   },
   medium: {
@@ -58,7 +62,8 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     ssao: false,
     bloom: true,
     contactShadow: 512,
-    grass: 2500,
+    grass: 8000,
+    grassRadius: 400,
     stones: 72,
   },
   low: {
@@ -72,6 +77,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     bloom: false,
     contactShadow: 256,
     grass: 0,
+    grassRadius: 0,
     stones: 0,
   },
 };

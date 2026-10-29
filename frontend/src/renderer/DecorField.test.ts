@@ -369,7 +369,7 @@ describe("grass clumping", () => {
 
 describe("decor budget caps", () => {
   it("keeps the dense grass capacity above every preset budget", () => {
-    expect(DECOR_BUDGET_CAPS.grass).toBeGreaterThanOrEqual(6000);
+    expect(DECOR_BUDGET_CAPS.grass).toBeGreaterThanOrEqual(16000);
     expect(DECOR_BUDGET_CAPS.stones).toBe(144);
   });
 });

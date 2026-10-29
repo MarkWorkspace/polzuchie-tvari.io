@@ -74,8 +74,8 @@ frontend/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества и adaptive pixel ratio.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.78, 1.33), два separable Gaussian-прохода в world units (radius 4, opacity 0.5) и один quad на земле; отдаёт размытую маску траве через getFrame(). Не свет, не shadow map, не пост-эффект.
     │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
-    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: детерминированные пучки из сида, ветер, мягкое отталкивание от головы и затемнение внутри contact shadow. Бюджет и высота подобраны под читаемость змейки; декор без коллизий.
-    │   ├── DecorField.ts               # ROLE: Чистая математика декора: хэш клетки, тороидальная генерация куртин, раскладка камней, пер-тировые бюджеты и culling radius.
+    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок на пучок, детерминированные пучки из сида, ветер, отталкивание от головы, затемнение и приминание внутри contact shadow. Бюджет/радиус — из пресета; декор без коллизий.
+    │   ├── DecorField.ts               # ROLE: Чистая математика декора: хэш клетки, тороидальная генерация куртин, раскладка камней, пер-тировые бюджеты травы/камней и culling radius.
     │   ├── DecorField.test.ts          # ROLE: Тесты детерминизма, тора, кластеров, бюджетов и устойчивости к NaN.
     │   ├── PropRenderer.ts             # ROLE: Один instanced mesh вкопанных камней-акцентов. Декор без коллизий, без теней и bloom.
     │   ├── PropGeometry.ts             # ROLE: Процедурные силуэты камней. Не рендерит.
@@ -110,7 +110,7 @@ frontend/
     │   ├── PostProcessing.ts           # ROLE: SSAO отдельным pass (временно выключен флагом в buildPipeline); bloom/tone mapping и bloom-маска в общем pass; линзирование ЧД отдельным pass; atmosphere grade; globe warp финальным pass.
     │   ├── SilhouetteRenderer.ts       # ROLE: Растеризует слой в маленький alpha-таргет (bloom-маска). Не свет, не пост-эффекты.
     │   ├── SilhouetteRenderer.test.ts  # ROLE: Тесты размера silhouette-таргета под pixel ratio и downscale.
-    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map/radius, contact-shadow base resolution, отдельные grass и stone бюджеты, snake-light budget.
+    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map/radius, contact-shadow base resolution, отдельные grass/grassRadius/stone бюджеты, snake-light budget.
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
     │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.

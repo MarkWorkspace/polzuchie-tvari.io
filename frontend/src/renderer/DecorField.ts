@@ -33,7 +33,7 @@ export const GRASS_CLUSTER_MEAN = (GRASS_CLUSTER_MIN + 1) / 2;
 
 /** Hard per-family buffer caps: the dense grass field and the sparse stones. */
 export const DECOR_BUDGET_CAPS = {
-  grass: 10000,
+  grass: 16000,
   stones: 144,
 } as const;
 

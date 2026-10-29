@@ -405,13 +405,13 @@ export class SceneManager {
 
   private setupGround(): void {
     const uniforms = {
-      uGroundColor: { value: new THREE.Color(0x6d7a4d) },
-      uGridColor: { value: new THREE.Color(0x5a6540) },
+      uGroundColor: { value: new THREE.Color(0x5f7044) },
+      uGridColor: { value: new THREE.Color(0x4f6039) },
       uGridSize: { value: gridSize },
     };
 
     this.groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0x6d7a4d,
+      color: 0x5f7044,
       roughness: 1.0,
       metalness: 0.0,
     });
@@ -454,7 +454,7 @@ export class SceneManager {
       uHeadPos: { value: new THREE.Vector2(0, 0) },
       uRadius: { value: 300.0 },
       uTime: { value: 0.0 },
-      uFogColor: { value: new THREE.Color(13 / 255, 24 / 255, 34 / 255) },
+      uFogColor: { value: new THREE.Color(0.012, 0.022, 0.035) },
     };
 
     this.fogMaterial = new THREE.ShaderMaterial({

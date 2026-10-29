@@ -77,6 +77,7 @@ export class RenderOrchestrator {
       this.grassView.x,
       this.grassView.y,
       this.grassView.halfExtent,
+      preset.grassRadius,
       this.sceneManager.getContactShadowFrame(),
     );
     this.propRenderer.update(

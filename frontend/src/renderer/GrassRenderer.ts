@@ -25,12 +25,8 @@ const GRASS_PUSH_DISABLED = 1e6;
 export const GRASS_MIN_CULL_RADIUS = 550;
 /** Cap for the cull radius: a fixed instance budget cannot cover more without turning to dust. */
 export const GRASS_MAX_CULL_RADIUS = 1200;
-/**
- * Grass itself is placed inside this tighter player radius. The visible ground
- * half-diagonal is about 206 units, so a 300-unit field covers it densely while
- * the fog hides where the field ends.
- */
-export const GRASS_FIELD_RADIUS_CAP = 300;
+/** Fallback player field radius when a caller does not provide a preset value. */
+const GRASS_FIELD_RADIUS_FALLBACK = 600;
 /** Tuft scale cap for far cameras, so the field stays legible in the overview. */
 export const GRASS_LOD_SCALE_MAX = 2.6;
 /** View half-extent (world units) at which tufts reach their maximum LOD scale. */
@@ -39,15 +35,16 @@ export const GRASS_LOD_EXTENT = 300;
 const BLADE_HEIGHT = 4.0;
 const BLADE_BASE_WIDTH = 2.35;
 const BLADE_TIP_WIDTH = 0.82;
-const BLADE_COUNT = 3;
+const BLADE_COUNT = 5;
 
-// Base-to-tip shade. Multiplied by the per-instance colour.
-const VERTEX_SHADE_BASE = 0.55;
-const VERTEX_SHADE_MID = 0.86;
+// Base-to-tip shade. Multiplied by the per-instance colour. A darker root
+// makes the field read as one dense mass instead of separate star-shaped tufts.
+const VERTEX_SHADE_BASE = 0.4;
+const VERTEX_SHADE_MID = 0.8;
 const VERTEX_SHADE_TIP = 1.0;
 
-const SHADE_COLOR = 0x50663a;
-const LIGHT_COLOR = 0x9cbb62;
+const SHADE_COLOR = 0x47612f;
+const LIGHT_COLOR = 0xa9c468;
 
 function finiteOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -77,10 +74,10 @@ function createTuftGeometry(): THREE.BufferGeometry {
   const colors: number[] = [];
   const indices: number[] = [];
 
-  const bladeAngles = [0.4, 1.45, 2.35];
-  const bladeHeights = [0.82, 1.0, 0.92];
-  const bladeOffsets = [0.4, 1.0, 0.7];
-  const bladeLeans = [1.2, 1.9, 1.5];
+  const bladeAngles = [0.4, 1.45, 2.35, 3.5, 5.1];
+  const bladeHeights = [0.82, 1.0, 0.92, 0.78, 0.88];
+  const bladeOffsets = [0.4, 1.0, 0.7, 0.55, 1.15];
+  const bladeLeans = [1.2, 1.9, 1.5, 1.0, 1.7];
 
   for (let b = 0; b < BLADE_COUNT; b++) {
     const angle = bladeAngles[b];
@@ -199,6 +196,7 @@ export class GrassRenderer {
   };
   private readonly shadeColor = new THREE.Color(SHADE_COLOR);
   private readonly lightColor = new THREE.Color(LIGHT_COLOR);
+  private readonly dryColor = new THREE.Color(0xb0a45c);
   private readonly scratchColor = new THREE.Color();
   private readonly gate = new DecorUpdateGate();
 
@@ -245,6 +243,7 @@ export class GrassRenderer {
     targetX: number,
     targetY: number,
     viewHalfExtent: number,
+    fieldRadius: number,
     contactShadow?: ContactShadowFrame | null,
   ): void {
     const camX = finiteOr(targetX, finiteOr(frame?.camX, 0));
@@ -295,7 +294,9 @@ export class GrassRenderer {
         : FALLBACK_FOG_RADIUS;
     // Player view concentrates the budget in the near field; the spectator
     // overview keeps the wider field so the whole arena still gets grass.
-    const fieldCap = isSpectator ? GRASS_MAX_CULL_RADIUS : GRASS_FIELD_RADIUS_CAP;
+    const playerRadius =
+      Number.isFinite(fieldRadius) && fieldRadius > 0 ? fieldRadius : GRASS_FIELD_RADIUS_FALLBACK;
+    const fieldCap = isSpectator ? GRASS_MAX_CULL_RADIUS : playerRadius;
     const cullRadius = Math.min(grassCullRadius(fogRadius, viewHalfExtent), fieldCap);
     const lodScale = grassLodScale(viewHalfExtent);
 
@@ -384,6 +385,10 @@ export class GrassRenderer {
 
       if (colors) {
         const c = this.scratchColor.lerpColors(this.shadeColor, this.lightColor, colorMix[i]);
+        // A few dry tufts break the uniform lime carpet without a second field.
+        if (colorMix[i] > 0.88) {
+          c.lerp(this.dryColor, ((colorMix[i] - 0.88) / 0.12) * 0.45);
+        }
         colors[i * 3] = c.r;
         colors[i * 3 + 1] = c.g;
         colors[i * 3 + 2] = c.b;
@@ -439,7 +444,23 @@ export class GrassRenderer {
 
       shader.vertexShader = shader.vertexShader.replace(
         "#include <project_vertex>",
-        `vec4 mvPosition = vec4( transformed, 1.0 );
+        `
+        // The blurred ribbon mask is sampled at the tuft root before the vertex
+        // matrices are applied. The same coverage both tints and flattens the
+        // blades, so the opaque field cannot swallow the snake body.
+        #ifdef USE_INSTANCING
+          vec4 grassRootWorld = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        #else
+          vec4 grassRootWorld = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        #endif
+        vec2 grassShadowUv = (grassRootWorld.xy - uShadowCenter) / (2.0 * uShadowHalfExtent) + 0.5;
+        vec2 shadowInside = step(vec2(0.0), grassShadowUv) * step(grassShadowUv, vec2(1.0));
+        float shadowCoverage =
+          texture2D(uShadowMap, grassShadowUv).r * shadowInside.x * shadowInside.y;
+        float grassFlatten = smoothstep(0.05, 0.35, shadowCoverage) * uShadowStrength;
+        transformed.z *= 1.0 - grassFlatten * 0.95;
+
+        vec4 mvPosition = vec4( transformed, 1.0 );
 
         #ifdef USE_BATCHING
           mvPosition = batchingMatrix * mvPosition;
@@ -455,14 +476,7 @@ export class GrassRenderer {
         float grassPush = (1.0 - smoothstep(10.0, 150.0, grassDist)) * grassBend * 2.0;
         mvPosition.xy += (grassToPlayer / max(grassDist, 0.001)) * grassPush;
 
-        // Sample the blurred ribbon shadow at the tuft root: every blade of a
-        // tuft darkens together, and the ground decal stays hidden by grass.
-        vec2 grassShadowUv = (grassWorld.xy - uShadowCenter) / (2.0 * uShadowHalfExtent) + 0.5;
-        vec2 shadowInside = step(vec2(0.0), grassShadowUv) * step(grassShadowUv, vec2(1.0));
-        float shadowCoverage = texture2D(uShadowMap, grassShadowUv).r;
-        vGrassShadow =
-          clamp(shadowCoverage * 1.6, 0.0, 1.0) *
-          shadowInside.x * shadowInside.y * uShadowStrength;
+        vGrassShadow = clamp(shadowCoverage * 1.6, 0.0, 1.0) * uShadowStrength;
 
         mvPosition = modelViewMatrix * mvPosition;
         gl_Position = projectionMatrix * mvPosition;
