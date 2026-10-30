@@ -56,7 +56,7 @@ frontend/
     │   ├── spectatorMode.ts            # ROLE: Чистый разбор `?spectator=` / `?debug=` в player/debug режим.
     │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
     │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
-    │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере. Не содержит логики ввода или сети.
+    │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; строит ground-target травы, ground-трапецию камеры и distance-LOD. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
     │   ├── NetworkManager.test.ts      # ROLE: Тесты идентичности player/spectator и storage-ключей.
@@ -75,12 +75,12 @@ frontend/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества и adaptive pixel ratio.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.78, 1.33), два separable Gaussian-прохода в world units (radius 4, opacity 0.5) и один quad на земле; отдаёт размытую маску траве через getFrame(). Не свет, не shadow map, не пост-эффект.
     │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
-    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок на пучок, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + две волны + gust), локальное раздвигание у головы, per-blade tint, затемнение и приминание внутри contact shadow, dither-фейд края поля. Бюджет/радиус — из пресета; декор без коллизий.
-    │   ├── DecorField.ts               # ROLE: Чистая математика декора: хэш клетки, тороидальная генерация куртин двух масштабов (fine 20 u / broad 80 u), общий цвет/высота/сухость clump'а, раскладка камней, пер-тировые бюджеты травы/камней и culling radius.
+    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок на пучок, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + две волны + gust), локальное раздвигание у головы, per-blade tint, затемнение/приминание внутри contact shadow, dither-фейд края и distance-LOD по камере. Бюджет/радиус — из пресета; декор без коллизий.
+    │   ├── DecorField.ts               # ROLE: Чистая математика декора: хэш клетки, тороидальная генерация куртин двух масштабов (fine 20 u / broad 80 u), общий цвет/высота/сухость clump'а, раскладка камней, пер-тировые бюджеты, camera-distance LOD и клип по ground-трапеции.
     │   ├── DecorField.test.ts          # ROLE: Тесты детерминизма, тора, кластеров, бюджетов и устойчивости к NaN.
     │   ├── PropRenderer.ts             # ROLE: Один instanced mesh вкопанных камней-акцентов. Декор без коллизий, без теней и bloom.
     │   ├── PropGeometry.ts             # ROLE: Процедурные силуэты камней. Не рендерит.
-    │   ├── DecorUpdateGate.ts          # ROLE: Общий throttle перестроения декора (250 мс / 4 юнита) с инвалидацией при смене пресета.
+    │   ├── DecorUpdateGate.ts          # ROLE: Общий throttle перестроения декора (250 мс / 4 юнита) с инвалидацией при смене пресета, радиуса или ориентации камеры.
     │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
     │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, skin-tinted head glow. Тело попадает в bloom-маску и top-down contact-shadow маску через отдельные слои; само тень не кастует. Не физика, не HUD.

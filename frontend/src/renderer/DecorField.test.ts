@@ -1,6 +1,8 @@
 // ROLE: Tests for deterministic grass clumping and prop placement, toroidal wrap, culling and budget caps.
 import { describe, expect, it } from "vitest";
 import {
+  cameraDistanceDensity,
+  cameraViewExposure,
   clumpDensity,
   clumpProfile,
   createCellTufts,
@@ -14,10 +16,12 @@ import {
   GRASS_SEED,
   GRASS_TUFTS_PER_CELL_MAX,
   type GrassFieldConfig,
+  type GrassPlacementView,
   hashCell,
   PROP_VARIANT_COUNTS,
   placeDecorProps,
   placeGrassTufts,
+  pointInConvexQuad,
   sampleCellTufts,
   toroidalDelta,
   toroidalDistance,
@@ -289,6 +293,72 @@ describe("placeGrassTufts", () => {
     }
     expect(cases[2].count).toBe(0);
     expect(cases[3].count).toBe(0);
+  });
+});
+
+describe("camera visibility and distance LOD", () => {
+  const square = [
+    { x: -200, y: -200 },
+    { x: 200, y: -200 },
+    { x: 200, y: 200 },
+    { x: -200, y: 200 },
+  ];
+  const baseView: GrassPlacementView = {
+    cameraX: 0,
+    cameraY: 0,
+    cameraZ: 200,
+    groundZ: 0,
+    near: 250,
+    far: 1000,
+    corners: square,
+  };
+
+  it("tests points against the camera ground quad", () => {
+    expect(pointInConvexQuad(0, 0, square)).toBe(true);
+    expect(pointInConvexQuad(199, 199, square)).toBe(true);
+    expect(pointInConvexQuad(200, 0, square)).toBe(true);
+    expect(pointInConvexQuad(201, 0, square)).toBe(false);
+    expect(pointInConvexQuad(0, -201, square)).toBe(false);
+  });
+
+  it("fades grass smoothly with camera distance", () => {
+    expect(cameraDistanceDensity(0, 0, baseView)).toBe(1);
+    const middle = cameraDistanceDensity(0, 500, baseView);
+    expect(middle).toBeGreaterThan(0);
+    expect(middle).toBeLessThan(1);
+    expect(cameraDistanceDensity(0, 1000, baseView)).toBe(0);
+  });
+
+  it("clips placement to the camera footprint", () => {
+    const buffer = createGrassTuftBuffer(500);
+    const count = placeGrassTufts(0, 0, 500, 500, denseConfig, buffer, baseView);
+
+    expect(count).toBeGreaterThan(0);
+    for (let i = 0; i < count; i++) {
+      expect(pointInConvexQuad(buffer.x[i], buffer.y[i], square)).toBe(true);
+    }
+  });
+
+  it("hides grass when the camera is farther than the LOD range", () => {
+    const near: GrassPlacementView = { ...baseView, cameraZ: 200 };
+    const nearBuffer = createGrassTuftBuffer(500);
+    const nearCount = placeGrassTufts(0, 0, 500, 500, denseConfig, nearBuffer, near);
+
+    const follow: GrassPlacementView = { ...baseView, cameraZ: 600 };
+    const followBuffer = createGrassTuftBuffer(500);
+    const followCount = placeGrassTufts(0, 0, 500, 500, denseConfig, followBuffer, follow);
+    expect(followCount).toBeGreaterThan(0);
+    expect(followCount).toBeLessThan(nearCount);
+
+    const overview: GrassPlacementView = { ...baseView, cameraZ: 1500 };
+    const buffer = createGrassTuftBuffer(500);
+    expect(placeGrassTufts(0, 0, 500, 500, denseConfig, buffer, overview)).toBe(0);
+  });
+
+  it("combines the quad and distance into one exposure", () => {
+    expect(cameraViewExposure(0, 0, baseView)).toBe(1);
+    expect(cameraViewExposure(300, 0, baseView)).toBe(0);
+    expect(cameraViewExposure(0, 0, null)).toBe(1);
   });
 });
 

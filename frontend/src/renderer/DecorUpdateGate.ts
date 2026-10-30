@@ -1,5 +1,5 @@
 // ROLE: Shared rebuild throttle for decorative fields: rebuild only when the camera moved,
-// the budget/radius changed, or the interval elapsed. No rendering, no placement.
+// the view rotated, the budget/radius changed, or the interval elapsed. No rendering, no placement.
 
 /** Minimum time between two decor rebuilds, even while the camera glides. */
 export const DECOR_REBUILD_INTERVAL_MS = 250;
@@ -22,6 +22,8 @@ export interface DecorViewState {
   budget: number;
   cullRadius: number;
   viewExtent: number;
+  /** Camera orientation signature; changes when the view rotates without moving. */
+  viewKey?: number;
 }
 
 const CAMERA_MOVE_SQ = DECOR_CAMERA_MOVE_SQ;
@@ -35,6 +37,7 @@ export class DecorUpdateGate {
   private budget = -1;
   private radius = Number.NaN;
   private viewExtent = Number.NaN;
+  private viewKey = Number.NaN;
 
   public shouldRebuild(state: DecorViewState): boolean {
     if (state.mapX !== this.mapX || state.mapY !== this.mapY) return true;
@@ -52,8 +55,10 @@ export class DecorUpdateGate {
       !Number.isFinite(this.viewExtent) ||
       Math.abs(state.viewExtent - this.viewExtent) >
         Math.max(DECOR_RADIUS_CHANGE_MIN, state.viewExtent * DECOR_RADIUS_CHANGE_RATIO);
+    const orientationChanged =
+      !Number.isFinite(this.viewKey) || Math.abs((state.viewKey ?? 0) - this.viewKey) >= 1;
 
-    return moved || radiusChanged || viewChanged;
+    return moved || radiusChanged || viewChanged || orientationChanged;
   }
 
   public markBuilt(state: DecorViewState): void {
@@ -65,6 +70,7 @@ export class DecorUpdateGate {
     this.budget = state.budget;
     this.radius = state.cullRadius;
     this.viewExtent = state.viewExtent;
+    this.viewKey = state.viewKey ?? 0;
   }
 
   /** Forces the next visible frame to rebuild after the field was hidden. */

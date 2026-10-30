@@ -10,6 +10,7 @@ import {
   GRASS_CELL_DIVISIONS,
   GRASS_SEED,
   type GrassFieldConfig,
+  type GrassPlacementView,
   type GrassTuftBuffer,
   placeGrassTufts,
 } from "./DecorField";
@@ -25,8 +26,13 @@ const GRASS_PUSH_DISABLED = 1e6;
 export const GRASS_MIN_CULL_RADIUS = 550;
 /** Cap for the cull radius: a fixed instance budget cannot cover more without turning to dust. */
 export const GRASS_MAX_CULL_RADIUS = 1200;
+/**
+ * Spectator cameras can sit far above the field; 800 units covers a follow
+ * view at the 600-unit follow zoom while keeping the budget dense enough.
+ */
+export const GRASS_SPECTATOR_CULL_RADIUS = 800;
 /** Fallback player field radius when a caller does not provide a preset value. */
-const GRASS_FIELD_RADIUS_FALLBACK = 400;
+const GRASS_FIELD_RADIUS_FALLBACK = 600;
 /** Tuft scale cap for far cameras, so the field stays legible in the overview. */
 export const GRASS_LOD_SCALE_MAX = 2.6;
 /** View half-extent (world units) at which tufts reach their maximum LOD scale. */
@@ -250,6 +256,7 @@ export class GrassRenderer {
     targetY: number,
     viewHalfExtent: number,
     fieldRadius: number,
+    cameraView: GrassPlacementView | null | undefined,
     contactShadow?: ContactShadowFrame | null,
   ): void {
     const camX = finiteOr(targetX, finiteOr(frame?.camX, 0));
@@ -299,11 +306,14 @@ export class GrassRenderer {
         ? frame.fogRadiusWorld
         : FALLBACK_FOG_RADIUS;
     // Player view concentrates the budget in the near field; the spectator
-    // overview keeps the wider field so the whole arena still gets grass.
+    // follow view gets a fixed 800-unit field, while the overview is hidden by
+    // the camera-distance LOD. Both use the same placement logic.
     const playerRadius =
       Number.isFinite(fieldRadius) && fieldRadius > 0 ? fieldRadius : GRASS_FIELD_RADIUS_FALLBACK;
-    const fieldCap = isSpectator ? GRASS_MAX_CULL_RADIUS : playerRadius;
-    const cullRadius = Math.min(grassCullRadius(fogRadius, viewHalfExtent), fieldCap);
+    const fieldCap = isSpectator ? GRASS_SPECTATOR_CULL_RADIUS : playerRadius;
+    const cullRadius = isSpectator
+      ? GRASS_SPECTATOR_CULL_RADIUS
+      : Math.min(grassCullRadius(fogRadius, viewHalfExtent), fieldCap);
     const lodScale = grassLodScale(viewHalfExtent);
     this.uniforms.uFieldCenter.value.set(camX, camY);
     this.uniforms.uFieldRadius.value = Math.max(1, cullRadius);
@@ -317,10 +327,11 @@ export class GrassRenderer {
       budget: instanceBudget,
       cullRadius,
       viewExtent: viewHalfExtent,
+      viewKey: Number.isFinite(cameraView?.viewKey) ? (cameraView?.viewKey ?? 0) : 0,
     };
     if (!this.gate.shouldRebuild(state)) return;
 
-    this.rebuild(instanceBudget, mapX, mapY, camX, camY, cullRadius, lodScale);
+    this.rebuild(instanceBudget, mapX, mapY, camX, camY, cullRadius, lodScale, cameraView);
     this.gate.markBuilt(state);
   }
 
@@ -341,12 +352,21 @@ export class GrassRenderer {
     camY: number,
     cullRadius: number,
     lodScale: number,
+    cameraView: GrassPlacementView | null | undefined,
   ): void {
     this.fieldConfig.mapCellsX = mapX;
     this.fieldConfig.mapCellsY = mapY;
 
     const rebuildStartedAt = import.meta.env.DEV ? performance.now() : 0;
-    const count = placeGrassTufts(camX, camY, cullRadius, budget, this.fieldConfig, this.tufts);
+    const count = placeGrassTufts(
+      camX,
+      camY,
+      cullRadius,
+      budget,
+      this.fieldConfig,
+      this.tufts,
+      cameraView,
+    );
     this.writeInstances(count, lodScale);
     if (import.meta.env.DEV && typeof window !== "undefined") {
       (window as unknown as Record<string, unknown>).__decorGrassStats = {
