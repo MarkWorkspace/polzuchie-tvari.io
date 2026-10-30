@@ -186,6 +186,12 @@ async def patch_admin_config(patch: AdminConfigPatch, request: Request):
             status_code=503,
             detail="Configuration was validated but could not be persisted",
         ) from exc
+    except Exception as exc:
+        logger.exception("Failed to apply admin config")
+        raise HTTPException(
+            status_code=503,
+            detail="Configuration was validated but could not be applied",
+        ) from exc
 
 
 async def health_check():

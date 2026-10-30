@@ -239,7 +239,7 @@ backend/
 └── app/
     ├── logging_setup.py                # ROLE: Настройка stdlib logging и LOG_LEVEL. Не игровая логика.
     ├── api/
-    │   ├── admin.py                    # ROLE: Admin REST API, config read/write и restart с draining/очисткой соединений. Не игровая логика.
+    │   ├── admin.py                    # ROLE: Admin REST API, config read/write (503 на сбой apply/save) и restart с draining/очисткой соединений. Не игровая логика.
     │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
     │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie и resolver для WS. WS-аутентификацию выполняет websocket.py.
     │   └── websocket.py                # ROLE: WebSocket endpoint: Origin allowlist, per-IP handshake bucket, role caps via pending reservation, cookie-auth identity, epoch/reconnect grace, draining admission. Не игровая логика.
@@ -251,7 +251,7 @@ backend/
         ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
         ├── registry.py                 # ROLE: Авто-дискавери и порядок систем.
         ├── events.py                   # ROLE: Синхронная шина событий.
-        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка конфигурации, управление игроками, draining/restart_epoch. Не содержит игровой логики тика.
+        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка и транзакционное сохранение конфигурации (backup/rollback), управление игроками, draining/restart_epoch. Не содержит игровой логики тика.
         ├── entities.py                 # ROLE: Датаклассы Player, Food, Portal, BlackHole. Только структуры данных.
         ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн, live-пересчёт радиусов.
         ├── world_elements/
@@ -287,6 +287,7 @@ backend/tests/
 ├── test_boost.py                      # ROLE: Буст сохраняет score целым; late join после буста не ломает FULL-синк.
 ├── test_bots.py                       # ROLE: Lifecycle, live config sync, respawn, personalities и руление ботов.
 ├── test_client_messages.py            # ROLE: Лимит длины текстовых команд клиента.
+├── test_config_persistence.py         # ROLE: Транзакционное сохранение конфига: backup, rollback apply/save, bind-mount fallback и 503 на admin-маршруте.
 ├── test_config_validation.py          # ROLE: Валидация конфига: finite, строгие int, диапазоны и fail-fast на битом config.json.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
 ├── test_dead_player_systems.py         # ROLE: Мёртвый игрок не двигается/ест/бустит и не ломает телепорт.

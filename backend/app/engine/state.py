@@ -3,6 +3,7 @@ import os
 import json
 import logging
 import math
+import shutil
 import tempfile
 import errno
 from copy import deepcopy
@@ -156,6 +157,81 @@ class World:
         else:
             player.pending_growth = ideal_pending
 
+    @staticmethod
+    def _fsync_file(path):
+        """Best-effort fsync of an existing file.
+
+        Windows cannot fsync a read-only handle, so reopen for writing; a
+        read-only config must not turn a completed copy into a failed update.
+        """
+        try:
+            with open(path, "r+b") as f:
+                os.fsync(f.fileno())
+        except OSError:
+            logger.debug("Could not fsync %s", path, exc_info=True)
+
+    @staticmethod
+    def _fsync_directory(directory):
+        """Best-effort directory fsync after a rename; skipped on Windows."""
+        if os.name == "nt" or not hasattr(os, "O_DIRECTORY"):
+            return
+        try:
+            dir_fd = os.open(str(directory), os.O_RDONLY | os.O_DIRECTORY)
+        except OSError:
+            logger.debug("Could not open %s for fsync", directory, exc_info=True)
+            return
+        try:
+            os.fsync(dir_fd)
+        except OSError:
+            logger.debug("Could not fsync directory %s", directory, exc_info=True)
+        finally:
+            os.close(dir_fd)
+
+    def _backup_config_file(self):
+        """Copy the current config file to ``<name>.bak``.
+
+        Returns True when a backup exists for this transaction. A missing
+        config file is a no-op: there is no previous version to restore.
+        """
+        path = Path(self.config_file_path)
+        if not path.exists():
+            return False
+        backup_path = path.with_name(f"{path.name}.bak")
+        shutil.copy2(path, backup_path)
+        self._fsync_file(backup_path)
+        logger.info("Backed up config to %s", backup_path)
+        return True
+
+    def _restore_config_file(self, old_config, config_existed, backup_ok):
+        """Best-effort disk rollback after a failed save.
+
+        Prefers the backup written before the save. If the config file did not
+        exist before the failed transaction, any partially created file is
+        removed. Errors are logged and never mask the original save failure.
+        """
+        path = Path(self.config_file_path)
+        backup_path = path.with_name(f"{path.name}.bak")
+        if backup_ok and backup_path.exists():
+            try:
+                shutil.copy2(backup_path, path)
+                self._fsync_file(path)
+                logger.info("Restored config from %s after failed save", backup_path)
+                return
+            except OSError:
+                logger.exception("Failed to restore config from %s", backup_path)
+        if not config_existed:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+            except OSError:
+                logger.exception("Failed to remove partial config %s", path)
+            return
+        try:
+            self._save_config_to_disk(old_config)
+        except OSError:
+            logger.exception("Failed to rewrite previous config to %s", path)
+
     def _save_config_to_disk(self, config=None):
         path = Path(self.config_file_path)
         payload = (config or self.config).to_dict()
@@ -189,6 +265,7 @@ class World:
                     os.fsync(f.fileno())
             else:
                 temp_path = None
+            self._fsync_directory(path.parent)
             logger.info("Successfully saved config to %s", self.config_file_path)
         finally:
             if temp_path and os.path.exists(temp_path):
@@ -197,29 +274,21 @@ class World:
     def get_config(self):
         return self.config.to_dict()
 
-    def update_config(self, patch):
-        old_width = self.grid_width
-        old_height = self.grid_height
-        old_cluster_count = self.config.world.cluster_count
-
-        # Validate the patch and persist it before mutating live state.
-        candidate = deepcopy(self.config)
-        candidate.apply_patch(patch)
-        self._save_config_to_disk(candidate)
+    def _apply_live_config(self, candidate, patch, old_width, old_height, old_cluster_count):
+        """Bind ``candidate`` to the live world and refresh derived state."""
         self.config = candidate
         # Players (including bots) hold a reference, not a snapshot: keep them
         # on the live config before recalculating derived growth state.
         for player in self.players.values():
-            player.config = self.config
+            player.config = candidate
         self._update_compiled_formulas()
-        self._config_updated_this_tick = True
 
-        for p in self.players.values():
-            self.align_player_growth(p)
+        for player in self.players.values():
+            self.align_player_growth(player)
 
-        self.grid_width = self.config.world.width
-        self.grid_height = self.config.world.height
-        self.target_food_count = self.config.world.target_food_count
+        self.grid_width = candidate.world.width
+        self.grid_height = candidate.world.height
+        self.target_food_count = candidate.world.target_food_count
         size_changed = old_width != self.grid_width or old_height != self.grid_height
         self._recompute_grid_cells()
         self.spatial_grid = {}
@@ -244,6 +313,66 @@ class World:
         self.bh_manager.apply_config()
 
         self.bot_manager.sync()
+
+    def _restore_live_config(self, old_config):
+        """Restore config ownership and grid scalars after a failed apply/save.
+
+        ``self.config``, player config references, the compiled growth formula,
+        grid dimensions/cell caches and ``spatial_grid`` are rolled back. Food,
+        portals, black holes and bots may keep derived state from a partially
+        applied candidate; the next successful update or restart reconciles
+        them.
+        """
+        self.config = old_config
+        for player in self.players.values():
+            player.config = old_config
+        self._update_compiled_formulas()
+
+        self.grid_width = old_config.world.width
+        self.grid_height = old_config.world.height
+        self.target_food_count = old_config.world.target_food_count
+        self._recompute_grid_cells()
+        self.spatial_grid = {}
+
+    def update_config(self, patch):
+        """Validate, apply live and then persist a config patch.
+
+        Validation happens on a deep copy before any live state changes. The
+        candidate is then applied in memory and only afterwards written to
+        disk (with a ``.bak`` of the previous file). A failed apply leaves the
+        file untouched; a failed save rolls memory back to ``old_config`` and
+        restores the file from the backup. See ``_restore_live_config`` for the
+        intentionally limited rollback scope.
+        """
+        old_config = self.config
+        old_width = self.grid_width
+        old_height = self.grid_height
+        old_cluster_count = old_config.world.cluster_count
+
+        candidate = deepcopy(old_config)
+        candidate.apply_patch(patch)
+
+        try:
+            self._apply_live_config(candidate, patch, old_width, old_height, old_cluster_count)
+        except Exception:
+            self._restore_live_config(old_config)
+            raise
+
+        config_existed = os.path.exists(self.config_file_path)
+        try:
+            backup_ok = self._backup_config_file()
+        except Exception:
+            self._restore_live_config(old_config)
+            raise
+
+        try:
+            self._save_config_to_disk(candidate)
+        except Exception:
+            self._restore_live_config(old_config)
+            self._restore_config_file(old_config, config_existed, backup_ok)
+            raise
+
+        self._config_updated_this_tick = True
         return self.get_config()
 
     def add_player(self, player_id, nickname="Игрок", skin="#22c55e"):
