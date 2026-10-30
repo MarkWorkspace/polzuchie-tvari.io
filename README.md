@@ -97,6 +97,21 @@ backend на `:8000` с `ADMIN_PASSWORD=e2e-admin`; если локальный 
 запущен, остановите его. Backend получает временную копию `backend/config.json`
 через `CONFIG_PATH`, поэтому изменения конфига из E2E не трогают файл в репозитории.
 
+### CI checks
+
+GitHub Actions (`.github/workflows/ci.yml`) запускается на push/PR в `main` и
+`dev`, а также вручную (`workflow_dispatch`). Jobs:
+
+- **backend** — `uv lock --check`, Ruff format/lint, проверка актуальности
+  сгенерированного protobuf, pytest и `pip-audit`;
+- **frontend** — lint, typecheck, `npm audit`, production build и Vitest;
+- **e2e** — Playwright smoke-тесты на Chromium (отчёты загружаются при падении);
+- **docker** — `docker compose config` и сборка backend/frontend образов.
+
+Локально backend и frontend проверки запускаются одной командой
+`uv run --project backend python scripts/run_checks.py all`; E2E и Docker —
+командами из разделов выше и ниже.
+
 ## Git hooks
 
 ```bash
