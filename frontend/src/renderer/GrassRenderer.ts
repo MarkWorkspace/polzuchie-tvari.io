@@ -246,7 +246,7 @@ export class GrassRenderer {
     uShadowHalfExtent: { value: 180 },
     uShadowStrength: { value: 0 },
     uShadowTint: { value: GRASS_SHADOW_TINT },
-    uShadowDilate: { value: 0.012 },
+    uShadowDilate: { value: 0.008 },
     uFieldCenter: { value: new THREE.Vector2() },
     uFieldRadius: { value: 1 },
     uFadeNear: { value: 250 },
@@ -614,7 +614,7 @@ export class GrassRenderer {
         );
         shadowCoverage *= shadowInside.x * shadowInside.y;
         float grassFlatten = clamp(
-          smoothstep(0.01, 0.14, shadowCoverage) * uShadowStrength,
+          smoothstep(0.05, 0.5, shadowCoverage) * uShadowStrength,
           0.0,
           1.0
         );
@@ -655,7 +655,7 @@ export class GrassRenderer {
         float grassDist = length(grassToPlayer);
         // The head parts the grass only in its immediate neighbourhood; the
         // ribbon shadow handles the rest of the body.
-        float grassPush = (1.0 - smoothstep(10.0, 32.0, grassDist)) * grassBend * 2.2;
+        float grassPush = (1.0 - smoothstep(10.0, 28.0, grassDist)) * grassBend * 1.8;
         mvPosition.xy += (grassToPlayer / max(grassDist, 0.001)) * grassPush;
 
         vGrassShadow = clamp(shadowCoverage * 1.6, 0.0, 1.0) * uShadowStrength;
