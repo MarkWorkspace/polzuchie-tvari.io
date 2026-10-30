@@ -2,7 +2,9 @@
 # ЕДИНСТВЕННАЯ копия сценария — используется и generate_frame_fixtures.py, и test_frame_parity.py.
 # Изменение здесь ОЖИДАЕМО ведёт к перегенерации фикстур (см. README в tests_shared/golden_frames/).
 
+import os
 import random
+from pathlib import Path
 
 from app.engine.state import World
 
@@ -10,6 +12,7 @@ SEED = 42
 CLIENT_ID = "player_aoi"
 AOI_TICKS = 2  # тики до FULL-кадра
 DELTA_TICKS = 1  # тики до DELTA-кадра
+PINNED_CONFIG_PATH = Path(__file__).resolve().parent / "fixtures" / "config_parity.json"
 
 
 def _set_player_pos(player, x: float, y: float) -> None:
@@ -23,9 +26,28 @@ def _set_player_pos(player, x: float, y: float) -> None:
 
 
 def build_deterministic_world() -> World:
-    """Построить воспроизводимый мир с тремя игроками в известных позициях."""
+    """Построить воспроизводимый мир с тремя игроками в известных позициях.
+
+    Parity-сценарий всегда читает pinned-конфиг, а не tracked runtime
+    `backend/config.json`, даже если тест или генератор передали другой
+    CONFIG_PATH. Последующие записи конфига направляются в вызывающий
+    CONFIG_PATH (или в pinned-путь, если он не был задан), чтобы
+    `update_config()` не мог перезаписать tracked фикстуру.
+    """
     random.seed(SEED)
-    world = World()
+    previous_config_path = os.environ.get("CONFIG_PATH")
+    os.environ["CONFIG_PATH"] = str(PINNED_CONFIG_PATH)
+    try:
+        world = World()
+    finally:
+        if previous_config_path is None:
+            os.environ.pop("CONFIG_PATH", None)
+        else:
+            os.environ["CONFIG_PATH"] = previous_config_path
+
+    world.config_file_path = (
+        previous_config_path if previous_config_path is not None else str(PINNED_CONFIG_PATH)
+    )
 
     world.add_player("player_aoi", nickname="InAoI", skin="#ff0000")
     world.add_player("player_far", nickname="FarAway", skin="#00ff00")

@@ -10,7 +10,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from tests.frame_scenario import build_full_and_delta_world
+from tests.frame_scenario import PINNED_CONFIG_PATH, build_full_and_delta_world
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests_shared", "golden_frames")
 
@@ -27,6 +27,8 @@ def _round_floats(val):
 
 def _generate_and_save() -> None:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Golden-кадры должны зависеть только от pinned-конфига, не от runtime config.json.
+    os.environ["CONFIG_PATH"] = str(PINNED_CONFIG_PATH)
     _world, full_frame, delta_frame = build_full_and_delta_world()
 
     # FULL frame: сжатые байты (как отправляется по сети) + эталонный JSON.
@@ -53,8 +55,10 @@ def _write_bin(path: str, data: bytes) -> None:
 
 
 def _write_json(path: str, data) -> None:
-    with open(path, "w", encoding="utf-8") as f:
+    # newline="\n" keeps golden JSON byte-identical on Windows and Linux.
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(data, f, indent=2, ensure_ascii=False, sort_keys=True)
+        f.write("\n")
 
 
 if __name__ == "__main__":

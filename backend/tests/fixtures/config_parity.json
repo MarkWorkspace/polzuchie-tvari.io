@@ -1,0 +1,136 @@
+{
+    "world": {
+        "width": 100,
+        "height": 100,
+        "target_food_count": 250,
+        "food_overflow_limit": 150,
+        "cluster_count": 8,
+        "cluster_spawn_chance": 0.8,
+        "cluster_spread": 5.0,
+        "cluster_move_chance": 0.025,
+        "portals_enabled": 1,
+        "portals_count": 2,
+        "portals_radius": 2.5,
+        "portals_teleport_delay_ms": 2000,
+        "portals_spawn_chance": 0.5,
+        "portals_growth_time": 3.0,
+        "black_holes_enabled": 1,
+        "black_holes_count": 2,
+        "black_holes_spawn_chance": 0.5,
+        "black_holes_pull_radius": 16,
+        "black_holes_pull_force": 1,
+        "black_holes_kill_radius": 1.2,
+        "black_holes_growth_time": 5.0
+    },
+    "simulation": {
+        "tick_rate": 30,
+        "base_speed_per_second": 6.0,
+        "max_turn_speed_deg_per_second": 290.0,
+        "min_turn_radius": 0.5,
+        "turn_radius_thickness_coeff": 1.0,
+        "turn_idle_smoothing_at_20hz": 0.3,
+        "turn_active_smoothing_at_20hz": 0.15
+    },
+    "snake": {
+        "start_length": 9,
+        "start_score": 1,
+        "base_head_radius": 0.1,
+        "score_thickness_scale": 0.0002,
+        "camera_zoom_out_coeff": 20,
+        "growth_score_per_segment": "6 + 0.0047 * s",
+        "min_body_length": 9,
+        "safe_spawn_distance": 15.0,
+        "max_growth_score": 20000
+    },
+    "boost": {
+        "min_score": 15,
+        "speed_multiplier": 1.7,
+        "drain_interval_seconds": 0.1,
+        "drain_per_interval": 1.0,
+        "food_drop_value": 1
+    },
+    "food": {
+        "types": [
+            {
+                "value": 1,
+                "weight": 500,
+                "color": "#ef4444",
+                "image": "cherry.svg"
+            },
+            {
+                "value": 2,
+                "weight": 250,
+                "color": "#f43f5e",
+                "image": "strawberry.svg"
+            },
+            {
+                "value": 3,
+                "weight": 150,
+                "color": "#8b5cf6",
+                "image": "grape.svg"
+            },
+            {
+                "value": 5,
+                "weight": 60,
+                "color": "#f97316",
+                "image": "mandarin.svg"
+            },
+            {
+                "value": 12,
+                "weight": 30,
+                "color": "#ea580c",
+                "image": "persimmon.svg"
+            },
+            {
+                "value": 20,
+                "weight": 20,
+                "color": "#dc2626",
+                "image": "apple.svg"
+            },
+            {
+                "value": 30,
+                "weight": 10,
+                "color": "#ca8a04",
+                "image": "pear.svg"
+            },
+            {
+                "value": 50,
+                "weight": 4,
+                "color": "#f472b6",
+                "image": "peach.svg"
+            },
+            {
+                "value": 100,
+                "weight": 3,
+                "color": "#eab308",
+                "image": "pineapple.svg"
+            },
+            {
+                "value": 200,
+                "weight": 2,
+                "color": "#22c55e",
+                "image": "melon.svg"
+            },
+            {
+                "value": 300,
+                "weight": 1,
+                "color": "#15803d",
+                "image": "watermelon.svg"
+            }
+        ],
+        "base_radius": 0.1,
+        "radius_value_scale": 0.1,
+        "death_drop_score_fraction": 0.5,
+        "attraction_radius": 3.0,
+        "attraction_speed": 14
+    },
+    "visual": {
+        "min_fog_radius": 500,
+        "fog_score_expansion_coeff": 0.1,
+        "camera_base_zoom": 7,
+        "camera_pitch_angle": 55,
+        "camera_z_height": 0.0,
+        "camera_y_offset": 0.3,
+        "mouse_sensitivity": 1.5
+    }
+}
