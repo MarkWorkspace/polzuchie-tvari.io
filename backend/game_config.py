@@ -1,10 +1,11 @@
 # ROLE: Game config dataclasses, validation and patching. Not runtime state.
-import ast
 import copy
 import logging
 import math
 import typing
 from dataclasses import asdict, dataclass, field, fields, is_dataclass
+
+from app.engine.systems.formula_parser import compile_growth_formula
 
 CELL_SIZE = 10.0
 logger = logging.getLogger(__name__)
@@ -384,126 +385,5 @@ def _require_range(name, value, minimum, maximum):
 
 
 def validate_growth_formula(formula_str: str) -> None:
-    if not isinstance(formula_str, str):
-        formula_str = str(formula_str)
-
-    # Try parsing as a raw float/int first. If it's just a number, it's always valid!
-    try:
-        val = float(formula_str)
-        if val < 0.1 or val > 1000000:
-            raise ValueError("Growth segment cost must be between 0.1 and 1,000,000")
-        return
-    except ValueError as e:
-        if "Growth segment cost" in str(e):
-            raise
-
-    try:
-        tree = ast.parse(formula_str, mode="eval")
-    except Exception as e:
-        raise ValueError(f"Syntax error in formula: {str(e)}") from e
-
-    allowed_names = {"s", "S", "score", "SCORE", "l", "L", "len", "LEN", "pi", "e"}
-    allowed_funcs = {
-        "log",
-        "log10",
-        "sin",
-        "cos",
-        "tan",
-        "sqrt",
-        "exp",
-        "abs",
-        "min",
-        "max",
-        "pow",
-    }
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Expression):
-            continue
-        elif isinstance(node, ast.BinOp):
-            if not isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow)):
-                raise ValueError(f"Operator '{type(node.op).__name__}' is not allowed in formula")
-        elif isinstance(node, ast.UnaryOp):
-            if not isinstance(node.op, (ast.UAdd, ast.USub)):
-                raise ValueError(f"Unary operator '{type(node.op).__name__}' is not allowed")
-        elif isinstance(node, ast.Constant):
-            continue
-        elif isinstance(node, ast.Name):
-            if node.id not in allowed_names and node.id not in allowed_funcs:
-                raise ValueError(
-                    f"Variable or math constant '{node.id}' is not allowed. Use s (score) or l (length)"
-                )
-        elif isinstance(node, ast.Call):
-            if not isinstance(node.func, ast.Name) or node.func.id not in allowed_funcs:
-                func_name = (
-                    node.func.id if isinstance(node.func, ast.Name) else "complex expression"
-                )
-                raise ValueError(
-                    f"Math function '{func_name}' is not allowed. Allowed: {', '.join(sorted(allowed_funcs))}"
-                )
-        elif isinstance(node, ast.Load):
-            continue
-        elif isinstance(
-            node,
-            (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow, ast.UAdd, ast.USub),
-        ):
-            continue
-        else:
-            raise ValueError(f"Expression type '{type(node).__name__}' is not allowed in formula")
-
-    # Test evaluation
-    safe_env = {
-        "s": 10.0,
-        "S": 10.0,
-        "score": 10.0,
-        "SCORE": 10.0,
-        "l": 9.0,
-        "L": 9.0,
-        "len": 9.0,
-        "LEN": 9.0,
-        "pi": math.pi,
-        "e": math.e,
-        "log": lambda x: math.log(max(0.001, x)),
-        "log10": lambda x: math.log10(max(0.001, x)),
-        "sin": math.sin,
-        "cos": math.cos,
-        "tan": math.tan,
-        "sqrt": lambda x: math.sqrt(max(0.0, x)),
-        "exp": math.exp,
-        "abs": abs,
-        "min": min,
-        "max": max,
-        "pow": pow,
-    }
-
-    try:
-        compiled = compile(tree, "<string>", "eval")
-        # Test 1: baseline
-        res1 = eval(compiled, {"__builtins__": {}}, safe_env)
-        if not isinstance(res1, (int, float)) or math.isnan(res1) or math.isinf(res1):
-            raise ValueError("Formula must evaluate to a valid finite number")
-        if res1 <= 0:
-            raise ValueError("Formula must evaluate to a positive growth cost (greater than 0)")
-
-        # Test 2: higher values
-        test_env_2 = {
-            **safe_env,
-            "s": 1000.0,
-            "S": 1000.0,
-            "score": 1000.0,
-            "SCORE": 1000.0,
-            "l": 100.0,
-            "L": 100.0,
-            "len": 100.0,
-            "LEN": 100.0,
-        }
-        res2 = eval(compiled, {"__builtins__": {}}, test_env_2)
-        if not isinstance(res2, (int, float)) or math.isnan(res2) or math.isinf(res2):
-            raise ValueError("Formula must evaluate to a valid finite number")
-        if res2 <= 0:
-            raise ValueError("Formula must evaluate to a positive growth cost (greater than 0)")
-
-    except Exception as e:
-        if not isinstance(e, ValueError):
-            raise ValueError(f"Failed to evaluate formula: {str(e)}") from e
-        raise
+    """Validate a formula with the same compiler the runtime uses."""
+    compile_growth_formula(formula_str)

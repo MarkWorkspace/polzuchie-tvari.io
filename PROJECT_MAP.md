@@ -269,7 +269,7 @@ backend/
             ├── growth.py               # ROLE: Рост/усыхание, формула сегментов.
             ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
             ├── visibility.py           # ROLE: AoI-фильтрация видимых игроков.
-            ├── formula_parser.py       # ROLE: Единственная реализация парсера формул роста.
+            ├── formula_parser.py       # ROLE: Единственный AST compile/eval формул роста: validation и runtime. Не regex-парсер.
             ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, кэши игроков.
             └── snake_pb2.py            # ROLE: [СГЕНЕРИРОВАНО] Python-модуль Protobuf.
 ```
@@ -292,7 +292,7 @@ backend/tests/
 ├── test_dead_player_systems.py         # ROLE: Мёртвый игрок не двигается/ест/бустит и не ломает телепорт.
 ├── test_tombstones.py                  # ROLE: Уникальные ID после респавна и collision-radius надгробия.
 ├── test_events.py                      # ROLE: Тесты EventBus.
-├── test_formula_parser.py              # ROLE: Тесты парсера формул роста.
+├── test_formula_parser.py              # ROLE: Тесты единого AST-движка формул роста: validation, runtime, differential и ошибки.
 ├── test_frame_parity.py                # ROLE: Parity-тест кадра: deterministic protobuf vs .expected.json и .bin (транспорт).
 ├── test_gravity.py                     # ROLE: Тестирование системы гравитации (притяжения еды).
 ├── test_gravity_once_per_tick.py        # ROLE: Тест: гравитация чёрных дыр применяется к углу змейки ровно один раз за тик.

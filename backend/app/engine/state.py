@@ -8,12 +8,12 @@ import errno
 from copy import deepcopy
 from pathlib import Path
 
-from game_config import GameConfig, validate_growth_formula, CELL_SIZE
+from game_config import GameConfig, CELL_SIZE
 from app.bots import BotManager
 from app.engine.entities import Player
 from app.engine.food_manager import FoodManager
 from app.engine.world_elements import PortalManager, BlackHoleManager
-from app.engine.systems.formula_parser import evaluate_formula
+from app.engine.systems.formula_parser import compile_growth_formula
 from app.engine.events import EventBus
 import app.engine.game as game_orchestrator
 
@@ -102,21 +102,10 @@ class World:
 
     def _update_compiled_formulas(self):
         formula = self.config.snake.growth_score_per_segment
-        try:
-            if not isinstance(formula, str):
-                formula = str(formula)
-            validate_growth_formula(formula)
-
-            self.growth_segment_cost_func = lambda score, length: evaluate_formula(
-                formula, score, length
-            )
-            logger.info("Bound growth segment cost function: %s", formula)
-        except Exception as e:
-            logger.error(
-                "Error compiling growth formula: %s. Falling back to lambda score, length: 10.0",
-                e,
-            )
-            self.growth_segment_cost_func = lambda score, length: 10.0
+        # Fail fast: GameConfig.validate() already compiles the formula, so an
+        # invalid expression must never silently fall back to a constant cost.
+        self.growth_segment_cost_func = compile_growth_formula(formula).evaluate
+        logger.info("Bound growth segment cost function: %s", formula)
 
     def align_player_growth(self, player):
         start_score = self.config.snake.start_score
