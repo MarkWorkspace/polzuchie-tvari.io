@@ -1,7 +1,9 @@
 # ROLE: Admin REST API. Session cookie auth, config read/write, restart. Not game logic.
 import os
 import asyncio
+import contextlib
 import hmac
+import inspect
 import logging
 import secrets
 import time
@@ -219,32 +221,58 @@ async def _queue_restart_message(shutdown_message: bytes) -> None:
             logger.debug("Failed to queue restart message", exc_info=True)
 
 
+async def _cancel_and_wait(task) -> None:
+    """Cancel a background task and wait until it stops.
+
+    Fake tasks in tests are not awaitable; for them only ``cancel`` runs.
+    """
+    if task is None:
+        return
+    try:
+        task.cancel()
+    except Exception:
+        logger.debug("Failed to cancel background task", exc_info=True)
+        return
+    if inspect.isawaitable(task):
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await task
+
+
 async def _close_active_connections() -> None:
-    for connection in list(active_connections.values()):
+    for client_id, connection in list(active_connections.items()):
+        # Detach first: endpoint cleanup must not schedule a delayed removal
+        # for a session that restart is clearing anyway.
+        if active_connections.get(client_id) is connection:
+            active_connections.pop(client_id, None)
         try:
             await connection["websocket"].close(code=1012, reason="Server restart")
         except Exception:
             logger.debug("Failed to close WebSocket during restart", exc_info=True)
-        try:
-            connection["task"].cancel()
-        except Exception:
-            logger.debug("Failed to cancel connection task during restart", exc_info=True)
-    active_connections.clear()
+        await _cancel_and_wait(connection.get("task"))
 
 
-def _cancel_pending_disconnects() -> None:
-    for task in pending_disconnects.values():
-        task.cancel()
+async def _cancel_pending_disconnects() -> None:
+    tasks = list(pending_disconnects.values())
     pending_disconnects.clear()
+    for task in tasks:
+        await _cancel_and_wait(task)
 
 
 async def admin_restart_game(request: Request):
     logger.info("Game restart requested. Notifying all clients...")
+    world = request.app.state.world
 
-    await _queue_restart_message(_build_restart_message())
-    await _close_active_connections()
-    _cancel_pending_disconnects()
-    request.app.state.world.reset_state()
+    # Reject new handshakes for the whole shutdown window. Without this flag a
+    # connection can register between closing sockets and reset_state() and
+    # become a ghost after the restart.
+    world.draining = True
+    try:
+        await _queue_restart_message(_build_restart_message())
+        await _close_active_connections()
+        await _cancel_pending_disconnects()
+        world.reset_state()
+    finally:
+        world.draining = False
 
     logger.info("Game state reset complete. Clients will auto-reconnect.")
     return {"status": "ok", "message": "Game restarted"}

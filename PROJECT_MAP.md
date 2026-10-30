@@ -238,10 +238,10 @@ backend/
 └── app/
     ├── logging_setup.py                # ROLE: Настройка stdlib logging и LOG_LEVEL. Не игровая логика.
     ├── api/
-    │   ├── admin.py                    # ROLE: Admin REST API.
+    │   ├── admin.py                    # ROLE: Admin REST API, config read/write и restart с draining/очисткой соединений. Не игровая логика.
     │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
     │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie и resolver для WS. WS-аутентификацию выполняет websocket.py.
-    │   └── websocket.py                # ROLE: WebSocket endpoint, cookie-auth player identity, rate limiting, spectator/player identity. Не игровая логика.
+    │   └── websocket.py                # ROLE: WebSocket endpoint, cookie-auth player identity, connection epoch/reconnect grace, draining admission, rate limiting, spectator/player identity. Не игровая логика.
     ├── bots/
     │   ├── __init__.py                 # ROLE: Изолированный пакет ботов; удаляется вместе с 3 engine-хуками.
     │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов, personalities и сглаживание руления. Без сети и рендера.
@@ -250,7 +250,7 @@ backend/
         ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
         ├── registry.py                 # ROLE: Авто-дискавери и порядок систем.
         ├── events.py                   # ROLE: Синхронная шина событий.
-        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка конфигурации, управление игроками. Не содержит игровой логики тика.
+        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка конфигурации, управление игроками, draining/restart_epoch. Не содержит игровой логики тика.
         ├── entities.py                 # ROLE: Датаклассы Player, Food, Portal, BlackHole. Только структуры данных.
         ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн.
         ├── world_elements/
@@ -281,7 +281,7 @@ backend/
 backend/tests/
 ├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации. Проверяет парсинг пароля, очистку пробелов/кавычек и работу login-обработчика.
 ├── test_admin_config_schema.py        # ROLE: Контракт Pydantic-схемы PATCH /admin/config: parity с GameConfig, неизвестные ключи, типы и 422/400 на маршруте.
-├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока. Проверяет Protobuf restart-frame и очистку соединений.
+├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока: Protobuf restart-frame, ожидание/отмена соединений, draining-флаг.
 ├── test_black_hole_timer.py           # ROLE: Таймеры чёрных дыр двигаются ровно один раз за тик.
 ├── test_boost.py                      # ROLE: Буст сохраняет score целым; late join после буста не ломает FULL-синк.
 ├── test_bots.py                       # ROLE: Lifecycle, live config sync, respawn, personalities и руление ботов.
@@ -298,6 +298,7 @@ backend/tests/
 ├── test_math_parity.py                 # ROLE: Parity-тест тороидальной математики. Сверяет Python с golden vectors.
 ├── test_physics.py                     # ROLE: Тесты физики движения.
 ├── test_player_session.py              # ROLE: Player session cookie/store и WS cookie-auth: флаги cookie, reuse, delete, TTL, cap, rate limit, reconnect identity, spectator isolation.
+├── test_reconnect_race.py              # ROLE: Reconnect epoch, ownership FULL-send, delayed-remove vs новая сессия/grace-boundary, отмена pending, restart draining и отсутствие ghost.
 ├── test_serialization_cache_race.py    # ROLE: Позднее подключение игрока не вызывает KeyError в кэше кадра.
 ├── test_server_resilience.py           # ROLE: Сбой сериализации одного клиента не убивает game loop.
 ├── test_spectator_identity.py          # ROLE: Cookie-auth identity; spectator не переиспользует player id; неудачный handshake не оставляет призрака.

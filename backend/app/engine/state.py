@@ -40,6 +40,13 @@ class World:
 
         self.players = {}
         self.spectators = set()
+        # Set while admin restart closes sockets. New handshakes are rejected
+        # until the world reset completes; see app/api/admin.py.
+        self.draining = False
+        # Monotonic world generation, incremented by reset_state(). An
+        # in-flight WebSocket handshake that started in an older generation
+        # must not register into the reset world.
+        self.restart_epoch = 0
         self.client_visibility = {}
         self.grid_width = self.config.world.width
         self.grid_height = self.config.world.height
@@ -363,6 +370,7 @@ class World:
         }
 
     def reset_state(self):
+        self.restart_epoch += 1
         self.players.clear()
         self.spectators.clear()
         self.client_visibility.clear()
