@@ -290,7 +290,7 @@ backend/tests/
 ├── test_tombstones.py                  # ROLE: Уникальные ID после респавна и collision-radius надгробия.
 ├── test_events.py                      # ROLE: Тесты EventBus.
 ├── test_formula_parser.py              # ROLE: Тесты парсера формул роста.
-├── test_frame_parity.py                # ROLE: Round-trip parity-тест сетевого кадра. Кодирует → декодирует → сравнивает с .expected.json.
+├── test_frame_parity.py                # ROLE: Parity-тест кадра: deterministic protobuf vs .expected.json и .bin (транспорт).
 ├── test_gravity.py                     # ROLE: Тестирование системы гравитации (притяжения еды).
 ├── test_gravity_once_per_tick.py        # ROLE: Тест: гравитация чёрных дыр применяется к углу змейки ровно один раз за тик.
 ├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
@@ -316,11 +316,15 @@ tests_shared/
 ├── golden_vectors/
 │   └── math.json                       # Эталонные векторы для тороидальной математики (25 кейсов).
 └── golden_frames/
-    ├── frame_full.bin                  # Эталонный FULL-кадр (zlib + Protobuf).
+    ├── frame_full.bin                  # Сжатая транспортная фикстура FULL (zlib + Protobuf); не byte-golden.
     ├── frame_full.expected.json        # Ожидаемый результат декодирования FULL-кадра.
-    ├── frame_delta.bin                 # Эталонный DELTA-кадр (zlib + Protobuf).
+    ├── frame_delta.bin                 # Сжатая транспортная фикстура DELTA (zlib + Protobuf); не byte-golden.
     └── frame_delta.expected.json       # Ожидаемый результат декодирования DELTA-кадра.
 ```
+
+`.bin` — сжатые транспортные фикстуры для decoder round-trip. Parity сравнивает
+**несжатый deterministic protobuf**, а не zlib-байты: вывод zlib зависит от
+платформы/версии и эталоном не является.
 
 ---
 
