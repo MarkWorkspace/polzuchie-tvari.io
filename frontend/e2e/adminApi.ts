@@ -1,7 +1,7 @@
 // ROLE: Shared admin REST helpers for Playwright specs. Not product code.
 import { type APIRequestContext, expect } from "@playwright/test";
 
-export const BACKEND_URL = "http://127.0.0.1:8000";
+export const BACKEND_URL = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:8000";
 const ADMIN_PASSWORD = "e2e-admin";
 
 export async function loginAdmin(request: APIRequestContext): Promise<void> {
@@ -20,4 +20,17 @@ export async function readConfig(request: APIRequestContext): Promise<unknown> {
 export async function patchConfig(request: APIRequestContext, patch: unknown): Promise<void> {
   const response = await request.patch(`${BACKEND_URL}/admin/config`, { data: patch });
   expect(response.ok()).toBe(true);
+}
+
+export interface AdminHealth {
+  status: string;
+  players: number;
+  bots: number;
+  spectators: number;
+}
+
+export async function readHealth(request: APIRequestContext): Promise<AdminHealth> {
+  const response = await request.get(`${BACKEND_URL}/admin/health`);
+  expect(response.ok()).toBe(true);
+  return (await response.json()) as AdminHealth;
 }
