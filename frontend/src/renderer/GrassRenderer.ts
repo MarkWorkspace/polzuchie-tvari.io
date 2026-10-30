@@ -246,6 +246,7 @@ export class GrassRenderer {
     uShadowHalfExtent: { value: 180 },
     uShadowStrength: { value: 0 },
     uShadowTint: { value: GRASS_SHADOW_TINT },
+    uShadowDilate: { value: 0.012 },
     uFieldCenter: { value: new THREE.Vector2() },
     uFieldRadius: { value: 1 },
     uFadeNear: { value: 250 },
@@ -533,6 +534,7 @@ export class GrassRenderer {
       shader.uniforms.uShadowHalfExtent = this.uniforms.uShadowHalfExtent;
       shader.uniforms.uShadowStrength = this.uniforms.uShadowStrength;
       shader.uniforms.uShadowTint = this.uniforms.uShadowTint;
+      shader.uniforms.uShadowDilate = this.uniforms.uShadowDilate;
       shader.uniforms.uFieldCenter = this.uniforms.uFieldCenter;
       shader.uniforms.uFieldRadius = this.uniforms.uFieldRadius;
       shader.uniforms.uFadeNear = this.uniforms.uFadeNear;
@@ -548,6 +550,7 @@ export class GrassRenderer {
         uniform vec2 uShadowCenter;
         uniform float uShadowHalfExtent;
         uniform float uShadowStrength;
+        uniform float uShadowDilate;
         uniform vec2 uFieldCenter;
         uniform float uFieldRadius;
         varying float vGrassShadow;
@@ -590,10 +593,32 @@ export class GrassRenderer {
         #endif
         vec2 grassShadowUv = (grassRootWorld.xy - uShadowCenter) / (2.0 * uShadowHalfExtent) + 0.5;
         vec2 shadowInside = step(vec2(0.0), grassShadowUv) * step(grassShadowUv, vec2(1.0));
-        float shadowCoverage =
-          texture2D(uShadowMap, grassShadowUv).r * shadowInside.x * shadowInside.y;
-        float grassFlatten = smoothstep(0.05, 0.35, shadowCoverage) * uShadowStrength;
-        transformed.z *= 1.0 - grassFlatten * 0.95;
+        // Dilate the blurred silhouette a little at the tuft root, so blades
+        // leaning into the body are flattened too, not only roots directly under it.
+        float shadowCoverage = texture2D(uShadowMap, grassShadowUv).r;
+        shadowCoverage = max(
+          shadowCoverage,
+          texture2D(uShadowMap, grassShadowUv + vec2(uShadowDilate, 0.0)).r
+        );
+        shadowCoverage = max(
+          shadowCoverage,
+          texture2D(uShadowMap, grassShadowUv - vec2(uShadowDilate, 0.0)).r
+        );
+        shadowCoverage = max(
+          shadowCoverage,
+          texture2D(uShadowMap, grassShadowUv + vec2(0.0, uShadowDilate)).r
+        );
+        shadowCoverage = max(
+          shadowCoverage,
+          texture2D(uShadowMap, grassShadowUv - vec2(0.0, uShadowDilate)).r
+        );
+        shadowCoverage *= shadowInside.x * shadowInside.y;
+        float grassFlatten = clamp(
+          smoothstep(0.01, 0.14, shadowCoverage) * uShadowStrength,
+          0.0,
+          1.0
+        );
+        transformed.z *= 1.0 - grassFlatten;
 
         vec4 mvPosition = vec4( transformed, 1.0 );
 
@@ -630,7 +655,7 @@ export class GrassRenderer {
         float grassDist = length(grassToPlayer);
         // The head parts the grass only in its immediate neighbourhood; the
         // ribbon shadow handles the rest of the body.
-        float grassPush = (1.0 - smoothstep(8.0, 24.0, grassDist)) * grassBend * 1.6;
+        float grassPush = (1.0 - smoothstep(10.0, 32.0, grassDist)) * grassBend * 2.2;
         mvPosition.xy += (grassToPlayer / max(grassDist, 0.001)) * grassPush;
 
         vGrassShadow = clamp(shadowCoverage * 1.6, 0.0, 1.0) * uShadowStrength;
