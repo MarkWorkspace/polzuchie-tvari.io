@@ -214,6 +214,10 @@ class World:
         candidate.apply_patch(patch)
         self._save_config_to_disk(candidate)
         self.config = candidate
+        # Players (including bots) hold a reference, not a snapshot: keep them
+        # on the live config before recalculating derived growth state.
+        for player in self.players.values():
+            player.config = self.config
         self._update_compiled_formulas()
         self._config_updated_this_tick = True
 
