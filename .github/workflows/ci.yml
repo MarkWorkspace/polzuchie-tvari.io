@@ -106,7 +106,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Run E2E smoke tests
         working-directory: frontend
-        timeout-minutes: 12
+        timeout-minutes: 15
         run: npm run test:e2e
         env:
           CI: "true"

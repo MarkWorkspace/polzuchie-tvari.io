@@ -23,8 +23,13 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: isCi ? 1 : 0,
-  timeout: 45_000,
-  expect: { timeout: 12_000 },
+  // Headless Linux CI has no GPU and renders through SwiftShader. At the
+  // "auto" quality the first frame takes ~28s and subsequent frames 4-13s, so
+  // a spectator page needs ~70s to reach "Live". E2E asserts behaviour, not
+  // visual fidelity, so every context starts in "low" quality (see
+  // storageState below) and the timeouts cover a cold software renderer.
+  timeout: 120_000,
+  expect: { timeout: 60_000 },
   reporter: isCi
     ? [["github"], ["html", { open: "never" }]]
     : [["list"], ["html", { open: "never" }]],
@@ -34,6 +39,18 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "off",
+    // Force the cheap render preset for every test context. This is only
+    // initial localStorage; player cookies are still issued by the backend
+    // after POST /session, so session-based identity is unaffected.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: "http://127.0.0.1:5173",
+          localStorage: [{ name: "snake-quality", value: "low" }],
+        },
+      ],
+    },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], channel: "chromium" } }],
   webServer: [

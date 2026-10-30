@@ -90,6 +90,15 @@ Playwright поднимает backend на `:8000` и `vite preview` на `:5173
 корректно его останавливает. Сценарии: `login → HUD → качество`, реальная
 смерть от чёрной дыры → respawn, spectator-режим и admin login/logout.
 
+E2E принудительно стартует каждый контекст в `low` quality: в headless Linux CI
+нет GPU, WebGL идёт через software-рендерер SwiftShader, и на `auto`/`high`
+первый кадр занимает секунды. Тесты проверяют поведение, а не картинку, поэтому
+`playwright.config.ts` задаёт `snake-quality=low` через `storageState`
+(только localStorage; cookie игрока по-прежнему выдаёт backend после
+`POST /session`). Таймауты (120 с на тест, 60 с на assertion) рассчитаны на
+холодный SwiftShader, когда даже cheap-пресету нужно ~15 с до canvas и ~25 с до
+статуса "Live".
+
 ```bash
 cd frontend
 npx playwright install chromium   # один раз на машину
