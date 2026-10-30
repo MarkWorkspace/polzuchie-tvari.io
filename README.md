@@ -88,7 +88,8 @@ Playwright поднимает backend на `:8000` и `vite preview` на `:5173
 проксируются на backend через `preview.proxy` в `vite.config.ts`. Build вынесен
 из `webServer`, поэтому Playwright управляет ровно одним процессом preview и
 корректно его останавливает. Сценарии: `login → HUD → качество`, реальная
-смерть от чёрной дыры → respawn, spectator-режим и admin login/logout.
+смерть от чёрной дыры → respawn, spectator-режим, admin login/logout и
+`security.spec.ts` (Origin allowlist, spectator flood, role caps).
 
 E2E принудительно стартует каждый контекст в `low` quality: в headless Linux CI
 нет GPU, WebGL идёт через software-рендерер SwiftShader, и на `auto`/`high`
@@ -159,13 +160,39 @@ docker compose up --build
 ```
 
 Порты по умолчанию опубликованы только на `127.0.0.1`: frontend — `3000`,
-backend — `8000`.
+backend — `8000`. `docker-compose.yml` передаёт в backend
+`ALLOWED_ORIGINS=${ALLOWED_ORIGINS-http://localhost:3000,http://127.0.0.1:3000}`:
+переменная из `.env` имеет приоритет, а явно пустое значение отключает
+браузерные origin (single-dash сохраняет пустую строку, `:-` подставил бы
+default). Если frontend опубликован на другом порту (`FRONTEND_PORT`) или за
+доменом, задайте `ALLOWED_ORIGINS` (например, `http://localhost:8080` или
+`https://game.example`), иначе браузерные REST/WS-запросы будут отклонены.
 
 Локальные переопределения не коммитятся: `.env.*` (кроме `.env.example`),
 `docker-compose.override.yml`, `compose.override.yaml` и
 `backend/config.local.json`. Путь к локальному конфигу backend задаётся через
 `CONFIG_PATH` (например, `CONFIG_PATH=config.local.json` при запуске из
 `backend/`).
+
+### WebSocket и CORS
+
+Браузерные `Origin` проверяются по точному списку; REST CORS использует тот же
+список. `start_dev.bat` задаёт dev-дефолт с localhost/127.0.0.1 и LAN-origin,
+production-дефолт — `http://localhost:3000` и `http://127.0.0.1:3000`.
+
+| Переменная | По умолчанию | Назначение |
+| --- | --- | --- |
+| `ALLOWED_ORIGINS` | dev/prod-список выше | Comma-separated allowlist; пустое значение запрещает браузерные origin. |
+| `TRUST_PROXY_HEADERS` | `1` в production, иначе `0` | Доверять `X-Real-IP`/`X-Forwarded-For` (только за nginx). |
+| `MAX_PLAYER_CONNECTIONS` | `50` | Максимум активных player-соединений (takeover не блокируется). |
+| `MAX_SPECTATOR_CONNECTIONS` | `100` | Максимум spectator-соединений; не занимает player-слоты. |
+| `WS_HANDSHAKE_RATE_LIMIT` | `30` | Handshake-попыток на IP за окно; отказ — close `4029`. |
+| `WS_HANDSHAKE_WINDOW_SECONDS` | `10` | Окно per-IP rate limit. |
+
+Если оставить `TRUST_PROXY_HEADERS=0` в production за nginx, backend будет
+видеть IP nginx у всех клиентов: все браузеры попадут в один handshake-bucket и
+быстро получат `4029`. Доверять `X-Real-IP`/`X-Forwarded-For` нужно только когда
+backend недоступен напрямую (штатный compose/nginx).
 
 ## Документация
 

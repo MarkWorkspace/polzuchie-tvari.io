@@ -66,6 +66,12 @@ export default defineConfig({
         ADMIN_PASSWORD: "e2e-admin",
         ENVIRONMENT: "development",
         CONFIG_PATH: e2eConfigPath,
+        // Security specs need small, deterministic caps. The per-IP limit is
+        // high because the preview proxy makes every browser look like 127.0.0.1.
+        MAX_PLAYER_CONNECTIONS: "4",
+        MAX_SPECTATOR_CONNECTIONS: "3",
+        WS_HANDSHAKE_RATE_LIMIT: "200",
+        WS_HANDSHAKE_WINDOW_SECONDS: "10",
       },
     },
     {

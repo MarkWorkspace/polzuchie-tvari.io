@@ -16,7 +16,7 @@
 ├── .pre-commit-config.yaml             # ROLE: Git hooks (Ruff/tests/build).
 ├── .github/dependabot.yml              # ROLE: Weekly dependency updates for uv, npm, actions, Docker and hooks.
 ├── opencode.jsonc                      # ROLE: OpenCode V2 project config.
-├── docker-compose.yml                  # ROLE: Local production-like stack.
+├── docker-compose.yml                  # ROLE: Local production-like stack; passes ALLOWED_ORIGINS to backend.
 ├── start_dev.bat                       # ROLE: Windows dev launcher (uv + Vite).
 └── scripts/run_checks.py               # ROLE: Cross-platform check runner used by hooks.
 ```
@@ -42,6 +42,7 @@ frontend/
 │   ├── death.spec.ts                   # ROLE: Реальная смерть от чёрной дыры, game-over и respawn.
 │   ├── bots.spec.ts                    # ROLE: Live-включение/выключение ботов через админку.
 │   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор, follow по клику и возврат к обзору.
+│   ├── security.spec.ts                # ROLE: Origin allowlist и role caps WebSocket: cross-origin отказ, spectator flood, player slot.
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
 ├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
@@ -241,7 +242,7 @@ backend/
     │   ├── admin.py                    # ROLE: Admin REST API, config read/write и restart с draining/очисткой соединений. Не игровая логика.
     │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
     │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie и resolver для WS. WS-аутентификацию выполняет websocket.py.
-    │   └── websocket.py                # ROLE: WebSocket endpoint, cookie-auth player identity, connection epoch/reconnect grace, draining admission, rate limiting, spectator/player identity. Не игровая логика.
+    │   └── websocket.py                # ROLE: WebSocket endpoint: Origin allowlist, per-IP handshake bucket, role caps via pending reservation, cookie-auth identity, epoch/reconnect grace, draining admission. Не игровая логика.
     ├── bots/
     │   ├── __init__.py                 # ROLE: Изолированный пакет ботов; удаляется вместе с 3 engine-хуками.
     │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов, personalities и сглаживание руления. Без сети и рендера.
@@ -302,6 +303,7 @@ backend/tests/
 ├── test_serialization_cache_race.py    # ROLE: Позднее подключение игрока не вызывает KeyError в кэше кадра.
 ├── test_server_resilience.py           # ROLE: Сбой сериализации одного клиента не убивает game loop.
 ├── test_spectator_identity.py          # ROLE: Cookie-auth identity; spectator не переиспользует player id; неудачный handshake не оставляет призрака.
+├── test_websocket_limits.py            # ROLE: Origin allowlist, per-IP bucket (включая denied origins), proxy-header trust, role caps и атомарный pending reservation.
 ├── test_world_lifecycle.py             # ROLE: Resize карты и полная очистка World.reset_state.
 ├── test_world_elements.py              # ROLE: Тесты порталов и чёрных дыр.
 └── generate_frame_fixtures.py          # ROLE: Генерация эталонных кадров для parity-тестов. Запуск вручную при изменении формата.

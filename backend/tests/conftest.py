@@ -36,6 +36,7 @@ def clear_runtime_globals() -> None:
 
     websocket_module.active_connections.clear()
     websocket_module.pending_disconnects.clear()
+    websocket_module.reset_admission_state()
     admin_module._admin_sessions.clear()
     admin_module._login_attempts.clear()
 

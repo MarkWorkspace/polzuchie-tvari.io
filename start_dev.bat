@@ -7,6 +7,10 @@ if exist .env (
     for /f "usebackq tokens=*" %%i in (`findstr /v /r "^#" .env`) do set %%i
 )
 
+:: Exact-match browser origins shared by REST CORS and the WebSocket allowlist.
+:: The LAN address is needed when the frontend is opened through Vite's --host.
+if not defined ALLOWED_ORIGINS set ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://192.168.3.38:5173
+
 where uv >nul 2>nul
 if errorlevel 1 (
     echo [ERROR] uv not found. Install it from https://docs.astral.sh/uv/

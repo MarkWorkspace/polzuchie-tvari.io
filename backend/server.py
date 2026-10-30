@@ -19,6 +19,7 @@ from app.engine.state import World
 from app.logging_setup import configure_logging
 from app.api.websocket import (
     active_connections,
+    allowed_origins,
     websocket_endpoint,
     replace_queued_state,
 )
@@ -144,23 +145,15 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan)
 
 is_prod = os.getenv("ENVIRONMENT") == "production"
-if is_prod:
-    ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex="https?://.*",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+# REST and WebSocket share one exact-match allowlist so dev and production
+# cannot drift apart. Missing Origin (CLI/tests) is not a CORS request.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(allowed_origins()),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Player session routing (mapped to handlers in app/api/session.py)
 app.post("/session")(create_player_session)

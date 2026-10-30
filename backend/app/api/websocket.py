@@ -1,12 +1,17 @@
-# ROLE: WebSocket endpoint, cookie-based player identity, connection epochs,
-# reconnect grace, draining admission and rate limiting. Не игровая логика.
+# ROLE: WebSocket endpoint, cookie-based player identity, origin allowlist,
+# per-IP/role admission caps, connection epochs, reconnect grace and draining.
+# Не игровая логика.
 import asyncio
 import contextlib
+import ipaddress
 import logging
+import os
 import re
+import time
 import uuid
 import zlib
 from collections import deque
+from urllib.parse import urlsplit
 from fastapi import WebSocket
 
 from app.api.session import PlayerSession, resolve_session_from_cookies
@@ -16,7 +21,25 @@ active_connections = {}
 pending_disconnects = {}
 logger = logging.getLogger(__name__)
 
-MAX_CONNECTIONS = 50
+DEV_ALLOWED_ORIGINS = (
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+PRODUCTION_ALLOWED_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+)
+DEFAULT_MAX_PLAYER_CONNECTIONS = 50
+DEFAULT_MAX_SPECTATOR_CONNECTIONS = 100
+DEFAULT_WS_HANDSHAKE_RATE_LIMIT = 30
+DEFAULT_WS_HANDSHAKE_WINDOW_SECONDS = 10.0
+MAX_HANDSHAKE_RATE_KEYS = 10_000
+CLOSE_ORIGIN_NOT_ALLOWED = 1008
+CLOSE_PLAYER_CAPACITY = 4002
+CLOSE_SPECTATOR_CAPACITY = 4003
+CLOSE_TOO_MANY_ATTEMPTS = 4029
 RATE_LIMIT_PER_SECOND = 50
 MAX_CLIENT_MESSAGE_LENGTH = 32
 VALID_SKINS = frozenset({"zebra", "tiger", "rainbow", "cyberpunk"})
@@ -32,6 +55,193 @@ def _next_connection_epoch() -> int:
     global _connection_epoch
     _connection_epoch += 1
     return _connection_epoch
+
+
+def _env_int(name: str, default: int, *, minimum: int = 1) -> int:
+    try:
+        value = int(os.getenv(name, ""))
+    except ValueError:
+        return default
+    return max(minimum, value)
+
+
+def _env_float(name: str, default: float, *, minimum: float = 0.001) -> float:
+    try:
+        value = float(os.getenv(name, ""))
+    except ValueError:
+        return default
+    return max(minimum, value)
+
+
+def normalize_origin(value: str | None) -> str | None:
+    """Return a lowercase ``scheme://netloc`` origin, or None when invalid."""
+    if not value:
+        return None
+    try:
+        parts = urlsplit(value.strip())
+    except ValueError:
+        return None
+    if not parts.scheme or not parts.netloc:
+        return None
+    return f"{parts.scheme.lower()}://{parts.netloc.lower()}"
+
+
+def allowed_origins() -> tuple[str, ...]:
+    """Read ``ALLOWED_ORIGINS`` or fall back to the environment defaults.
+
+    An explicitly empty value disables browser clients (no origin matches);
+    an unset value selects the development or production default list.
+    """
+    raw = os.getenv("ALLOWED_ORIGINS")
+    if raw is None:
+        if os.getenv("ENVIRONMENT") == "production":
+            return PRODUCTION_ALLOWED_ORIGINS
+        return DEV_ALLOWED_ORIGINS
+    normalized = (normalize_origin(item) for item in raw.split(","))
+    return tuple(origin for origin in normalized if origin is not None)
+
+
+def is_origin_allowed(origin: str | None, origins: tuple[str, ...] | None = None) -> bool:
+    """Exact-match browser origin check.
+
+    A missing Origin header is allowed: non-browser clients (CLI, tests) do not
+    send it and cannot be tricked into attaching the HttpOnly session cookie.
+    ``Origin: null`` is denied because it cannot match an allowlisted origin.
+    """
+    if origin is None or not origin.strip():
+        return True
+    normalized = normalize_origin(origin)
+    if normalized is None:
+        return False
+    return normalized in (allowed_origins() if origins is None else origins)
+
+
+def trust_proxy_headers() -> bool:
+    raw = os.getenv("TRUST_PROXY_HEADERS")
+    if raw is None:
+        # The shipped compose stack always sits behind nginx; local dev talks
+        # to uvicorn directly and must not trust spoofed forwarding headers.
+        return os.getenv("ENVIRONMENT") == "production"
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_ip(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except ValueError:
+        return None
+
+
+def _client_ip(websocket: WebSocket) -> str | None:
+    """Best-effort client IP for handshake rate limiting.
+
+    Forwarding headers are honoured only behind a trusted proxy. Invalid header
+    values fall back to the socket peer, so a spoofed value cannot create a
+    fresh bucket. Returns None when the transport does not expose a peer (fake
+    sockets in unit tests): such handshakes are not rate limited.
+    """
+    headers = getattr(websocket, "headers", None) or {}
+    if trust_proxy_headers():
+        candidate = headers.get("x-real-ip")
+        if not candidate:
+            forwarded_for = headers.get("x-forwarded-for", "")
+            candidate = forwarded_for.split(",", 1)[0]
+        forwarded_ip = _parse_ip(candidate)
+        if forwarded_ip is not None:
+            return forwarded_ip
+    client = getattr(websocket, "client", None)
+    return _parse_ip(getattr(client, "host", None))
+
+
+_handshake_attempts: dict[str, deque[float]] = {}
+
+
+def _prune_handshake_attempts(now: float, window: float) -> None:
+    for key, attempts in list(_handshake_attempts.items()):
+        while attempts and attempts[0] <= now - window:
+            attempts.popleft()
+        if not attempts:
+            _handshake_attempts.pop(key, None)
+
+
+def _evict_oldest_handshake_key() -> None:
+    oldest = min(_handshake_attempts, key=lambda key: _handshake_attempts[key][-1])
+    _handshake_attempts.pop(oldest, None)
+
+
+def _is_handshake_rate_limited(websocket: WebSocket) -> bool:
+    """Token bucket over WS handshakes per client IP.
+
+    Rejected attempts are not recorded, so a client recovers as soon as the
+    window rolls over instead of extending its own lockout.
+    """
+    client_ip = _client_ip(websocket)
+    if client_ip is None:
+        return False
+
+    now = time.monotonic()
+    window = _env_float("WS_HANDSHAKE_WINDOW_SECONDS", DEFAULT_WS_HANDSHAKE_WINDOW_SECONDS)
+    limit = _env_int("WS_HANDSHAKE_RATE_LIMIT", DEFAULT_WS_HANDSHAKE_RATE_LIMIT)
+
+    attempts = _handshake_attempts.get(client_ip)
+    if attempts is None:
+        if len(_handshake_attempts) >= MAX_HANDSHAKE_RATE_KEYS:
+            _prune_handshake_attempts(now, window)
+        if len(_handshake_attempts) >= MAX_HANDSHAKE_RATE_KEYS:
+            _evict_oldest_handshake_key()
+        attempts = deque()
+        _handshake_attempts[client_ip] = attempts
+
+    while attempts and attempts[0] <= now - window:
+        attempts.popleft()
+    if len(attempts) >= limit:
+        return True
+    attempts.append(now)
+    return False
+
+
+def _role_connection_limit(role: str) -> int:
+    if role == "spectator":
+        return _env_int("MAX_SPECTATOR_CONNECTIONS", DEFAULT_MAX_SPECTATOR_CONNECTIONS)
+    return _env_int("MAX_PLAYER_CONNECTIONS", DEFAULT_MAX_PLAYER_CONNECTIONS)
+
+
+def _role_connection_count(role: str) -> int:
+    return sum(1 for connection in active_connections.values() if connection.get("role") == role)
+
+
+def _role_cap_close(role: str) -> tuple[int, str]:
+    if role == "spectator":
+        return CLOSE_SPECTATOR_CAPACITY, "Spectator limit reached"
+    return CLOSE_PLAYER_CAPACITY, "Server full"
+
+
+# Slots reserved by admitted handshakes that have not claimed an active
+# connection yet. Incremented/decremented synchronously on the event loop, so
+# the active count plus this pending count is an atomic admission bound.
+_pending_role_connections = {"player": 0, "spectator": 0}
+
+
+def _reserve_role_slot(role: str) -> bool:
+    pending = _pending_role_connections.get(role, 0)
+    if _role_connection_count(role) + pending >= _role_connection_limit(role):
+        return False
+    _pending_role_connections[role] = pending + 1
+    return True
+
+
+def _release_role_slot(role: str) -> None:
+    pending = _pending_role_connections.get(role, 0)
+    _pending_role_connections[role] = max(0, pending - 1)
+
+
+def reset_admission_state() -> None:
+    """Test isolation helper: forget handshake buckets and pending slots."""
+    _handshake_attempts.clear()
+    _pending_role_connections["player"] = 0
+    _pending_role_connections["spectator"] = 0
 
 
 def _cancel_pending_disconnect(client_id: str) -> None:
@@ -180,7 +390,7 @@ async def _handle_reconnection(
     return True
 
 
-def _claim_connection(client_id: str, websocket: WebSocket) -> dict:
+def _claim_connection(client_id: str, websocket: WebSocket, role: str = "player") -> dict:
     """Reserve the active slot before the FULL state is sent.
 
     A newer handshake for the same player id can take the slot over while the
@@ -193,6 +403,7 @@ def _claim_connection(client_id: str, websocket: WebSocket) -> dict:
         "task": None,
         "needs_full_sync": False,
         "epoch": _next_connection_epoch(),
+        "role": role,
     }
     active_connections[client_id] = connection
     return connection
@@ -341,6 +552,24 @@ async def websocket_endpoint(
         await websocket.close(code=1012, reason="Server restarting")
         return
     restart_epoch = getattr(world, "restart_epoch", 0)
+
+    # Admission checks run before identity resolution and any world mutation.
+    # A close before accept() never reaches the browser as a WebSocket close
+    # code (uvicorn turns it into HTTP 403), so rejected handshakes are
+    # accepted first and immediately closed with a meaningful application code.
+    # Rate limiting comes first: otherwise a client could hammer denied origins
+    # without consuming its handshake budget.
+    if _is_handshake_rate_limited(websocket):
+        await websocket.accept()
+        await websocket.close(code=CLOSE_TOO_MANY_ATTEMPTS, reason="Too many connection attempts")
+        return
+    origin = (getattr(websocket, "headers", None) or {}).get("origin")
+    if not is_origin_allowed(origin):
+        await websocket.accept()
+        await websocket.close(code=CLOSE_ORIGIN_NOT_ALLOWED, reason="Origin not allowed")
+        return
+
+    role = "spectator" if role == "spectator" else "player"
     if client_id:
         logger.warning(
             "Ignoring deprecated client_id query parameter on WebSocket handshake; "
@@ -352,23 +581,35 @@ async def websocket_endpoint(
         None if role == "spectator" else resolve_session_from_cookies(websocket.cookies)
     )
     client_id, reconnecting = _validate_client(world, role, player_session)
-    if len(active_connections) >= MAX_CONNECTIONS and not reconnecting:
-        await websocket.close(code=4002, reason="Server full")
-        return
 
-    nickname, skin = _clean_profile(nickname, skin)
-    await websocket.accept()
-
-    # A restart may have completed while accept() was pending. Close before
-    # touching the freshly reset world.
-    if _lifecycle_changed(world, restart_epoch):
-        await websocket.close(code=1012, reason="Server restarting")
-        return
+    # A takeover replaces the existing slot and does not increase the role
+    # count. A reconnect after a grace-period disconnect also keeps its player.
+    takeover = reconnecting or client_id in active_connections
+    reserved = False
+    if not takeover:
+        if not _reserve_role_slot(role):
+            # Capacity is full before any accept/world mutation, so a rejected
+            # player is never created, ticked or turned into a kill event.
+            await websocket.accept()
+            code, reason = _role_cap_close(role)
+            await websocket.close(code=code, reason=reason)
+            return
+        reserved = True
 
     initialized = False
     connection = None
     closed = False
     try:
+        nickname, skin = _clean_profile(nickname, skin)
+        await websocket.accept()
+
+        # A restart may have completed while accept() was pending. Close before
+        # touching the freshly reset world.
+        if _lifecycle_changed(world, restart_epoch):
+            closed = True
+            await websocket.close(code=1012, reason="Server restarting")
+            return
+
         if not await _handle_reconnection(
             client_id,
             reconnecting,
@@ -386,10 +627,16 @@ async def websocket_endpoint(
         # Claim the id before the FULL send: a newer handshake can otherwise
         # register while this send is blocked and be overwritten afterwards.
         try:
-            connection = _claim_connection(client_id, websocket)
+            connection = _claim_connection(client_id, websocket, role)
         except BaseException:
             world.remove_player(client_id)
             raise
+
+        # The active slot now represents the reservation.
+        if reserved:
+            _release_role_slot(role)
+            reserved = False
+
         await _send_full_state(client_id, websocket, world)
 
         if active_connections.get(client_id) is not connection:
@@ -413,6 +660,8 @@ async def websocket_endpoint(
     except Exception:
         logger.debug("WebSocket session failed", exc_info=True)
     finally:
+        if reserved:
+            _release_role_slot(role)
         await _cleanup_connection(client_id, connection, world)
         if not initialized:
             # Drop the identity only if this handshake owned the slot and no

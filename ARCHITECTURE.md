@@ -193,7 +193,8 @@
 3. **Лимит черных дыр для lensing-эффекта:**
    - В [PostProcessing.ts](frontend/src/renderer/PostProcessing.ts#L119) вычисления lensing-эффекта проводятся максимум для `10` черных дыр (соответствует размеру массива `uBlackHoles[10]` в шейдере `lensingMaterial`).
 4. **Сетевые лимиты:**
-   - [websocket.py](backend/app/api/websocket.py#L19) ограничивает количество одновременных подключений до `50` (`MAX_CONNECTIONS`).
+   - [websocket.py](backend/app/api/websocket.py) до создания identity проверяет точный Origin allowlist (`ALLOWED_ORIGINS`) и per-IP bucket рукопожатий (`WS_HANDSHAKE_RATE_LIMIT`=`30` за `WS_HANDSHAKE_WINDOW_SECONDS`=`10`; `TRUST_PROXY_HEADERS` разрешает `X-Real-IP`/`X-Forwarded-For` только за доверенным proxy). Отказы: `1008` (Origin) и `4029` (частота).
+   - Вместо общего `MAX_CONNECTIONS` действуют role caps `MAX_PLAYER_CONNECTIONS`=`50` и `MAX_SPECTATOR_CONNECTIONS`=`100`. Takeover существующего игрока слот не расходует, spectator flood не занимает player-лимит. Жёсткая граница — атомарный pending reservation: до `accept()` handshake резервирует слот только если `active + pending < limit`, после `_claim_connection` резервирование переходит в active-слот; отказ происходит до создания player/spectator. Отказы: `4002` (player) и `4003` (spectator).
    - Rate limiting входящих сообщений от одного WebSocket-клиента равен `50` сообщений в секунду.
    - Максимальная длина ника игрока — `16` символов, некорректные скины принудительно сбрасываются в `"#22c55e"`.
    - `permessage-deflate` выключен, `ws_max_size` ограничен `4096` байтами: прикладной zlib — единственный слой сжатия, а клиентские команды не превышают `32` байт.
