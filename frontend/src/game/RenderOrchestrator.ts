@@ -15,6 +15,11 @@ import { SnakeRenderer } from "../renderer/SnakeRenderer";
 import { TombstoneRenderer } from "../renderer/TombstoneRenderer";
 import type { GameCamera } from "./Camera";
 
+/** Fraction of the visible ground half-extent used to bias the grass forward. */
+const GRASS_VIEW_FORWARD_FACTOR = 0.5;
+/** Cap so a zoomed-out camera does not drag the field away from the player. */
+const GRASS_VIEW_FORWARD_MAX = 120;
+
 export class RenderOrchestrator {
   private sceneManager: SceneManager;
   private snakeRenderer: SnakeRenderer;
@@ -121,7 +126,10 @@ export class RenderOrchestrator {
    * Grass follows the camera's actual ground target, which exists in both player
    * and spectator modes (spectator frames do not carry usable camX/camY).
    * Intersects the camera forward ray with the grass plane and returns the
-   * half-extent of the visible ground for cull-radius scaling.
+   * half-extent of the visible ground for cull-radius scaling. The field is
+   * biased toward the visible half of the frustum: at the player pitch most of
+   * the camera cone is in front of the target, so a centered disc would spend
+   * half its budget behind the snake.
    */
   private resolveGrassView(camera: THREE.PerspectiveCamera, frame: any): void {
     let x = Number.isFinite(frame?.camX) ? frame.camX : 0;
@@ -131,9 +139,9 @@ export class RenderOrchestrator {
     const camX = camera.position.x;
     const camY = camera.position.y;
     const camZ = camera.position.z;
+    const forward = camera.getWorldDirection(this.grassForward);
 
     if (Number.isFinite(camX) && Number.isFinite(camY) && Number.isFinite(camZ)) {
-      const forward = camera.getWorldDirection(this.grassForward);
       const t = Math.abs(forward.z) >= 1e-4 ? (GRASS_GROUND_Z - camZ) / forward.z : Number.NaN;
 
       if (Number.isFinite(t) && t > 0) {
@@ -145,6 +153,14 @@ export class RenderOrchestrator {
         x = camX;
         y = camY;
       }
+    }
+
+    // Horizontal component only: the offset must not depend on pitch.
+    const flat = Math.hypot(forward.x, forward.y);
+    if (Number.isFinite(flat) && flat > 1e-4 && halfExtent > 0) {
+      const offset = Math.min(GRASS_VIEW_FORWARD_MAX, halfExtent * GRASS_VIEW_FORWARD_FACTOR);
+      x += (forward.x / flat) * offset;
+      y += (forward.y / flat) * offset;
     }
 
     this.grassView.x = x;

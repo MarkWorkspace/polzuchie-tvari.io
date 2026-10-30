@@ -36,7 +36,7 @@ describe("RenderQuality", () => {
       ssao: true,
       contactShadow: 512,
       grass: 16000,
-      grassRadius: 450,
+      grassRadius: 400,
       stones: 144,
     });
     expect(QUALITY_PRESETS.high).toMatchObject({
@@ -48,7 +48,7 @@ describe("RenderQuality", () => {
       ssao: true,
       contactShadow: 512,
       grass: 16000,
-      grassRadius: 450,
+      grassRadius: 400,
       stones: 144,
     });
     expect(QUALITY_PRESETS.medium).toMatchObject({
@@ -59,7 +59,7 @@ describe("RenderQuality", () => {
       bloom: true,
       contactShadow: 512,
       grass: 8000,
-      grassRadius: 400,
+      grassRadius: 360,
       stones: 72,
     });
     expect(QUALITY_PRESETS.low).toMatchObject({

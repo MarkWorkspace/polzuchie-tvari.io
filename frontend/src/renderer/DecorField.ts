@@ -6,8 +6,12 @@ export const GRASS_SEED = 0x2f6e5b17;
 /** Share of world cells that carry at least one tuft at the field centre. */
 export const GRASS_CELL_DENSITY = 1;
 
-/** Radial falloff exponent: tufts concentrate near the camera and fade into the fog. */
-export const GRASS_DENSITY_FALLOFF = 1.5;
+/**
+ * Radial falloff exponent. A mild falloff keeps the grass under the snake
+ * lush while the outer rings thin into the fog; the field is biased forward so
+ * the density peak sits in front of the player, not behind the camera.
+ */
+export const GRASS_DENSITY_FALLOFF = 1.0;
 
 /** Upper bound of tufts a single occupied cell may produce. */
 export const GRASS_TUFTS_PER_CELL_MAX = 6;
@@ -458,9 +462,9 @@ export function placeGrassTufts(
   if (maxRing < 0) return 0;
 
   const visitedCells = Math.PI * (maxRing + 0.5) * (maxRing + 0.5);
-  // Integral of (1 - t^2)^1.5 over the disc is 0.4 * pi * R^2; this spends the
-  // same budget across the whole cull disc instead of a hard cut at its edge.
-  const weightedCells = 0.4 * Math.max(1, visitedCells);
+  // Integral of (1 - t^2)^p over the disc is pi * R^2 / (p + 1); this spends
+  // the same budget across the whole cull disc instead of a hard cut at its edge.
+  const weightedCells = visitedCells / (GRASS_DENSITY_FALLOFF + 1);
   const calibrated = requested / (GRASS_MEAN_TUFTS_PER_CELL * weightedCells);
   // A config density of 1 means "no artificial cap": the calibrated density may
   // exceed 1 in a dense field, and per-cell occupancy clamps at 1.

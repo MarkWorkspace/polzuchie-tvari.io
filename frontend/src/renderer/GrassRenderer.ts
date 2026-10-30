@@ -26,7 +26,7 @@ export const GRASS_MIN_CULL_RADIUS = 550;
 /** Cap for the cull radius: a fixed instance budget cannot cover more without turning to dust. */
 export const GRASS_MAX_CULL_RADIUS = 1200;
 /** Fallback player field radius when a caller does not provide a preset value. */
-const GRASS_FIELD_RADIUS_FALLBACK = 600;
+const GRASS_FIELD_RADIUS_FALLBACK = 400;
 /** Tuft scale cap for far cameras, so the field stays legible in the overview. */
 export const GRASS_LOD_SCALE_MAX = 2.6;
 /** View half-extent (world units) at which tufts reach their maximum LOD scale. */
@@ -197,6 +197,8 @@ export class GrassRenderer {
     uShadowHalfExtent: { value: 180 },
     uShadowStrength: { value: 0 },
     uShadowTint: { value: GRASS_SHADOW_TINT },
+    uFieldCenter: { value: new THREE.Vector2() },
+    uFieldRadius: { value: 1 },
   };
   private readonly shadeColor = new THREE.Color(SHADE_COLOR);
   private readonly lightColor = new THREE.Color(LIGHT_COLOR);
@@ -303,6 +305,8 @@ export class GrassRenderer {
     const fieldCap = isSpectator ? GRASS_MAX_CULL_RADIUS : playerRadius;
     const cullRadius = Math.min(grassCullRadius(fogRadius, viewHalfExtent), fieldCap);
     const lodScale = grassLodScale(viewHalfExtent);
+    this.uniforms.uFieldCenter.value.set(camX, camY);
+    this.uniforms.uFieldRadius.value = Math.max(1, cullRadius);
 
     const state: DecorViewState = {
       nowMs,
@@ -417,6 +421,8 @@ export class GrassRenderer {
       shader.uniforms.uShadowHalfExtent = this.uniforms.uShadowHalfExtent;
       shader.uniforms.uShadowStrength = this.uniforms.uShadowStrength;
       shader.uniforms.uShadowTint = this.uniforms.uShadowTint;
+      shader.uniforms.uFieldCenter = this.uniforms.uFieldCenter;
+      shader.uniforms.uFieldRadius = this.uniforms.uFieldRadius;
 
       shader.vertexShader = `
         uniform float uTime;
@@ -426,6 +432,8 @@ export class GrassRenderer {
         uniform vec2 uShadowCenter;
         uniform float uShadowHalfExtent;
         uniform float uShadowStrength;
+        uniform vec2 uFieldCenter;
+        uniform float uFieldRadius;
         varying float vGrassShadow;
         float grassBend = 0.0;
       ${shader.vertexShader}`;
@@ -501,6 +509,16 @@ export class GrassRenderer {
 
         mvPosition = modelViewMatrix * mvPosition;
         gl_Position = projectionMatrix * mvPosition;
+
+        // Hide the edge of the instanced field with a stable world-space
+        // dither instead of a hard ring. Every vertex of a tuft shares the
+        // same root hash, so whole tufts disappear together.
+        float fieldEdge = length(grassRootWorld.xy - uFieldCenter) / max(uFieldRadius, 1.0);
+        float fieldKeep = 1.0 - smoothstep(0.9, 1.0, fieldEdge);
+        float fieldNoise = fract(sin(dot(grassRootWorld.xy, vec2(12.9898, 78.233))) * 43758.5453);
+        if (fieldNoise > fieldKeep) {
+          gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+        }
         `,
       );
 

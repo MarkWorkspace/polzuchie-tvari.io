@@ -35,7 +35,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     bloom: true,
     contactShadow: 512,
     grass: 16000,
-    grassRadius: 450,
+    grassRadius: 400,
     stones: 144,
   },
   high: {
@@ -49,7 +49,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     bloom: true,
     contactShadow: 512,
     grass: 16000,
-    grassRadius: 450,
+    grassRadius: 400,
     stones: 144,
   },
   medium: {
@@ -63,7 +63,7 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     bloom: true,
     contactShadow: 512,
     grass: 8000,
-    grassRadius: 400,
+    grassRadius: 360,
     stones: 72,
   },
   low: {
