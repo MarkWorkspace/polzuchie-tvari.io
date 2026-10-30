@@ -52,10 +52,16 @@ export default defineConfig({
       },
     },
     {
-      command: "npm run dev -- --host 127.0.0.1 --port 5173 --strictPort",
+      // E2E must exercise the production bundle: Vite dev loads the spectator
+      // chunk via a dynamic import that is flaky on CI. `preview` serves `dist/`
+      // and proxies same-origin "/ws" to the backend (see vite.config.ts).
+      command: "npm run build && npm run preview -- --host 127.0.0.1 --port 5173 --strictPort",
       url: "http://127.0.0.1:5173",
-      timeout: 120_000,
+      timeout: 180_000,
       reuseExistingServer: !isCi,
+      env: {
+        E2E_BACKEND_URL: process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:8000",
+      },
     },
   ],
 });

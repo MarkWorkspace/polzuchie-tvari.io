@@ -81,9 +81,11 @@ npm test
 npm run build
 ```
 
-E2E smoke-тесты (Playwright сам поднимает backend на `:8000` и Vite на `:5173`):
-`login → HUD → качество`, реальная смерть от чёрной дыры → respawn,
-spectator-режим и admin login/logout.
+E2E smoke-тесты идут против production-сборки (`npm run build` + `vite preview`).
+Playwright сам поднимает backend на `:8000` и preview на `:5173`; same-origin
+запросы `/ws` (WebSocket и admin API) проксируются на backend через
+`preview.proxy` в `vite.config.ts`. Сценарии: `login → HUD → качество`, реальная
+смерть от чёрной дыры → respawn, spectator-режим и admin login/logout.
 
 ```bash
 cd frontend
@@ -96,6 +98,12 @@ npm run test:e2e
 backend на `:8000` с `ADMIN_PASSWORD=e2e-admin`; если локальный backend уже
 запущен, остановите его. Backend получает временную копию `backend/config.json`
 через `CONFIG_PATH`, поэтому изменения конфига из E2E не трогают файл в репозитории.
+
+Для production-E2E нужен свободный порт `5173`: локально `reuseExistingServer`
+включён (`!CI`), поэтому уже запущенный на этом порту сервер будет
+использован как есть. Остановите старый `vite`/`preview` или задайте другой
+порт. Другой backend можно указать через `E2E_BACKEND_URL` (по умолчанию
+`http://127.0.0.1:8000`), он прокидывается и в specs, и в proxy.
 
 ### CI checks
 
