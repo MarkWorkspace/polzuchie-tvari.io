@@ -148,6 +148,13 @@ class PortalManager(PeriodicEntityManager):
 
         return Portal(f"portal_{pid}", p1[0], p1[1], p2[0], p2[1], radius, color)
 
+    def apply_config(self):
+        radius = self.state.config.world.portals_radius
+        for portal in self.slots:
+            if portal is not None:
+                portal.radius = radius
+        self._cache_list()
+
     def check_teleport_start(self, new_head, player):
         if self.enabled and self.slots:
             for portal in self.slots:

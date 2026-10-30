@@ -253,11 +253,11 @@ backend/
         ├── events.py                   # ROLE: Синхронная шина событий.
         ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка конфигурации, управление игроками, draining/restart_epoch. Не содержит игровой логики тика.
         ├── entities.py                 # ROLE: Датаклассы Player, Food, Portal, BlackHole. Только структуры данных.
-        ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн.
+        ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн, live-пересчёт радиусов.
         ├── world_elements/
-        │   ├── base.py                 # ROLE: Generic PeriodicEntityManager (слоты/таймеры/рост).
-        │   ├── portal.py               # ROLE: Спавн и поиск порталов.
-        │   └── black_hole.py           # ROLE: Спавн, гравитация и kill-radius чёрных дыр.
+        │   ├── base.py                 # ROLE: Generic PeriodicEntityManager (слоты/таймеры/рост) + хук apply_config.
+        │   ├── portal.py               # ROLE: Спавн, поиск порталов и live-радиус.
+        │   └── black_hole.py           # ROLE: Спавн, гравитация, kill-radius и live-радиусы чёрных дыр.
         └── systems/
             ├── physics.py              # ROLE: Движение, тороидальное оборачивание. Не коллизии.
             ├── spatial_index.py        # ROLE: Единая пространственная сетка за тик.
@@ -296,7 +296,7 @@ backend/tests/
 ├── test_gravity.py                     # ROLE: Тестирование системы гравитации (притяжения еды).
 ├── test_gravity_once_per_tick.py        # ROLE: Тест: гравитация чёрных дыр применяется к углу змейки ровно один раз за тик.
 ├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
-├── test_live_config.py                 # ROLE: Live-config rebind: старые игроки и боты видят новый config; respawn берёт новый start_length.
+├── test_live_config.py                 # ROLE: Live-config rebind: игроки/боты и Food/Portal/BlackHole видят новый config; respawn берёт новый start_length.
 ├── test_math_parity.py                 # ROLE: Parity-тест тороидальной математики. Сверяет Python с golden vectors.
 ├── test_physics.py                     # ROLE: Тесты физики движения.
 ├── test_player_session.py              # ROLE: Player session cookie/store и WS cookie-auth: флаги cookie, reuse, delete, TTL, cap, rate limit, reconnect identity, spectator isolation.

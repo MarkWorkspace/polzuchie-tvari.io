@@ -232,23 +232,23 @@ class World:
         self.spatial_grid = {}
 
         self.food_manager.on_grid_resize(old_width, old_height, old_cluster_count)
+        self.food_manager.apply_config()
 
+        # Radius-only changes must not re-roll slots; apply_config() refreshes
+        # derived fields on existing entities after any update_slots() call.
         portals_changed = "world" in patch and (
-            "portals_enabled" in patch["world"]
-            or "portals_count" in patch["world"]
-            or "portals_radius" in patch["world"]
+            "portals_enabled" in patch["world"] or "portals_count" in patch["world"]
         )
         if portals_changed or size_changed:
             self.portal_manager.update_slots(force_roll=True)
+        self.portal_manager.apply_config()
 
         black_holes_changed = "world" in patch and (
-            "black_holes_enabled" in patch["world"]
-            or "black_holes_count" in patch["world"]
-            or "black_holes_pull_radius" in patch["world"]
-            or "black_holes_kill_radius" in patch["world"]
+            "black_holes_enabled" in patch["world"] or "black_holes_count" in patch["world"]
         )
         if black_holes_changed or size_changed:
             self.bh_manager.update_slots(force_roll=size_changed)
+        self.bh_manager.apply_config()
 
         self.bot_manager.sync()
         return self.get_config()

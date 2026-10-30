@@ -40,6 +40,9 @@ class PeriodicEntityManager:
     def get_cached_list(self):
         return self._cached_list
 
+    def apply_config(self):
+        """Refresh derived fields on existing entities after a live config change."""
+
     def update_slots(self, force_roll=False):
         target_count = self.target_count
         while len(self.slots) < target_count:

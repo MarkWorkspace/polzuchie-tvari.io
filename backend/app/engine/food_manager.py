@@ -149,6 +149,13 @@ class FoodManager:
             self.food_id_counter, x, y, chosen.value, self.state.config, chosen.color, chosen.image
         )
 
+    def apply_config(self):
+        """Recompute derived food radii from the live config; ids/positions stay put."""
+        base_radius = self.state.config.food.base_radius
+        radius_value_scale = self.state.config.food.radius_value_scale
+        for food in self.foods.values():
+            food.radius = base_radius + math.sqrt(food.value) * radius_value_scale
+
     def get_food_color(self, value):
         for ft in self.state.config.food.types:
             if ft.value == value:

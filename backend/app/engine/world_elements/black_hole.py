@@ -59,6 +59,15 @@ class BlackHoleManager(PeriodicEntityManager):
             kill_radius,
         )
 
+    def apply_config(self):
+        pull_radius = self.state.config.world.black_holes_pull_radius
+        kill_radius = self.state.config.world.black_holes_kill_radius
+        for bh in self.slots:
+            if bh is not None:
+                bh.pull_radius = pull_radius
+                bh.kill_radius = kill_radius
+        self._cache_list()
+
     def _on_entity_dead(self, entity):
         if hasattr(self.state, "food_manager") and self.state.food_manager:
             self.state.food_manager.drop_black_hole_food(entity)
