@@ -99,8 +99,8 @@ backend на `:8000` с `ADMIN_PASSWORD=e2e-admin`; если локальный 
 
 ### CI checks
 
-GitHub Actions (`.github/workflows/ci.yml`) запускается на push/PR в `main` и
-`dev`, а также вручную (`workflow_dispatch`). Jobs:
+GitHub Actions (`.github/workflows/ci.yml`) запускается на push и PR в `main` и
+`dev`, на push в ветки `remediation/**`, а также вручную (`workflow_dispatch`). Jobs:
 
 - **backend** — `uv lock --check`, Ruff format/lint, проверка актуальности
   сгенерированного protobuf, pytest и `pip-audit`;
