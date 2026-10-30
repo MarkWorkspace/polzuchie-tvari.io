@@ -33,6 +33,7 @@ from app.api.admin import (
     admin_logout,
     admin_session,
 )
+from app.api.session import create_player_session, delete_player_session
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -160,6 +161,12 @@ else:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+# Player session routing (mapped to handlers in app/api/session.py)
+app.post("/session")(create_player_session)
+app.post("/ws/session")(create_player_session)
+app.delete("/session")(delete_player_session)
+app.delete("/ws/session")(delete_player_session)
 
 # REST endpoints routing (mapped to handlers in app/api/admin.py)
 app.post("/admin/login")(admin_login)
