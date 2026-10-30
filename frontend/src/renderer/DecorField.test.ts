@@ -2,7 +2,6 @@
 import { describe, expect, it } from "vitest";
 import {
   cameraDistanceDensity,
-  cameraNearBoost,
   cameraViewExposure,
   clumpDensity,
   clumpProfile,
@@ -330,14 +329,6 @@ describe("camera visibility and distance LOD", () => {
     expect(cameraDistanceDensity(0, 1000, baseView)).toBe(0);
   });
 
-  it("boosts tuft count where the camera looks more top-down", () => {
-    const bottom = cameraNearBoost(0, 0, baseView);
-    const top = cameraNearBoost(0, 800, baseView);
-    expect(bottom).toBeGreaterThan(top);
-    expect(bottom).toBeCloseTo(1, 5);
-    expect(top).toBe(0);
-  });
-
   it("clips placement to the camera footprint", () => {
     const buffer = createGrassTuftBuffer(500);
     const count = placeGrassTufts(0, 0, 500, 500, denseConfig, buffer, baseView);
@@ -382,9 +373,10 @@ describe("grass clumping", () => {
         max = Math.max(max, value);
       }
     }
-    // Both lush and nearly bare patches must exist, with real contrast between them.
+    // The band stays intentionally gentle: enough variation to avoid a flat
+    // carpet, not enough to form obvious bare patches.
     expect(values.size).toBeGreaterThan(4);
-    expect(max - min).toBeGreaterThan(0.4);
+    expect(max - min).toBeGreaterThan(0.15);
     expect(Number.isFinite(clumpDensity(Number.NaN, Number.NaN, 100, 100, GRASS_SEED))).toBe(true);
   });
 
@@ -447,7 +439,7 @@ describe("grass clumping", () => {
     }
   });
 
-  it("makes fine clumps sparser in thin patches than in lush ones", () => {
+  it("keeps thin clumps populated instead of forming bare gaps", () => {
     let lushX = 0;
     let lushY = 0;
     let bareX = 0;
@@ -483,9 +475,10 @@ describe("grass clumping", () => {
 
     const lush = occupied(lushX, lushY);
     const bare = occupied(bareX, bareY);
-    expect(lush).toBeGreaterThan(bare);
+    // At CLUSTER_MIN=0.75 both patches are covered; variation is gentle.
     expect(lush).toBeGreaterThanOrEqual(3);
-    expect(bare).toBeLessThanOrEqual(3);
+    expect(bare).toBeGreaterThanOrEqual(3);
+    expect(Math.abs(lush - bare)).toBeLessThanOrEqual(1);
   });
 });
 

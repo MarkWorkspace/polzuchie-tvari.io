@@ -14,7 +14,7 @@ export const GRASS_CELL_DENSITY = 1;
 export const GRASS_DENSITY_FALLOFF = 1.0;
 
 /** Upper bound of tufts a single occupied cell may produce. */
-export const GRASS_TUFTS_PER_CELL_MAX = 8;
+export const GRASS_TUFTS_PER_CELL_MAX = 6;
 
 /** Expected tufts per occupied cell; used to calibrate density against the instance budget. */
 export const GRASS_MEAN_TUFTS_PER_CELL = 4.5;
@@ -36,10 +36,16 @@ export const GRASS_CLUSTER_CELLS = 8;
 export const GRASS_FINE_CLUSTER_CELLS = 2;
 
 /** Lowest density factor a clump may reach; thin patches still keep a full grass cover. */
-export const GRASS_CLUSTER_MIN = 0.55;
+export const GRASS_CLUSTER_MIN = 0.75;
 
 /** Mean of the combined cluster factor; placement divides by it so the budget still lands. */
 export const GRASS_CLUSTER_MEAN = (GRASS_CLUSTER_MIN + 1) / 2;
+
+/** Last density computed by placeGrassTufts, for the renderer's stable cache. */
+let lastCalibratedDensity = 0;
+export function getLastCalibratedDensity(): number {
+  return lastCalibratedDensity;
+}
 
 /** Hard per-family buffer caps: the dense grass field and the sparse stones. */
 export const DECOR_BUDGET_CAPS = {
@@ -273,27 +279,6 @@ export function cameraViewExposure(
   return cameraDistanceDensity(x, y, view);
 }
 
-/**
- * How top-down the camera is at a ground point, in [0, 1]. Near the bottom of
- * the screen the view is almost vertical, so blades barely overlap and need
- * more tufts per cell; at the horizon the view is grazing and the same tufts
- * overlap heavily. 1 means top-down, 0 means grazing.
- */
-export function cameraNearBoost(
-  x: number,
-  y: number,
-  view: GrassPlacementView | null | undefined,
-): number {
-  if (!view) return 0.5;
-  const groundZ = Number.isFinite(view.groundZ) ? view.groundZ : 0;
-  const dz = Math.max(0, view.cameraZ - groundZ);
-  const horizontal = Math.hypot(x - view.cameraX, y - view.cameraY);
-  const distance = Math.hypot(horizontal, dz);
-  if (!(distance > 1e-6)) return 1;
-  const sinGround = dz / distance;
-  return Math.min(1, Math.max(0, (sinGround - 0.25) / 0.65));
-}
-
 function safeCellSize(value: number): number {
   return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 }
@@ -423,7 +408,6 @@ function sampleNormalizedCell(
   seed: number,
   density: number,
   out: CellTufts,
-  nearBoost = 0.5,
 ): number {
   out.count = 0;
   if (!(density > 0)) return 0;
@@ -435,13 +419,9 @@ function sampleNormalizedCell(
   const localDensity = Math.min(1, (density * clump.density) / GRASS_CLUSTER_MEAN);
   if (hashUnit(hashCell(cx, cy, SALT_OCCUPANCY, seed)) >= localDensity) return 0;
 
-  const boost = Number.isFinite(nearBoost) ? Math.min(1, Math.max(0, nearBoost)) : 0.5;
   const baseCount =
     3 + Math.min(3, Math.floor(hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) * 4));
-  const count = Math.max(
-    2,
-    Math.min(GRASS_TUFTS_PER_CELL_MAX, baseCount + Math.round(boost * 2) - Math.round(1 - boost)),
-  );
+  const count = Math.max(2, Math.min(GRASS_TUFTS_PER_CELL_MAX, baseCount));
   const clumpTone = 0.5 + (clump.color - 0.5) * 0.5;
   const tuftVariation = 0.45;
 
@@ -490,7 +470,6 @@ function tryPlaceCell(
   offset: number,
   capacity: number,
   view?: GrassPlacementView | null,
-  nearBoost = 0.5,
 ): number {
   const written = sampleNormalizedCell(
     cellX,
@@ -501,7 +480,6 @@ function tryPlaceCell(
     seed,
     density,
     placementCell,
-    nearBoost,
   );
   if (written === 0) return 0;
 
@@ -551,6 +529,7 @@ export function placeGrassTufts(
   config: GrassFieldConfig,
   out: GrassTuftBuffer,
   view?: GrassPlacementView | null,
+  densityOverride?: number,
 ): number {
   const capacity = out.x.length;
   const requested = Math.min(
@@ -565,6 +544,7 @@ export function placeGrassTufts(
     Math.abs(view.cameraZ - (Number.isFinite(view.groundZ) ? view.groundZ : 0)) >= view.far
   ) {
     // Every ground point is at least the camera height away; the LOD is zero.
+    lastCalibratedDensity = 0;
     return 0;
   }
 
@@ -587,41 +567,47 @@ export function placeGrassTufts(
   const camCellY = Math.floor(-safeY / gs);
 
   const visitedCells = Math.PI * (maxRing + 0.5) * (maxRing + 0.5);
-  let averageVisibility = 1;
-  if (view) {
-    // Estimate the fraction of the placement disc inside the camera footprint.
-    // Distance falloff is deliberately not compensated here: far grass must
-    // fade and leave budget unused instead of forming a small dense patch.
-    const step = Math.max(1, Math.ceil(maxRing / 24));
-    const radiusCells = maxRing + 0.5;
-    const radiusCellsSq = radiusCells * radiusCells;
-    let visibleSum = 0;
-    let samples = 0;
-    for (let cy = -maxRing; cy <= maxRing; cy += step) {
-      for (let cx = -maxRing; cx <= maxRing; cx += step) {
-        if ((cx * cx + cy * cy) / radiusCellsSq >= 1) continue;
-        const worldX = (camCellX + cx + 0.5) * gs;
-        const worldY = -(camCellY + cy + 0.5) * gs;
-        const visible =
-          !view.corners ||
-          view.corners.length < 3 ||
-          pointInConvexQuad(worldX, worldY, view.corners);
-        visibleSum += visible ? 1 : 0;
-        samples++;
+  let centerDensity = 0;
+  if (Number.isFinite(densityOverride) && (densityOverride ?? 0) > 0) {
+    centerDensity = densityOverride as number;
+  } else {
+    let averageVisibility = 1;
+    if (view) {
+      // Estimate the fraction of the placement disc inside the camera footprint.
+      // Distance falloff is deliberately not compensated here: far grass must
+      // fade and leave budget unused instead of forming a small dense patch.
+      const step = Math.max(1, Math.ceil(maxRing / 24));
+      const radiusCells = maxRing + 0.5;
+      const radiusCellsSq = radiusCells * radiusCells;
+      let visibleSum = 0;
+      let samples = 0;
+      for (let cy = -maxRing; cy <= maxRing; cy += step) {
+        for (let cx = -maxRing; cx <= maxRing; cx += step) {
+          if ((cx * cx + cy * cy) / radiusCellsSq >= 1) continue;
+          const worldX = (camCellX + cx + 0.5) * gs;
+          const worldY = -(camCellY + cy + 0.5) * gs;
+          const visible =
+            !view.corners ||
+            view.corners.length < 3 ||
+            pointInConvexQuad(worldX, worldY, view.corners);
+          visibleSum += visible ? 1 : 0;
+          samples++;
+        }
       }
+      averageVisibility = samples > 0 ? visibleSum / samples : 0;
+      if (!(averageVisibility > 0)) return 0;
     }
-    averageVisibility = samples > 0 ? visibleSum / samples : 0;
-    if (!(averageVisibility > 0)) return 0;
-  }
 
-  // Integral of (1 - t^2)^p over the disc is pi * R^2 / (p + 1); multiply it by
-  // the visible fraction so the budget lands on the camera view.
-  const weightedCells = (visitedCells * averageVisibility) / (GRASS_DENSITY_FALLOFF + 1);
-  const calibrated = requested / (GRASS_MEAN_TUFTS_PER_CELL * weightedCells);
-  // A config density of 1 means "no artificial cap": the calibrated density may
-  // exceed 1 in a dense field, and per-cell occupancy clamps at 1.
-  const densityCap = cfg.density >= 1 ? Number.POSITIVE_INFINITY : cfg.density;
-  const centerDensity = Math.min(calibrated, densityCap);
+    // Integral of (1 - t^2)^p over the disc is pi * R^2 / (p + 1); multiply it by
+    // the visible fraction so the budget lands on the camera view.
+    const weightedCells = (visitedCells * averageVisibility) / (GRASS_DENSITY_FALLOFF + 1);
+    const calibrated = requested / (GRASS_MEAN_TUFTS_PER_CELL * weightedCells);
+    // A config density of 1 means "no artificial cap": the calibrated density may
+    // exceed 1 in a dense field, and per-cell occupancy clamps at 1.
+    const densityCap = cfg.density >= 1 ? Number.POSITIVE_INFINITY : cfg.density;
+    centerDensity = Math.min(calibrated, densityCap);
+  }
+  lastCalibratedDensity = centerDensity;
   if (!(centerDensity > 0)) return 0;
 
   const radiusSq = cullRadiusWorld * cullRadiusWorld;
@@ -637,9 +623,10 @@ export function placeGrassTufts(
 
     const worldX = (cellX + 0.5) * gs;
     const worldY = -(cellY + 0.5) * gs;
-    const exposure = cameraViewExposure(worldX, worldY, view);
-    if (!(exposure > 0)) return;
-    const density = centerDensity * (1 - t2) ** GRASS_DENSITY_FALLOFF * exposure;
+    const visible =
+      !view || view.corners.length < 3 || pointInConvexQuad(worldX, worldY, view.corners);
+    if (!visible) return;
+    const density = centerDensity * (1 - t2) ** GRASS_DENSITY_FALLOFF;
     if (!(density > 0)) return;
 
     count += tryPlaceCell(
@@ -659,7 +646,6 @@ export function placeGrassTufts(
       count,
       requested,
       view,
-      cameraNearBoost(worldX, worldY, view),
     );
   };
 

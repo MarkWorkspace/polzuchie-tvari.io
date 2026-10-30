@@ -12,6 +12,7 @@ import {
   type GrassFieldConfig,
   type GrassPlacementView,
   type GrassTuftBuffer,
+  getLastCalibratedDensity,
   placeGrassTufts,
 } from "./DecorField";
 import { DecorUpdateGate, type DecorViewState } from "./DecorUpdateGate";
@@ -247,12 +248,15 @@ export class GrassRenderer {
     uShadowTint: { value: GRASS_SHADOW_TINT },
     uFieldCenter: { value: new THREE.Vector2() },
     uFieldRadius: { value: 1 },
+    uFadeNear: { value: 250 },
+    uFadeFar: { value: 850 },
   };
   private readonly shadeColor = new THREE.Color(SHADE_COLOR);
   private readonly lightColor = new THREE.Color(LIGHT_COLOR);
   private readonly dryColor = new THREE.Color(0xb0a45c);
   private readonly scratchColor = new THREE.Color();
   private readonly gate = new DecorUpdateGate();
+  private readonly densityCache = new Map<string, number>();
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -381,6 +385,14 @@ export class GrassRenderer {
     const lodScale = grassLodScale(viewHalfExtent);
     this.uniforms.uFieldCenter.value.set(camX, camY);
     this.uniforms.uFieldRadius.value = Math.max(1, cullRadius);
+    this.uniforms.uFadeNear.value =
+      Number.isFinite(cameraView?.near) && (cameraView?.near ?? 0) > 0
+        ? (cameraView?.near ?? 250)
+        : 250;
+    this.uniforms.uFadeFar.value =
+      Number.isFinite(cameraView?.far) && (cameraView?.far ?? 0) > 0
+        ? Math.max(this.uniforms.uFadeNear.value + 1, cameraView?.far ?? 850)
+        : 850;
 
     const state: DecorViewState = {
       nowMs,
@@ -425,6 +437,8 @@ export class GrassRenderer {
     this.fieldConfig.mapCellsY = mapY;
 
     const rebuildStartedAt = import.meta.env.DEV ? performance.now() : 0;
+    const densityKey = `${budget}|${Math.round(cullRadius)}|${mapX}|${mapY}`;
+    const cachedDensity = this.densityCache.get(densityKey);
     const count = placeGrassTufts(
       camX,
       camY,
@@ -433,7 +447,12 @@ export class GrassRenderer {
       this.fieldConfig,
       this.tufts,
       cameraView,
+      cachedDensity,
     );
+    if (cachedDensity === undefined) {
+      const density = getLastCalibratedDensity();
+      if (density > 0) this.densityCache.set(densityKey, density);
+    }
     this.writeInstances(count, lodScale);
     const rootCount = Math.min(count, ROOT_SHADOW_BUDGET);
     if (import.meta.env.DEV && typeof window !== "undefined") {
@@ -516,10 +535,14 @@ export class GrassRenderer {
       shader.uniforms.uShadowTint = this.uniforms.uShadowTint;
       shader.uniforms.uFieldCenter = this.uniforms.uFieldCenter;
       shader.uniforms.uFieldRadius = this.uniforms.uFieldRadius;
+      shader.uniforms.uFadeNear = this.uniforms.uFadeNear;
+      shader.uniforms.uFadeFar = this.uniforms.uFadeFar;
 
       shader.vertexShader = `
         uniform float uTime;
         uniform float uWindStrength;
+        uniform float uFadeNear;
+        uniform float uFadeFar;
         uniform vec2 uPlayerPos;
         uniform sampler2D uShadowMap;
         uniform vec2 uShadowCenter;
@@ -539,6 +562,18 @@ export class GrassRenderer {
         // space after the instance matrix, so all tufts move together.
         float grassT = clamp(position.z / ${BLADE_HEIGHT.toFixed(2)}, 0.0, 1.0);
         grassBend = grassT * grassT;
+
+        // Smooth camera-distance LOD. Far tufts shrink to their root instead of
+        // popping out with the CPU instance set, so LOD changes are continuous.
+        #ifdef USE_INSTANCING
+          vec2 grassFadeRoot = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xy;
+        #else
+          vec2 grassFadeRoot = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xy;
+        #endif
+        float grassFadeDistance =
+          length(vec3(grassFadeRoot, ${GRASS_GROUND_Z.toFixed(2)}) - cameraPosition);
+        float grassFarFade = 1.0 - smoothstep(uFadeNear, uFadeFar, grassFadeDistance);
+        transformed *= grassFarFade;
         `,
       );
 
