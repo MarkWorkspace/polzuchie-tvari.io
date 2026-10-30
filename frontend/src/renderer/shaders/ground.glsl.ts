@@ -4,6 +4,7 @@ export function patchGroundMaterial(shader: any, uniforms: any) {
   shader.uniforms.uGroundColor = uniforms.uGroundColor;
   shader.uniforms.uGridColor = uniforms.uGridColor;
   shader.uniforms.uGridSize = uniforms.uGridSize;
+  shader.uniforms.uWorldSize = uniforms.uWorldSize;
 
   shader.vertexShader = `
     varying vec3 vWorldPosition;
@@ -21,6 +22,7 @@ export function patchGroundMaterial(shader: any, uniforms: any) {
     uniform vec3 uGroundColor;
     uniform vec3 uGridColor;
     uniform float uGridSize;
+    uniform vec2 uWorldSize;
     varying vec3 vWorldPosition;
 
     float hash21(vec2 p) {
@@ -29,15 +31,17 @@ export function patchGroundMaterial(shader: any, uniforms: any) {
       return fract(p.x * p.y);
     }
 
-    float valueNoise(vec2 p) {
+    float valueNoisePeriodic(vec2 p, vec2 period) {
       vec2 i = floor(p);
       vec2 f = fract(p);
       vec2 u = f * f * (3.0 - 2.0 * f);
-      return mix(
-        mix(hash21(i), hash21(i + vec2(1.0, 0.0)), u.x),
-        mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x),
-        u.y
-      );
+      vec2 i0 = mod(i, period);
+      vec2 i1 = mod(i + 1.0, period);
+      float a = hash21(i0);
+      float b = hash21(vec2(i1.x, i0.y));
+      float c = hash21(vec2(i0.x, i1.y));
+      float d = hash21(i1);
+      return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
     }
   ${shader.fragmentShader}`;
 
@@ -46,22 +50,34 @@ export function patchGroundMaterial(shader: any, uniforms: any) {
     `
     #include <color_fragment>
 
-    // The ground has to read as grass even where no tuft grows. Three noise
-    // octaves give broad patches, clump-scale variation and a fine grain; the
-    // two high-frequency layers fade with distance so they cannot shimmer.
+    // The ground has to read as grass even where no tuft grows. The noise is
+    // periodic over one map, so the pattern does not jump at the toroidal seam.
     vec2 worldXY = vWorldPosition.xy;
+    vec2 mapUv = worldXY / max(uWorldSize, vec2(1.0));
     float camDist = length(worldXY - cameraPosition.xy);
     float detailFade = 1.0 - smoothstep(220.0, 850.0, camDist);
 
-    float broad = valueNoise(worldXY * 0.005);
-    float clump = valueNoise(worldXY * 0.031 + 13.0);
-    float fine = valueNoise(worldXY * 0.21 + 41.0);
-    float grain = valueNoise(worldXY * 0.9 + 7.0);
+    float broad = valueNoisePeriodic(mapUv * 10.0, vec2(10.0));
+    float clump = valueNoisePeriodic(mapUv * 62.0, vec2(62.0));
+    float fine = valueNoisePeriodic(mapUv * 420.0, vec2(420.0));
+    float grain = valueNoisePeriodic(mapUv * 1800.0, vec2(1800.0));
+
+    // Two axis-aligned anisotropic layers read as grass fibres at both the
+    // player zoom and the spectator overview. They stay periodic by using
+    // integer cycle counts over the map.
+    float strandX =
+      valueNoisePeriodic(vec2(mapUv.x * 400.0, mapUv.y * 20.0), vec2(400.0, 20.0));
+    float strandY =
+      valueNoisePeriodic(vec2(mapUv.x * 20.0, mapUv.y * 400.0), vec2(20.0, 400.0));
+    float strandMask = 0.6 + 0.4 * clump;
+    float strands = (strandX * 0.6 + strandY * 0.4 - 0.5) * strandMask;
+
     float tone = broad * 0.46 + clump * 0.34 + (fine * 0.55 + grain * 0.45) * 0.2 * detailFade;
+    tone = clamp(tone + strands * 0.28, 0.0, 1.0);
 
     vec3 grassDark = uGroundColor * 0.72;
     vec3 grassLight = uGroundColor * 1.34 + vec3(0.015, 0.025, 0.0);
-    vec3 base = mix(grassDark, grassLight, clamp(tone, 0.0, 1.0));
+    vec3 base = mix(grassDark, grassLight, tone);
 
     // Derivative-based grid keeps lines crisp up close and prevents moire far away.
     vec2 cellCoord = worldXY / (uGridSize * 2.0);

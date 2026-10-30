@@ -408,6 +408,7 @@ export class SceneManager {
       uGroundColor: { value: new THREE.Color(0x5f7044) },
       uGridColor: { value: new THREE.Color(0x4f6039) },
       uGridSize: { value: gridSize },
+      uWorldSize: { value: new THREE.Vector2(WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize) },
     };
 
     this.groundMaterial = new THREE.MeshStandardMaterial({
@@ -442,6 +443,10 @@ export class SceneManager {
   private updateGround(msg: any): void {
     const mapW = msg.gameState?.server_world?.width ?? WORLD_WIDTH;
     const mapH = msg.gameState?.server_world?.height ?? WORLD_HEIGHT;
+    const uniforms = this.groundMaterial.userData.uniforms as {
+      uWorldSize: { value: THREE.Vector2 };
+    };
+    uniforms.uWorldSize.value.set(mapW * gridSize, mapH * gridSize);
 
     // The geometry is a 4x apron, so a plain map-size scale gives both player
     // and spectator the same generous ground coverage near map edges.

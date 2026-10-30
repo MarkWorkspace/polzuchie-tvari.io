@@ -125,7 +125,7 @@ frontend/
     │       ├── food.glsl.ts            # ROLE: Шейдер еды.
     │       ├── portal.glsl.ts          # ROLE: Шейдер портала.
     │       ├── blackHole.glsl.ts       # ROLE: Шейдер чёрной дыры.
-    │       └── ground.glsl.ts          # ROLE: Шейдер пола: AA-сетка, процедурная фактура и distance fade.
+    │       └── ground.glsl.ts          # ROLE: Шейдер пола: AA-сетка, периодическая по карте процедурная фактура, анизотропные grass-пряди и distance fade.
     ├── worker/
     │   ├── worker.ts                   # ROLE: Точка входа воркера, onmessage-роутер. Не содержит вычислений.
     │   ├── StateInterpolation.ts       # ROLE: Очередь состояний, интерполяция между тиками.
