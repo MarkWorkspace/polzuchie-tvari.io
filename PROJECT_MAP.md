@@ -240,8 +240,8 @@ backend/
     ├── api/
     │   ├── admin.py                    # ROLE: Admin REST API.
     │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
-    │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie. Не WS-аутентификация и не игровая логика.
-    │   └── websocket.py                # ROLE: WebSocket endpoint, rate limiting, spectator/player identity. Не игровая логика.
+    │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie и resolver для WS. WS-аутентификацию выполняет websocket.py.
+    │   └── websocket.py                # ROLE: WebSocket endpoint, cookie-auth player identity, rate limiting, spectator/player identity. Не игровая логика.
     ├── bots/
     │   ├── __init__.py                 # ROLE: Изолированный пакет ботов; удаляется вместе с 3 engine-хуками.
     │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов, personalities и сглаживание руления. Без сети и рендера.
@@ -297,10 +297,10 @@ backend/tests/
 ├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
 ├── test_math_parity.py                 # ROLE: Parity-тест тороидальной математики. Сверяет Python с golden vectors.
 ├── test_physics.py                     # ROLE: Тесты физики движения.
-├── test_player_session.py              # ROLE: Player session cookie/store: флаги cookie, reuse, delete, TTL, cap, rate limit, spectator isolation.
+├── test_player_session.py              # ROLE: Player session cookie/store и WS cookie-auth: флаги cookie, reuse, delete, TTL, cap, rate limit, reconnect identity, spectator isolation.
 ├── test_serialization_cache_race.py    # ROLE: Позднее подключение игрока не вызывает KeyError в кэше кадра.
 ├── test_server_resilience.py           # ROLE: Сбой сериализации одного клиента не убивает game loop.
-├── test_spectator_identity.py          # ROLE: Spectator не переиспользует player client_id; неудачный handshake не оставляет призрака.
+├── test_spectator_identity.py          # ROLE: Cookie-auth identity; spectator не переиспользует player id; неудачный handshake не оставляет призрака.
 ├── test_world_lifecycle.py             # ROLE: Resize карты и полная очистка World.reset_state.
 ├── test_world_elements.py              # ROLE: Тесты порталов и чёрных дыр.
 └── generate_frame_fixtures.py          # ROLE: Генерация эталонных кадров для parity-тестов. Запуск вручную при изменении формата.

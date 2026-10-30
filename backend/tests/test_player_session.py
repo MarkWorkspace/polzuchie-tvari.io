@@ -1,7 +1,10 @@
-# ROLE: Player session cookie/store regressions: cookie flags, reuse, delete, TTL, cap,
-# rate limit, cookie resolver and spectator isolation. Does not test WS auth or gameplay.
+# ROLE: Player session cookie/store and WS cookie-auth regressions: cookie flags, reuse,
+# delete, TTL, cap, rate limit, resolver, reconnect identity and spectator isolation.
+# Does not test gameplay or protobuf frame semantics.
+import logging
 import time
 import uuid
+import zlib
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,6 +21,7 @@ from app.api.session import (
     resolve_session_from_cookies,
     session_token_from_cookies,
 )
+from app.engine.systems import snake_pb2
 
 
 @pytest.fixture(autouse=True)
@@ -36,6 +40,12 @@ def _cookie_header(response) -> str:
         if header.startswith(f"{PLAYER_SESSION_COOKIE}="):
             return header
     raise AssertionError("Player session cookie was not set")
+
+
+def _receive_full_frame(websocket) -> snake_pb2.GameStateFrame:
+    frame = snake_pb2.GameStateFrame()
+    frame.ParseFromString(zlib.decompress(websocket.receive_bytes()))
+    return frame
 
 
 def test_post_session_sets_http_only_lax_cookie_without_token_in_json():
@@ -197,16 +207,112 @@ def test_session_token_and_resolver_from_parsed_cookies():
     assert resolve_session_from_cookies({PLAYER_SESSION_COOKIE: "missing"}) is None
 
 
-def test_spectator_websocket_does_not_create_or_touch_player_session():
+def test_foreign_client_id_without_cookie_creates_new_player(caplog):
+    with TestClient(server.app) as client:
+        world = server.app.state.world
+        victim_id = str(uuid.uuid4())
+        world.add_player(victim_id, "Victim", "#22c55e")
+        victim = world.players[victim_id]
+
+        with caplog.at_level(logging.WARNING, logger="app.api.websocket"):
+            with client.websocket_connect(f"/ws?role=player&client_id={victim_id}") as websocket:
+                frame = _receive_full_frame(websocket)
+
+                assert frame.your_id != victim_id
+                uuid.UUID(frame.your_id)
+                assert frame.your_id in world.players
+                assert world.players[victim_id] is victim
+
+        messages = [
+            record.getMessage() for record in caplog.records if record.name == "app.api.websocket"
+        ]
+        assert any("client_id" in message for message in messages)
+        assert all(victim_id not in message for message in messages)
+
+
+def test_valid_cookie_reconnects_same_player():
+    with TestClient(server.app) as client:
+        player_id = client.post("/session").json()["player_id"]
+        world = server.app.state.world
+        world.add_player(player_id, "Existing", "#22c55e")
+        existing = world.players[player_id]
+
+        with client.websocket_connect("/ws?role=player&nickname=Returning") as websocket:
+            frame = _receive_full_frame(websocket)
+
+            assert frame.your_id == player_id
+            assert world.players[player_id] is existing
+            assert existing.nickname == "Existing"
+
+
+def test_cookie_without_existing_player_creates_player_with_session_id():
+    with TestClient(server.app) as client:
+        player_id = client.post("/session").json()["player_id"]
+        world = server.app.state.world
+        assert player_id not in world.players
+
+        with client.websocket_connect("/ws?role=player&nickname=Fresh") as websocket:
+            frame = _receive_full_frame(websocket)
+
+            assert frame.your_id == player_id
+            assert world.players[player_id].nickname == "Fresh"
+
+
+def test_spectator_never_uses_player_cookie():
     with TestClient(server.app) as client:
         player = client.post("/session").json()
+        player_id = player["player_id"]
         token = client.cookies.get(PLAYER_SESSION_COOKIE)
         last_seen = session_module._player_sessions[token].last_seen
+        world = server.app.state.world
+        world.add_player(player_id, "Owner", "#22c55e")
+        owner = world.players[player_id]
 
         with client.websocket_connect("/ws?role=spectator") as websocket:
-            websocket.receive_bytes()
+            frame = _receive_full_frame(websocket)
+
+            assert frame.your_id != player_id
+            uuid.UUID(frame.your_id)
+            assert frame.your_id not in world.players
+            assert frame.your_id in world.spectators
+            assert world.players[player_id] is owner
 
         assert len(session_module._player_sessions) == 1
-        assert session_module._player_sessions[token].player_id == player["player_id"]
+        assert session_module._player_sessions[token].player_id == player_id
         assert session_module._player_sessions[token].last_seen == last_seen
         assert client.cookies.get(PLAYER_SESSION_COOKIE) == token
+
+
+def test_invalid_cookie_creates_new_identity():
+    with TestClient(server.app) as client:
+        world = server.app.state.world
+        invalid_token = "not-a-real-token"
+
+        with client.websocket_connect(
+            "/ws?role=player",
+            headers={"cookie": f"{PLAYER_SESSION_COOKIE}={invalid_token}"},
+        ) as websocket:
+            frame = _receive_full_frame(websocket)
+
+            assert frame.your_id != invalid_token
+            uuid.UUID(frame.your_id)
+            assert frame.your_id in world.players
+
+        assert not session_module._player_sessions
+
+
+def test_expired_cookie_creates_new_identity():
+    with TestClient(server.app) as client:
+        player_id = client.post("/session").json()["player_id"]
+        token = client.cookies.get(PLAYER_SESSION_COOKIE)
+        session_module._player_sessions[token].created_at -= PLAYER_SESSION_TTL_SECONDS + 1
+        world = server.app.state.world
+
+        with client.websocket_connect("/ws?role=player") as websocket:
+            frame = _receive_full_frame(websocket)
+
+            assert frame.your_id != player_id
+            uuid.UUID(frame.your_id)
+            assert frame.your_id in world.players
+
+        assert token not in session_module._player_sessions

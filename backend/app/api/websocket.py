@@ -1,4 +1,4 @@
-# ROLE: WebSocket endpoint, rate limiting. Не игровая логика.
+# ROLE: WebSocket endpoint, cookie-based player identity, rate limiting. Не игровая логика.
 import asyncio
 import contextlib
 import logging
@@ -7,6 +7,8 @@ import uuid
 import zlib
 from collections import deque
 from fastapi import WebSocket
+
+from app.api.session import PlayerSession, resolve_session_from_cookies
 
 
 active_connections = {}
@@ -61,33 +63,26 @@ def _new_client_id() -> str:
     return str(uuid.uuid4())
 
 
-def _validate_client(client_id: str | None, world, role: str = "player") -> tuple[str, bool]:
+def _validate_client(
+    world,
+    role: str = "player",
+    player_session: PlayerSession | None = None,
+) -> tuple[str, bool]:
     """Return a safe connection id.
 
-    A spectator always gets a fresh identity: reusing a player's client_id
-    would kick the player, leave a ghost snake and make both tabs fight over
-    the same active connection.
+    Only a valid player session cookie can claim an existing player. A
+    spectator always gets a fresh identity: reusing a player's id would kick
+    the player, leave a ghost snake and make both tabs fight over the same
+    active connection.
     """
     if role == "spectator":
         return _new_client_id(), False
 
-    reconnecting = False
-    if client_id:
-        try:
-            uuid.UUID(client_id)
-        except (ValueError, TypeError, AttributeError):
-            client_id = None
-        else:
-            if client_id in world.players:
-                reconnecting = True
-            elif client_id in active_connections:
-                # The id belongs to another connection (for example a
-                # spectator). Never overwrite it.
-                client_id = None
+    if player_session is None:
+        return _new_client_id(), False
 
-    if not client_id:
-        client_id = _new_client_id()
-    return client_id, reconnecting
+    player_id = player_session.player_id
+    return player_id, player_id in world.players
 
 
 def _clean_profile(nickname: str, skin: str) -> tuple[str, str]:
@@ -206,7 +201,17 @@ async def websocket_endpoint(
     role: str = "player",
 ):
     world = websocket.app.state.world
-    client_id, reconnecting = _validate_client(client_id, world, role)
+    if client_id:
+        logger.warning(
+            "Ignoring deprecated client_id query parameter on WebSocket handshake; "
+            "player identity comes from the player session cookie"
+        )
+    # Spectators never resolve the cookie: they must not reuse a player id nor
+    # touch the session's last_seen timestamp.
+    player_session = (
+        None if role == "spectator" else resolve_session_from_cookies(websocket.cookies)
+    )
+    client_id, reconnecting = _validate_client(world, role, player_session)
     if len(active_connections) >= MAX_CONNECTIONS and not reconnecting:
         await websocket.close(code=4002, reason="Server full")
         return
