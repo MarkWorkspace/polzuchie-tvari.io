@@ -81,17 +81,24 @@ npm test
 npm run build
 ```
 
-E2E smoke-тесты идут против production-сборки (`npm run build` + `vite preview`).
-Playwright сам поднимает backend на `:8000` и preview на `:5173`; same-origin
-запросы `/ws` (WebSocket и admin API) проксируются на backend через
-`preview.proxy` в `vite.config.ts`. Сценарии: `login → HUD → качество`, реальная
+E2E smoke-тесты идут против production-сборки: `npm run test:e2e` сначала сам
+собирает бандл через npm lifecycle-хук `pretest:e2e` (`npm run build`), а затем
+Playwright поднимает backend на `:8000` и `vite preview` на `:5173`
+(`npm run preview:e2e`). Same-origin запросы `/ws` (WebSocket и admin API)
+проксируются на backend через `preview.proxy` в `vite.config.ts`. Build вынесен
+из `webServer`, поэтому Playwright управляет ровно одним процессом preview и
+корректно его останавливает. Сценарии: `login → HUD → качество`, реальная
 смерть от чёрной дыры → respawn, spectator-режим и admin login/logout.
 
 ```bash
 cd frontend
 npx playwright install chromium   # один раз на машину
-npm run test:e2e
+npm run test:e2e                  # build + preview + тесты
 ```
+
+Хук `pretest:e2e` срабатывает только у `npm run test:e2e`; при прямом запуске
+`npx playwright test` или `npm run test:e2e:ui` сборку нужно сделать вручную
+(`npm run build`).
 
 Перед первым запуском на Linux CI браузер ставится с системными зависимостями:
 `npx playwright install --with-deps chromium`. Playwright всегда поднимает свой
@@ -99,11 +106,14 @@ backend на `:8000` с `ADMIN_PASSWORD=e2e-admin`; если локальный 
 запущен, остановите его. Backend получает временную копию `backend/config.json`
 через `CONFIG_PATH`, поэтому изменения конфига из E2E не трогают файл в репозитории.
 
-Для production-E2E нужен свободный порт `5173`: локально `reuseExistingServer`
-включён (`!CI`), поэтому уже запущенный на этом порту сервер будет
-использован как есть. Остановите старый `vite`/`preview` или задайте другой
-порт. Другой backend можно указать через `E2E_BACKEND_URL` (по умолчанию
-`http://127.0.0.1:8000`), он прокидывается и в specs, и в proxy.
+Для production-E2E нужен свободный порт `5173`: `preview:e2e` запускается с
+`--strictPort`, поэтому занятый порт — это явная ошибка, а не тихий переход на
+другой. Локально `reuseExistingServer` включён (`!CI`), поэтому уже запущенный
+на этом порту сервер будет переиспользован как есть — включая dev-сервер, что
+нарушает требование гонять тесты против production-сборки (build из
+`pretest:e2e` при этом всё равно выполняется). Остановите старый `vite`/`preview`
+на `5173` перед запуском. Другой backend можно указать через `E2E_BACKEND_URL`
+(по умолчанию `http://127.0.0.1:8000`), он прокидывается и в specs, и в proxy.
 
 ### CI checks
 

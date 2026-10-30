@@ -55,9 +55,12 @@ export default defineConfig({
       // E2E must exercise the production bundle: Vite dev loads the spectator
       // chunk via a dynamic import that is flaky on CI. `preview` serves `dist/`
       // and proxies same-origin "/ws" to the backend (see vite.config.ts).
-      command: "npm run build && npm run preview -- --host 127.0.0.1 --port 5173 --strictPort",
+      // The build runs beforehand via the `pretest:e2e` npm lifecycle hook, so
+      // webServer owns a single process (`vite preview`) instead of a shell
+      // running `build && preview`, which Playwright could not terminate.
+      command: "npm run preview:e2e",
       url: "http://127.0.0.1:5173",
-      timeout: 180_000,
+      timeout: 120_000,
       reuseExistingServer: !isCi,
       env: {
         E2E_BACKEND_URL: process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:8000",
