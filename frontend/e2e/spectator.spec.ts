@@ -1,5 +1,6 @@
 // ROLE: E2E tests for the player spectator and the admin debug spectator.
 import { expect, test } from "@playwright/test";
+import { loginAdmin, patchConfig, readConfig } from "./adminApi";
 
 test("player spectator shows a clean HUD without player identity", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -58,33 +59,49 @@ test("debug spectator exposes the admin panels only", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
-test("follows a selected player and returns to overview", async ({ page, context }) => {
+test("follows a selected player and returns to overview", async ({ page, context, request }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await loginAdmin(request);
+  const originalConfig = await readConfig(request);
 
   const playerPage = await context.newPage();
   playerPage.on("pageerror", (error) => pageErrors.push(error.message));
 
-  await playerPage.goto("/");
-  await playerPage.getByLabel("Your nickname").fill("Follow Target");
-  await playerPage.getByRole("button", { name: "Play", exact: true }).click();
-  await expect(playerPage.locator(".hud-guide.connected")).toBeVisible();
+  try {
+    // The target is an idle player for the whole scenario. A black hole would
+    // kill it mid-test, and a portal transit drops it from the frame's
+    // activePlayers, which clears the follow state. Keep those world hazards
+    // (and bots) out of the way so the follow controls stay deterministic.
+    await patchConfig(request, {
+      world: { black_holes_enabled: 0, portals_enabled: 0 },
+      bots: { enabled: 0 },
+    });
 
-  await page.goto("/?spectator=true");
-  const row = page.locator(".leaderboard-item--selectable").filter({ hasText: "Follow Target" });
-  await expect(row).toBeVisible();
-  await row.click();
-  await expect(page.locator(".spectator-following")).toContainText("Following: Follow Target");
+    await playerPage.goto("/");
+    await playerPage.getByLabel("Your nickname").fill("Follow Target");
+    await playerPage.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(playerPage.locator(".hud-guide.connected")).toBeVisible();
 
-  await page.getByRole("button", { name: "Map overview" }).click();
-  await expect(page.locator(".spectator-following")).toHaveCount(0);
+    await page.goto("/?spectator=true");
+    const row = page.locator(".leaderboard-item--selectable").filter({ hasText: "Follow Target" });
+    await expect(row).toBeVisible();
+    await row.click();
+    await expect(page.locator(".spectator-following")).toContainText("Following: Follow Target");
 
-  await row.click();
-  await expect(page.locator(".spectator-following")).toContainText("Following: Follow Target");
+    await page.getByRole("button", { name: "Map overview" }).click();
+    await expect(page.locator(".spectator-following")).toHaveCount(0);
 
-  // Losing the followed player must clear the follow state automatically.
-  await playerPage.close();
-  await expect(page.locator(".spectator-following")).toHaveCount(0);
+    await row.click();
+    await expect(page.locator(".spectator-following")).toContainText("Following: Follow Target");
 
-  expect(pageErrors).toEqual([]);
+    // Losing the followed player must clear the follow state automatically.
+    await playerPage.close();
+    await expect(page.locator(".spectator-following")).toHaveCount(0);
+
+    expect(pageErrors).toEqual([]);
+  } finally {
+    await patchConfig(request, originalConfig);
+  }
 });
