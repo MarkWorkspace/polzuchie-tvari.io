@@ -22,13 +22,19 @@ export const GRASS_MEAN_TUFTS_PER_CELL = 4.5;
  */
 export const GRASS_CELL_DIVISIONS = 2;
 
-/** Side of the coarse super-cell that decides whether a patch of lawn is lush or bare, in placement cells. */
+/** Side of the broad super-cell that decides whether a patch of lawn is lush or thin, in placement cells. */
 export const GRASS_CLUSTER_CELLS = 8;
 
-/** Lowest density factor a super-cell may reach; most cells still carry grass. */
+/**
+ * Side of the fine clump, in placement cells. A 10-unit placement cell makes
+ * this a 20-unit group: 12-24 tufts that share colour, height and dryness.
+ */
+export const GRASS_FINE_CLUSTER_CELLS = 2;
+
+/** Lowest density factor a clump may reach; thin patches still keep a full grass cover. */
 export const GRASS_CLUSTER_MIN = 0.55;
 
-/** Mean of the smoothstep cluster factor; placement divides by it so the budget still lands. */
+/** Mean of the combined cluster factor; placement divides by it so the budget still lands. */
 export const GRASS_CLUSTER_MEAN = (GRASS_CLUSTER_MIN + 1) / 2;
 
 /** Hard per-family buffer caps: the dense grass field and the sparse stones. */
@@ -60,6 +66,10 @@ const SALT_TUFT_COUNT = 0x23;
 const SALT_TUFT_BASE = 0x31;
 const SALT_TUFT_STEP = 0x17;
 const SALT_CLUSTER = 0x53;
+const SALT_CLUSTER_BROAD = 0x54;
+const SALT_CLUMP_HEIGHT = 0x57;
+const SALT_CLUMP_COLOR = 0x59;
+const SALT_CLUMP_DRY = 0x5b;
 const SALT_PROP = {
   stone: 0x61,
 } as const;
@@ -193,12 +203,60 @@ function safeSeed(value: number): number {
   return Number.isFinite(value) ? value | 0 : GRASS_SEED;
 }
 
+/** Shared look of one fine grass clump. Values are stable for the whole clump. */
+export interface GrassClumpProfile {
+  /** Density multiplier in [GRASS_CLUSTER_MIN, 1]. */
+  density: number;
+  /** Uniform tuft scale multiplier in [0.88, 1.12]. */
+  height: number;
+  /** Colour bias in [0, 1]; 0 is dark, 1 is bright. */
+  color: number;
+  /** Whole clumps go dry together instead of scattering dry single tufts. */
+  dry: boolean;
+}
+
+function smoothstep01(value: number): number {
+  return value * value * (3 - 2 * value);
+}
+
 /**
- * Density multiplier of the coarse super-cell that owns a world cell, in
- * [GRASS_CLUSTER_MIN, 1]. Smoothstep widens the contrast between lush and
- * nearly bare patches compared to a plain hash. Coordinates are wrapped, so
- * the same cell shifted by the map size yields the same clump.
+ * Style of the fine clump that owns a world cell. Two spatial scales are
+ * combined: a 20-unit group (fine colour/height/dryness, sharp density change)
+ * and an 80-unit patch (broad lush/thin gradient). Coordinates are wrapped, so
+ * the same cell shifted by the map size yields the same clump. The fine-cell
+ * style keeps neighbouring tufts coherent.
  */
+export function clumpProfile(
+  cellX: number,
+  cellY: number,
+  mapCellsX: number,
+  mapCellsY: number,
+  seed: number,
+): GrassClumpProfile {
+  const sizeX = safeCellSize(mapCellsX);
+  const sizeY = safeCellSize(mapCellsY);
+  const cx = wrapIndex(Math.trunc(cellX), sizeX);
+  const cy = wrapIndex(Math.trunc(cellY), sizeY);
+  const clumpSeed = safeSeed(seed);
+
+  const fineX = Math.floor(cx / GRASS_FINE_CLUSTER_CELLS);
+  const fineY = Math.floor(cy / GRASS_FINE_CLUSTER_CELLS);
+  const broadX = Math.floor(cx / GRASS_CLUSTER_CELLS);
+  const broadY = Math.floor(cy / GRASS_CLUSTER_CELLS);
+
+  const fine = smoothstep01(hashUnit(hashCell(fineX, fineY, SALT_CLUSTER, clumpSeed)));
+  const broad = smoothstep01(hashUnit(hashCell(broadX, broadY, SALT_CLUSTER_BROAD, clumpSeed)));
+  const density = GRASS_CLUSTER_MIN + (1 - GRASS_CLUSTER_MIN) * (fine * 0.6 + broad * 0.4);
+
+  return {
+    density,
+    height: 0.88 + 0.24 * hashUnit(hashCell(fineX, fineY, SALT_CLUMP_HEIGHT, clumpSeed)),
+    color: hashUnit(hashCell(fineX, fineY, SALT_CLUMP_COLOR, clumpSeed)),
+    dry: hashUnit(hashCell(fineX, fineY, SALT_CLUMP_DRY, clumpSeed)) > 0.92,
+  };
+}
+
+/** Density multiplier of the clump that owns a world cell, in [GRASS_CLUSTER_MIN, 1]. */
 export function clumpDensity(
   cellX: number,
   cellY: number,
@@ -206,15 +264,7 @@ export function clumpDensity(
   mapCellsY: number,
   seed: number,
 ): number {
-  const sizeX = safeCellSize(mapCellsX);
-  const sizeY = safeCellSize(mapCellsY);
-  const cx = wrapIndex(Math.trunc(cellX), sizeX);
-  const cy = wrapIndex(Math.trunc(cellY), sizeY);
-  const superX = Math.floor(cx / GRASS_CLUSTER_CELLS);
-  const superY = Math.floor(cy / GRASS_CLUSTER_CELLS);
-  const t = hashUnit(hashCell(superX, superY, SALT_CLUSTER, safeSeed(seed)));
-  const smooth = t * t * (3 - 2 * t);
-  return GRASS_CLUSTER_MIN + (1 - GRASS_CLUSTER_MIN) * smooth;
+  return clumpProfile(cellX, cellY, mapCellsX, mapCellsY, seed).density;
 }
 
 function sanitizeConfig(config: GrassFieldConfig): {
@@ -281,11 +331,13 @@ function sampleNormalizedCell(
   const cx = wrapIndex(Math.trunc(cellX), mapCellsX);
   const cy = wrapIndex(Math.trunc(cellY), mapCellsY);
 
-  const clump = clumpDensity(cx, cy, mapCellsX, mapCellsY, seed);
-  const localDensity = Math.min(1, (density * clump) / GRASS_CLUSTER_MEAN);
+  const clump = clumpProfile(cx, cy, mapCellsX, mapCellsY, seed);
+  const localDensity = Math.min(1, (density * clump.density) / GRASS_CLUSTER_MEAN);
   if (hashUnit(hashCell(cx, cy, SALT_OCCUPANCY, seed)) >= localDensity) return 0;
 
   const count = 3 + Math.min(3, Math.floor(hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) * 4));
+  const clumpTone = 0.5 + (clump.color - 0.5) * 0.5;
+  const tuftVariation = 0.45;
 
   for (let i = 0; i < count; i++) {
     const salt = SALT_TUFT_BASE + i * SALT_TUFT_STEP;
@@ -300,8 +352,12 @@ function sampleNormalizedCell(
     out.x[i] = worldCellX * gridSize;
     out.y[i] = -(worldCellY * gridSize);
     out.yaw[i] = hashUnit(hashCell(cx, cy, salt + 2, seed)) * TAU;
-    out.scale[i] = 0.9 + 0.55 * hashUnit(hashCell(cx, cy, salt + 3, seed));
-    out.colorMix[i] = hashUnit(hashCell(cx, cy, salt + 4, seed));
+    const tuftScale = hashUnit(hashCell(cx, cy, salt + 3, seed));
+    const tuftColor = hashUnit(hashCell(cx, cy, salt + 4, seed));
+    out.scale[i] = (0.9 + 0.55 * tuftScale) * clump.height;
+    out.colorMix[i] = clump.dry
+      ? 0.94 + 0.06 * tuftColor
+      : Math.min(1, Math.max(0, clumpTone + (tuftColor - 0.5) * tuftVariation));
   }
 
   out.count = count;

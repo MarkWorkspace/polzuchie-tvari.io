@@ -36,15 +36,16 @@ const BLADE_HEIGHT = 4.0;
 const BLADE_BASE_WIDTH = 2.35;
 const BLADE_TIP_WIDTH = 0.82;
 const BLADE_COUNT = 5;
+const BLADE_TINTS = [0.94, 1.02, 1.04, 0.96, 1.0];
 
 // Base-to-tip shade. Multiplied by the per-instance colour. A darker root
 // makes the field read as one dense mass instead of separate star-shaped tufts.
-const VERTEX_SHADE_BASE = 0.4;
-const VERTEX_SHADE_MID = 0.8;
+const VERTEX_SHADE_BASE = 0.38;
+const VERTEX_SHADE_MID = 0.79;
 const VERTEX_SHADE_TIP = 1.0;
 
-const SHADE_COLOR = 0x47612f;
-const LIGHT_COLOR = 0xa9c468;
+const SHADE_COLOR = 0x435c2d;
+const LIGHT_COLOR = 0xa3bf60;
 
 function finiteOr(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
@@ -115,25 +116,27 @@ function createTuftGeometry(): THREE.BufferGeometry {
     );
 
     // Blades are lit like the ground they grow from, so the field stays readable
-    // from every camera heading instead of half the blades going black.
+    // from every camera heading instead of half the blades going black. The
+    // per-blade tint below supplies the volume cue instead of tilted normals.
     for (let i = 0; i < 5; i++) normals.push(0, 0, 1);
 
+    const tint = BLADE_TINTS[b];
     colors.push(
-      VERTEX_SHADE_BASE,
-      VERTEX_SHADE_BASE,
-      VERTEX_SHADE_BASE,
-      VERTEX_SHADE_BASE,
-      VERTEX_SHADE_BASE,
-      VERTEX_SHADE_BASE,
-      VERTEX_SHADE_MID,
-      VERTEX_SHADE_MID,
-      VERTEX_SHADE_MID,
-      VERTEX_SHADE_MID,
-      VERTEX_SHADE_MID,
-      VERTEX_SHADE_MID,
-      VERTEX_SHADE_TIP,
-      VERTEX_SHADE_TIP,
-      VERTEX_SHADE_TIP,
+      VERTEX_SHADE_BASE * tint,
+      VERTEX_SHADE_BASE * tint,
+      VERTEX_SHADE_BASE * tint,
+      VERTEX_SHADE_BASE * tint,
+      VERTEX_SHADE_BASE * tint,
+      VERTEX_SHADE_BASE * tint,
+      VERTEX_SHADE_MID * tint,
+      VERTEX_SHADE_MID * tint,
+      VERTEX_SHADE_MID * tint,
+      VERTEX_SHADE_MID * tint,
+      VERTEX_SHADE_MID * tint,
+      VERTEX_SHADE_MID * tint,
+      VERTEX_SHADE_TIP * tint,
+      VERTEX_SHADE_TIP * tint,
+      VERTEX_SHADE_TIP * tint,
     );
 
     indices.push(
@@ -187,6 +190,7 @@ export class GrassRenderer {
   private readonly emptyShadow = createEmptyShadowTexture();
   private readonly uniforms = {
     uTime: { value: 0 },
+    uWindStrength: { value: 1 },
     uPlayerPos: { value: new THREE.Vector2() },
     uShadowMap: { value: this.emptyShadow as THREE.Texture },
     uShadowCenter: { value: new THREE.Vector2() },
@@ -406,6 +410,7 @@ export class GrassRenderer {
   private patchMaterial(material: THREE.MeshStandardMaterial): void {
     material.onBeforeCompile = (shader) => {
       shader.uniforms.uTime = this.uniforms.uTime;
+      shader.uniforms.uWindStrength = this.uniforms.uWindStrength;
       shader.uniforms.uPlayerPos = this.uniforms.uPlayerPos;
       shader.uniforms.uShadowMap = this.uniforms.uShadowMap;
       shader.uniforms.uShadowCenter = this.uniforms.uShadowCenter;
@@ -415,6 +420,7 @@ export class GrassRenderer {
 
       shader.vertexShader = `
         uniform float uTime;
+        uniform float uWindStrength;
         uniform vec2 uPlayerPos;
         uniform sampler2D uShadowMap;
         uniform vec2 uShadowCenter;
@@ -428,17 +434,10 @@ export class GrassRenderer {
         "#include <begin_vertex>",
         `#include <begin_vertex>
 
+        // Only the bend mask is local; the wind itself is applied in world
+        // space after the instance matrix, so all tufts move together.
         float grassT = clamp(position.z / ${BLADE_HEIGHT.toFixed(2)}, 0.0, 1.0);
         grassBend = grassT * grassT;
-        #ifdef USE_INSTANCING
-          float grassPhase = instanceMatrix[3].x * 0.043 + instanceMatrix[3].y * 0.031;
-        #else
-          float grassPhase = 0.0;
-        #endif
-        float grassGust = sin(uTime * 0.9 + grassPhase) * 0.6
-          + sin(uTime * 2.3 + grassPhase * 1.7) * 0.2;
-        transformed.x += grassGust * grassBend * 1.2;
-        transformed.y += grassGust * grassBend * 0.4;
         `,
       );
 
@@ -470,10 +469,32 @@ export class GrassRenderer {
           mvPosition = instanceMatrix * mvPosition;
         #endif
 
+        // Ghost of Tsushima's wind is one global direction with a low-frequency
+        // Perlin magnitude, not per-tuft noise. Two world-space waves plus a
+        // small cross-wind flutter give the whole field a coherent gust front.
+        vec2 grassWindDir = normalize(vec2(0.82, 0.57));
+        float grassWindSide =
+          sin(dot(grassRootWorld.xy, vec2(-0.045, 0.060)) - uTime * 0.70);
+        vec2 grassWind = normalize(
+          grassWindDir + vec2(-grassWindDir.y, grassWindDir.x) * grassWindSide * 0.22
+        );
+        float grassGustA =
+          0.55 + 0.45 * sin(dot(grassRootWorld.xy, vec2(0.081, 0.047)) - uTime * 1.25);
+        float grassGustB =
+          0.65 + 0.35 * sin(dot(grassRootWorld.xy, vec2(0.026, 0.015)) - uTime * 0.45);
+        float grassWindAmp = (1.1 + 0.55 * grassGustA * grassGustB) * uWindStrength;
+        float grassFlutter =
+          sin(uTime * 3.3 + grassRootWorld.x * 0.7 + grassRootWorld.y * 0.9) * 0.12;
+        mvPosition.xy += grassWind * grassWindAmp * grassBend;
+        mvPosition.xy +=
+          vec2(-grassWind.y, grassWind.x) * grassFlutter * grassBend;
+
         vec4 grassWorld = modelMatrix * mvPosition;
         vec2 grassToPlayer = grassWorld.xy - uPlayerPos;
         float grassDist = length(grassToPlayer);
-        float grassPush = (1.0 - smoothstep(10.0, 150.0, grassDist)) * grassBend * 2.0;
+        // The head parts the grass only in its immediate neighbourhood; the
+        // ribbon shadow handles the rest of the body.
+        float grassPush = (1.0 - smoothstep(8.0, 24.0, grassDist)) * grassBend * 1.6;
         mvPosition.xy += (grassToPlayer / max(grassDist, 0.001)) * grassPush;
 
         vGrassShadow = clamp(shadowCoverage * 1.6, 0.0, 1.0) * uShadowStrength;

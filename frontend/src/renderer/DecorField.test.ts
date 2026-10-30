@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   clumpDensity,
+  clumpProfile,
   createCellTufts,
   createDecorPropBuffer,
   createGrassTuftBuffer,
@@ -9,6 +10,7 @@ import {
   type DecorPropType,
   GRASS_CLUSTER_CELLS,
   GRASS_CLUSTER_MIN,
+  GRASS_FINE_CLUSTER_CELLS,
   GRASS_SEED,
   GRASS_TUFTS_PER_CELL_MAX,
   type GrassFieldConfig,
@@ -321,42 +323,75 @@ describe("grass clumping", () => {
     );
   });
 
-  it("is constant inside one super-cell and seed dependent", () => {
-    const baseX = GRASS_CLUSTER_CELLS * 5;
-    const baseY = GRASS_CLUSTER_CELLS * 6;
+  it("is constant inside one fine clump and seed dependent", () => {
+    const baseX = GRASS_FINE_CLUSTER_CELLS * 5;
+    const baseY = GRASS_FINE_CLUSTER_CELLS * 6;
     const cases = [
       [baseX, baseY],
-      [baseX + 1, baseY + GRASS_CLUSTER_CELLS - 1],
-      [baseX + GRASS_CLUSTER_CELLS - 1, baseY],
+      [baseX + 1, baseY + GRASS_FINE_CLUSTER_CELLS - 1],
+      [baseX + GRASS_FINE_CLUSTER_CELLS - 1, baseY],
     ];
-    const reference = clumpDensity(cases[0][0], cases[0][1], 100, 100, GRASS_SEED);
+    const reference = clumpProfile(cases[0][0], cases[0][1], 100, 100, GRASS_SEED);
     for (const [cx, cy] of cases) {
-      expect(clumpDensity(cx, cy, 100, 100, GRASS_SEED)).toBe(reference);
+      expect(clumpProfile(cx, cy, 100, 100, GRASS_SEED)).toEqual(reference);
     }
-    expect(clumpDensity(baseX, baseY, 100, 100, GRASS_SEED + 1)).not.toBe(reference);
+    expect(clumpProfile(baseX, baseY, 100, 100, GRASS_SEED + 1)).not.toEqual(reference);
   });
 
-  it("makes cells sparser in bare patches than in lush ones", () => {
+  it("varies at the 20-unit clump scale inside one broad patch", () => {
+    const baseX = GRASS_CLUSTER_CELLS * 5;
+    const baseY = GRASS_CLUSTER_CELLS * 6;
+    const heights = new Set<number>();
+    const colors = new Set<number>();
+
+    for (let cy = 0; cy < GRASS_CLUSTER_CELLS; cy += GRASS_FINE_CLUSTER_CELLS) {
+      for (let cx = 0; cx < GRASS_CLUSTER_CELLS; cx += GRASS_FINE_CLUSTER_CELLS) {
+        const profile = clumpProfile(baseX + cx, baseY + cy, 100, 100, GRASS_SEED);
+        heights.add(profile.height);
+        colors.add(profile.color);
+      }
+    }
+
+    // A broad patch must contain several distinct fine clumps, otherwise the
+    // field reads as one 80-unit gradient again.
+    expect(heights.size).toBeGreaterThan(2);
+    expect(colors.size).toBeGreaterThan(2);
+  });
+
+  it("scales every tuft by its clump height and dries the whole clump", () => {
+    const baseX = GRASS_FINE_CLUSTER_CELLS * 8;
+    const baseY = GRASS_FINE_CLUSTER_CELLS * 9;
+    const profile = clumpProfile(baseX, baseY, 100, 100, GRASS_SEED);
+    const cell = readCell(baseX, baseY);
+
+    expect(cell.count).toBeGreaterThan(0);
+    for (let i = 0; i < cell.count; i++) {
+      // The per-tuft 0.9..1.45 scale is multiplied by one shared clump height.
+      expect(cell.scale[i] / profile.height).toBeGreaterThanOrEqual(0.9 - 1e-9);
+      expect(cell.scale[i] / profile.height).toBeLessThanOrEqual(1.45 + 1e-9);
+      if (profile.dry) expect(cell.colorMix[i]).toBeGreaterThanOrEqual(0.94);
+    }
+  });
+
+  it("makes fine clumps sparser in thin patches than in lush ones", () => {
     let lushX = 0;
     let lushY = 0;
     let bareX = 0;
     let bareY = 0;
     let max = -1;
     let min = 2;
-    for (let sy = 0; sy < 12; sy++) {
-      for (let sx = 0; sx < 12; sx++) {
-        const cellX = sx * GRASS_CLUSTER_CELLS;
-        const cellY = sy * GRASS_CLUSTER_CELLS;
-        const value = clumpDensity(cellX, cellY, 100, 100, GRASS_SEED);
+    for (let cy = 0; cy < config.mapCellsY; cy += GRASS_FINE_CLUSTER_CELLS) {
+      for (let cx = 0; cx < config.mapCellsX; cx += GRASS_FINE_CLUSTER_CELLS) {
+        const value = clumpDensity(cx, cy, 100, 100, GRASS_SEED);
         if (value > max) {
           max = value;
-          lushX = cellX;
-          lushY = cellY;
+          lushX = cx;
+          lushY = cy;
         }
         if (value < min) {
           min = value;
-          bareX = cellX;
-          bareY = cellY;
+          bareX = cx;
+          bareY = cy;
         }
       }
     }
@@ -364,8 +399,8 @@ describe("grass clumping", () => {
     const occupied = (startX: number, startY: number) => {
       let count = 0;
       const out = createCellTufts();
-      for (let cy = 0; cy < GRASS_CLUSTER_CELLS; cy++) {
-        for (let cx = 0; cx < GRASS_CLUSTER_CELLS; cx++) {
+      for (let cy = 0; cy < GRASS_FINE_CLUSTER_CELLS; cy++) {
+        for (let cx = 0; cx < GRASS_FINE_CLUSTER_CELLS; cx++) {
           if (sampleCellTufts(startX + cx, startY + cy, denseConfig, out) > 0) count++;
         }
       }
@@ -374,9 +409,9 @@ describe("grass clumping", () => {
 
     const lush = occupied(lushX, lushY);
     const bare = occupied(bareX, bareY);
-    expect(lush).toBeGreaterThan(bare * 1.5);
-    expect(lush).toBeGreaterThan(GRASS_CLUSTER_CELLS * GRASS_CLUSTER_CELLS * 0.4);
-    expect(bare).toBeLessThan(GRASS_CLUSTER_CELLS * GRASS_CLUSTER_CELLS * 0.6);
+    expect(lush).toBeGreaterThan(bare);
+    expect(lush).toBeGreaterThanOrEqual(3);
+    expect(bare).toBeLessThanOrEqual(3);
   });
 });
 
