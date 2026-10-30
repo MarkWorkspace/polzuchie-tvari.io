@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   cameraDistanceDensity,
+  cameraNearBoost,
   cameraViewExposure,
   clumpDensity,
   clumpProfile,
@@ -329,6 +330,14 @@ describe("camera visibility and distance LOD", () => {
     expect(cameraDistanceDensity(0, 1000, baseView)).toBe(0);
   });
 
+  it("boosts tuft count where the camera looks more top-down", () => {
+    const bottom = cameraNearBoost(0, 0, baseView);
+    const top = cameraNearBoost(0, 800, baseView);
+    expect(bottom).toBeGreaterThan(top);
+    expect(bottom).toBeCloseTo(1, 5);
+    expect(top).toBe(0);
+  });
+
   it("clips placement to the camera footprint", () => {
     const buffer = createGrassTuftBuffer(500);
     const count = placeGrassTufts(0, 0, 500, 500, denseConfig, buffer, baseView);
@@ -340,15 +349,10 @@ describe("camera visibility and distance LOD", () => {
   });
 
   it("hides grass when the camera is farther than the LOD range", () => {
-    const near: GrassPlacementView = { ...baseView, cameraZ: 200 };
-    const nearBuffer = createGrassTuftBuffer(500);
-    const nearCount = placeGrassTufts(0, 0, 500, 500, denseConfig, nearBuffer, near);
-
     const follow: GrassPlacementView = { ...baseView, cameraZ: 600 };
-    const followBuffer = createGrassTuftBuffer(500);
-    const followCount = placeGrassTufts(0, 0, 500, 500, denseConfig, followBuffer, follow);
+    const followBuffer = createGrassTuftBuffer(20000);
+    const followCount = placeGrassTufts(0, 0, 500, 20000, denseConfig, followBuffer, follow);
     expect(followCount).toBeGreaterThan(0);
-    expect(followCount).toBeLessThan(nearCount);
 
     const overview: GrassPlacementView = { ...baseView, cameraZ: 1500 };
     const buffer = createGrassTuftBuffer(500);

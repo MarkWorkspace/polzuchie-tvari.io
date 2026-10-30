@@ -14,7 +14,7 @@ export const GRASS_CELL_DENSITY = 1;
 export const GRASS_DENSITY_FALLOFF = 1.0;
 
 /** Upper bound of tufts a single occupied cell may produce. */
-export const GRASS_TUFTS_PER_CELL_MAX = 6;
+export const GRASS_TUFTS_PER_CELL_MAX = 8;
 
 /** Expected tufts per occupied cell; used to calibrate density against the instance budget. */
 export const GRASS_MEAN_TUFTS_PER_CELL = 4.5;
@@ -273,6 +273,27 @@ export function cameraViewExposure(
   return cameraDistanceDensity(x, y, view);
 }
 
+/**
+ * How top-down the camera is at a ground point, in [0, 1]. Near the bottom of
+ * the screen the view is almost vertical, so blades barely overlap and need
+ * more tufts per cell; at the horizon the view is grazing and the same tufts
+ * overlap heavily. 1 means top-down, 0 means grazing.
+ */
+export function cameraNearBoost(
+  x: number,
+  y: number,
+  view: GrassPlacementView | null | undefined,
+): number {
+  if (!view) return 0.5;
+  const groundZ = Number.isFinite(view.groundZ) ? view.groundZ : 0;
+  const dz = Math.max(0, view.cameraZ - groundZ);
+  const horizontal = Math.hypot(x - view.cameraX, y - view.cameraY);
+  const distance = Math.hypot(horizontal, dz);
+  if (!(distance > 1e-6)) return 1;
+  const sinGround = dz / distance;
+  return Math.min(1, Math.max(0, (sinGround - 0.25) / 0.65));
+}
+
 function safeCellSize(value: number): number {
   return Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 }
@@ -402,6 +423,7 @@ function sampleNormalizedCell(
   seed: number,
   density: number,
   out: CellTufts,
+  nearBoost = 0.5,
 ): number {
   out.count = 0;
   if (!(density > 0)) return 0;
@@ -413,7 +435,13 @@ function sampleNormalizedCell(
   const localDensity = Math.min(1, (density * clump.density) / GRASS_CLUSTER_MEAN);
   if (hashUnit(hashCell(cx, cy, SALT_OCCUPANCY, seed)) >= localDensity) return 0;
 
-  const count = 3 + Math.min(3, Math.floor(hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) * 4));
+  const boost = Number.isFinite(nearBoost) ? Math.min(1, Math.max(0, nearBoost)) : 0.5;
+  const baseCount =
+    3 + Math.min(3, Math.floor(hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) * 4));
+  const count = Math.max(
+    2,
+    Math.min(GRASS_TUFTS_PER_CELL_MAX, baseCount + Math.round(boost * 2) - Math.round(1 - boost)),
+  );
   const clumpTone = 0.5 + (clump.color - 0.5) * 0.5;
   const tuftVariation = 0.45;
 
@@ -462,6 +490,7 @@ function tryPlaceCell(
   offset: number,
   capacity: number,
   view?: GrassPlacementView | null,
+  nearBoost = 0.5,
 ): number {
   const written = sampleNormalizedCell(
     cellX,
@@ -472,6 +501,7 @@ function tryPlaceCell(
     seed,
     density,
     placementCell,
+    nearBoost,
   );
   if (written === 0) return 0;
 
@@ -629,6 +659,7 @@ export function placeGrassTufts(
       count,
       requested,
       view,
+      cameraNearBoost(worldX, worldY, view),
     );
   };
 
