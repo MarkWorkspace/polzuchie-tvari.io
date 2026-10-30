@@ -1,17 +1,31 @@
-# ROLE: Admin config PATCH schema derived from the GameConfig dataclasses. Rejects unknown keys and wrong types. Does not own value ranges; GameConfig.validate() does.
+# ROLE: Admin config PATCH schema derived from the GameConfig dataclasses. Rejects unknown keys, wrong types and non-finite floats. Does not own value ranges; GameConfig.validate() does.
+import math
 import typing
 from dataclasses import fields, is_dataclass
 
-from pydantic import BaseModel, ConfigDict, create_model
+from pydantic import BaseModel, BeforeValidator, ConfigDict, create_model
 
 from game_config import GameConfig
 
-_MODEL_CONFIG = ConfigDict(extra="forbid", coerce_numbers_to_str=True)
+_MODEL_CONFIG = ConfigDict(extra="forbid", coerce_numbers_to_str=True, allow_inf_nan=False)
 _MODEL_CACHE: dict[type, type[BaseModel]] = {}
+
+
+def _sanitize_non_finite_input(value):
+    # Pydantic echoes the rejected input in 422 payloads; Starlette's
+    # JSONResponse cannot serialize NaN/inf, so echo it as a string instead.
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    return value
+
+
+_FINITE_FLOAT = typing.Annotated[float, BeforeValidator(_sanitize_non_finite_input)]
 
 
 def _patch_annotation(annotation: object) -> object:
     """Keep the real type; fields are optional via a None default, so explicit nulls are rejected."""
+    if annotation is float:
+        return _FINITE_FLOAT
     origin = typing.get_origin(annotation)
     if origin is list:
         args = typing.get_args(annotation)

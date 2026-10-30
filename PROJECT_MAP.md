@@ -287,6 +287,7 @@ backend/tests/
 ├── test_boost.py                      # ROLE: Буст сохраняет score целым; late join после буста не ломает FULL-синк.
 ├── test_bots.py                       # ROLE: Lifecycle, live config sync, respawn, personalities и руление ботов.
 ├── test_client_messages.py            # ROLE: Лимит длины текстовых команд клиента.
+├── test_config_validation.py          # ROLE: Валидация конфига: finite, строгие int, диапазоны и fail-fast на битом config.json.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.
 ├── test_dead_player_systems.py         # ROLE: Мёртвый игрок не двигается/ест/бустит и не ломает телепорт.
 ├── test_tombstones.py                  # ROLE: Уникальные ID после респавна и collision-radius надгробия.

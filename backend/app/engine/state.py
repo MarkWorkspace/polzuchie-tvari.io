@@ -85,15 +85,19 @@ class World:
         return 1.0 - ((1.0 - smoothing_at_20hz) ** (self.tick_interval / 0.05))
 
     def _load_config_from_disk(self):
-        if os.path.exists(self.config_file_path):
-            try:
-                with open(self.config_file_path, "r", encoding="utf-8") as f:
-                    patch = json.load(f)
-                if isinstance(patch, dict):
-                    self.config.apply_patch(patch)
-                    logger.info("Successfully loaded config from %s", self.config_file_path)
-            except Exception as e:
-                logger.warning("Failed to load config from disk: %s", e)
+        if not os.path.exists(self.config_file_path):
+            self._update_compiled_formulas()
+            return
+        try:
+            with open(self.config_file_path, "r", encoding="utf-8") as f:
+                patch = json.load(f)
+            if not isinstance(patch, dict):
+                raise ValueError("Config file must contain a JSON object")
+            self.config.apply_patch(patch)
+        except Exception as e:
+            logger.error("Failed to load config from %s: %s", self.config_file_path, e)
+            raise RuntimeError(f"Invalid config file {self.config_file_path}: {e}") from e
+        logger.info("Successfully loaded config from %s", self.config_file_path)
         self._update_compiled_formulas()
 
     def _update_compiled_formulas(self):
@@ -178,7 +182,7 @@ class World:
             )
             os.chmod(temp_path, target_mode)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=4, ensure_ascii=False)
+                json.dump(payload, f, indent=4, ensure_ascii=False, allow_nan=False)
                 f.write("\n")
                 f.flush()
                 os.fsync(f.fileno())
@@ -190,7 +194,7 @@ class World:
                 if exc.errno not in (errno.EXDEV, errno.EBUSY):
                     raise
                 with open(path, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=4, ensure_ascii=False)
+                    json.dump(payload, f, indent=4, ensure_ascii=False, allow_nan=False)
                     f.write("\n")
                     f.flush()
                     os.fsync(f.fileno())

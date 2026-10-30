@@ -1,5 +1,6 @@
 # ROLE: Contract tests for the generated admin config PATCH schema and its route. Covers field parity with GameConfig, unknown keys and type errors.
 import json
+import math
 import typing
 from dataclasses import fields, is_dataclass
 
@@ -64,6 +65,16 @@ def test_patch_schema_rejects_fractional_int():
     assert error["type"] == "int_from_float"
 
 
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_patch_schema_rejects_non_finite_floats(value):
+    with pytest.raises(ValidationError) as exc_info:
+        AdminConfigPatch.model_validate({"world": {"portals_radius": value}})
+
+    error = exc_info.value.errors()[0]
+    assert error["loc"] == ("world", "portals_radius")
+    assert error["type"] == "finite_number"
+
+
 def test_patch_schema_rejects_explicit_nulls():
     for payload in (
         {"food": {"types": None}},
@@ -118,6 +129,21 @@ def test_admin_config_route_rejects_fractional_width(admin_client):
     response = admin_client.patch("/admin/config", json={"world": {"width": 100.5}})
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity"])
+def test_admin_config_route_rejects_non_finite_floats(admin_client, tmp_path, literal):
+    config_path = tmp_path / "config.json"
+    before = config_path.read_text(encoding="utf-8")
+
+    response = admin_client.patch(
+        "/admin/config",
+        content=f'{{"world": {{"portals_radius": {literal}}}}}',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+    assert config_path.read_text(encoding="utf-8") == before
 
 
 def test_admin_config_route_keeps_range_errors_as_400(admin_client):

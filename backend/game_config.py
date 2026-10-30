@@ -144,6 +144,7 @@ class GameConfig:
             setattr(self, item.name, getattr(next_config, item.name))
 
     def validate(self):
+        _validate_dataclass_types(self, type(self), "")
         _require_range("world.width", self.world.width, 20, 10000)
         _require_range("world.height", self.world.height, 20, 10000)
         _require_range("world.target_food_count", self.world.target_food_count, 0, 100000)
@@ -155,6 +156,12 @@ class GameConfig:
         _require_range("world.portals_enabled", self.world.portals_enabled, 0, 1)
         _require_range("world.portals_count", self.world.portals_count, 1, 10)
         _require_range("world.portals_radius", self.world.portals_radius, 0.5, 50.0)
+        _require_range(
+            "world.portals_teleport_delay_ms",
+            self.world.portals_teleport_delay_ms,
+            0,
+            60000,
+        )
         _require_range("world.portals_spawn_chance", self.world.portals_spawn_chance, 0.0, 1.0)
         _require_range("world.portals_growth_time", self.world.portals_growth_time, 0.1, 300.0)
         _require_range("world.black_holes_enabled", self.world.black_holes_enabled, 0, 1)
@@ -221,6 +228,12 @@ class GameConfig:
             self.simulation.turn_active_smoothing_at_20hz,
             0,
             1,
+        )
+        _require_range(
+            "simulation.max_steps_per_tick",
+            self.simulation.max_steps_per_tick,
+            1,
+            100,
         )
 
         _require_range("snake.start_length", self.snake.start_length, 1, 10000)
@@ -314,9 +327,58 @@ def _apply_dataclass_patch(target, patch):
                 setattr(target, key, value)
 
 
+def _require_finite(name, value):
+    try:
+        finite = math.isfinite(value)
+    except OverflowError:
+        finite = False
+    if not finite:
+        raise ValueError(f"{name} must be finite")
+
+
+def _validate_types(value, annotation, name):
+    if is_dataclass(annotation):
+        if not isinstance(value, annotation):
+            raise ValueError(f"{name} must be a {annotation.__name__} object")
+        _validate_dataclass_types(value, annotation, name)
+        return
+
+    origin = typing.get_origin(annotation)
+    if origin is list:
+        if not isinstance(value, list):
+            raise ValueError(f"{name} must be a list")
+        args = typing.get_args(annotation)
+        item_type = args[0] if args else typing.Any
+        for index, item in enumerate(value):
+            _validate_types(item, item_type, f"{name}[{index}]")
+        return
+
+    if annotation is bool:
+        if not isinstance(value, bool):
+            raise ValueError(f"{name} must be a boolean")
+    elif annotation is int:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"{name} must be an integer")
+    elif annotation is float:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{name} must be a number")
+        _require_finite(name, value)
+    elif annotation is str:
+        if not isinstance(value, str):
+            raise ValueError(f"{name} must be a string")
+
+
+def _validate_dataclass_types(instance, dataclass_type, prefix):
+    hints = typing.get_type_hints(dataclass_type)
+    for item in fields(dataclass_type):
+        name = f"{prefix}.{item.name}" if prefix else item.name
+        _validate_types(getattr(instance, item.name), hints[item.name], name)
+
+
 def _require_range(name, value, minimum, maximum):
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         raise ValueError(f"{name} must be a number")
+    _require_finite(name, value)
     if value < minimum or value > maximum:
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
 
