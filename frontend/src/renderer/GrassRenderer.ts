@@ -21,6 +21,8 @@ const MAX_INSTANCES = DECOR_BUDGET_CAPS.grass;
 const FALLBACK_FOG_RADIUS = 900;
 export const GRASS_GROUND_Z = -1.9;
 const GRASS_PUSH_DISABLED = 1e6;
+/** Near tufts get a soft root-shadow decal; far tufts are too small to need one. */
+const ROOT_SHADOW_BUDGET = 4096;
 
 /** The field always covers at least this radius so a close camera keeps a stable field. */
 export const GRASS_MIN_CULL_RADIUS = 550;
@@ -184,6 +186,42 @@ function createEmptyShadowTexture(): THREE.DataTexture {
   return texture;
 }
 
+/** Soft, texture-free contact patch that anchors a tuft to the ground. */
+function createRootShadowMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uRootColor: { value: new THREE.Color(0x2f3d22) },
+      uRootOpacity: { value: 0.45 },
+    },
+    vertexShader: `
+      varying vec2 vRootUv;
+      void main() {
+        vRootUv = uv;
+        vec4 local = vec4(position, 1.0);
+        #ifdef USE_INSTANCING
+          local = instanceMatrix * local;
+        #endif
+        gl_Position = projectionMatrix * modelViewMatrix * local;
+      }
+    `,
+    fragmentShader: `
+      varying vec2 vRootUv;
+      uniform vec3 uRootColor;
+      uniform float uRootOpacity;
+      void main() {
+        float radius = length(vRootUv - 0.5) * 2.0;
+        float alpha = (1.0 - smoothstep(0.12, 1.0, radius)) * uRootOpacity;
+        if (alpha < 0.01) discard;
+        gl_FragColor = vec4(uRootColor, alpha);
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+}
+
 /** Grass is opaque, so a ground-level decal is invisible; tint blades instead. */
 const GRASS_SHADOW_TINT = new THREE.Vector3(0.42, 0.5, 0.68);
 
@@ -191,6 +229,8 @@ export class GrassRenderer {
   private readonly scene: THREE.Scene;
   private readonly mesh: THREE.InstancedMesh;
   private readonly material: THREE.MeshStandardMaterial;
+  private readonly rootMesh: THREE.InstancedMesh;
+  private readonly rootMaterial: THREE.ShaderMaterial;
   private readonly tufts: GrassTuftBuffer;
   private readonly fieldConfig: GrassFieldConfig;
   private readonly emptyShadow = createEmptyShadowTexture();
@@ -246,6 +286,25 @@ export class GrassRenderer {
     this.mesh.count = 0;
     this.mesh.visible = false;
     this.scene.add(this.mesh);
+
+    this.rootMaterial = createRootShadowMaterial();
+    this.rootMesh = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(7.0, 7.0),
+      this.rootMaterial,
+      MAX_INSTANCES,
+    );
+    // Root shadows are the nearest tufts only; sharing the matrix keeps the
+    // rebuild cost and memory identical to the grass mesh.
+    this.rootMesh.instanceMatrix = this.mesh.instanceMatrix;
+    this.rootMesh.position.z = 0.01;
+    RenderConfig.configureMesh(this.rootMesh, RenderLayer.Shadow, {
+      castShadow: false,
+      receiveShadow: false,
+      frustumCulled: false,
+    });
+    this.rootMesh.count = 0;
+    this.rootMesh.visible = false;
+    this.scene.add(this.rootMesh);
   }
 
   public update(
@@ -280,11 +339,14 @@ export class GrassRenderer {
     if (instanceBudget <= 0) {
       this.mesh.count = 0;
       this.mesh.visible = false;
+      this.rootMesh.count = 0;
+      this.rootMesh.visible = false;
       this.gate.invalidate();
       if (import.meta.env.DEV && typeof window !== "undefined") {
         (window as unknown as Record<string, unknown>).__decorGrassStats = {
           budget: 0,
           count: 0,
+          rootCount: 0,
           cullRadius: 0,
           rebuildMs: 0,
         };
@@ -337,10 +399,13 @@ export class GrassRenderer {
 
   public destroy(): void {
     this.scene.remove(this.mesh);
+    this.scene.remove(this.rootMesh);
     this.mesh.geometry.dispose();
     this.mesh.instanceMatrix.dispose();
     this.material.dispose();
     this.mesh.instanceColor?.dispose();
+    this.rootMesh.geometry.dispose();
+    this.rootMaterial.dispose();
     this.emptyShadow.dispose();
   }
 
@@ -368,10 +433,12 @@ export class GrassRenderer {
       cameraView,
     );
     this.writeInstances(count, lodScale);
+    const rootCount = Math.min(count, ROOT_SHADOW_BUDGET);
     if (import.meta.env.DEV && typeof window !== "undefined") {
       (window as unknown as Record<string, unknown>).__decorGrassStats = {
         budget,
         count,
+        rootCount,
         cullRadius,
         rebuildMs: performance.now() - rebuildStartedAt,
       };
@@ -381,6 +448,10 @@ export class GrassRenderer {
     this.mesh.visible = count > 0;
     this.mesh.instanceMatrix.needsUpdate = true;
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
+
+    this.rootMesh.count = rootCount;
+    this.rootMesh.visible = rootCount > 0;
+    this.rootMesh.instanceMatrix.needsUpdate = true;
   }
 
   private writeInstances(count: number, lodScale: number): void {
