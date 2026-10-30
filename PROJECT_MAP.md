@@ -38,7 +38,7 @@ frontend/
 ├── e2e/
 │   ├── adminApi.ts                     # ROLE: Общие REST-хелперы Playwright для админ-конфига.
 │   ├── game.spec.ts                    # ROLE: Smoke login, HUD и настроек качества.
-│   ├── sessionLock.spec.ts             # ROLE: Web Locks: вторая player-вкладка, takeover и сохранение client_id.
+│   ├── sessionLock.spec.ts             # ROLE: Web Locks: вторая player-вкладка, takeover и сохранение player ID.
 │   ├── death.spec.ts                   # ROLE: Реальная смерть от чёрной дыры, game-over и respawn.
 │   ├── bots.spec.ts                    # ROLE: Live-включение/выключение ботов через админку.
 │   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор, follow по клику и возврат к обзору.
@@ -58,8 +58,8 @@ frontend/
     │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
-    │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
-    │   ├── NetworkManager.test.ts      # ROLE: Тесты идентичности player/spectator и storage-ключей.
+    │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру + player-session bootstrap (POST /session). Не бизнес-логика.
+    │   ├── NetworkManager.test.ts      # ROLE: Тесты session bootstrap, WS URL без client_id и reconnect backoff.
     │   ├── PlayerSessionLock.ts        # ROLE: Web Locks + BroadcastChannel: одна player-вкладка, takeover между вкладками. Не сеть и не UI.
     │   ├── SpectatorApp.ts             # ROLE: Ядро спектатора: камера, сеть, рендер; debug UI вынесен отдельно.
     │   ├── SpectatorDebugOverlay.ts    # ROLE: Админские debug-панели спектатора (статы, выбор змейки).
@@ -140,7 +140,7 @@ frontend/
     │   ├── EyeComputer.ts              # ROLE: Позиции глаз и зрачков змеек.
     │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера. Не сеть, не интерполяция.
     │   ├── DeltaDecoder.parity.test.ts # ROLE: Parity-тест сетевого кадра. Декодирует бинарные фикстуры и сравнивает с expected JSON.
-    │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, реконнект, ping/pong. Не бизнес-логика.
+    │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, cookie-handshake, реконнект с backoff по close-кодам, ping/pong. Не бизнес-логика.
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
     │   ├── SnakeProcessor.ts           # ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
     │   └── shared/

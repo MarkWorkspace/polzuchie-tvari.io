@@ -3,7 +3,15 @@ import { expect, test } from "@playwright/test";
 
 test("player spectator shows a clean HUD without player identity", async ({ page }) => {
   const pageErrors: string[] = [];
+  const sessionRequests: string[] = [];
+  const wsUrls: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/session")) {
+      sessionRequests.push(request.url());
+    }
+  });
+  page.on("websocket", (socket) => wsUrls.push(socket.url()));
 
   await page.goto("/?spectator=true");
 
@@ -15,6 +23,11 @@ test("player spectator shows a clean HUD without player identity", async ({ page
   await expect(page.getByText("SPECTATOR MODE")).toHaveCount(0);
   await expect(page.getByText("GLOBAL DEBUG")).toHaveCount(0);
 
+  // Spectators never create or reuse a player session.
+  expect(sessionRequests).toEqual([]);
+  expect(wsUrls.some((url) => url.includes("role=spectator"))).toBe(true);
+  expect(wsUrls.some((url) => url.includes("client_id"))).toBe(false);
+
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const drawer = page.locator(".settings-drawer");
   await expect(drawer).toHaveClass(/open/);
@@ -22,7 +35,8 @@ test("player spectator shows a clean HUD without player identity", async ({ page
   await page.getByRole("button", { name: "Close menu" }).click();
   await expect(drawer).not.toHaveClass(/open/);
 
-  // Spectator identity must never be written as a player client id.
+  // Spectator identity must never be exposed as a player id.
+  expect(await page.evaluate(() => document.body.dataset.playerId ?? null)).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem("snake_client_id"))).toBeNull();
   expect(pageErrors).toEqual([]);
 });
@@ -38,6 +52,7 @@ test("debug spectator exposes the admin panels only", async ({ page }) => {
   await expect(page.getByText("Debug Snake:")).toBeVisible();
   await expect(page.getByText("Отображать всё в главной копии")).toBeVisible();
   await expect(page.locator(".spectator-badge")).toHaveCount(0);
+  expect(await page.evaluate(() => document.body.dataset.playerId ?? null)).toBeNull();
   expect(await page.evaluate(() => localStorage.getItem("snake_client_id"))).toBeNull();
 
   expect(pageErrors).toEqual([]);

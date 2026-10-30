@@ -3,14 +3,28 @@
 import { decompress } from "./DeltaDecoder";
 import { decodeGameStateFrame } from "./shared/ProtoFrameDecoder";
 
+const MAX_RECONNECT_DELAY_MS = 30_000;
+const STABLE_CONNECTION_MS = 10_000;
+
+/** Exponential backoff for every retry, including server-full/role-cap closes. */
+export function reconnectDelayMs(attempt: number): number {
+  const normalized = Math.max(1, Math.floor(attempt));
+  return Math.min(1000 * 2 ** (normalized - 1), MAX_RECONNECT_DELAY_MS);
+}
+
+/** 1012 is a planned restart/drain; other close codes get the generic retry UI. */
+export function reconnectMessageKey(closeCode: number): string {
+  return closeCode === 1012 ? "status.serverRestart" : "status.reconnecting";
+}
+
 export class WebSocketClient {
   private socket: WebSocket | null = null;
   private reconnectTimer: any = null;
   private pingInterval: any = null;
+  private stableTimer: any = null;
   private reconnectAttempt = 0;
   private isCleaningUp = false;
   private url: string;
-  private myId: string | null = null;
 
   private messageCallbacks: ((parsedState: any) => void)[] = [];
   private disconnectCallbacks: (() => void)[] = [];
@@ -40,12 +54,8 @@ export class WebSocketClient {
 
   public connect() {
     this.isCleaningUp = false;
-    let finalUrl = this.url;
-    if (this.myId) {
-      const separator = finalUrl.includes("?") ? "&" : "?";
-      finalUrl = `${finalUrl}${separator}client_id=${this.myId}`;
-    }
-    this.socket = new WebSocket(finalUrl);
+    // Identity is carried by the HttpOnly session cookie on the handshake.
+    this.socket = new WebSocket(this.url);
     this.socket.binaryType = "arraybuffer";
     this._setupSocketEvents();
   }
@@ -53,7 +63,6 @@ export class WebSocketClient {
   public disconnect() {
     this.isCleaningUp = true;
     this._clearTimers();
-    this.myId = null;
     if (this.socket) {
       this.socket.close();
       this.socket = null;
@@ -71,6 +80,10 @@ export class WebSocketClient {
       clearInterval(this.pingInterval);
       this.pingInterval = null;
     }
+    if (this.stableTimer) {
+      clearTimeout(this.stableTimer);
+      this.stableTimer = null;
+    }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -81,19 +94,25 @@ export class WebSocketClient {
     if (!this.socket) return;
 
     this.socket.onopen = () => {
-      this.reconnectAttempt = 0;
       this.statusCallbacks.forEach((cb) => {
         cb("connected");
       });
       this._startPing();
+      // Only a connection that stays up for a while proves the server is
+      // accepting us. Otherwise a full/role-capped server would reset the
+      // backoff on every accept-then-close cycle.
+      this.stableTimer = setTimeout(() => {
+        this.reconnectAttempt = 0;
+      }, STABLE_CONNECTION_MS);
     };
 
-    this.socket.onclose = () => {
+    this.socket.onclose = (event: CloseEvent) => {
       this._clearTimers();
+      this.socket = null;
       this.disconnectCallbacks.forEach((cb) => {
         cb();
       });
-      if (!this.isCleaningUp) this._reconnect();
+      if (!this.isCleaningUp) this._reconnect(event.code);
     };
 
     this.socket.onerror = () => {};
@@ -137,7 +156,6 @@ export class WebSocketClient {
       }
 
       if (parsedState.your_id) {
-        this.myId = parsedState.your_id;
         this.yourIdCallbacks.forEach((cb) => {
           cb(parsedState.your_id);
         });
@@ -151,18 +169,22 @@ export class WebSocketClient {
     }
   }
 
-  private _reconnect() {
+  private _reconnect(closeCode: number) {
     this.reconnectAttempt++;
-    const delay = Math.min(1000 * 2 ** (this.reconnectAttempt - 1), 30000);
+    const delay = reconnectDelayMs(this.reconnectAttempt);
 
+    // 4002 (server full), 4003 (role cap) and 1012 (restart/drain) all go
+    // through backoff: retrying immediately would only spin the server.
     this.statusCallbacks.forEach((cb) => {
       cb("reconnecting", {
-        msgKey: "status.reconnecting",
+        msgKey: reconnectMessageKey(closeCode),
         msgParams: { seconds: Math.ceil(delay / 1000) },
+        closeCode,
       });
     });
 
     this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       this.connect();
     }, delay);
   }

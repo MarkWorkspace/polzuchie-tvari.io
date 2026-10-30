@@ -1,4 +1,5 @@
-// ROLE: WebSocket-интерфейс к воркеру. Не бизнес-логика.
+// ROLE: WebSocket-интерфейс к воркеру и player-session bootstrap. Не бизнес-логика.
+
 import { gridSize } from "./Config";
 
 export type NetworkStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -9,15 +10,94 @@ export interface FrameInput {
   mode: string;
 }
 
-export function getClientIdStorageKey(role: string): string | null {
-  return role === "player" ? "snake_client_id" : null;
+export const LEGACY_CLIENT_ID_STORAGE_KEY = "snake_client_id";
+
+export interface SessionLocation {
+  protocol: string;
+  hostname: string;
+}
+
+export interface GameWsLocation extends SessionLocation {
+  port: string;
+}
+
+export type PlayerSessionResult =
+  | { ok: true }
+  | { ok: false; status: number | null; error: string };
+
+/**
+ * Dev serves Vite on :5173 and the backend on :8000, so the session cookie must
+ * be issued by the backend origin. Production serves the API on the same origin
+ * under the nginx `/ws` prefix.
+ */
+export function buildSessionUrl(location: SessionLocation, isDev: boolean): string {
+  if (!isDev) return "/ws/session";
+  const protocol = location.protocol || "http:";
+  const host = location.hostname || "127.0.0.1";
+  return `${protocol}//${host}:8000/session`;
+}
+
+/** Build the game WS URL. Identity comes from the session cookie, never the URL. */
+export function buildGameWsUrl(
+  nickname: string,
+  skin: string,
+  role: string,
+  location: GameWsLocation,
+  isDev: boolean,
+): string {
+  const host = location.hostname || "127.0.0.1";
+  const protocol = location.protocol === "https:" ? "wss://" : "ws://";
+  const port = isDev ? "8000" : location.port || "";
+  const wsPort = port ? `:${port}` : "";
+  const trimmed = nickname.trim() || "Snake";
+  return `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmed)}&skin=${encodeURIComponent(skin)}&role=${encodeURIComponent(role)}`;
+}
+
+/** POST /session so the server can set the HttpOnly player cookie. */
+export async function ensurePlayerSession(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<PlayerSessionResult> {
+  try {
+    const response = await fetchImpl(url, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      return { ok: false, status: response.status, error: `HTTP ${response.status}` };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      status: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+/** Drop the pre-cookie identity key; session identity is now server-side only. */
+export function clearLegacyClientId(storage: Pick<Storage, "removeItem"> | null): void {
+  try {
+    storage?.removeItem(LEGACY_CLIENT_ID_STORAGE_KEY);
+  } catch {
+    // Storage can be unavailable in private/locked-down contexts.
+  }
+}
+
+function defaultStorage(): Pick<Storage, "removeItem"> | null {
+  try {
+    return typeof localStorage === "undefined" ? null : localStorage;
+  } catch {
+    return null;
+  }
 }
 
 export class NetworkManager {
   private worker: Worker | null = null;
   private isWaitingForFrame = false;
   private frameTimeoutId: number | null = null;
-  private role = "player";
+  private connectGeneration = 0;
 
   private onStatusChange?: (
     status: NetworkStatus,
@@ -30,21 +110,40 @@ export class NetworkManager {
   private onFrameData?: (msg: any) => void;
   private onDisconnect?: () => void;
 
-  constructor() {}
+  constructor() {
+    clearLegacyClientId(defaultStorage());
+  }
 
-  public connect(nickname: string, skin: string, role: string = "player"): void {
-    this.role = role;
-    if (this.worker) {
-      this.close();
+  /**
+   * Player connections first obtain/reuse the HttpOnly session cookie.
+   * A spectator never touches `/session` and always gets a fresh server UUID.
+   */
+  public async connect(nickname: string, skin: string, role: string = "player"): Promise<void> {
+    this.close();
+    const generation = this.connectGeneration;
+
+    if (role === "player") {
+      const result = await ensurePlayerSession(
+        buildSessionUrl(window.location, import.meta.env.DEV),
+      );
+      if (generation !== this.connectGeneration) return;
+      if (!result.ok) {
+        console.warn(
+          "[NetworkManager] Player session request failed",
+          result.status ?? result.error,
+        );
+        this.onStatusChange?.("disconnected", undefined, "session.startFailed");
+        return;
+      }
     }
 
-    // Initialize worker with relative module URL standard in Vite
-    this.worker = new Worker(new URL("../worker/worker.ts", import.meta.url), { type: "module" });
-
-    this.worker.onmessage = this.handleWorkerMessage;
-
-    const wsUrl = this.buildWsUrl(nickname, skin, role);
-    this.worker.postMessage({ type: "CONNECT", url: wsUrl });
+    try {
+      this.spawnWorker(nickname, skin, role);
+    } catch (error) {
+      console.warn("[NetworkManager] Failed to start the network worker", error);
+      this.close();
+      this.onStatusChange?.("disconnected", undefined, "session.startFailed");
+    }
   }
 
   public send(msg: string): void {
@@ -79,6 +178,7 @@ export class NetworkManager {
   }
 
   public close(): void {
+    this.connectGeneration++;
     if (this.worker) {
       this.worker.postMessage({ type: "CLOSE" });
       this.worker.terminate();
@@ -118,21 +218,13 @@ export class NetworkManager {
     this.isWaitingForFrame = false;
   }
 
-  private buildWsUrl(nickname: string, skin: string, role: string): string {
-    const host = window.location.hostname || "127.0.0.1";
-    const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-    const isDev = import.meta.env.DEV;
-    const port = isDev ? "8000" : window.location.port || "";
-    const wsPort = port ? `:${port}` : "";
-    const trimmed = nickname.trim() || "Snake";
-    let url = `${protocol}${host}${wsPort}/ws/?nickname=${encodeURIComponent(trimmed)}&skin=${encodeURIComponent(skin)}&role=${encodeURIComponent(role)}`;
+  private spawnWorker(nickname: string, skin: string, role: string): void {
+    // Initialize worker with relative module URL standard in Vite
+    this.worker = new Worker(new URL("../worker/worker.ts", import.meta.url), { type: "module" });
+    this.worker.onmessage = this.handleWorkerMessage;
 
-    const storageKey = getClientIdStorageKey(role);
-    const savedId = storageKey ? localStorage.getItem(storageKey) : null;
-    if (savedId) {
-      url += `&client_id=${encodeURIComponent(savedId)}`;
-    }
-    return url;
+    const wsUrl = buildGameWsUrl(nickname, skin, role, window.location, import.meta.env.DEV);
+    this.worker.postMessage({ type: "CONNECT", url: wsUrl });
   }
 
   private handleWorkerMessage = (event: MessageEvent): void => {
@@ -144,8 +236,6 @@ export class NetworkManager {
     } else if (msg.type === "PING") {
       this.onPing?.(msg.latency);
     } else if (msg.type === "YOUR_ID") {
-      const storageKey = getClientIdStorageKey(this.role);
-      if (storageKey) localStorage.setItem(storageKey, msg.your_id);
       this.onYourId?.(msg.your_id);
     } else if (msg.type === "FRAME_DATA") {
       this.isWaitingForFrame = false;

@@ -57,7 +57,8 @@ export class Game {
   }
 
   public start(nickname: string, skin: string): void {
-    this.networkManager.connect(nickname, skin);
+    this.clearPlayerId();
+    void this.networkManager.connect(nickname, skin);
     this.lastTime = performance.now();
     this.tick();
   }
@@ -65,6 +66,7 @@ export class Game {
   public destroy(): void {
     cancelAnimationFrame(this.animFrameId);
     this.sendCleanRelease();
+    this.clearPlayerId();
     this.networkManager.close();
     this.inputManager.destroy();
     this.renderOrchestrator.destroy();
@@ -181,6 +183,9 @@ export class Game {
       },
       onYourId: (id) => {
         this.myId = id;
+        if (typeof document !== "undefined") {
+          document.body.dataset.playerId = id;
+        }
       },
       onFrameData: (msg) => {
         this.latestFrame = msg;
@@ -204,9 +209,18 @@ export class Game {
       },
       onDisconnect: () => {
         this.isConnected = false;
+        this.clearPlayerId();
         window.dispatchEvent(new CustomEvent("game-disconnect"));
       },
     });
+  }
+
+  /** Observable identity for E2E/debugging; cleared whenever the session ends. */
+  private clearPlayerId(): void {
+    this.myId = "";
+    if (typeof document !== "undefined") {
+      delete document.body.dataset.playerId;
+    }
   }
 
   private tick = (): void => {

@@ -88,7 +88,7 @@ export class SpectatorApp {
     });
 
     // Start with "spectator" role
-    this.networkManager.connect("Spectator", "spectator", "spectator");
+    void this.networkManager.connect("Spectator", "spectator", "spectator");
 
     this.tick();
   }

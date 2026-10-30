@@ -3,7 +3,15 @@ import { expect, test } from "@playwright/test";
 
 test("plays the game and changes quality", async ({ page }) => {
   const pageErrors: string[] = [];
+  const sessionRequests: string[] = [];
+  const wsUrls: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("request", (request) => {
+    if (request.method() === "POST" && new URL(request.url()).pathname.endsWith("/session")) {
+      sessionRequests.push(request.url());
+    }
+  });
+  page.on("websocket", (socket) => wsUrls.push(socket.url()));
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Polzuchie-tvari.io" })).toBeVisible();
@@ -36,8 +44,13 @@ test("plays the game and changes quality", async ({ page }) => {
   await expect(drawer).not.toHaveClass(/open/);
 
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("snake_client_id")))
+    .poll(() => page.evaluate(() => document.body.dataset.playerId ?? null))
     .not.toBeNull();
+  expect(await page.evaluate(() => localStorage.getItem("snake_client_id"))).toBeNull();
+  // Player identity comes from POST /session + cookie, not from the WS URL.
+  expect(sessionRequests).toHaveLength(1);
+  expect(wsUrls.some((url) => url.includes("role=player"))).toBe(true);
+  expect(wsUrls.some((url) => url.includes("client_id"))).toBe(false);
 
   expect(pageErrors).toEqual([]);
 });

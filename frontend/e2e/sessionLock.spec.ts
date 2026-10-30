@@ -14,9 +14,9 @@ test("moves the player session to a second tab", async ({ context }) => {
   await first.getByRole("button", { name: "Play", exact: true }).click();
   await expect(first.locator(".hud-guide.connected")).toBeVisible();
   await expect
-    .poll(() => first.evaluate(() => localStorage.getItem("snake_client_id")))
+    .poll(() => first.evaluate(() => document.body.dataset.playerId ?? null))
     .not.toBeNull();
-  const firstId = await first.evaluate(() => localStorage.getItem("snake_client_id"));
+  const firstId = await first.evaluate(() => document.body.dataset.playerId ?? null);
 
   await second.goto("/");
   await second.getByLabel("Your nickname").fill("Second Snake");
@@ -30,6 +30,14 @@ test("moves the player session to a second tab", async ({ context }) => {
   await expect(second.locator(".hud-guide.connected")).toBeVisible();
   await expect(first.getByRole("heading", { name: "Session moved" })).toBeVisible();
   await expect(first.locator(".hud-guide.connected")).toHaveCount(0);
-  expect(await second.evaluate(() => localStorage.getItem("snake_client_id"))).toBe(firstId);
+
+  // Takeover keeps the server-side player identity from the session cookie.
+  await expect
+    .poll(() => second.evaluate(() => document.body.dataset.playerId ?? null))
+    .toBe(firstId);
+  // The losing tab must stop exposing the player id.
+  await expect.poll(() => first.evaluate(() => document.body.dataset.playerId ?? null)).toBeNull();
+  expect(await first.evaluate(() => localStorage.getItem("snake_client_id"))).toBeNull();
+  expect(await second.evaluate(() => localStorage.getItem("snake_client_id"))).toBeNull();
   expect(pageErrors).toEqual([]);
 });
