@@ -4,6 +4,9 @@
 /** Minimum time between two decor rebuilds, even while the camera glides. */
 export const DECOR_REBUILD_INTERVAL_MS = 250;
 
+/** Faster path for camera rotation/zoom: missing grass on a sharp turn is worse than a small hitch. */
+export const DECOR_VIEW_REBUILD_INTERVAL_MS = 60;
+
 /** Camera movement that forces a rebuild, in squared world units (4 world units). */
 export const DECOR_CAMERA_MOVE_SQ = 16;
 
@@ -43,10 +46,9 @@ export class DecorUpdateGate {
     if (state.mapX !== this.mapX || state.mapY !== this.mapY) return true;
     if (state.budget !== this.budget) return true;
 
-    const rebuildDue = state.nowMs - this.lastBuildAt >= DECOR_REBUILD_INTERVAL_MS;
-    if (!rebuildDue) return false;
+    const elapsed = state.nowMs - this.lastBuildAt;
+    if (elapsed < DECOR_VIEW_REBUILD_INTERVAL_MS) return false;
 
-    const moved = this.hasCameraMoved(state.camX, state.camY);
     const radiusChanged =
       !Number.isFinite(this.radius) ||
       Math.abs(state.cullRadius - this.radius) >
@@ -58,7 +60,12 @@ export class DecorUpdateGate {
     const orientationChanged =
       !Number.isFinite(this.viewKey) || Math.abs((state.viewKey ?? 0) - this.viewKey) >= 1;
 
-    return moved || radiusChanged || viewChanged || orientationChanged;
+    // Rotation/zoom must catch up quickly; plain translation can wait for the
+    // full interval because it only changes the fog-hidden field edge.
+    if (radiusChanged || viewChanged || orientationChanged) return true;
+    if (elapsed < DECOR_REBUILD_INTERVAL_MS) return false;
+
+    return this.hasCameraMoved(state.camX, state.camY);
   }
 
   public markBuilt(state: DecorViewState): void {

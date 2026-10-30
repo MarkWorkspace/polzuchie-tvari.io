@@ -80,7 +80,7 @@ frontend/
     │   ├── DecorField.test.ts          # ROLE: Тесты детерминизма, тора, кластеров, бюджетов и устойчивости к NaN.
     │   ├── PropRenderer.ts             # ROLE: Один instanced mesh вкопанных камней-акцентов. Декор без коллизий, без теней и bloom.
     │   ├── PropGeometry.ts             # ROLE: Процедурные силуэты камней. Не рендерит.
-    │   ├── DecorUpdateGate.ts          # ROLE: Общий throttle перестроения декора (250 мс / 4 юнита) с инвалидацией при смене пресета, радиуса или ориентации камеры.
+    │   ├── DecorUpdateGate.ts          # ROLE: Общий throttle перестроения декора: 250 мс для сдвига, 60 мс для поворота/зума, инвалидация при смене пресета/карты.
     │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
     │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, skin-tinted head glow. Тело попадает в bloom-маску и top-down contact-shadow маску через отдельные слои; само тень не кастует. Не физика, не HUD.

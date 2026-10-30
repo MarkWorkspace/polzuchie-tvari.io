@@ -35,7 +35,7 @@ export const GRASS_MAX_CULL_RADIUS = 1200;
  */
 export const GRASS_SPECTATOR_CULL_RADIUS = 800;
 /** Fallback player field radius when a caller does not provide a preset value. */
-const GRASS_FIELD_RADIUS_FALLBACK = 600;
+const GRASS_FIELD_RADIUS_FALLBACK = 500;
 /** Tuft scale cap for far cameras, so the field stays legible in the overview. */
 export const GRASS_LOD_SCALE_MAX = 2.6;
 /** View half-extent (world units) at which tufts reach their maximum LOD scale. */

@@ -7,11 +7,10 @@ export const GRASS_SEED = 0x2f6e5b17;
 export const GRASS_CELL_DENSITY = 1;
 
 /**
- * Radial falloff exponent. A mild falloff keeps the grass under the snake
- * lush while the outer rings thin into the fog; the field is biased forward so
- * the density peak sits in front of the player, not behind the camera.
+ * Radial falloff exponent. A stronger falloff concentrates the instance budget
+ * under the snake instead of spending it on the fog edge.
  */
-export const GRASS_DENSITY_FALLOFF = 1.0;
+export const GRASS_DENSITY_FALLOFF = 1.6;
 
 /** Upper bound of tufts a single occupied cell may produce. */
 export const GRASS_TUFTS_PER_CELL_MAX = 6;
