@@ -85,8 +85,10 @@ function createTuftGeometry(): THREE.BufferGeometry {
 
   const bladeAngles = [0.4, 1.45, 2.35, 3.5, 5.1];
   const bladeHeights = [0.82, 1.0, 0.92, 0.78, 0.88];
-  const bladeOffsets = [0.4, 1.0, 0.7, 0.55, 1.15];
-  const bladeLeans = [1.2, 1.9, 1.5, 1.0, 1.7];
+  // Wider offsets/leans make each tuft a low rosette instead of a tight
+  // bunch, so neighbouring tufts interleave and the lawn reads as a carpet.
+  const bladeOffsets = [0.8, 1.6, 1.1, 0.9, 1.8];
+  const bladeLeans = [2.0, 3.0, 2.4, 1.6, 2.7];
 
   for (let b = 0; b < BLADE_COUNT; b++) {
     const angle = bladeAngles[b];
