@@ -19,6 +19,16 @@ function loadExpected(name: string): Record<string, unknown> {
   return JSON.parse(readFileSync(resolve(FIXTURES_DIR, name), "utf-8"));
 }
 
+function decodeFixturePair(prefix: string) {
+  const fullParsed = decodeGameStateFrame(decompress(loadBin(`${prefix}_full.bin`)));
+  const fullState = decodeFullState(fullParsed, MAP_W, MAP_H);
+  const deltaParsed = decodeGameStateFrame(decompress(loadBin(`${prefix}_delta.bin`)));
+  const deltaState = decodeDeltaState(deltaParsed, fullState, MAP_W, MAP_H);
+  const fullExpected = loadExpected(`${prefix}_full.expected.json`);
+  const deltaExpected = loadExpected(`${prefix}_delta.expected.json`);
+  return { fullParsed, fullState, deltaParsed, deltaState, fullExpected, deltaExpected };
+}
+
 describe("Frame parity (golden fixtures)", () => {
   it("decodes FULL frame and matches expected structure", () => {
     const compressed = loadBin("frame_full.bin");
@@ -36,9 +46,17 @@ describe("Frame parity (golden fixtures)", () => {
       const ep = expPlayers[pid] as Record<string, unknown>;
 
       expect(Array.isArray(sp.body)).toBe(true);
-      const expBody = ep["body"] as number[];
+      const expBody = (ep["body"] as number[] | undefined) ?? [];
       const truncated = ep["body_truncated"] === true;
-      if (truncated) {
+      const dead = ep["is_dead"] === true;
+      if (dead) {
+        // Dead players carry no drawable body but preserve final_length.
+        expect(sp.is_dead).toBe(true);
+        expect(sp.length).toBe(0);
+        expect(sp.body).toEqual([]);
+        expect(sp.final_length).toBe(ep["final_length"]);
+        expect(sp.body_truncated).toBe(false);
+      } else if (truncated) {
         // Out-of-AoI: decoder drops the single mini point but keeps the head
         // for the minimap.
         expect(sp.body_truncated).toBe(true);
@@ -92,30 +110,45 @@ describe("Frame parity (golden fixtures)", () => {
       const sp = state.players[pid];
       const ep = expPlayers[pid] as Record<string, unknown>;
       const raw = parsed.players[pid];
-      const expHeads = ep["new_heads"] as number[];
+      const expHeads = (ep["new_heads"] as number[] | undefined) ?? [];
+      const expBody = (ep["body"] as number[] | undefined) ?? [];
       const truncated = ep["body_truncated"] === true;
+      const dead = ep["is_dead"] === true;
 
       expect(sp.score ?? 0).toBe(ep["score"] ?? 0);
       expect(sp.kills ?? 0).toBe(ep["kills"] ?? 0);
 
-      // Wire payload coordinates are exact and head-first (x, y).
-      expect(raw.new_heads.length).toBe(expHeads.length);
+      // Repeated fields are absent when empty; compare the wire payload to JSON.
+      expect(raw.new_heads ?? []).toHaveLength(expHeads.length);
       for (let i = 0; i < expHeads.length; i++) {
         expect(Math.abs(raw.new_heads[i] - expHeads[i])).toBeLessThan(0.01);
+      }
+      expect(raw.body ?? []).toHaveLength(expBody.length);
+
+      if (dead) {
+        expect(sp.is_dead).toBe(true);
+        expect(sp.length).toBe(0);
+        expect(sp.body).toEqual([]);
+        expect(sp.final_length).toBe(ep["final_length"]);
+        expect(sp.body_truncated).toBe(false);
+        continue;
       }
 
       if (truncated) {
         expect(sp.body_truncated).toBe(true);
         expect(sp.length).toBe(1);
         expect(sp.body).toEqual([]);
-        expect(sp.head_x).toBeCloseTo(expHeads[0], 2);
-        expect(sp.head_y).toBeCloseTo(expHeads[1], 2);
+        const head = expHeads.length > 0 ? expHeads : expBody;
+        expect(sp.head_x).toBeCloseTo(head[0], 2);
+        expect(sp.head_y).toBeCloseTo(head[1], 2);
       } else {
         expect(sp.body_truncated).toBe(false);
         expect(sp.length).toBe(ep["length"]);
+        // In-AoI deltas send new heads (or a full body on AoI transition).
         expect(sp.body.length).toBe((ep["length"] as number) * 2);
-        expect(sp.body[0]).toBeCloseTo(expHeads[0], 2);
-        expect(sp.body[1]).toBeCloseTo(expHeads[1], 2);
+        const head = expHeads.length > 0 ? expHeads : expBody;
+        expect(sp.body[0]).toBeCloseTo(head[0], 2);
+        expect(sp.body[1]).toBeCloseTo(head[1], 2);
       }
     }
 
@@ -124,6 +157,105 @@ describe("Frame parity (golden fixtures)", () => {
     expect(parsed.frame_seq).toBe(expected["frame_seq"]);
     expect(parsed.server_tick).toBe(expected["server_tick"]);
     expect(parsed.frame_seq).toBe(fullParsed.frame_seq + 1);
+  });
+
+  it("clears the old body for a player that dies between FULL and DELTA", () => {
+    const { fullState, deltaState, fullExpected, deltaExpected } = decodeFixturePair("frame");
+
+    const expDead = (fullExpected["players"] as Record<string, any>).player_dead;
+    const dead = fullState.players.player_dead;
+    expect(dead.is_dead).toBe(true);
+    expect(dead.length).toBe(0);
+    expect(dead.body).toEqual([]);
+    expect(dead.final_length).toBe(expDead.final_length);
+    expect(dead.final_length).toBeGreaterThan(0);
+
+    const before = fullState.players.player_dies;
+    expect(before.is_dead).toBe(false);
+    expect(before.body.length).toBeGreaterThan(0);
+
+    const expDied = (deltaExpected["players"] as Record<string, any>).player_dies;
+    const died = deltaState.players.player_dies;
+    expect(died.is_dead).toBe(true);
+    expect(died.length).toBe(0);
+    expect(died.body).toEqual([]);
+    expect(died.body_truncated).toBe(false);
+    expect(died.final_length).toBe(expDied.final_length);
+    expect(died.final_length).toBeGreaterThan(0);
+  });
+
+  it("decodes teleport state, exit position and timer from fixtures", () => {
+    const { fullState, deltaState, fullExpected, deltaExpected } = decodeFixturePair("frame");
+
+    const expFullTp = (fullExpected["players"] as Record<string, any>).player_teleport;
+    const fullTp = fullState.players.player_teleport;
+    expect(fullTp.teleport_state).toBe("in_transit");
+    expect(fullTp.teleport_out_x).toBeCloseTo(70, 2);
+    expect(fullTp.teleport_out_y).toBeCloseTo(70, 2);
+    expect(fullTp.teleport_timer_ratio).toBeCloseTo(expFullTp.teleport_timer_ratio, 2);
+    expect(fullTp.body.length).toBeGreaterThan(0);
+    expect(fullTp.length).toBe(9);
+
+    const expDeltaTp = (deltaExpected["players"] as Record<string, any>).player_teleport;
+    const deltaTp = deltaState.players.player_teleport;
+    expect(deltaTp.teleport_state).toBe("in_transit");
+    expect(deltaTp.teleport_out_x).toBeCloseTo(70, 2);
+    expect(deltaTp.teleport_out_y).toBeCloseTo(70, 2);
+    expect(deltaTp.teleport_timer_ratio).toBeCloseTo(expDeltaTp.teleport_timer_ratio, 2);
+    // In-transit DELTA collapses the body to the exit point for the minimap.
+    expect(deltaTp.body_truncated).toBe(true);
+    expect(deltaTp.body).toEqual([]);
+    expect(deltaTp.length).toBe(1);
+    expect(deltaTp.head_x).toBeCloseTo(70, 2);
+    expect(deltaTp.head_y).toBeCloseTo(70, 2);
+  });
+
+  it("decodes out-of-AoI frames as a truncated body with a head", () => {
+    const { fullState, deltaState, fullExpected, deltaExpected } = decodeFixturePair("frame");
+
+    const expFullFar = (fullExpected["players"] as Record<string, any>).player_far;
+    const fullFar = fullState.players.player_far;
+    expect(fullFar.body_truncated).toBe(true);
+    expect(fullFar.body).toEqual([]);
+    expect(fullFar.length).toBe(1);
+    expect(fullFar.head_x).toBeCloseTo(expFullFar.body[0], 2);
+    expect(fullFar.head_y).toBeCloseTo(expFullFar.body[1], 2);
+
+    const expDeltaFar = (deltaExpected["players"] as Record<string, any>).player_far;
+    const deltaFar = deltaState.players.player_far;
+    expect(deltaFar.body_truncated).toBe(true);
+    expect(deltaFar.body).toEqual([]);
+    expect(deltaFar.length).toBe(1);
+    expect(deltaFar.head_x).toBeCloseTo(expDeltaFar.new_heads[0], 2);
+    expect(deltaFar.head_y).toBeCloseTo(expDeltaFar.new_heads[1], 2);
+  });
+
+  it("decodes the empty scenario to empty players maps", () => {
+    const { fullParsed, fullState, deltaParsed, deltaState, fullExpected, deltaExpected } =
+      decodeFixturePair("frame_empty");
+
+    expect(fullState.players).toEqual({});
+    expect(deltaState.players).toEqual({});
+    expect(fullParsed.players ?? {}).toEqual({});
+    expect(deltaParsed.players ?? {}).toEqual({});
+    expect(fullExpected["players"]).toBeUndefined();
+    expect(deltaExpected["players"]).toBeUndefined();
+    expect(fullParsed.frame_seq).toBe(fullExpected["frame_seq"]);
+    expect(deltaParsed.frame_seq).toBe(deltaExpected["frame_seq"]);
+    expect(deltaParsed.frame_seq).toBe((fullParsed.frame_seq as number) + 1);
+  });
+
+  it("carries deterministic frame_seq/server_tick for every fixture pair", () => {
+    for (const prefix of ["frame", "frame_empty"]) {
+      const { fullParsed, deltaParsed, fullExpected, deltaExpected } = decodeFixturePair(prefix);
+      expect(fullParsed.frame_seq).toBe(fullExpected["frame_seq"]);
+      expect(fullParsed.server_tick).toBe(fullExpected["server_tick"]);
+      expect(deltaParsed.frame_seq).toBe(deltaExpected["frame_seq"]);
+      expect(deltaParsed.server_tick).toBe(deltaExpected["server_tick"]);
+      expect(fullParsed.frame_seq).toBe(fullParsed.server_tick);
+      expect(deltaParsed.frame_seq).toBe(deltaParsed.server_tick);
+      expect(deltaParsed.frame_seq).toBe((fullParsed.frame_seq as number) + 1);
+    }
   });
 
   it("clears portals, black holes, and tombstones when they are undefined in the delta payload", () => {

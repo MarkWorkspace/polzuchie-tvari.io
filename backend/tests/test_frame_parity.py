@@ -1,6 +1,7 @@
 # ROLE: Parity-тест сетевого кадра. Ловит дрейф серверной сериализации:
-# пересчитывает кадр из кода (frame_scenario) и сравнивает с ЗАКОММИЧЕННЫМ эталоном .expected.json.
-# Также сверяет содержимое с закоммиченным .bin по каноническому НЕСЖАТОМУ protobuf.
+# пересчитывает кадры всех сценариев (frame_scenario) и сравнивает с ЗАКОММИЧЕННЫМИ
+# эталонами .expected.json. Также сверяет содержимое с закоммиченными .bin по
+# каноническому НЕСЖАТОМУ protobuf.
 # .bin — сжатая транспортная фикстура (для decoder round-trip), а не эталон zlib-байтов.
 
 import asyncio
@@ -8,6 +9,7 @@ import json
 import math
 import os
 import zlib
+
 import pytest
 from google.protobuf.json_format import MessageToDict
 
@@ -20,9 +22,14 @@ from app.engine.systems import snake_pb2
 from app.engine.systems.serialization import populate_player_message
 from tests.frame_scenario import (
     AOI_TICKS,
+    CLIENT_ID,
     DELTA_TICKS,
+    SCENARIO_DEFAULT,
+    SCENARIO_EMPTY,
     build_deterministic_world,
-    build_full_and_delta_world,
+    build_scenario_frames,
+    fixture_prefix,
+    scenario_names,
 )
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests_shared", "golden_frames")
@@ -104,25 +111,45 @@ def _frame_to_norm_dict(frame: "snake_pb2.GameStateFrame") -> dict:
 
 
 @pytest.fixture(scope="module")
-def fresh_world_frames():
-    """Пересчитать FULL и DELTA из текущего кода. Не зависит от коммиченных файлов."""
-    return build_full_and_delta_world()
+def fresh_default_scenario():
+    """Пересчитать FULL и DELTA default-сценария из текущего кода."""
+    return build_scenario_frames(SCENARIO_DEFAULT)
+
+
+@pytest.fixture(scope="module")
+def fresh_world_frames(fresh_default_scenario):
+    """Backward-compatible tuple для точечных truth-table тестов."""
+    return (
+        fresh_default_scenario.world,
+        fresh_default_scenario.full_frame,
+        fresh_default_scenario.delta_frame,
+    )
+
+
+@pytest.fixture(scope="module")
+def empty_scenario():
+    return build_scenario_frames(SCENARIO_EMPTY)
+
+
+@pytest.fixture(scope="module", params=scenario_names())
+def scenario_frames(request):
+    return build_scenario_frames(request.param)
 
 
 # --- Эталонные проверки: код vs закоммиченный JSON. Ловят ЛЮБОЙ дрейф сериализации. ---
 
 
-def test_full_frame_matches_committed_golden(fresh_world_frames):
-    _world, full_frame, _ = fresh_world_frames
-    fresh = _frame_to_norm_dict(full_frame)
-    golden = _load_json("frame_full.expected.json")
+def test_full_frame_matches_committed_golden(scenario_frames):
+    prefix = fixture_prefix(scenario_frames.name)
+    fresh = _frame_to_norm_dict(scenario_frames.full_frame)
+    golden = _load_json(f"{prefix}_full.expected.json")
     _deep_approx_equal(fresh, golden)
 
 
-def test_delta_frame_matches_committed_golden(fresh_world_frames):
-    _world, _, delta_frame = fresh_world_frames
-    fresh = _frame_to_norm_dict(delta_frame)
-    golden = _load_json("frame_delta.expected.json")
+def test_delta_frame_matches_committed_golden(scenario_frames):
+    prefix = fixture_prefix(scenario_frames.name)
+    fresh = _frame_to_norm_dict(scenario_frames.delta_frame)
+    golden = _load_json(f"{prefix}_delta.expected.json")
     _deep_approx_equal(fresh, golden)
 
 
@@ -132,22 +159,27 @@ def test_delta_frame_matches_committed_golden(fresh_world_frames):
 # заново с deterministic=True — порядок map-полей в самом .bin не важен.
 
 
-def test_full_frame_bytes_match_committed(fresh_world_frames):
-    _world, full_frame, _ = fresh_world_frames
-    _assert_protobuf_matches_committed(full_frame, "frame_full.bin")
+def test_full_frame_bytes_match_committed(scenario_frames):
+    prefix = fixture_prefix(scenario_frames.name)
+    _assert_protobuf_matches_committed(scenario_frames.full_frame, f"{prefix}_full.bin")
 
 
-def test_delta_frame_bytes_match_committed(fresh_world_frames):
-    _world, _, delta_frame = fresh_world_frames
-    _assert_protobuf_matches_committed(delta_frame, "frame_delta.bin")
+def test_delta_frame_bytes_match_committed(scenario_frames):
+    prefix = fixture_prefix(scenario_frames.name)
+    _assert_protobuf_matches_committed(scenario_frames.delta_frame, f"{prefix}_delta.bin")
 
 
 # --- Round-trip sanity: .bin (сжатый транспортный fixture) декодируется protobuf-ом. ---
 
 
-def test_committed_full_frame_decodes():
-    frame = _load_committed_frame("frame_full.bin")
-    assert frame.type == snake_pb2.GameStateFrame.FrameType.FULL
+def test_committed_frames_decode(scenario_frames):
+    prefix = fixture_prefix(scenario_frames.name)
+    full = _load_committed_frame(f"{prefix}_full.bin")
+    delta = _load_committed_frame(f"{prefix}_delta.bin")
+    assert full.type == snake_pb2.GameStateFrame.FrameType.FULL
+    assert delta.type == snake_pb2.GameStateFrame.FrameType.DELTA
+    assert full.frame_seq == AOI_TICKS
+    assert delta.frame_seq == AOI_TICKS + DELTA_TICKS
 
 
 # --- Body/new_heads truth table (M3-03). ---
@@ -159,55 +191,98 @@ def _player_message(player, *, in_aoi: bool, is_full: bool = False) -> "snake_pb
     return msg
 
 
-def test_full_frame_body_truth_table(fresh_world_frames):
-    _, full_frame, _ = fresh_world_frames
+def test_full_frame_body_truth_table(fresh_default_scenario):
+    world = fresh_default_scenario.world
+    full_frame = fresh_default_scenario.full_frame
 
-    aoi = full_frame.players["player_aoi"]
+    aoi = full_frame.players[CLIENT_ID]
     assert not aoi.HasField("body_truncated")
-    assert aoi.length == len(aoi.body) // 2
+    assert aoi.length == len(aoi.body) // 2 == world.players[CLIENT_ID].body_len
     assert len(aoi.body) > 2
 
-    for pid in ("player_far", "player_new"):
-        far = full_frame.players[pid]
-        assert far.HasField("body_truncated")
-        assert far.body_truncated is True
-        assert far.length == 1
-        assert len(far.body) == 2
+    for pid in (CLIENT_ID, "player_edge", "player_teleport", "player_dies"):
+        msg = full_frame.players[pid]
+        assert not msg.HasField("body_truncated"), pid
+        assert list(msg.body) == pytest.approx(list(fresh_default_scenario.full_bodies[pid])), pid
+        assert list(msg.body[:2]) == pytest.approx(
+            list(fresh_default_scenario.full_bodies[pid][:2])
+        ), pid
+        assert msg.length == len(fresh_default_scenario.full_bodies[pid]) // 2, pid
+
+    for pid in ("player_far", "player_new", "player_enter"):
+        msg = full_frame.players[pid]
+        assert msg.HasField("body_truncated"), pid
+        assert msg.body_truncated is True, pid
+        assert msg.length == 1, pid
+        assert list(msg.body) == pytest.approx(list(fresh_default_scenario.full_bodies[pid][:2])), (
+            pid
+        )
+
+    dead = full_frame.players["player_dead"]
+    assert dead.is_dead is True
+    assert not dead.body
+    assert not dead.new_heads
+    assert dead.length == 0
+    assert dead.HasField("final_length")
+    assert dead.final_length == world.players["player_dead"].final_length > 0
+    assert not dead.HasField("body_truncated")
 
 
-def test_delta_frame_new_heads_coordinates_and_head_first(fresh_world_frames):
+def test_delta_frame_body_truth_table(fresh_world_frames):
     world, _, delta_frame = fresh_world_frames
+    assert set(delta_frame.players) == set(world.players)
 
-    for pid in ("player_aoi", "player_far", "player_new"):
-        player = world.players[pid]
+    aoi = delta_frame.players[CLIENT_ID]
+    aoi_player = world.players[CLIENT_ID]
+    assert list(aoi.new_heads) == pytest.approx(aoi_player.new_heads_this_tick)
+    assert not aoi.body
+    assert aoi.length == aoi_player.body_len
+    assert not aoi.HasField("body_truncated")
+
+    # Every alive player's authoritative head is first in body or new_heads.
+    for pid, player in world.players.items():
         msg = delta_frame.players[pid]
-        # new_heads is the authoritative head (x, y) and must match the body head.
-        assert list(msg.new_heads[:2]) == pytest.approx([player.body[0], player.body[1]])
-        assert msg.length == (player.body_len if pid == "player_aoi" else 1)
-        assert msg.body_truncated is (pid != "player_aoi")
-        assert msg.HasField("body_truncated") == (pid != "player_aoi")
+        if player.is_dead:
+            assert not msg.body, pid
+            assert not msg.new_heads, pid
+            assert msg.length == 0, pid
+            assert msg.HasField("final_length"), pid
+            assert msg.final_length == player.final_length > 0, pid
+            assert not msg.HasField("body_truncated"), pid
+            continue
 
-    aoi = world.players["player_aoi"]
-    assert list(delta_frame.players["player_aoi"].new_heads) == pytest.approx(
-        aoi.new_heads_this_tick
-    )
+        head = list(msg.new_heads[:2]) or list(msg.body[:2])
+        assert head == pytest.approx([player.body[0], player.body[1]]), pid
+        if msg.body_truncated:
+            assert msg.length == 1, pid
+        else:
+            assert msg.length == player.body_len, pid
+        assert not msg.HasField("final_length"), pid
+
+    # Just-respawned player outside AoI uses the body branch, not new_heads.
+    new = delta_frame.players["player_new"]
+    new_player = world.players["player_new"]
+    assert not new.new_heads
+    assert list(new.body) == pytest.approx([new_player.body[0], new_player.body[1]])
+    assert new.body_truncated is True
+    assert new.length == 1
 
 
 def test_in_aoi_full_and_delta_keep_full_body_and_length():
     world = build_deterministic_world()
-    player = world.players["player_aoi"]
+    player = world.players[CLIENT_ID]
     flat_body = list(player.body)
 
     full = _player_message(player, in_aoi=True, is_full=True)
     assert list(full.body) == flat_body
-    assert list(full.body[:2]) == [player.head_x, player.head_y]
+    assert list(full.body[:2]) == pytest.approx([player.head_x, player.head_y])
     assert full.length == player.body_len
     assert not full.HasField("body_truncated")
 
     player.just_respawned = False
-    player.new_heads_this_tick = [50.1, 50.0]
+    player.new_heads_this_tick = [player.head_x + 0.1, player.head_y]
     delta = _player_message(player, in_aoi=True, is_full=False)
-    assert list(delta.new_heads) == pytest.approx([50.1, 50.0])
+    assert list(delta.new_heads) == pytest.approx([player.head_x + 0.1, player.head_y])
     assert not delta.body
     assert delta.length == player.body_len
     assert not delta.HasField("body_truncated")
@@ -270,13 +345,34 @@ def test_out_of_aoi_without_points_still_marks_truncated():
     assert delta.body_truncated is True
 
 
+def test_real_one_segment_in_aoi_is_not_marked_truncated():
+    """length=1 without body_truncated is a real one-segment snake, not a mini point."""
+    world = build_deterministic_world()
+    player = world.players[CLIENT_ID]
+    player.body.clear()
+    player.body.extend((50.0, 50.0))
+    player.just_respawned = False
+    player.new_heads_this_tick = [50.1, 50.0]
+
+    full = _player_message(player, in_aoi=True, is_full=True)
+    assert list(full.body) == pytest.approx([50.0, 50.0])
+    assert full.length == 1
+    assert not full.HasField("body_truncated")
+
+    delta = _player_message(player, in_aoi=True, is_full=False)
+    assert list(delta.new_heads) == pytest.approx([50.1, 50.0])
+    assert not delta.body
+    assert delta.length == 1
+    assert not delta.HasField("body_truncated")
+
+
 @pytest.mark.parametrize(
     ("in_aoi", "is_full"),
     [(True, False), (False, False), (True, True), (False, True)],
 )
 def test_dead_player_has_empty_body_and_zero_length(in_aoi, is_full):
     world = build_deterministic_world()
-    player = world.players["player_aoi"]
+    player = world.players[CLIENT_ID]
     expected_final = player.body_len
     assert expected_final > 0
     player.final_length = expected_final
@@ -299,7 +395,7 @@ def test_dead_player_has_empty_body_and_zero_length(in_aoi, is_full):
 )
 def test_alive_player_does_not_emit_final_length(in_aoi, is_full):
     world = build_deterministic_world()
-    player = world.players["player_aoi"]
+    player = world.players[CLIENT_ID]
     # A stale final_length from a previous life must never leak while alive.
     player.final_length = 99
 
@@ -307,11 +403,115 @@ def test_alive_player_does_not_emit_final_length(in_aoi, is_full):
     assert not msg.HasField("final_length")
 
 
+# --- Golden-специфичные переходы: death, teleport, AoI transition, seam, empty. ---
+
+
+def test_delta_death_clears_body_and_preserves_final_length(fresh_default_scenario):
+    world = fresh_default_scenario.world
+    delta = fresh_default_scenario.delta_frame
+
+    dead = delta.players["player_dies"]
+    player = world.players["player_dies"]
+    assert "player_dies" in fresh_default_scenario.full_visible
+    assert "player_dies" not in fresh_default_scenario.delta_visible
+    assert dead.is_dead is True
+    assert dead.length == 0
+    assert not dead.body
+    assert not dead.new_heads
+    assert dead.final_length == player.final_length > 0
+    assert dead.deaths == 1
+
+
+def test_full_teleport_fields_and_body(fresh_default_scenario):
+    world = fresh_default_scenario.world
+    full = fresh_default_scenario.full_frame
+    msg = full.players["player_teleport"]
+    full_body = fresh_default_scenario.full_bodies["player_teleport"]
+
+    assert msg.teleport_state == "in_transit"
+    assert msg.teleport_out_x == pytest.approx(70.0)
+    assert msg.teleport_out_y == pytest.approx(70.0)
+    assert msg.teleport_timer_ratio == pytest.approx(0.5)
+    assert list(msg.body) == pytest.approx(list(full_body))
+    assert msg.length == len(full_body) // 2
+    assert not msg.HasField("body_truncated")
+    # The FULL tick still shows the in-AoI body, not yet the exit point.
+    assert list(msg.body[:2]) == pytest.approx(list(full_body[:2]))
+    assert world.players["player_teleport"].teleport_out_pos == pytest.approx((70.0, 70.0))
+
+
+def test_delta_teleport_continues_to_exit_point(fresh_default_scenario):
+    world = fresh_default_scenario.world
+    delta = fresh_default_scenario.delta_frame
+    player = world.players["player_teleport"]
+    msg = delta.players["player_teleport"]
+
+    assert msg.teleport_state == "in_transit"
+    assert msg.teleport_out_x == pytest.approx(70.0)
+    assert msg.teleport_out_y == pytest.approx(70.0)
+    expected_ratio = max(0.0, player.teleport_timer) / max(0.001, player.teleport_delay)
+    assert msg.teleport_timer_ratio == pytest.approx(expected_ratio, abs=0.01)
+    # In-transit collapses the body to the exit point; the wire stays mini.
+    assert list(msg.new_heads) == pytest.approx([70.0, 70.0])
+    assert not msg.body
+    assert msg.body_truncated is True
+    assert msg.length == 1
+
+
+def test_aoi_transition_on_delta_sends_full_body(fresh_default_scenario):
+    world = fresh_default_scenario.world
+    delta = fresh_default_scenario.delta_frame
+    player = world.players["player_enter"]
+    msg = delta.players["player_enter"]
+
+    assert "player_enter" not in fresh_default_scenario.full_visible
+    assert "player_enter" in fresh_default_scenario.delta_visible
+    assert not msg.HasField("body_truncated")
+    assert list(msg.body) == pytest.approx(list(player.body))
+    assert msg.length == player.body_len
+    assert list(msg.body[:2]) == pytest.approx([player.head_x, player.head_y])
+
+
+def test_edge_spawn_body_is_head_first_and_wrapped_through_seam(fresh_default_scenario):
+    world = fresh_default_scenario.world
+    msg = fresh_default_scenario.full_frame.players["player_edge"]
+    full_body = fresh_default_scenario.full_bodies["player_edge"]
+
+    xs = list(msg.body[0::2])
+    ys = list(msg.body[1::2])
+    assert len(msg.body) == len(full_body)
+    assert msg.length == len(full_body) // 2
+    assert list(msg.body) == pytest.approx(list(full_body))
+    # Head-first: body[0:2] is the live head from the FULL tick.
+    assert list(msg.body[:2]) == pytest.approx(list(full_body[:2]))
+    assert xs[0] == pytest.approx(full_body[0])
+    assert all(0 <= x < world.grid_width for x in xs)
+    assert all(0 <= y < world.grid_height for y in ys)
+    assert any(x >= world.grid_width - 1 for x in xs)
+
+
+def test_empty_scenario_has_no_players_and_deterministic_seq(empty_scenario):
+    full = empty_scenario.full_frame
+    delta = empty_scenario.delta_frame
+
+    assert empty_scenario.full_visible == frozenset()
+    assert empty_scenario.delta_visible == frozenset()
+    assert not full.players
+    assert not delta.players
+    assert full.type == snake_pb2.GameStateFrame.FrameType.FULL
+    assert delta.type == snake_pb2.GameStateFrame.FrameType.DELTA
+    assert full.frame_seq == full.server_tick == AOI_TICKS
+    assert delta.frame_seq == delta.server_tick == AOI_TICKS + DELTA_TICKS
+    # An empty world still carries the shared world/food payload on FULL.
+    assert full.foods
+
+
 # --- frame_seq / server_tick (M3-05). ---
 
 
-def test_full_and_delta_carry_frame_sequence(fresh_world_frames):
-    _world, full_frame, delta_frame = fresh_world_frames
+def test_full_and_delta_carry_frame_sequence(fresh_default_scenario):
+    full_frame = fresh_default_scenario.full_frame
+    delta_frame = fresh_default_scenario.delta_frame
 
     for frame in (full_frame, delta_frame):
         assert frame.HasField("frame_seq")
@@ -330,7 +530,7 @@ def test_all_clients_in_one_tick_share_frame_sequence():
     world.tick()
     tick_seq = world.frame_seq
 
-    full_a = world.get_full_state("player_aoi")
+    full_a = world.get_full_state(CLIENT_ID)
     full_b = world.get_full_state("player_far", serialize_proto=True)
     delta = world.get_delta_state("player_new", is_full=False)
 
@@ -349,9 +549,9 @@ async def test_initial_and_resync_full_frames_are_equivalent():
     world = build_deterministic_world()
     world.tick()
 
-    initial = world.get_full_state("player_aoi", serialize_proto=False)
+    initial = world.get_full_state(CLIENT_ID, serialize_proto=False)
     connection = {"queue": asyncio.Queue(maxsize=1), "needs_full_sync": True}
-    await server.process_client("player_aoi", connection, world)
+    await server.process_client(CLIENT_ID, connection, world)
 
     compressed, _visible_players, is_full = connection["queue"].get_nowait()
     resync = snake_pb2.GameStateFrame()
@@ -361,7 +561,7 @@ async def test_initial_and_resync_full_frames_are_equivalent():
     assert resync.type == snake_pb2.GameStateFrame.FrameType.FULL
     assert _canonical_proto_bytes(initial) == _canonical_proto_bytes(resync)
     assert _frame_to_norm_dict(initial) == _frame_to_norm_dict(resync)
-    assert resync.your_id == "player_aoi"
+    assert resync.your_id == CLIENT_ID
     assert len(resync.foods) == len(world.food_manager.foods) > 0
     assert set(resync.players) == set(world.players)
     assert resync.frame_seq == initial.frame_seq == world.frame_seq
@@ -373,7 +573,7 @@ def test_serializing_a_client_does_not_advance_frame_sequence():
     world.tick()
     after_tick = world.frame_seq
 
-    for client_id in ("player_aoi", "player_far", "player_new"):
+    for client_id in (CLIENT_ID, "player_far", "player_new"):
         world.get_delta_state(client_id, is_full=True)
         world.get_delta_state(client_id, is_full=False)
 
@@ -390,8 +590,8 @@ def test_frame_sequence_advances_exactly_once_per_tick():
     assert world.frame_seq == start + 1
     assert world.server_tick == world.frame_seq
 
-    world.get_delta_state("player_aoi")
-    world.get_full_state("player_aoi")
+    world.get_delta_state(CLIENT_ID)
+    world.get_full_state(CLIENT_ID)
     assert world.frame_seq == start + 1
 
     world.tick()
@@ -408,5 +608,5 @@ def test_reset_state_zeroes_frame_sequence():
 
     assert world.frame_seq == 0
     assert world.server_tick == 0
-    assert world.get_delta_state("player_aoi").frame_seq == 0
-    assert world.get_full_state("player_aoi").server_tick == 0
+    assert world.get_delta_state(CLIENT_ID).frame_seq == 0
+    assert world.get_full_state(CLIENT_ID).server_tick == 0

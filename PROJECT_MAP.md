@@ -144,7 +144,7 @@ frontend/
     │   ├── ParticleComputer.ts         # ROLE: Симуляция частиц хвоста.
     │   ├── EyeComputer.ts              # ROLE: Позиции глаз и зрачков змеек.
     │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера, body/new_heads truth table (dead/truncated/head), final_length и clamp длины. Не сеть, не интерполяция.
-    │   ├── DeltaDecoder.parity.test.ts # ROLE: Parity-тест сетевого кадра. Декодирует бинарные фикстуры и сравнивает с expected JSON.
+    │   ├── DeltaDecoder.parity.test.ts # ROLE: Parity-тест всех golden-кадров: death/final_length, teleport, AoI transition/truncated, seam, empty-мир и seq.
     │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, cookie-handshake, реконнект с backoff по close-кодам, ping/pong, seq-контроль кадров и RESYNC с cooldown. Не бизнес-логика.
     │   ├── WebSocketClient.test.ts     # ROLE: Тесты FrameSequencer (full/delta/gap/wrap), cooldown RESYNC и decode-error пути.
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
@@ -301,7 +301,7 @@ backend/tests/
 ├── test_tombstones.py                  # ROLE: Уникальные ID после респавна и collision-radius надгробия.
 ├── test_events.py                      # ROLE: Тесты EventBus.
 ├── test_formula_parser.py              # ROLE: Тесты единого AST-движка формул роста: validation, runtime, differential и ошибки.
-├── test_frame_parity.py                # ROLE: Parity-тест кадра: deterministic protobuf vs .expected.json и .bin (транспорт), initial/resync FULL equivalence.
+├── test_frame_parity.py                # ROLE: Parity-тест всех golden-сценариев кадра: deterministic protobuf vs .expected.json и .bin (транспорт), death/teleport/AoI transition/empty, initial/resync FULL equivalence.
 ├── test_gravity.py                     # ROLE: Тестирование системы гравитации (притяжения еды).
 ├── test_gravity_once_per_tick.py        # ROLE: Тест: гравитация чёрных дыр применяется к углу змейки ровно один раз за тик.
 ├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
@@ -321,7 +321,8 @@ backend/tests/
 ├── test_websocket_queue.py             # ROLE: Backpressure sender-очереди: QueueStatus FULL/DELTA, coalescing FULL у медленного клиента, close 1011 при сбое sender.
 ├── test_world_lifecycle.py             # ROLE: Resize карты и полная очистка World.reset_state.
 ├── test_world_elements.py              # ROLE: Тесты порталов и чёрных дыр.
-└── generate_frame_fixtures.py          # ROLE: Генерация эталонных кадров для parity-тестов. Запуск вручную при изменении формата.
+├── frame_scenario.py                   # ROLE: Единые deterministic-сценарии кадра (default/empty): позиции, death/teleport/AoI transition/seam; build_scenario_frames для генератора и parity-тестов.
+└── generate_frame_fixtures.py          # ROLE: Генерация эталонных кадров всех parity-сценариев (FULL + DELTA). Запуск вручную при изменении формата.
 ```
 
 `backend/pyproject.toml` задаёт pytest (`testpaths`, `pythonpath`, async loop scope) и Ruff.
@@ -337,9 +338,13 @@ tests_shared/
 │   └── math.json                       # Эталонные векторы для тороидальной математики (25 кейсов).
 └── golden_frames/
     ├── frame_full.bin                  # Сжатая транспортная фикстура FULL (zlib + Protobuf); не byte-golden.
-    ├── frame_full.expected.json        # Ожидаемый результат декодирования FULL-кадра.
+    ├── frame_full.expected.json        # Ожидаемый FULL default-сценария: AoI, edge seam, dead, teleport, AoI transition.
     ├── frame_delta.bin                 # Сжатая транспортная фикстура DELTA (zlib + Protobuf); не byte-golden.
-    └── frame_delta.expected.json       # Ожидаемый результат декодирования DELTA-кадра.
+    ├── frame_delta.expected.json       # Ожидаемый DELTA default-сценария: death/teleport/AoI transition/just-respawned.
+    ├── frame_empty_full.bin            # Сжатый FULL мира без игроков.
+    ├── frame_empty_full.expected.json  # Ожидаемый FULL empty-сценария (players отсутствует).
+    ├── frame_empty_delta.bin           # Сжатый DELTA мира без игроков.
+    └── frame_empty_delta.expected.json # Ожидаемый DELTA empty-сценария (players отсутствует).
 ```
 
 `.bin` — сжатые транспортные фикстуры для decoder round-trip. Parity сравнивает

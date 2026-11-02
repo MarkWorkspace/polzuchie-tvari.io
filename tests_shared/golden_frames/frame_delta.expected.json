@@ -9,13 +9,6 @@
     }
   ],
   "frame_seq": 3,
-  "moved_foods": [
-    {
-      "id": 17,
-      "x": 50.02,
-      "y": 50.34
-    }
-  ],
   "players": {
     "player_aoi": {
       "accelerating": false,
@@ -25,10 +18,74 @@
       "kills": 0,
       "length": 9,
       "new_heads": [
-        50.6,
+        2.6,
         50.0
       ],
       "score": 1
+    },
+    "player_dead": {
+      "accelerating": false,
+      "angle": 0.0,
+      "deaths": 1,
+      "final_length": 17,
+      "is_dead": true,
+      "kills": 0,
+      "length": 0,
+      "score": 12
+    },
+    "player_dies": {
+      "accelerating": false,
+      "angle": 0.0,
+      "deaths": 1,
+      "final_length": 9,
+      "is_dead": true,
+      "kills": 0,
+      "length": 0,
+      "score": 1
+    },
+    "player_edge": {
+      "accelerating": false,
+      "angle": 0.0,
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "length": 9,
+      "new_heads": [
+        1.6,
+        53.0
+      ],
+      "score": 1
+    },
+    "player_enter": {
+      "accelerating": false,
+      "angle": 0.0,
+      "body": [
+        2.2,
+        70.0,
+        2.0,
+        70.0,
+        1.0,
+        70.0,
+        0.0,
+        70.0,
+        99.0,
+        70.0,
+        98.0,
+        70.0,
+        97.0,
+        70.0,
+        96.0,
+        70.0,
+        95.0,
+        70.0
+      ],
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "length": 9,
+      "nickname": "EnteringAoI",
+      "score": 1,
+      "skin": "#ff00ff"
     },
     "player_far": {
       "accelerating": false,
@@ -47,16 +104,34 @@
     "player_new": {
       "accelerating": false,
       "angle": 0.0,
+      "body": [
+        90.2,
+        90.0
+      ],
+      "body_truncated": true,
+      "deaths": 0,
+      "is_dead": false,
+      "kills": 0,
+      "length": 1,
+      "score": 1
+    },
+    "player_teleport": {
+      "accelerating": false,
+      "angle": 0.0,
       "body_truncated": true,
       "deaths": 0,
       "is_dead": false,
       "kills": 0,
       "length": 1,
       "new_heads": [
-        90.6,
-        90.0
+        70.0,
+        70.0
       ],
-      "score": 1
+      "score": 1,
+      "teleport_out_x": 70.0,
+      "teleport_out_y": 70.0,
+      "teleport_state": "in_transit",
+      "teleport_timer_ratio": 0.48
     }
   },
   "portals": [

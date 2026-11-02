@@ -1,16 +1,22 @@
-# ROLE: Генерация эталонных кадров (FULL + DELTA) для parity-тестов. Запуск вручную при изменении формата.
+# ROLE: Генерация эталонных кадров (FULL + DELTA) для всех parity-сценариев.
+# Запуск вручную только при осознанном изменении формата/сценария; не runtime-код.
 
 import json
 import os
+import sys
 import zlib
+
 from google.protobuf.json_format import MessageToDict
 
 # Add backend to path so imports work
-import sys
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from tests.frame_scenario import PINNED_CONFIG_PATH, build_full_and_delta_world
+from tests.frame_scenario import (  # noqa: E402
+    PINNED_CONFIG_PATH,
+    build_scenario_frames,
+    fixture_prefix,
+    scenario_names,
+)
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests_shared", "golden_frames")
 
@@ -25,26 +31,29 @@ def _round_floats(val):
     return val
 
 
+def _write_frame(prefix: str, kind: str, frame) -> None:
+    # .bin хранится сжатым как транспортная фикстура для decoder round-trip.
+    # Эталоном являются несжатый deterministic protobuf и expected JSON.
+    compressed = zlib.compress(frame.SerializeToString(), 1)
+    frame_dict = MessageToDict(frame, preserving_proto_field_name=True)
+    _write_bin(os.path.join(OUTPUT_DIR, f"{prefix}_{kind}.bin"), compressed)
+    _write_json(
+        os.path.join(OUTPUT_DIR, f"{prefix}_{kind}.expected.json"),
+        _round_floats(frame_dict),
+    )
+    print(f"[fixtures] {prefix}_{kind}: {len(compressed)} bytes")
+
+
 def _generate_and_save() -> None:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     # Golden-кадры должны зависеть только от pinned-конфига, не от runtime config.json.
     os.environ["CONFIG_PATH"] = str(PINNED_CONFIG_PATH)
-    _world, full_frame, delta_frame = build_full_and_delta_world()
 
-    # FULL frame: сжатые байты (как отправляется по сети) + эталонный JSON.
-    full_compressed = zlib.compress(full_frame.SerializeToString(), 1)
-    full_dict = MessageToDict(full_frame, preserving_proto_field_name=True)
-    _write_bin(os.path.join(OUTPUT_DIR, "frame_full.bin"), full_compressed)
-    _write_json(os.path.join(OUTPUT_DIR, "frame_full.expected.json"), _round_floats(full_dict))
-
-    # DELTA frame.
-    delta_compressed = zlib.compress(delta_frame.SerializeToString(), 1)
-    delta_dict = MessageToDict(delta_frame, preserving_proto_field_name=True)
-    _write_bin(os.path.join(OUTPUT_DIR, "frame_delta.bin"), delta_compressed)
-    _write_json(
-        os.path.join(OUTPUT_DIR, "frame_delta.expected.json"),
-        _round_floats(delta_dict),
-    )
+    for scenario in scenario_names():
+        frames = build_scenario_frames(scenario)
+        prefix = fixture_prefix(scenario)
+        _write_frame(prefix, "full", frames.full_frame)
+        _write_frame(prefix, "delta", frames.delta_frame)
 
     print(f"[fixtures] Written to {os.path.abspath(OUTPUT_DIR)}")
 

@@ -1,0 +1,27 @@
+{
+  "black_holes": [
+    {
+      "id": "bh_0_1",
+      "kill_radius": 0.02,
+      "pull_radius": 0.32,
+      "x": 30.84,
+      "y": 63.02
+    }
+  ],
+  "frame_seq": 3,
+  "portals": [
+    {
+      "color": "#3b82f6",
+      "current_scale": 0.03,
+      "id": "portal_1",
+      "radius": 2.5,
+      "x1": 44.58,
+      "x2": 61.82,
+      "y1": 47.2,
+      "y2": 76.67
+    }
+  ],
+  "server_tick": 3,
+  "server_tick_rate": 30,
+  "type": "DELTA"
+}
