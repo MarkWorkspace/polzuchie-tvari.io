@@ -6,6 +6,7 @@ import { appendSnakeMesh, type GeometryBuffers } from "./MeshBuilder";
 import type { ParticleComputer } from "./ParticleComputer";
 import { computeSplinePaths } from "./SplineComputer";
 import { resolveSkinGlowColor } from "./shared/ColorUtils";
+import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 function _processSingleSnake(
   playerId: string,
@@ -58,8 +59,8 @@ function _processSingleSnake(
     // Wrap hx and hy relative to camera position to keep eyes/nicknames aligned across borders
     const mapW_geo = mapW * gridSize;
     const mapH_geo = mapH * gridSize;
-    const camX = camera.localX * gridSize + gridSize / 2;
-    const camY = -(camera.localY * gridSize + gridSize / 2);
+    const camX = gridToWorldX(camera.localX, gridSize);
+    const camY = gridToWorldY(camera.localY, gridSize);
 
     if (!showAllInMainCopy) {
       let dx = hx - camX;
@@ -159,11 +160,11 @@ export function processSnakes(
       const mapW_geo = mapW * gridSize;
       const mapH_geo = mapH * gridSize;
 
-      const camX = camera.localX * gridSize + gridSize / 2;
-      const camY = -(camera.localY * gridSize + gridSize / 2);
+      const camX = gridToWorldX(camera.localX, gridSize);
+      const camY = gridToWorldY(camera.localY, gridSize);
 
-      const hx = p.body[0] * gridSize + gridSize / 2;
-      const hy = -(p.body[1] * gridSize + gridSize / 2);
+      const hx = gridToWorldX(p.body[0], gridSize);
+      const hy = gridToWorldY(p.body[1], gridSize);
 
       let dx = hx - camX;
       if (dx > mapW_geo / 2) dx -= mapW_geo;

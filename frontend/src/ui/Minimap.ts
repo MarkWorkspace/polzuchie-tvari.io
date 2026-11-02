@@ -1,5 +1,6 @@
 // ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
+import { worldToGridX, worldToGridY } from "../worker/shared/WorldMath";
 
 export function getPlayerHead(player: any): { x: number; y: number } | null {
   if (!player) return null;
@@ -67,8 +68,8 @@ export class Minimap {
       typeof msg.camY === "number" &&
       typeof msg.camAngle === "number"
     ) {
-      px = (msg.camX - gridSize / 2) / gridSize;
-      py = (-msg.camY - gridSize / 2) / gridSize;
+      px = worldToGridX(msg.camX, gridSize);
+      py = worldToGridY(msg.camY, gridSize);
       myAngle = msg.camAngle;
     } else if (myPlayer) {
       const head = getPlayerHead(myPlayer);

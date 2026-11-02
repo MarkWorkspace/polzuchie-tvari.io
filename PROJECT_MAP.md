@@ -138,7 +138,9 @@ frontend/
     │   ├── CameraPredictor.test.ts     # ROLE: Тест обёртки/камеры спектатора в CameraPredictor.
     │   ├── FoodComputer.ts             # ROLE: Матрицы и цвета инстансов еды.
     │   ├── PortalComputer.ts           # ROLE: Матрицы инстансов порталов.
+    │   ├── PortalComputer.test.ts      # ROLE: Тест привязки центров порталов к gridToWorld.
     │   ├── BlackHoleComputer.ts        # ROLE: Матрицы инстансов чёрных дыр.
+    │   ├── BlackHoleComputer.test.ts   # ROLE: Тест привязки центров ЧД к gridToWorld.
     │   ├── ParticleComputer.ts         # ROLE: Симуляция частиц хвоста.
     │   ├── EyeComputer.ts              # ROLE: Позиции глаз и зрачков змеек.
     │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера, body/new_heads truth table (dead/truncated/head), final_length и clamp длины. Не сеть, не интерполяция.
@@ -156,6 +158,8 @@ frontend/
     │       ├── GrowableArray.test.ts   # ROLE: Тесты копирования буферов (без SharedArrayBuffer alias).
     │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex, glow-тинт для специальных скинов.
     │       ├── ColorUtils.test.ts      # ROLE: Тесты парсинга цветов и glow-тинтов скинов.
+    │       ├── WorldMath.ts            # ROLE: Единое преобразование координат grid↔world (gridToWorldX/Y, worldToGridX/Y, worldSizeFromGrid). Не выполняет тороидальный wrap.
+    │       ├── WorldMath.test.ts       # ROLE: Тесты известных точек, round-trip и seam для grid↔world.
     │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame/Player (включая final_length и frame_seq/server_tick) для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.

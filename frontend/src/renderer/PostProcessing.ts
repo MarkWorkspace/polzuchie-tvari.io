@@ -14,6 +14,7 @@ import {
 } from "postprocessing";
 import * as THREE from "three";
 import { gridSize } from "../game/Config";
+import { gridToWorldX, gridToWorldY } from "../worker/shared/WorldMath";
 import { AtmosphereEffect } from "./AtmosphereEffect";
 import { GLOBE_SPHERE, GlobeEffect, globeOverscan } from "./GlobeLens";
 import { BLOOM_MASK_LAYER } from "./RenderConfig";
@@ -310,8 +311,8 @@ export class PostProcessing {
       if (!bh) continue;
 
       const pullRadius = bh.pull_radius || 0.0;
-      const worldX = bh.x * gridSize + gridSize / 2.0;
-      const worldY = -(bh.y * gridSize + gridSize / 2.0);
+      const worldX = gridToWorldX(bh.x, gridSize);
+      const worldY = gridToWorldY(bh.y, gridSize);
       const bhZ = 0.9;
 
       // Camera space check (dist to camera plane)

@@ -3,6 +3,7 @@
 import type { GameState } from "../types/game";
 import { parseColor } from "./shared/ColorUtils";
 import { writeMatrix } from "./shared/MathUtils";
+import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 export interface PortalBuffers {
   portalDiskMatrices: Float32Array;
@@ -43,8 +44,8 @@ export function computePortals(
       const radius = p.radius * scale * gridSize;
       const color = parseColor(p.color || "#38bdf8");
 
-      let wx1 = p.x1 * gridSize;
-      let wy1 = -p.y1 * gridSize;
+      let wx1 = gridToWorldX(p.x1, gridSize);
+      let wy1 = gridToWorldY(p.y1, gridSize);
 
       if (!showAllInMainCopy) {
         let dx1 = wx1 - camX;
@@ -65,8 +66,8 @@ export function computePortals(
         visiblePortals.push({ wx: wx1, wy: wy1, r: radius, color });
       }
 
-      let wx2 = p.x2 * gridSize;
-      let wy2 = -p.y2 * gridSize;
+      let wx2 = gridToWorldX(p.x2, gridSize);
+      let wy2 = gridToWorldY(p.y2, gridSize);
 
       if (!showAllInMainCopy) {
         let dx2 = wx2 - camX;

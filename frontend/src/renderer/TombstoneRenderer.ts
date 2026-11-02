@@ -2,6 +2,7 @@
 import * as THREE from "three";
 import { gridSize } from "../game/Config";
 import type { Tombstone } from "../types/game";
+import { gridToWorldX, gridToWorldY } from "../worker/shared/WorldMath";
 import { BLOOM_MASK_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 import { createTombstoneGeometry } from "./TombstoneGeometry";
 
@@ -68,8 +69,8 @@ export class TombstoneRenderer {
 
   private _updateInstance(tomb: Tombstone, i: number): void {
     if (!this.mesh) return;
-    const tx = tomb.x * gridSize + gridSize / 2;
-    const ty = -(tomb.y * gridSize + gridSize / 2);
+    const tx = gridToWorldX(tomb.x, gridSize);
+    const ty = gridToWorldY(tomb.y, gridSize);
     this.dummy.position.set(tx, ty, GROUND_Z);
     const hash = tomb.id.split("").reduce((a, b) => (a << 5) - a + b.charCodeAt(0), 0);
     this.dummy.rotation.set(0, 0, ((hash % 100) / 100.0) * 0.4 - 0.2);

@@ -2,6 +2,7 @@
 
 import type { GameState } from "../types/game";
 import { toroidalLerp } from "./shared/MathUtils";
+import { gridToWorldX, gridToWorldY, worldToGridX, worldToGridY } from "./shared/WorldMath";
 
 export class CameraPredictor {
   public localAngle = 0.0;
@@ -41,8 +42,8 @@ export class CameraPredictor {
       const camY = spectatorCam?.y ?? -(mapH * gridSize) / 2;
       // SnakeProcessor wraps around camera.localX/localY, so keep them in sync
       // with the spectator view instead of the map center.
-      this.localX = (camX - gridSize / 2) / gridSize;
-      this.localY = (-camY - gridSize / 2) / gridSize;
+      this.localX = worldToGridX(camX, gridSize);
+      this.localY = worldToGridY(camY, gridSize);
       this.localAngle = 0.0;
       return { camX, camY, camAngle: 0.0 };
     }
@@ -56,8 +57,8 @@ export class CameraPredictor {
 
     if (myPlayer.is_dead) {
       return {
-        camX: this.localX * gridSize + gridSize / 2,
-        camY: -(this.localY * gridSize + gridSize / 2),
+        camX: gridToWorldX(this.localX, gridSize),
+        camY: gridToWorldY(this.localY, gridSize),
         camAngle: this.localAngle,
       };
     }
@@ -72,8 +73,8 @@ export class CameraPredictor {
     if (this.localY >= mapH) this.localY -= mapH;
 
     return {
-      camX: this.localX * gridSize + gridSize / 2,
-      camY: -(this.localY * gridSize + gridSize / 2),
+      camX: gridToWorldX(this.localX, gridSize),
+      camY: gridToWorldY(this.localY, gridSize),
       camAngle: this.localAngle,
     };
   }

@@ -2,6 +2,7 @@
 
 import type { Player } from "../types/game";
 import { toroidalDelta, toroidalLerp } from "./shared/MathUtils";
+import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 export interface SplineSubPath {
   x: Float32Array;
@@ -177,8 +178,8 @@ function _generateSmoothSpline(
   const smoothY = new Float32Array(maxPoints);
   const uvY = new Float32Array(maxPoints);
 
-  smoothX[0] = segX[start] * gridSize + gridSize / 2;
-  smoothY[0] = -(segY[start] * gridSize + gridSize / 2);
+  smoothX[0] = gridToWorldX(segX[start], gridSize);
+  smoothY[0] = gridToWorldY(segY[start], gridSize);
   uvY[0] = 0.0;
   let sCount = 1;
 
@@ -187,10 +188,10 @@ function _generateSmoothSpline(
     const prevIdx = start + i - 1;
     const currIdx = start + i;
 
-    const prevWx = segX[prevIdx] * gridSize + gridSize / 2;
-    const prevWy = -(segY[prevIdx] * gridSize + gridSize / 2);
-    const currWx = segX[currIdx] * gridSize + gridSize / 2;
-    const currWy = -(segY[currIdx] * gridSize + gridSize / 2);
+    const prevWx = gridToWorldX(segX[prevIdx], gridSize);
+    const prevWy = gridToWorldY(segY[prevIdx], gridSize);
+    const currWx = gridToWorldX(segX[currIdx], gridSize);
+    const currWy = gridToWorldY(segY[currIdx], gridSize);
 
     const segDist = Math.hypot(currWx - prevWx, currWy - prevWy);
     accumulatedDist += segDist;

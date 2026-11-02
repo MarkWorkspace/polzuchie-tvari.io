@@ -12,6 +12,7 @@ import { processSnakes } from "./SnakeProcessor";
 import { parseColor } from "./shared/ColorUtils";
 import { GrowableFloat32Array } from "./shared/GrowableArray";
 import { computeFogRadiusWorld } from "./shared/PlayerMetrics";
+import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 const FOG_R = 12 / 255;
 const FOG_G = 12 / 255;
@@ -243,8 +244,8 @@ export function computeFrame(
   let myHeadX = cam.camX;
   let myHeadY = cam.camY;
   if (myPlayer && myPlayer.body && myPlayer.body.length >= 2) {
-    myHeadX = myPlayer.body[0] * gridSize + gridSize / 2;
-    myHeadY = -(myPlayer.body[1] * gridSize + gridSize / 2);
+    myHeadX = gridToWorldX(myPlayer.body[0], gridSize);
+    myHeadY = gridToWorldY(myPlayer.body[1], gridSize);
   }
 
   const foodCount = computeFood(
@@ -354,8 +355,8 @@ function _addTombstoneNicknames(state: GameState, nicknames: any[], gridSize: nu
   if (!state.tombstones) return;
   for (let i = 0; i < state.tombstones.length; i++) {
     const tomb = state.tombstones[i];
-    const tx = tomb.x * gridSize + gridSize / 2;
-    const ty = -(tomb.y * gridSize + gridSize / 2);
+    const tx = gridToWorldX(tomb.x, gridSize);
+    const ty = gridToWorldY(tomb.y, gridSize);
     const opacity = Math.min(1.0, tomb.time_left / 5.0);
     nicknames.push({
       id: tomb.id,

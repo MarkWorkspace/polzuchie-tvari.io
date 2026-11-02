@@ -1,6 +1,7 @@
 // ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
+import { gridToWorldX, gridToWorldY } from "../worker/shared/WorldMath";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
 
 export function attributeCapacity(requiredLength: number, itemSize: number): number {
@@ -103,8 +104,8 @@ export class DebugRenderer {
         const currentLength = p.body_len;
         const effectiveLengthGained = Math.max(0, currentLength - startLength);
         radius = (baseHeadRadius + effectiveLengthGained * 10.0 * scoreThicknessScale) * gridSize;
-        hx = p.head_x * gridSize + gridSize / 2.0;
-        hy = -(p.head_y * gridSize + gridSize / 2.0);
+        hx = gridToWorldX(p.head_x, gridSize);
+        hy = gridToWorldY(p.head_y, gridSize);
       }
 
       this.addPlayerDebugGeometry(hx, hy, radius, p.angle, isSelf, vertices, colors);

@@ -3,6 +3,7 @@
 import type { Food, GameState } from "../types/game";
 import { parseColor } from "./shared/ColorUtils";
 import { computeHeadRadiusWorld } from "./shared/PlayerMetrics";
+import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 const FRUIT_IMAGE_MAP: Record<string, number> = {
   "cherry.svg": 1,
@@ -49,8 +50,8 @@ export function computeFood(
   for (let i = 0; i < maxFoodsLimit; i++) {
     const food = foods[i];
     const interpolatedPos = _interpolateFoodPosition(food, lastFoodMap, progress, mapW, mapH);
-    let wx = interpolatedPos.x * gridSize + gridSize / 2;
-    let wy = -(interpolatedPos.y * gridSize + gridSize / 2);
+    let wx = gridToWorldX(interpolatedPos.x, gridSize);
+    let wy = gridToWorldY(interpolatedPos.y, gridSize);
 
     // Wrap wx and wy relative to camera position to handle boundary rendering
     const worldW = mapW * gridSize;
@@ -206,8 +207,8 @@ function _applyBHGravityOnFood(
     const bh = state.black_holes[i];
     if (!bh || bh.state === "dead" || (bh.current_scale ?? 1.0) <= 0.01) continue;
 
-    const bhWx = bh.x * gridSize + gridSize / 2;
-    const bhWy = -(bh.y * gridSize + gridSize / 2);
+    const bhWx = gridToWorldX(bh.x, gridSize);
+    const bhWy = gridToWorldY(bh.y, gridSize);
 
     let bhDx = bhWx - wx;
     let bhDy = bhWy - wy;

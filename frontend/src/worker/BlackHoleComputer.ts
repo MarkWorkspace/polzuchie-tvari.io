@@ -2,6 +2,7 @@
 
 import type { GameState } from "../types/game";
 import { writeMatrix } from "./shared/MathUtils";
+import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 export interface BlackHoleBuffers {
   blackHoleCoreMatrices: Float32Array;
@@ -48,8 +49,8 @@ export function computeBlackHoles(
         killRadius *= progress;
       }
 
-      let wx = bh.x * gridSize;
-      let wy = -bh.y * gridSize;
+      let wx = gridToWorldX(bh.x, gridSize);
+      let wy = gridToWorldY(bh.y, gridSize);
 
       if (!showAllInMainCopy) {
         let dx = wx - camX;
