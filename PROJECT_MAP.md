@@ -249,7 +249,7 @@ backend/
     │   ├── admin.py                    # ROLE: Admin REST API, config read/write (503 на сбой apply/save) и restart с draining/очисткой соединений. Не игровая логика.
     │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
     │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie и resolver для WS. WS-аутентификацию выполняет websocket.py.
-    │   └── websocket.py                # ROLE: WebSocket endpoint: Origin allowlist, per-IP handshake bucket, role caps via pending reservation, cookie-auth identity, epoch/reconnect grace, draining admission, RESYNC→FULL с cooldown. Не игровая логика.
+    │   └── websocket.py                # ROLE: WebSocket endpoint: Origin allowlist, per-IP handshake bucket, role caps via pending reservation, cookie-auth identity, epoch/reconnect grace, draining admission, RESYNC→FULL с cooldown; initial FULL snapshot на event loop, zlib.compress(level=1) в to_thread. Не игровая логика.
     ├── bots/
     │   ├── __init__.py                 # ROLE: Изолированный пакет ботов; удаляется вместе с 3 engine-хуками.
     │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов, personalities и сглаживание руления. Без сети и рендера.
@@ -277,7 +277,7 @@ backend/
             ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
             ├── visibility.py           # ROLE: AoI-фильтрация видимых игроков.
             ├── formula_parser.py       # ROLE: Единственный AST compile/eval формул роста: validation и runtime. Не regex-парсер.
-            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, truth table body/new_heads/body_truncated/final_length, frame_seq/server_tick, кэши игроков.
+            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, truth table body/new_heads/body_truncated/final_length, frame_seq/server_tick, кэши игроков, единый build_full_frame для handshake/late join/RESYNC.
             └── snake_pb2.py            # ROLE: [СГЕНЕРИРОВАНО] Python-модуль Protobuf.
 ```
 
@@ -301,10 +301,11 @@ backend/tests/
 ├── test_tombstones.py                  # ROLE: Уникальные ID после респавна и collision-radius надгробия.
 ├── test_events.py                      # ROLE: Тесты EventBus.
 ├── test_formula_parser.py              # ROLE: Тесты единого AST-движка формул роста: validation, runtime, differential и ошибки.
-├── test_frame_parity.py                # ROLE: Parity-тест кадра: deterministic protobuf vs .expected.json и .bin (транспорт).
+├── test_frame_parity.py                # ROLE: Parity-тест кадра: deterministic protobuf vs .expected.json и .bin (транспорт), initial/resync FULL equivalence.
 ├── test_gravity.py                     # ROLE: Тестирование системы гравитации (притяжения еды).
 ├── test_gravity_once_per_tick.py        # ROLE: Тест: гравитация чёрных дыр применяется к углу змейки ровно один раз за тик.
 ├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
+├── test_late_join.py                   # ROLE: Late-join FULL: initial vs resync equivalence, your_id/foods/seq и compress вне event loop.
 ├── test_live_config.py                 # ROLE: Live-config rebind: игроки/боты и Food/Portal/BlackHole видят новый config; respawn берёт новый start_length.
 ├── test_math_parity.py                 # ROLE: Parity-тест тороидальной математики. Сверяет Python с golden vectors.
 ├── test_physics.py                     # ROLE: Тесты физики движения.

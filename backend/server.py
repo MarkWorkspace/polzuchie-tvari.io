@@ -16,6 +16,7 @@ backend_dir = os.path.dirname(os.path.abspath(__file__))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 from app.engine.state import World
+from app.engine.systems.serialization import build_full_frame
 from app.logging_setup import configure_logging
 from app.api.websocket import (
     QueueStatus,
@@ -53,24 +54,7 @@ async def process_client(client_id, connection, world):
         return
 
     if is_full_sync:
-        frame, visible_players = world.get_delta_state(
-            client_id,
-            is_full=True,
-            update_visibility=False,
-            return_visibility=True,
-            serialize_proto=False,
-        )
-        frame.your_id = client_id
-        for f in world.food_manager.foods.values():
-            f_msg = frame.foods.add()
-            f_msg.id, f_msg.x, f_msg.y, f_msg.value, f_msg.color, f_msg.image = (
-                f.id,
-                f.x,
-                f.y,
-                f.value,
-                f.color,
-                f.image or "",
-            )
+        frame, visible_players = build_full_frame(world, client_id, return_visibility=True)
         state_bytes = frame.SerializeToString()
     else:
         state_bytes, visible_players = world.get_delta_state(

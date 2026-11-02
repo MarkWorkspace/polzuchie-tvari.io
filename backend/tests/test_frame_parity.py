@@ -3,6 +3,7 @@
 # Также сверяет содержимое с закоммиченным .bin по каноническому НЕСЖАТОМУ protobuf.
 # .bin — сжатая транспортная фикстура (для decoder round-trip), а не эталон zlib-байтов.
 
+import asyncio
 import json
 import math
 import os
@@ -14,6 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import server
 from app.engine.systems import snake_pb2
 from app.engine.systems.serialization import populate_player_message
 from tests.frame_scenario import (
@@ -339,6 +341,31 @@ def test_all_clients_in_one_tick_share_frame_sequence():
     decoded_b.ParseFromString(full_b)
     assert decoded_b.frame_seq == tick_seq
     assert delta.frame_seq == tick_seq
+
+
+@pytest.mark.asyncio
+async def test_initial_and_resync_full_frames_are_equivalent():
+    """The handshake FULL and the resync FULL share one writer (M3-10)."""
+    world = build_deterministic_world()
+    world.tick()
+
+    initial = world.get_full_state("player_aoi", serialize_proto=False)
+    connection = {"queue": asyncio.Queue(maxsize=1), "needs_full_sync": True}
+    await server.process_client("player_aoi", connection, world)
+
+    compressed, _visible_players, is_full = connection["queue"].get_nowait()
+    resync = snake_pb2.GameStateFrame()
+    resync.ParseFromString(zlib.decompress(compressed))
+
+    assert is_full is True
+    assert resync.type == snake_pb2.GameStateFrame.FrameType.FULL
+    assert _canonical_proto_bytes(initial) == _canonical_proto_bytes(resync)
+    assert _frame_to_norm_dict(initial) == _frame_to_norm_dict(resync)
+    assert resync.your_id == "player_aoi"
+    assert len(resync.foods) == len(world.food_manager.foods) > 0
+    assert set(resync.players) == set(world.players)
+    assert resync.frame_seq == initial.frame_seq == world.frame_seq
+    assert resync.server_tick == initial.server_tick == world.server_tick
 
 
 def test_serializing_a_client_does_not_advance_frame_sequence():

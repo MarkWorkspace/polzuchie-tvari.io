@@ -316,16 +316,7 @@ def get_delta_state(
     return (final_state, curr_visible) if return_visibility else final_state
 
 
-def get_full_state(state, client_id, serialize_proto=False):
-    frame, curr_visible = get_delta_state(
-        state,
-        client_id,
-        is_full=True,
-        update_visibility=False,
-        return_visibility=True,
-        serialize_proto=False,
-    )
-    frame.your_id = client_id
+def _add_all_foods(frame, state):
     for f in state.food_manager.foods.values():
         f_msg = frame.foods.add()
         f_msg.id = f.id
@@ -335,6 +326,29 @@ def get_full_state(state, client_id, serialize_proto=False):
         f_msg.color = f.color
         f_msg.image = f.image or ""
 
+
+def build_full_frame(state, client_id, return_visibility=False):
+    """Build the single authoritative FULL frame for handshake/late join/resync.
+
+    The snapshot is assembled here; protobuf serialization and compression stay
+    with the transport caller. ``your_id`` and the complete food list belong to
+    every FULL regardless of entry point, so initial and resync frames cannot
+    drift apart.
+    """
+    frame, visible_players = state.get_delta_state(
+        client_id,
+        is_full=True,
+        update_visibility=False,
+        return_visibility=True,
+        serialize_proto=False,
+    )
+    frame.your_id = client_id
+    _add_all_foods(frame, state)
+    return (frame, visible_players) if return_visibility else frame
+
+
+def get_full_state(state, client_id, serialize_proto=False):
+    frame = build_full_frame(state, client_id)
     return frame.SerializeToString() if serialize_proto else frame
 
 

@@ -476,8 +476,12 @@ def request_resync(connection: dict, now: float | None = None) -> bool:
 
 
 async def _send_full_state(client_id: str, websocket: WebSocket, world) -> None:
-    full_state_bytes = world.get_full_state(client_id, serialize_proto=True)
-    await websocket.send_bytes(zlib.compress(full_state_bytes))
+    # The world snapshot must happen on the event loop: one FULL writer and a
+    # consistent state. Only the CPU-heavy compression moves to a worker thread.
+    frame = world.get_full_state(client_id, serialize_proto=False)
+    state_bytes = frame.SerializeToString()
+    compressed = await asyncio.to_thread(zlib.compress, state_bytes, 1)
+    await websocket.send_bytes(compressed)
 
 
 def _start_sender(client_id: str, connection: dict, world) -> None:
