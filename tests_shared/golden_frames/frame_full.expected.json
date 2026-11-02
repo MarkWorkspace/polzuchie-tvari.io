@@ -2044,6 +2044,7 @@
       "deaths": 0,
       "is_dead": false,
       "kills": 0,
+      "length": 9,
       "nickname": "InAoI",
       "score": 1,
       "skin": "#ff0000"
@@ -2055,9 +2056,11 @@
         5.4,
         5.0
       ],
+      "body_truncated": true,
       "deaths": 0,
       "is_dead": false,
       "kills": 0,
+      "length": 1,
       "nickname": "FarAway",
       "score": 1,
       "skin": "#00ff00"
@@ -2069,9 +2072,11 @@
         90.4,
         90.0
       ],
+      "body_truncated": true,
       "deaths": 0,
       "is_dead": false,
       "kills": 0,
+      "length": 1,
       "nickname": "JustSpawned",
       "score": 1,
       "skin": "#0000ff"

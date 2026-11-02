@@ -139,7 +139,7 @@ frontend/
     │   ├── BlackHoleComputer.ts        # ROLE: Матрицы инстансов чёрных дыр.
     │   ├── ParticleComputer.ts         # ROLE: Симуляция частиц хвоста.
     │   ├── EyeComputer.ts              # ROLE: Позиции глаз и зрачков змеек.
-    │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера. Не сеть, не интерполяция.
+    │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера, body/new_heads truth table (dead/truncated/head). Не сеть, не интерполяция.
     │   ├── DeltaDecoder.parity.test.ts # ROLE: Parity-тест сетевого кадра. Декодирует бинарные фикстуры и сравнивает с expected JSON.
     │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, cookie-handshake, реконнект с backoff по close-кодам, ping/pong. Не бизнес-логика.
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
@@ -270,7 +270,7 @@ backend/
             ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
             ├── visibility.py           # ROLE: AoI-фильтрация видимых игроков.
             ├── formula_parser.py       # ROLE: Единственный AST compile/eval формул роста: validation и runtime. Не regex-парсер.
-            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, кэши игроков.
+            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, truth table body/new_heads/body_truncated, кэши игроков.
             └── snake_pb2.py            # ROLE: [СГЕНЕРИРОВАНО] Python-модуль Protobuf.
 ```
 

@@ -93,9 +93,13 @@ function _buildFrameResult(
       skin: p.skin,
       score: p.score,
       accelerating: p.accelerating,
-      body_len: p.is_dead ? (p.final_length ?? 0) : p.body ? Math.floor(p.body.length / 2) : 0,
-      head_x: p.body && p.body.length >= 2 ? p.body[0] : 0,
-      head_y: p.body && p.body.length >= 2 ? p.body[1] : 0,
+      body_len: p.is_dead
+        ? (p.final_length ?? 0)
+        : p.body && p.body.length >= 2
+          ? Math.floor(p.body.length / 2)
+          : (p.length ?? 0),
+      head_x: p.body && p.body.length >= 2 ? p.body[0] : (p.head_x ?? 0),
+      head_y: p.body && p.body.length >= 2 ? p.body[1] : (p.head_y ?? 0),
       angle: p.angle,
       is_dead: p.is_dead,
       kills: p.kills,

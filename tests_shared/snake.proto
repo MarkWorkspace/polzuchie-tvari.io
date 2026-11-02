@@ -137,6 +137,8 @@ message Player {
   repeated float body = 13 [packed=true];
   repeated float new_heads = 14 [packed=true];
   optional int32 length = 15;
+  // Field 16 is reserved for final_length (M3-04).
+  optional bool body_truncated = 17;
 }
 
 message GameStateFrame {

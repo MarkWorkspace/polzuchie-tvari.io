@@ -91,6 +91,10 @@ export type Player = {
   speed_mult?: number;
   is_dead?: boolean;
   final_length?: number;
+  length?: number;
+  body_truncated?: boolean;
+  head_x?: number;
+  head_y?: number;
 };
 
 export type Portal = {

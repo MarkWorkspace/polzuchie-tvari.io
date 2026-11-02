@@ -23,20 +23,44 @@ export function ensureFlatArray(arr: any): number[] {
   return [];
 }
 
+const DEFAULT_PLAYER = {
+  body: [] as number[],
+  angle: 0,
+  score: 0,
+  kills: 0,
+  deaths: 0,
+  accelerating: false,
+  is_dead: false,
+  teleport_state: "none",
+  nickname: "",
+  skin: "default",
+};
+
+type HeadPosition = { head_x: number; head_y: number };
+
+function resolveHead(
+  body: any,
+  new_heads: any,
+  oldPlayer: Player | undefined,
+): HeadPosition | null {
+  const flatBody = ensureFlatArray(body);
+  if (flatBody.length >= 2) return { head_x: flatBody[0], head_y: flatBody[1] };
+  const addedHeads = ensureFlatArray(new_heads);
+  if (addedHeads.length >= 2) return { head_x: addedHeads[0], head_y: addedHeads[1] };
+  if (!oldPlayer) return null;
+  if (typeof oldPlayer.head_x === "number" && typeof oldPlayer.head_y === "number") {
+    return { head_x: oldPlayer.head_x, head_y: oldPlayer.head_y };
+  }
+  if (Array.isArray(oldPlayer.body) && oldPlayer.body.length >= 2) {
+    return { head_x: oldPlayer.body[0], head_y: oldPlayer.body[1] };
+  }
+  return null;
+}
+
+const FULL_PLAYER_DEFAULTS = { ...DEFAULT_PLAYER, nickname: "Игрок" };
+
 function decodeFullPlayer(netPlayer: any): Player {
-  return {
-    angle: netPlayer.angle ?? 0,
-    score: netPlayer.score ?? 0,
-    kills: netPlayer.kills ?? 0,
-    deaths: netPlayer.deaths ?? 0,
-    accelerating: netPlayer.accelerating ?? false,
-    is_dead: netPlayer.is_dead ?? false,
-    teleport_state: netPlayer.teleport_state || "none",
-    skin: netPlayer.skin || "default",
-    nickname: netPlayer.nickname || "Игрок",
-    ...netPlayer,
-    body: ensureFlatArray(netPlayer.body),
-  };
+  return decodePlayer(netPlayer, undefined, FULL_PLAYER_DEFAULTS);
 }
 
 export function decodeFullState(parsedState: any, mapW: number, mapH: number): GameState {
@@ -70,12 +94,23 @@ function getNewBody(
   new_heads: any,
   length: number | undefined,
   oldPlayer: Player | undefined,
+  body_truncated: boolean | undefined,
 ): number[] {
-  if (body && body.length > 0) {
-    return ensureFlatArray(body);
+  // Dead and out-of-AoI players carry no drawable body. The minimap still gets
+  // a head position from body/new_heads/oldPlayer in decodePlayer.
+  if (length === 0 || body_truncated === true) return [];
+
+  const flatBody = ensureFlatArray(body);
+  if (flatBody.length > 0) {
+    return flatBody;
   }
-  if (!oldPlayer || !oldPlayer.body) return [];
+
   const addedHeads = ensureFlatArray(new_heads);
+  if (!oldPlayer || oldPlayer.body.length === 0) {
+    // New in-AoI player before the first full body arrived: keep the head only.
+    return addedHeads.slice(0, 2);
+  }
+
   const targetLen =
     length !== undefined && length !== 0 ? length : Math.floor(oldPlayer.body.length / 2);
   const newBody = new Array(targetLen * 2);
@@ -90,8 +125,9 @@ function getNewBody(
 }
 
 function decodePlayer(pData: any, oldPlayer: Player | undefined, defaultPlayer: any): Player {
-  const { body, new_heads, length, teleport_state, ...otherProps } = pData;
-  const newBody = getNewBody(body, new_heads, length, oldPlayer);
+  const { body, new_heads, length, body_truncated, teleport_state, ...otherProps } = pData;
+  const newBody = getNewBody(body, new_heads, length, oldPlayer, body_truncated);
+  const head = resolveHead(body, new_heads, oldPlayer);
 
   const cleanProps: Record<string, any> = {};
   for (const [k, v] of Object.entries(otherProps)) {
@@ -105,7 +141,10 @@ function decodePlayer(pData: any, oldPlayer: Player | undefined, defaultPlayer: 
     ...oldPlayer,
     teleport_state: teleport_state || "none",
     ...cleanProps,
+    ...(length !== undefined ? { length } : {}),
+    body_truncated: body_truncated === true,
     body: newBody,
+    ...(head ?? {}),
   };
 }
 
@@ -115,17 +154,8 @@ function decodePlayers(
 ): Record<string, Player> {
   const nextPlayers: Record<string, Player> = {};
   if (!parsedPlayers) return nextPlayers;
-  const defaultPlayer = {
-    body: [] as number[],
-    angle: 0,
-    score: 0,
-    kills: 0,
-    deaths: 0,
-    nickname: "",
-    skin: "default",
-  };
   for (const [pid, pData] of Object.entries(parsedPlayers)) {
-    nextPlayers[pid] = decodePlayer(pData, currentPlayers[pid], defaultPlayer);
+    nextPlayers[pid] = decodePlayer(pData, currentPlayers[pid], DEFAULT_PLAYER);
   }
   return nextPlayers;
 }

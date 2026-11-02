@@ -1,4 +1,4 @@
-# ROLE: Protobuf-упаковка, AoI-фильтрация.
+# ROLE: Protobuf-упаковка, AoI-фильтрация и truth table body/new_heads/body_truncated.
 
 from app.engine.systems.visibility import get_visible_players
 from app.engine.systems import snake_pb2
@@ -25,21 +25,34 @@ def populate_player_message(p_msg, player, in_aoi=True, is_full=False):
         p_msg.skin = player.skin
         p_msg.nickname = player.nickname
 
+    # Body truth table:
+    # alive + in AoI  -> full body/new_heads, length=body_len, flag unset;
+    # alive + out AoI -> first point only, length=1, flag=true;
+    # dead            -> empty body/new_heads, length=0, flag unset.
+    if player.is_dead:
+        p_msg.length = 0
+        return
+
     if is_full or player.just_respawned:
-        p_msg.body.extend(
-            player.body if in_aoi else ([player.body[0], player.body[1]] if player.body else [])
-        )
+        if in_aoi:
+            p_msg.body.extend(player.body)
+            p_msg.length = player.body_len
+        else:
+            p_msg.body_truncated = True
+            p_msg.length = 1
+            if player.body:
+                p_msg.body.extend((player.body[0], player.body[1]))
     else:
-        p_msg.new_heads.extend(
-            player.new_heads_this_tick
-            if in_aoi
-            else (
-                [player.new_heads_this_tick[0], player.new_heads_this_tick[1]]
-                if player.new_heads_this_tick
-                else []
-            )
-        )
-        p_msg.length = player.body_len if in_aoi else 1
+        if in_aoi:
+            p_msg.new_heads.extend(player.new_heads_this_tick)
+            p_msg.length = player.body_len
+        else:
+            p_msg.body_truncated = True
+            p_msg.length = 1
+            if player.new_heads_this_tick:
+                p_msg.new_heads.extend(
+                    (player.new_heads_this_tick[0], player.new_heads_this_tick[1])
+                )
 
 
 def prepare_cache(state) -> None:
