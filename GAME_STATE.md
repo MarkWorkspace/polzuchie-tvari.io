@@ -94,6 +94,10 @@
 - React 19: login, HUD (счёт/лидерборд/killfeed/ping), settings, game-over,
   spectator HUD и админка; игровые обновления проходят через throttled store,
   а не через React на 30–60 FPS.
+- Миникарта обновляется с throttle 12 Гц (`MINIMAP_UPDATE_INTERVAL_MS`) и
+  рисует не больше `MAX_MINIMAP_FOODS = 300` food-точек; пропущенные кадры не
+  накапливаются. Голова берётся из `head_x/head_y` или плоского `body`, legacy
+  object-body и auto-correct value/color удалены.
 - Потеря WebGL-контекста и фатальный сбой worker показывают блокирующий
   `GameErrorOverlay` с reload; после `webglcontextrestored` полноценный rebuild
   пока не выполняется, нужен reload.

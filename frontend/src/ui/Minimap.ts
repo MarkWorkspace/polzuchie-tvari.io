@@ -1,7 +1,27 @@
-// ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
+// ROLE: 2D-радар на Canvas с throttle 12 Гц и cap food-точек. Не UI, не ввод.
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { wrapDelta } from "../worker/shared/MathUtils";
 import { worldToGridX, worldToGridY } from "../worker/shared/WorldMath";
+
+/** Минимальный интервал между перерисовками миникарты (12 Гц). */
+export const MINIMAP_UPDATE_INTERVAL_MS = 1000 / 12;
+
+/** Максимум food-точек, которые миникарта рисует за одно обновление. */
+export const MAX_MINIMAP_FOODS = 300;
+
+export function shouldUpdateMinimap(
+  lastDrawAt: number,
+  now: number,
+  intervalMs: number = MINIMAP_UPDATE_INTERVAL_MS,
+): boolean {
+  if (!Number.isFinite(lastDrawAt)) return true;
+  return now >= lastDrawAt + intervalMs;
+}
+
+export function capMinimapFoodCount(foodCount: number): number {
+  if (!Number.isFinite(foodCount) || foodCount <= 0) return 0;
+  return Math.min(Math.floor(foodCount), MAX_MINIMAP_FOODS);
+}
 
 export function getPlayerHead(player: any): { x: number; y: number } | null {
   if (!player) return null;
@@ -9,12 +29,9 @@ export function getPlayerHead(player: any): { x: number; y: number } | null {
     return { x: player.head_x, y: player.head_y };
   }
   const body = player.body;
-  if (!Array.isArray(body) || body.length === 0) return null;
+  if (!Array.isArray(body) || body.length < 2) return null;
   if (typeof body[0] === "number" && typeof body[1] === "number") {
     return { x: body[0], y: body[1] };
-  }
-  if (body[0] && typeof body[0] === "object") {
-    return { x: body[0].x, y: body[0].y };
   }
   return null;
 }
@@ -30,6 +47,7 @@ export class Minimap {
   private wrapper: HTMLDivElement | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
+  private lastDrawAt = Number.NEGATIVE_INFINITY;
 
   constructor(container: HTMLDivElement) {
     this.container = container;
@@ -46,11 +64,15 @@ export class Minimap {
   }
 
   public update(msg: any, myId: string, isMobile: boolean): void {
+    const now = performance.now();
+    if (!shouldUpdateMinimap(this.lastDrawAt, now)) return;
+
     const canvas = this.canvas;
     const ctx = this.ctx;
     const state = msg?.gameState;
 
     if (!canvas || !ctx || !state || !msg.foodMinimapData) return;
+    this.lastDrawAt = now;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
@@ -125,26 +147,19 @@ export class Minimap {
     isMobile: boolean,
     radarRadius: number,
   ): void {
-    const foodCount = foodMinimapData.length / 4;
+    const foodCount = capMinimapFoodCount(foodMinimapData.length / 4);
     for (let i = 0; i < foodCount; i++) {
       const fx = foodMinimapData[i * 4 + 0];
       const fy = foodMinimapData[i * 4 + 1];
-      let fvalue = foodMinimapData[i * 4 + 2];
-      let fcolorInt = foodMinimapData[i * 4 + 3];
-
-      // Auto-correct swapped color and value indices
-      if (fvalue > 1000.0 && fcolorInt < 1000.0) {
-        const temp = fvalue;
-        fvalue = fcolorInt;
-        fcolorInt = temp;
-      }
+      const fvalue = foodMinimapData[i * 4 + 2];
+      const fcolorInt = foodMinimapData[i * 4 + 3];
 
       const baseRx = wrapDelta(fx - px, mapW);
       const baseRy = wrapDelta(fy - py, mapH);
 
       let hexColor = "#ef4444";
-      if (typeof fcolorInt === "number" && !isNaN(fcolorInt) && fcolorInt > 0) {
-        hexColor = "#" + Math.round(fcolorInt).toString(16).padStart(6, "0");
+      if (Number.isFinite(fcolorInt) && fcolorInt > 0) {
+        hexColor = `#${Math.round(fcolorInt).toString(16).padStart(6, "0")}`;
       }
 
       ctx.fillStyle = hexColor;

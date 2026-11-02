@@ -1,6 +1,48 @@
-// ROLE: Regression tests for lightweight player data on the minimap.
+// ROLE: Regression tests for minimap throttling, food cap and lightweight player data.
 import { describe, expect, it } from "vitest";
-import { getPlayerDotColor, getPlayerHead } from "./Minimap";
+import {
+  capMinimapFoodCount,
+  getPlayerDotColor,
+  getPlayerHead,
+  MAX_MINIMAP_FOODS,
+  MINIMAP_UPDATE_INTERVAL_MS,
+  shouldUpdateMinimap,
+} from "./Minimap";
+
+describe("shouldUpdateMinimap", () => {
+  it("draws the first frame even before the interval elapsed", () => {
+    expect(shouldUpdateMinimap(Number.NEGATIVE_INFINITY, 0)).toBe(true);
+    expect(shouldUpdateMinimap(Number.NaN, 0)).toBe(true);
+  });
+
+  it("throttles updates inside the interval and allows them after it", () => {
+    const lastDrawAt = 1000;
+    expect(shouldUpdateMinimap(lastDrawAt, lastDrawAt + MINIMAP_UPDATE_INTERVAL_MS - 1)).toBe(
+      false,
+    );
+    expect(shouldUpdateMinimap(lastDrawAt, lastDrawAt + MINIMAP_UPDATE_INTERVAL_MS)).toBe(true);
+  });
+
+  it("honours an explicit interval", () => {
+    expect(shouldUpdateMinimap(500, 520, 10)).toBe(true);
+    expect(shouldUpdateMinimap(500, 520, 30)).toBe(false);
+  });
+});
+
+describe("capMinimapFoodCount", () => {
+  it("keeps the food count below the cap", () => {
+    expect(capMinimapFoodCount(42)).toBe(42);
+    expect(capMinimapFoodCount(0)).toBe(0);
+    expect(capMinimapFoodCount(-3)).toBe(0);
+    expect(capMinimapFoodCount(Number.NaN)).toBe(0);
+  });
+
+  it("truncates fractional and oversized counts", () => {
+    expect(capMinimapFoodCount(12.9)).toBe(12);
+    expect(capMinimapFoodCount(MAX_MINIMAP_FOODS + 500)).toBe(MAX_MINIMAP_FOODS);
+    expect(MAX_MINIMAP_FOODS).toBe(300);
+  });
+});
 
 describe("Minimap player helpers", () => {
   it("reads the lightweight head_x/head_y payload", () => {
@@ -10,8 +52,13 @@ describe("Minimap player helpers", () => {
     });
   });
 
-  it("still accepts the legacy flat body payload", () => {
+  it("still accepts the flat body payload", () => {
     expect(getPlayerHead({ body: [3, 4, 5, 6] })).toEqual({ x: 3, y: 4 });
+  });
+
+  it("no longer accepts the legacy object body payload", () => {
+    expect(getPlayerHead({ body: [{ x: 3, y: 4 }] })).toBeNull();
+    expect(getPlayerHead({ body: [3] })).toBeNull();
   });
 
   it("returns null for a missing body", () => {

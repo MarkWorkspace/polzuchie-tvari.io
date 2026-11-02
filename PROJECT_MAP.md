@@ -199,8 +199,8 @@ frontend/
     │       ├── WorkerProtocol.ts       # ROLE: Типы wire-протокола main↔worker (MainToWorker/WorkerToMain, FrameContext, SnakeContext, FrameDataMessage). Только типы, без логики.
     │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame/Player (включая final_length и frame_seq/server_tick) для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
-    │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
-    │   ├── Minimap.test.ts             # ROLE: Тесты разбора lightweight-игроков для миникарты.
+    │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с throttle 12 Гц и cap food-точек. Не UI, не ввод.
+    │   ├── Minimap.test.ts             # ROLE: Тесты throttle, food cap и lightweight-игроков для миникарты.
     │   ├── SteeringIndicator.ts        # ROLE: Шкала поворота мыши.
     │   ├── MobileControls.ts           # ROLE: Мобильное руление от центра экрана + нижняя зона буста.
     │   ├── personalStats.ts             # ROLE: Личный рекорд (score/length/kills) и его localStorage-персистенция.
