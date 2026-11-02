@@ -1,14 +1,17 @@
-# ROLE: Admin REST API. Session cookie auth, config read/write, restart. Not game logic.
+# ROLE: Admin REST API. Session cookie auth, config read/write, restart, audit log. Not game logic.
 import os
 import asyncio
 import contextlib
 import hmac
 import inspect
+import ipaddress
+import json
 import logging
 import secrets
 import time
 import zlib
 from collections import deque
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, Response, Cookie, Request
 from fastapi.responses import JSONResponse
@@ -27,6 +30,7 @@ ADMIN_SESSION_COOKIE = "admin_token"
 ADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60
 LOGIN_RATE_LIMIT = 10
 LOGIN_RATE_WINDOW_SECONDS = 5 * 60
+MAX_LOGIN_RATE_KEYS = 10_000
 
 # Single-process app: in-memory sessions are enough. Restarting the server
 # invalidates admin sessions and forces a fresh login.
@@ -73,19 +77,58 @@ def _is_valid_admin_session(token: str | None) -> bool:
     return _admin_sessions.get(token, 0.0) > time.monotonic()
 
 
+def _trust_proxy_headers() -> bool:
+    """Whether forwarding headers may be trusted.
+
+    Default true in production (the shipped compose stack always sits behind
+    nginx) and false in local dev, where uvicorn is reached directly.
+    ``TRUST_PROXY_HEADERS`` overrides the default for both.
+    """
+    raw = os.getenv("TRUST_PROXY_HEADERS")
+    if raw is None:
+        return os.getenv("ENVIRONMENT") == "production"
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _parse_ip(value: str | None) -> str | None:
+    if not value:
+        return None
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except ValueError:
+        return None
+
+
 def _login_key(request: Request | None) -> str:
     if request is None:
         return "unknown"
-    # nginx is the only ingress in the shipped compose stack; it sets
-    # X-Real-IP to the browser address. Fall back to the socket peer.
-    forwarded = request.headers.get("x-forwarded-for", "").split(",", 1)[0]
-    if not forwarded.strip():
-        forwarded = request.headers.get("x-real-ip", "")
-    if forwarded.strip():
-        return forwarded.strip()
-    if request.client is None:
+    # nginx overwrites X-Real-IP with the browser address. Honour only that
+    # header behind a trusted proxy; X-Forwarded-For is attacker-controlled and
+    # must never create a fresh login bucket. Invalid values fall back to the
+    # socket peer instead of being trusted.
+    headers = getattr(request, "headers", None)
+    if _trust_proxy_headers() and headers is not None:
+        real_ip = _parse_ip(headers.get("x-real-ip"))
+        if real_ip is not None:
+            return real_ip
+    client = getattr(request, "client", None)
+    host = getattr(client, "host", None)
+    if not host:
         return "unknown"
-    return request.client.host
+    return _parse_ip(host) or host
+
+
+def _audit(request: Request | None, event: str, **fields) -> None:
+    """Write one JSON audit record. Never pass passwords, tokens or values."""
+    record = {
+        "timestamp": datetime.now(timezone.utc)
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
+        "event": event,
+        "ip": _login_key(request),
+        **fields,
+    }
+    logger.info(json.dumps(record, ensure_ascii=False))
 
 
 def _prune_login_attempts(now: float | None = None) -> None:
@@ -97,16 +140,32 @@ def _prune_login_attempts(now: float | None = None) -> None:
             _login_attempts.pop(key, None)
 
 
-def _is_login_rate_limited(key: str) -> bool:
+def _evict_oldest_login_key() -> None:
+    oldest = min(_login_attempts, key=lambda key: _login_attempts[key][-1])
+    _login_attempts.pop(oldest, None)
+
+
+def _login_attempts_for(key: str) -> deque[float]:
     now = time.monotonic()
-    attempts = _login_attempts.setdefault(key, deque())
+    attempts = _login_attempts.get(key)
+    if attempts is None:
+        if len(_login_attempts) >= MAX_LOGIN_RATE_KEYS:
+            _prune_login_attempts(now)
+        if len(_login_attempts) >= MAX_LOGIN_RATE_KEYS:
+            _evict_oldest_login_key()
+        attempts = deque()
+        _login_attempts[key] = attempts
     while attempts and attempts[0] < now - LOGIN_RATE_WINDOW_SECONDS:
         attempts.popleft()
-    return len(attempts) >= LOGIN_RATE_LIMIT
+    return attempts
+
+
+def _is_login_rate_limited(key: str) -> bool:
+    return len(_login_attempts_for(key)) >= LOGIN_RATE_LIMIT
 
 
 def _record_login_attempt(key: str) -> None:
-    _login_attempts.setdefault(key, deque()).append(time.monotonic())
+    _login_attempts_for(key).append(time.monotonic())
 
 
 def _is_secure_request(request: Request) -> bool:
@@ -126,15 +185,18 @@ async def admin_login(req: LoginRequest, response: Response, request: Request):
         raise HTTPException(status_code=403, detail="ADMIN_PASSWORD is not configured")
     if not hmac.compare_digest(req.password.encode(), expected_password.encode()):
         if _is_login_rate_limited(key):
+            _audit(request, "login", result="rate_limited")
             raise HTTPException(
                 status_code=429,
                 detail="Too many login attempts",
                 headers={"Retry-After": str(LOGIN_RATE_WINDOW_SECONDS)},
             )
         _record_login_attempt(key)
+        _audit(request, "login", result="failure")
         raise HTTPException(status_code=401, detail="Invalid admin password")
 
     _login_attempts.pop(key, None)
+    _audit(request, "login", result="success")
     response.set_cookie(
         key=ADMIN_SESSION_COOKIE,
         value=_create_admin_session(),
@@ -178,21 +240,28 @@ async def get_admin_config(request: Request):
 
 
 async def patch_admin_config(patch: AdminConfigPatch, request: Request):
+    # Only top-level keys are logged: nested values may contain operator data.
+    keys = sorted(patch.model_fields_set)
     try:
-        return request.app.state.world.update_config(patch.model_dump(exclude_unset=True))
+        result = request.app.state.world.update_config(patch.model_dump(exclude_unset=True))
     except ValueError as exc:
+        _audit(request, "config", result="failure", keys=keys)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except OSError as exc:
+        _audit(request, "config", result="failure", keys=keys)
         raise HTTPException(
             status_code=503,
             detail="Configuration was validated but could not be persisted",
         ) from exc
     except Exception as exc:
         logger.exception("Failed to apply admin config")
+        _audit(request, "config", result="failure", keys=keys)
         raise HTTPException(
             status_code=503,
             detail="Configuration was validated but could not be applied",
         ) from exc
+    _audit(request, "config", result="success", keys=keys)
+    return result
 
 
 async def health_check():
@@ -311,8 +380,12 @@ async def admin_restart_game(request: Request):
         await _close_active_connections()
         await _cancel_pending_disconnects()
         world.reset_state()
+    except Exception:
+        _audit(request, "restart", result="failure")
+        raise
     finally:
         world.draining = False
 
+    _audit(request, "restart", result="success")
     logger.info("Game state reset complete. Clients will auto-reconnect.")
     return {"status": "ok", "message": "Game restarted"}

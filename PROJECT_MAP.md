@@ -252,7 +252,7 @@ backend/
 └── app/
     ├── logging_setup.py                # ROLE: Настройка stdlib logging и LOG_LEVEL. Не игровая логика.
     ├── api/
-    │   ├── admin.py                    # ROLE: Admin REST API, config read/write (503 на сбой apply/save), restart с draining/очисткой соединений, liveness/readiness и tick-метрики. Не игровая логика.
+    │   ├── admin.py                    # ROLE: Admin REST API, config read/write (503 на сбой apply/save), restart с draining/очисткой соединений, liveness/readiness и tick-метрики, JSON audit login/config/restart, X-Real-IP только за trusted proxy и bounded login limiter. Не игровая логика.
     │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
     │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie и resolver для WS. WS-аутентификацию выполняет websocket.py.
     │   └── websocket.py                # ROLE: WebSocket endpoint: Origin allowlist, per-IP handshake bucket, role caps via pending reservation, cookie-auth identity, epoch/reconnect grace, draining admission, RESYNC→FULL с cooldown; initial FULL snapshot на event loop, zlib.compress(level=1) в to_thread. Не игровая логика.
@@ -293,7 +293,8 @@ backend/
 
 ```
 backend/tests/
-├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации. Проверяет парсинг пароля, очистку пробелов/кавычек и работу login-обработчика.
+├── test_admin_audit.py                # ROLE: JSON audit login/config/restart: timestamp/event/ip/result/keys, отсутствие паролей, токенов и значений конфига.
+├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации: парсинг пароля, session-cookie, X-Real-IP за trusted proxy, spoofed XFF и bounded login limiter.
 ├── test_admin_config_schema.py        # ROLE: Контракт Pydantic-схемы PATCH /admin/config: parity с GameConfig, неизвестные ключи, типы и 422/400 на маршруте.
 ├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока: Protobuf restart-frame, ожидание/отмена соединений, draining-флаг.
 ├── test_black_hole_timer.py           # ROLE: Таймеры чёрных дыр двигаются ровно один раз за тик.

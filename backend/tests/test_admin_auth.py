@@ -1,13 +1,21 @@
-# ROLE: Тесты Admin API аутентификации. Проверяет очистку пароля и session-cookie.
+# ROLE: Тесты Admin API аутентификации. Проверяет очистку пароля, session-cookie,
+# доверие X-Real-IP за прокси и bounded login rate limiter.
 import os
+import time
+from collections import deque
+
 import pytest
 from fastapi import Response, HTTPException
 from starlette.requests import Request
+
+from app.api import admin as admin_module
 from app.api.admin import (
     ADMIN_SESSION_COOKIE,
+    LOGIN_RATE_WINDOW_SECONDS,
     LoginRequest,
     _admin_sessions,
     _login_attempts,
+    _login_key,
     admin_login,
     admin_logout,
     admin_password,
@@ -142,9 +150,10 @@ async def test_correct_password_is_not_blocked_by_rate_limit():
 
 
 @pytest.mark.asyncio
-async def test_login_rate_limit_is_per_forwarded_client():
+async def test_login_rate_limit_is_per_forwarded_client(monkeypatch):
     original_env = os.environ.get("ADMIN_PASSWORD")
     _reset_admin_state()
+    monkeypatch.setenv("TRUST_PROXY_HEADERS", "1")
     try:
         os.environ["ADMIN_PASSWORD"] = "povelitel-polzunov"
         first = _request(headers=[(b"x-real-ip", b"203.0.113.1")])
@@ -167,6 +176,106 @@ async def test_login_rate_limit_is_per_forwarded_client():
             os.environ["ADMIN_PASSWORD"] = original_env
         else:
             os.environ.pop("ADMIN_PASSWORD", None)
+
+
+@pytest.mark.asyncio
+async def test_spoofed_x_forwarded_for_does_not_bypass_login_limit(monkeypatch):
+    original_env = os.environ.get("ADMIN_PASSWORD")
+    _reset_admin_state()
+    monkeypatch.setenv("TRUST_PROXY_HEADERS", "1")
+    try:
+        os.environ["ADMIN_PASSWORD"] = "povelitel-polzunov"
+        for index in range(10):
+            req = _request(
+                headers=[
+                    (b"x-forwarded-for", f"198.51.100.{index + 1}".encode()),
+                    (b"x-real-ip", b"203.0.113.50"),
+                ]
+            )
+            with pytest.raises(HTTPException) as exc_info:
+                await admin_login(LoginRequest(password="wrong"), Response(), req)
+            assert exc_info.value.status_code == 401
+
+        spoofed = _request(
+            headers=[
+                (b"x-forwarded-for", b"192.0.2.99"),
+                (b"x-real-ip", b"203.0.113.50"),
+            ]
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await admin_login(LoginRequest(password="wrong"), Response(), spoofed)
+        assert exc_info.value.status_code == 429
+        assert list(_login_attempts) == ["203.0.113.50"]
+    finally:
+        _reset_admin_state()
+        if original_env is not None:
+            os.environ["ADMIN_PASSWORD"] = original_env
+        else:
+            os.environ.pop("ADMIN_PASSWORD", None)
+
+
+def test_login_key_uses_x_real_ip_only_behind_trusted_proxy(monkeypatch):
+    req = _request(
+        host="10.0.0.7",
+        headers=[
+            (b"x-real-ip", b"203.0.113.9"),
+            (b"x-forwarded-for", b"198.51.100.1"),
+        ],
+    )
+
+    monkeypatch.setenv("TRUST_PROXY_HEADERS", "1")
+    assert _login_key(req) == "203.0.113.9"
+
+    monkeypatch.setenv("TRUST_PROXY_HEADERS", "0")
+    assert _login_key(req) == "10.0.0.7"
+
+
+def test_login_key_falls_back_to_peer_for_invalid_or_absent_real_ip(monkeypatch):
+    monkeypatch.setenv("TRUST_PROXY_HEADERS", "1")
+
+    invalid = _request(
+        host="10.0.0.7",
+        headers=[
+            (b"x-real-ip", b"not-an-ip"),
+            (b"x-forwarded-for", b"198.51.100.1"),
+        ],
+    )
+    absent = _request(host="10.0.0.7", headers=[(b"x-forwarded-for", b"198.51.100.1")])
+
+    assert _login_key(invalid) == "10.0.0.7"
+    assert _login_key(absent) == "10.0.0.7"
+    assert _login_key(None) == "unknown"
+
+
+def test_prune_login_attempts_drops_expired_and_empty_keys():
+    _reset_admin_state()
+    now = time.monotonic()
+    try:
+        _login_attempts["expired"] = deque([now - LOGIN_RATE_WINDOW_SECONDS - 1])
+        _login_attempts["empty"] = deque()
+        _login_attempts["active"] = deque([now])
+
+        admin_module._prune_login_attempts(now)
+
+        assert set(_login_attempts) == {"active"}
+    finally:
+        _reset_admin_state()
+
+
+def test_login_limiter_caps_number_of_keys(monkeypatch):
+    _reset_admin_state()
+    monkeypatch.setattr(admin_module, "MAX_LOGIN_RATE_KEYS", 3)
+    try:
+        for index in range(10):
+            key = f"198.51.100.{index}"
+            assert admin_module._is_login_rate_limited(key) is False
+            admin_module._record_login_attempt(key)
+
+        assert len(_login_attempts) == 3
+        assert "198.51.100.9" in _login_attempts
+        assert "198.51.100.0" not in _login_attempts
+    finally:
+        _reset_admin_state()
 
 
 @pytest.mark.asyncio
