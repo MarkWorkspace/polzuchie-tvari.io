@@ -36,6 +36,21 @@ const translations = {
   },
   "session.reload": { ru: "Обновить", en: "Reload" },
 
+  // Fatal runtime errors
+  "error.title": { ru: "Ошибка игры", en: "Game error" },
+  "error.webglUnsupported": {
+    ru: "Для игры требуется WebGL2. Обновите браузер или включите аппаратное ускорение.",
+    en: "This game requires WebGL2. Update your browser or enable hardware acceleration.",
+  },
+  "error.workerUnsupported": {
+    ru: "Браузер не поддерживает Web Workers, необходимые для игры.",
+    en: "This browser does not support the Web Workers required by the game.",
+  },
+  "error.workerCrashed": {
+    ru: "Игровой модуль перестал отвечать. Перезагрузите страницу, чтобы продолжить.",
+    en: "The game engine stopped responding. Reload the page to continue.",
+  },
+
   // Skin names
   "skin.red": { ru: "Красный", en: "Red" },
   "skin.blue": { ru: "Синий", en: "Blue" },
@@ -202,6 +217,10 @@ const translations = {
     en: "Connection lost. Reconnecting in {seconds}s...",
   },
   "status.serverRestart": { ru: "Сервер перезагружается...", en: "Server is restarting..." },
+  "status.workerRestart": {
+    ru: "Перезапуск игрового модуля...",
+    en: "Restarting the game engine...",
+  },
   "status.kbdGuide": {
     ru: "A/D/Стрелочки — рулить | Пробел — ускорение | T — управление",
     en: "A/D/Arrows — steer | Space — boost | T — controls",

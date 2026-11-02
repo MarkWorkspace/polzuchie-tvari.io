@@ -1,4 +1,5 @@
-// ROLE: Regression tests for player session bootstrap, WS URL identity and reconnect backoff.
+// ROLE: Regression tests for session bootstrap, WS URL identity, reconnect backoff,
+// frame correlation and worker watchdog/restart behavior.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { reconnectDelayMs, reconnectMessageKey, WebSocketClient } from "../worker/WebSocketClient";
 import {
@@ -6,6 +7,7 @@ import {
   buildSessionUrl,
   clearLegacyClientId,
   ensurePlayerSession,
+  FRAME_TIMEOUT_STALL_THRESHOLD,
   isCurrentFrameResponse,
   LEGACY_CLIENT_ID_STORAGE_KEY,
   NetworkManager,
@@ -39,6 +41,24 @@ class FakeWebSocket {
 
   serverClose(code: number) {
     this.onclose?.({ code } as CloseEvent);
+  }
+}
+
+class FakeNetworkWorker {
+  static instances: FakeNetworkWorker[] = [];
+
+  public url: string | URL;
+  public options: WorkerOptions | undefined;
+  public postMessage = vi.fn();
+  public terminate = vi.fn();
+  public onmessage: ((event: MessageEvent) => void) | null = null;
+  public onerror: ((event: ErrorEvent) => void) | null = null;
+  public onmessageerror: ((event: MessageEvent) => void) | null = null;
+
+  constructor(url: string | URL, options?: WorkerOptions) {
+    this.url = url;
+    this.options = options;
+    FakeNetworkWorker.instances.push(this);
   }
 }
 
@@ -212,6 +232,122 @@ describe("frame request correlation", () => {
 
     deliver(manager, { type: "FRAME_DATA", requestId: 1, camX: 1, camY: 2 });
     expect(frames).toHaveLength(0);
+  });
+});
+
+describe("worker watchdog", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    FakeNetworkWorker.instances = [];
+  });
+
+  async function connectManager() {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", {
+      location: { protocol: "http:", hostname: "127.0.0.1", port: "5173" },
+      setTimeout: (handler: () => void, timeout: number) =>
+        globalThis.setTimeout(handler, timeout) as unknown as number,
+      clearTimeout: (id: number) => globalThis.clearTimeout(id),
+    });
+    vi.stubGlobal("Worker", FakeNetworkWorker);
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const manager = new NetworkManager();
+    const statuses: Array<{ status: string; msgKey?: string; msgParams?: any }> = [];
+    const onWorkerRestart = vi.fn();
+    const onFatalError = vi.fn();
+    manager.setCallbacks({
+      onStatusChange: (status, _msg, msgKey, msgParams) =>
+        statuses.push({ status, msgKey, msgParams }),
+      onWorkerRestart,
+      onFatalError,
+    });
+
+    await manager.connect("Snake", "#22c55e", "player");
+    return { manager, statuses, onWorkerRestart, onFatalError, fetchMock };
+  }
+
+  it("recreates the worker after onerror and re-fetches the player session", async () => {
+    const { statuses, onWorkerRestart, fetchMock } = await connectManager();
+    expect(FakeNetworkWorker.instances).toHaveLength(1);
+    const firstWorker = FakeNetworkWorker.instances[0];
+
+    firstWorker.onerror?.({ message: "boom" } as ErrorEvent);
+
+    expect(onWorkerRestart).toHaveBeenCalledTimes(1);
+    expect(firstWorker.terminate).toHaveBeenCalledTimes(1);
+    expect(statuses.at(-1)).toMatchObject({
+      status: "reconnecting",
+      msgKey: "status.workerRestart",
+      msgParams: { attempt: 1 },
+    });
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(FakeNetworkWorker.instances).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(FakeNetworkWorker.instances).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(FakeNetworkWorker.instances[1].postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "CONNECT" }),
+    );
+  });
+
+  it("treats onmessageerror as a worker failure", async () => {
+    const { onWorkerRestart } = await connectManager();
+
+    FakeNetworkWorker.instances[0].onmessageerror?.({} as MessageEvent);
+
+    expect(onWorkerRestart).toHaveBeenCalledTimes(1);
+    expect(FakeNetworkWorker.instances[0].terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a fatal error after the restart budget is exhausted", async () => {
+    const { statuses, onFatalError } = await connectManager();
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      FakeNetworkWorker.instances.at(-1)?.onerror?.({ message: "boom" } as ErrorEvent);
+      await vi.advanceTimersByTimeAsync(reconnectDelayMs(attempt));
+    }
+
+    expect(FakeNetworkWorker.instances).toHaveLength(4);
+    FakeNetworkWorker.instances[3].onerror?.({ message: "boom" } as ErrorEvent);
+
+    expect(onFatalError).toHaveBeenCalledWith("worker");
+    expect(FakeNetworkWorker.instances).toHaveLength(4);
+    expect(statuses.at(-1)).toMatchObject({
+      status: "disconnected",
+      msgKey: "error.workerCrashed",
+    });
+  });
+
+  it("treats consecutive frame timeouts as a stalled worker", async () => {
+    const { manager, onWorkerRestart } = await connectManager();
+
+    for (let i = 1; i < FRAME_TIMEOUT_STALL_THRESHOLD; i++) {
+      manager.requestFrame(0.016, "me", { turn: 0 });
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    expect(onWorkerRestart).not.toHaveBeenCalled();
+
+    manager.requestFrame(0.016, "me", { turn: 0 });
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(onWorkerRestart).toHaveBeenCalledTimes(1);
+    expect(FakeNetworkWorker.instances[0].terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not restart the worker after a manual close", async () => {
+    const { manager, fetchMock } = await connectManager();
+
+    FakeNetworkWorker.instances[0].onerror?.({ message: "boom" } as ErrorEvent);
+    manager.close();
+    await vi.advanceTimersByTimeAsync(reconnectDelayMs(1));
+
+    expect(FakeNetworkWorker.instances).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

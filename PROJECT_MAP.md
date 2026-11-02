@@ -53,16 +53,17 @@ frontend/
 └── src/
     ├── main.ts                         # ROLE: Route selection and lazy loading; no game logic.
     ├── game/
-    │   ├── bootstrap.ts                # ROLE: Lazy game UI bootstrap (login, HUD, game lifecycle).
+    │   ├── bootstrap.ts                # ROLE: Lazy game UI bootstrap (runtime Worker/WebGL2 check, login, HUD, game lifecycle, startup error overlay).
+    │   ├── bootstrap.test.ts           # ROLE: Тесты pre-login проверки Worker/WebGL2 через checkRuntimeSupport.
     │   ├── spectatorBootstrap.ts       # ROLE: Lazy spectator bootstrap; выбирает player-HUD или debug-панели.
     │   ├── spectatorMode.ts            # ROLE: Чистый разбор `?spectator=` / `?debug=` в player/debug режим.
     │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
-    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy, пауза rAF и reload-overlay при потере WebGL-контекста. Не содержит рендеринг.
+    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy, пауза rAF и reload-overlay при потере WebGL-контекста или фатальном сбое worker. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа; guard editable/HUD и resync. Не UI, не сеть.
     │   ├── InputManager.test.ts        # ROLE: Тесты editable/HUD guard, UI-open паузы и resync ввода.
-    │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру, requestId-корреляция кадров + player-session bootstrap (POST /session). Не бизнес-логика.
-    │   ├── NetworkManager.test.ts      # ROLE: Тесты session bootstrap, WS URL без client_id, reconnect backoff и requestId-корреляции кадров.
+    │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру, requestId-корреляция кадров, player-session bootstrap (POST /session), worker watchdog/restart с backoff. Не бизнес-логика.
+    │   ├── NetworkManager.test.ts      # ROLE: Тесты session bootstrap, WS URL без client_id, reconnect backoff, requestId-корреляции и worker watchdog/restart.
     │   ├── PlayerSessionLock.ts        # ROLE: Web Locks + BroadcastChannel: одна player-вкладка, takeover между вкладками. Не сеть и не UI.
     │   ├── SpectatorApp.ts             # ROLE: Ядро спектатора: камера, сеть, рендер; debug UI вынесен отдельно.
     │   ├── SpectatorDebugOverlay.ts    # ROLE: Админские debug-панели спектатора (статы, выбор змейки).

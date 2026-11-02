@@ -1,8 +1,21 @@
 // ROLE: WebSocket-интерфейс к воркеру и player-session bootstrap. Не бизнес-логика.
 
+import { reconnectDelayMs } from "../worker/WebSocketClient";
 import { gridSize } from "./Config";
 
 export type NetworkStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
+
+/** A worker is presumed wedged after this many consecutive 100 ms frame timeouts. */
+export const FRAME_TIMEOUT_STALL_THRESHOLD = 30;
+export const MAX_WORKER_RESTARTS = 3;
+
+export type WorkerFailureReason = "worker" | "stall";
+
+export interface ConnectArgs {
+  nickname: string;
+  skin: string;
+  role: string;
+}
 
 export interface FrameInput {
   turn: number;
@@ -117,6 +130,11 @@ export class NetworkManager {
   private requestSequence = 0;
   private pendingRequestId: number | null = null;
 
+  private lastConnectArgs: ConnectArgs | null = null;
+  private workerRestartAttempt = 0;
+  private restartTimeoutId: number | null = null;
+  private consecutiveFrameTimeouts = 0;
+
   private onStatusChange?: (
     status: NetworkStatus,
     msg?: string,
@@ -127,6 +145,8 @@ export class NetworkManager {
   private onYourId?: (id: string) => void;
   private onFrameData?: (msg: any) => void;
   private onDisconnect?: () => void;
+  private onWorkerRestart?: () => void;
+  private onFatalError?: (reason: WorkerFailureReason) => void;
 
   constructor() {
     clearLegacyClientId(defaultStorage());
@@ -137,10 +157,19 @@ export class NetworkManager {
    * A spectator never touches `/session` and always gets a fresh server UUID.
    */
   public async connect(nickname: string, skin: string, role: string = "player"): Promise<void> {
-    this.close();
+    await this.startConnection({ nickname, skin, role }, false);
+  }
+
+  private async startConnection(args: ConnectArgs, isRestart: boolean): Promise<void> {
+    this.lastConnectArgs = { ...args };
+    this.connectGeneration++;
+    this.cancelRestartTimer();
+    this.stopWorker();
+    if (!isRestart) this.workerRestartAttempt = 0;
+
     const generation = this.connectGeneration;
 
-    if (role === "player") {
+    if (args.role === "player") {
       const result = await ensurePlayerSession(
         buildSessionUrl(window.location, import.meta.env.DEV),
       );
@@ -156,7 +185,7 @@ export class NetworkManager {
     }
 
     try {
-      this.spawnWorker(nickname, skin, role);
+      this.spawnWorker(args.nickname, args.skin, args.role);
     } catch (error) {
       console.warn("[NetworkManager] Failed to start the network worker", error);
       this.close();
@@ -186,6 +215,11 @@ export class NetworkManager {
       this.isWaitingForFrame = false;
       this.pendingRequestId = null;
       this.frameTimeoutId = null;
+      this.consecutiveFrameTimeouts++;
+      if (this.consecutiveFrameTimeouts >= FRAME_TIMEOUT_STALL_THRESHOLD) {
+        this.consecutiveFrameTimeouts = 0;
+        this.handleWorkerFailure("stall");
+      }
     }, 100);
 
     this.worker.postMessage({
@@ -201,14 +235,13 @@ export class NetworkManager {
     });
   }
 
+  /** Manual teardown (destroy/takeover): no watchdog restart may survive it. */
   public close(): void {
     this.connectGeneration++;
-    if (this.worker) {
-      this.worker.postMessage({ type: "CLOSE" });
-      this.worker.terminate();
-      this.worker = null;
-    }
-    this.resolvePendingFrame();
+    this.lastConnectArgs = null;
+    this.workerRestartAttempt = 0;
+    this.cancelRestartTimer();
+    this.stopWorker();
   }
 
   public setCallbacks(callbacks: {
@@ -222,12 +255,16 @@ export class NetworkManager {
     onYourId?: (id: string) => void;
     onFrameData?: (msg: any) => void;
     onDisconnect?: () => void;
+    onWorkerRestart?: () => void;
+    onFatalError?: (reason: WorkerFailureReason) => void;
   }): void {
     this.onStatusChange = callbacks.onStatusChange;
     this.onPing = callbacks.onPing;
     this.onYourId = callbacks.onYourId;
     this.onFrameData = callbacks.onFrameData;
     this.onDisconnect = callbacks.onDisconnect;
+    this.onWorkerRestart = callbacks.onWorkerRestart;
+    this.onFatalError = callbacks.onFatalError;
   }
 
   public getWaitingForFrame(): boolean {
@@ -242,19 +279,90 @@ export class NetworkManager {
   private resolvePendingFrame(): void {
     this.isWaitingForFrame = false;
     this.pendingRequestId = null;
+    this.consecutiveFrameTimeouts = 0;
     if (this.frameTimeoutId !== null) {
       window.clearTimeout(this.frameTimeoutId);
       this.frameTimeoutId = null;
     }
   }
 
+  private cancelRestartTimer(): void {
+    if (this.restartTimeoutId !== null) {
+      window.clearTimeout(this.restartTimeoutId);
+      this.restartTimeoutId = null;
+    }
+  }
+
+  /** Terminate the current worker without touching the restart budget. */
+  private stopWorker(): void {
+    const worker = this.worker;
+    this.worker = null;
+    if (worker) {
+      worker.onmessage = null;
+      worker.onerror = null;
+      worker.onmessageerror = null;
+      try {
+        worker.postMessage({ type: "CLOSE" });
+      } catch {
+        // The worker may already be dead; terminate still releases it.
+      }
+      worker.terminate();
+    }
+    this.resolvePendingFrame();
+  }
+
+  /**
+   * A broken worker is replaced with backoff. The initial spawn plus three
+   * restarts exhaust the budget; further failures are fatal so a crash loop
+   * cannot spin forever and the UI shows the blocking error overlay.
+   */
+  private handleWorkerFailure(reason: WorkerFailureReason): void {
+    this.connectGeneration++;
+    this.cancelRestartTimer();
+    this.stopWorker();
+    this.workerRestartAttempt++;
+
+    if (this.workerRestartAttempt > MAX_WORKER_RESTARTS) {
+      this.lastConnectArgs = null;
+      this.onStatusChange?.("disconnected", undefined, "error.workerCrashed");
+      this.onFatalError?.(reason);
+      return;
+    }
+
+    this.onWorkerRestart?.();
+    this.onStatusChange?.("reconnecting", undefined, "status.workerRestart", {
+      attempt: this.workerRestartAttempt,
+    });
+
+    const args = this.lastConnectArgs;
+    if (!args) return;
+    const delay = reconnectDelayMs(this.workerRestartAttempt);
+    this.restartTimeoutId = window.setTimeout(() => {
+      this.restartTimeoutId = null;
+      void this.startConnection(args, true);
+    }, delay);
+  }
+
   private spawnWorker(nickname: string, skin: string, role: string): void {
     // Initialize worker with relative module URL standard in Vite
-    this.worker = new Worker(new URL("../worker/worker.ts", import.meta.url), { type: "module" });
-    this.worker.onmessage = this.handleWorkerMessage;
+    const worker = new Worker(new URL("../worker/worker.ts", import.meta.url), {
+      type: "module",
+    });
+    this.worker = worker;
+    worker.onmessage = this.handleWorkerMessage;
+    worker.onerror = (event) => {
+      if (this.worker !== worker) return;
+      console.warn("[NetworkManager] Worker crashed", event.message || "unknown error");
+      this.handleWorkerFailure("worker");
+    };
+    worker.onmessageerror = () => {
+      if (this.worker !== worker) return;
+      console.warn("[NetworkManager] Worker message could not be deserialized");
+      this.handleWorkerFailure("worker");
+    };
 
     const wsUrl = buildGameWsUrl(nickname, skin, role, window.location, import.meta.env.DEV);
-    this.worker.postMessage({ type: "CONNECT", url: wsUrl });
+    worker.postMessage({ type: "CONNECT", url: wsUrl });
   }
 
   private handleWorkerMessage = (event: MessageEvent): void => {

@@ -1,6 +1,7 @@
 // ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
 
 import Stats from "stats.js";
+import { t } from "../lib/i18n";
 import type { RenderQuality } from "../renderer/RenderQuality";
 import { SceneManager } from "../renderer/SceneManager";
 import {
@@ -10,7 +11,7 @@ import {
 import { GameCamera } from "./Camera";
 import type { ControlMode } from "./InputManager";
 import { InputManager } from "./InputManager";
-import { NetworkManager } from "./NetworkManager";
+import { NetworkManager, type WorkerFailureReason } from "./NetworkManager";
 import { RenderOrchestrator } from "./RenderOrchestrator";
 
 export class Game {
@@ -30,6 +31,7 @@ export class Game {
   private lastTime = performance.now();
   private animFrameId = 0;
   private contextLost = false;
+  private fatalError = false;
   private gameErrorOverlay: GameErrorOverlayHandle | null = null;
   private throttledTurn = 0.0;
   private lastTurnSendTime = 0;
@@ -78,6 +80,7 @@ export class Game {
     window.removeEventListener("game-respawn", this.handleGameRespawn);
     this.sendCleanRelease();
     this.clearPlayerId();
+    this.networkManager.setCallbacks({});
     this.networkManager.close();
     this.inputManager.destroy();
     this.renderOrchestrator.destroy();
@@ -141,12 +144,45 @@ export class Game {
     cancelAnimationFrame(this.animFrameId);
     this.animFrameId = 0;
 
-    this.gameErrorOverlay = mountGameErrorOverlay(this.container, {
-      title: "WebGL context lost",
-      message: "Перезагрузите страницу, чтобы продолжить игру.",
-    });
-    this.gameErrorOverlay.show();
+    this.showErrorOverlay("WebGL context lost", "Перезагрузите страницу, чтобы продолжить игру.");
   };
+
+  /**
+   * The worker is being replaced. Its `myId` belongs to the dead connection, so
+   * the local identity is dropped until the recreated worker receives `YOUR_ID`.
+   */
+  private handleWorkerRestart = (): void => {
+    this.isConnected = false;
+    this.clearPlayerId();
+    this.resyncInput();
+    window.dispatchEvent(
+      new CustomEvent("game-status", {
+        detail: {
+          status: "reconnecting",
+          msgKey: "status.workerRestart",
+          controlMode: this.inputManager.getControlMode(),
+        },
+      }),
+    );
+  };
+
+  private handleFatalError = (reason: WorkerFailureReason): void => {
+    if (this.fatalError) return;
+    console.warn("[Game] Fatal worker failure", reason);
+    this.fatalError = true;
+    this.isConnected = false;
+    this.clearPlayerId();
+    cancelAnimationFrame(this.animFrameId);
+    this.animFrameId = 0;
+
+    this.showErrorOverlay(t("error.title"), t("error.workerCrashed"));
+  };
+
+  private showErrorOverlay(title: string, message: string): void {
+    this.gameErrorOverlay?.unmount();
+    this.gameErrorOverlay = mountGameErrorOverlay(this.container, { title, message });
+    this.gameErrorOverlay.show();
+  }
 
   private setupInputCallbacks(): void {
     this.inputManager.setCallbacks({
@@ -263,6 +299,8 @@ export class Game {
         this.clearPlayerId();
         window.dispatchEvent(new CustomEvent("game-disconnect"));
       },
+      onWorkerRestart: this.handleWorkerRestart,
+      onFatalError: this.handleFatalError,
     });
   }
 
@@ -275,7 +313,7 @@ export class Game {
   }
 
   private tick = (): void => {
-    if (this.contextLost) return;
+    if (this.contextLost || this.fatalError) return;
     this.animFrameId = requestAnimationFrame(this.tick);
 
     if (this.stats) {
