@@ -43,6 +43,7 @@ frontend/
 │   ├── bots.spec.ts                    # ROLE: Live-включение/выключение ботов через админку.
 │   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор, follow по клику и возврат к обзору.
 │   ├── security.spec.ts                # ROLE: Origin allowlist и role caps WebSocket: cross-origin отказ, spectator flood, player slot.
+│   ├── webgl.spec.ts                   # ROLE: WebGL context loss: overlay с reload и паузой rAF (skip без WEBGL_lose_context).
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
 ├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
@@ -56,7 +57,7 @@ frontend/
     │   ├── spectatorBootstrap.ts       # ROLE: Lazy spectator bootstrap; выбирает player-HUD или debug-панели.
     │   ├── spectatorMode.ts            # ROLE: Чистый разбор `?spectator=` / `?debug=` в player/debug режим.
     │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
-    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
+    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy, пауза rAF и reload-overlay при потере WebGL-контекста. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа; guard editable/HUD и resync. Не UI, не сеть.
     │   ├── InputManager.test.ts        # ROLE: Тесты editable/HUD guard, UI-open паузы и resync ввода.
@@ -75,7 +76,7 @@ frontend/
     │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
     ├── renderer/
-    │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества и adaptive pixel ratio.
+    │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества, adaptive pixel ratio и listeners потери/восстановления WebGL-контекста.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.78, 1.33), два separable Gaussian-прохода в world units (radius 4, opacity 0.5) и один quad на земле; отдаёт размытую маску траве через getFrame(). Не свет, не shadow map, не пост-эффект.
     │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
     │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок на пучок, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + две волны + gust), локальное раздвигание у головы, per-blade tint, затемнение и приминание внутри contact shadow, dither-фейд края поля. Бюджет/радиус — из пресета; декор без коллизий.
@@ -189,6 +190,8 @@ frontend/
     │       ├── mountSettingsPanel.tsx  # ROLE: Mount/unmount React settings.
     │       ├── GameOverScreen.tsx      # ROLE: React death overlay, run summary, personal best и respawn.
     │       ├── mountGameOverScreen.tsx # ROLE: Mount/unmount React game-over overlay.
+    │       ├── GameErrorOverlay.tsx    # ROLE: Blocking renderer error overlay с reload; от WebGL не зависит.
+    │       ├── mountGameErrorOverlay.tsx # ROLE: Mount/unmount error overlay + imperative show/hide.
     │       ├── LoginScreen.test.tsx    # ROLE: React login tests.
     │       ├── SettingsPanel.test.tsx  # ROLE: React settings tests.
     │       └── GameOverScreen.test.tsx # ROLE: React game-over tests.

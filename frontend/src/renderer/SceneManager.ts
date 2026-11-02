@@ -106,6 +106,9 @@ export class SceneManager {
   private currentWidth: number = 0;
   private currentHeight: number = 0;
 
+  private contextLost = false;
+  private readonly contextLostListeners = new Set<() => void>();
+
   private quality: RenderQuality;
   private adaptiveResolution: AdaptiveResolution | null = null;
   private currentPixelRatio = 1;
@@ -150,6 +153,8 @@ export class SceneManager {
     this.renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
     this.renderer.shadowMap.enabled = preset.shadows;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.domElement.addEventListener("webglcontextlost", this.handleContextLost);
+    this.renderer.domElement.addEventListener("webglcontextrestored", this.handleContextRestored);
     this.container.appendChild(this.renderer.domElement);
   }
 
@@ -254,6 +259,12 @@ export class SceneManager {
 
   public destroy(): void {
     window.removeEventListener("resize", this.handleResize);
+    this.renderer.domElement.removeEventListener("webglcontextlost", this.handleContextLost);
+    this.renderer.domElement.removeEventListener(
+      "webglcontextrestored",
+      this.handleContextRestored,
+    );
+    this.contextLostListeners.clear();
     this.snakeLights.destroy();
     this.contactShadow.dispose();
     this.postProcessing.destroy();
@@ -294,7 +305,35 @@ export class SceneManager {
     this.handleResize();
   }
 
+  /** Notifies the app once the GPU context is gone; v1 recovery is a page reload. */
+  public onContextLost(callback: () => void): () => void {
+    this.contextLostListeners.add(callback);
+    return () => {
+      this.contextLostListeners.delete(callback);
+    };
+  }
+
+  private handleContextLost = (event: Event): void => {
+    // preventDefault is required for the browser to ever emit webglcontextrestored.
+    event.preventDefault();
+    if (this.contextLost) return;
+
+    this.contextLost = true;
+    console.warn("SceneManager: WebGL context lost");
+    for (const callback of this.contextLostListeners) {
+      callback();
+    }
+  };
+
+  private handleContextRestored = (): void => {
+    this.contextLost = false;
+    // v1 does not rebuild composer targets, materials or shadow maps here.
+    console.warn("SceneManager: WebGL context restored; reload the page to rebuild GPU resources");
+  };
+
   public render(msg: any): void {
+    if (this.contextLost) return;
+
     this.updateAdaptiveResolution();
 
     if (msg) {

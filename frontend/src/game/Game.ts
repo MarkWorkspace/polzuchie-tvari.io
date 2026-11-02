@@ -3,6 +3,10 @@
 import Stats from "stats.js";
 import type { RenderQuality } from "../renderer/RenderQuality";
 import { SceneManager } from "../renderer/SceneManager";
+import {
+  type GameErrorOverlayHandle,
+  mountGameErrorOverlay,
+} from "../ui/react/mountGameErrorOverlay";
 import { GameCamera } from "./Camera";
 import type { ControlMode } from "./InputManager";
 import { InputManager } from "./InputManager";
@@ -10,6 +14,7 @@ import { NetworkManager } from "./NetworkManager";
 import { RenderOrchestrator } from "./RenderOrchestrator";
 
 export class Game {
+  private readonly container: HTMLDivElement;
   private sceneManager: SceneManager;
   private inputManager: InputManager;
   public networkManager: NetworkManager;
@@ -24,12 +29,16 @@ export class Game {
   private latestFrame: any = null;
   private lastTime = performance.now();
   private animFrameId = 0;
+  private contextLost = false;
+  private gameErrorOverlay: GameErrorOverlayHandle | null = null;
   private throttledTurn = 0.0;
   private lastTurnSendTime = 0;
   private lastAccelerating = false;
 
   constructor(container: HTMLDivElement) {
+    this.container = container;
     this.sceneManager = new SceneManager(container);
+    this.sceneManager.onContextLost(this.handleContextLost);
     this.inputManager = new InputManager();
     this.networkManager = new NetworkManager();
     this.gameCamera = new GameCamera();
@@ -72,6 +81,8 @@ export class Game {
     this.networkManager.close();
     this.inputManager.destroy();
     this.renderOrchestrator.destroy();
+    this.gameErrorOverlay?.unmount();
+    this.gameErrorOverlay = null;
     this.sceneManager.destroy();
     if (this.stats) {
       this.stats.dom.remove();
@@ -118,6 +129,23 @@ export class Game {
 
   private handleGameRespawn = (): void => {
     this.resyncInput();
+  };
+
+  /**
+   * v1 GPU-reset response: stop the frame loop and ask for a reload. Rebuilding
+   * composer targets, materials and shadow maps in place is a separate task.
+   */
+  private handleContextLost = (): void => {
+    if (this.contextLost) return;
+    this.contextLost = true;
+    cancelAnimationFrame(this.animFrameId);
+    this.animFrameId = 0;
+
+    this.gameErrorOverlay = mountGameErrorOverlay(this.container, {
+      title: "WebGL context lost",
+      message: "Перезагрузите страницу, чтобы продолжить игру.",
+    });
+    this.gameErrorOverlay.show();
   };
 
   private setupInputCallbacks(): void {
@@ -247,6 +275,7 @@ export class Game {
   }
 
   private tick = (): void => {
+    if (this.contextLost) return;
     this.animFrameId = requestAnimationFrame(this.tick);
 
     if (this.stats) {
