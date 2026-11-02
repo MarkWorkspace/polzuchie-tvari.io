@@ -386,6 +386,10 @@ export class SnakeRenderer {
       geom.setAttribute(name, attr);
     }
     attr.array.set(data);
+    // The buffer is growable and much longer than the payload, so upload only
+    // the components written this frame instead of the whole allocation.
+    attr.clearUpdateRanges();
+    attr.addUpdateRange(0, requiredLength);
     attr.needsUpdate = true;
   }
 
@@ -400,6 +404,8 @@ export class SnakeRenderer {
       geom.setIndex(attr);
     }
     (attr.array as Uint32Array).set(indices);
+    attr.clearUpdateRanges();
+    attr.addUpdateRange(0, requiredLength);
     attr.needsUpdate = true;
   }
 }
