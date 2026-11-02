@@ -162,44 +162,61 @@ tests_shared/golden_frames/*
 
 ### Tracker
 
-- [ ] M0-01 CI repair
-- [ ] M0-02 Test isolation
-- [ ] M1-01 Backend session store
-- [ ] M1-02 WS auth
-- [ ] M1-03 Frontend session plumbing
-- [ ] M1-04 Reconnect epoch
-- [ ] M1-05 Origin/limits + security E2E
-- [ ] M2-01 Config ownership
-- [ ] M2-02 Entity live-config
-- [ ] M2-03 Validation hardening
-- [ ] M2-04 Formula engine
-- [ ] M2-05 Config persistence
-- [ ] M3-01 Tick-boundary events
-- [ ] M3-02 Backpressure
-- [ ] M3-03 Body semantics
-- [ ] M3-04 final_length
-- [ ] M3-05 frame_seq backend
-- [ ] M3-06 Frontend resync
-- [ ] M3-07 Empty frame/requestId
-- [ ] M3-08 gridToWorld
-- [ ] M3-09 Torus helper
-- [ ] M3-10 Full-frame writer
-- [ ] M3-11 Golden fixtures
-- [ ] M3-12 Spawn body wrap
-- [ ] M3-13 Tombstone killfeed
-- [ ] M4-01 Input ownership
-- [ ] M4-02 WebGL context loss
-- [ ] M4-03 Worker watchdog
-- [ ] M4-04 Typed worker protocol
-- [ ] M4-05 SnakeRenderer update ranges
-- [ ] M5-01 Health/readiness
-- [ ] M5-02 Admin audit/XFF
-- [ ] M5-03 Docker/nginx hardening
-- [ ] M5-04 Config deployment
-- [ ] M5-05 Dead code removal
-- [ ] M5-06 Docs sync
-- [ ] M5-07 Runbook/SECURITY/ADRs
+- [x] M0-01 CI repair
+- [x] M0-02 Test isolation
+- [x] M0-03 Frame parity
+- [x] M0-04 Bots E2E
+- [x] M0-05 Production preview E2E
+- [x] M0-06 E2E webServer lifecycle
+- [x] M0-07 software WebGL budget
+- [x] M0-08 follow-target hazard stabilization
+- [x] M1-01 Backend session store
+- [x] M1-02 WS auth
+- [x] M1-03 Frontend session plumbing
+- [x] M1-04 Reconnect epoch
+- [x] M1-05 Origin/limits + security E2E
+- [x] M2-01 Config ownership
+- [x] M2-02 Entity live-config
+- [x] M2-03 Validation hardening
+- [x] M2-04 Formula engine
+- [x] M2-05 Config persistence
+- [x] M3-01 Tick-boundary events
+- [x] M3-02 Backpressure
+- [x] M3-03 Body semantics
+- [x] M3-04 final_length
+- [x] M3-05 frame_seq backend
+- [x] M3-06 Frontend resync
+- [x] M3-07 Empty frame/requestId
+- [x] M3-08 gridToWorld
+- [x] M3-09 Torus helper
+- [x] M3-10 Full-frame writer
+- [x] M3-11 Golden fixtures
+- [x] M3-12 Spawn body wrap
+- [x] M3-13 Tombstone killfeed
+- [x] M4-01 Input ownership
+- [x] M4-02 WebGL context loss
+- [x] M4-03 Worker watchdog
+- [x] M4-04 Typed worker protocol
+- [x] M4-05 SnakeRenderer update ranges
+- [x] M5-01 Health/readiness
+- [x] M5-02 Admin audit/XFF
+- [x] M5-03 Docker/nginx hardening
+- [x] M5-04 Config deployment
+- [x] M5-05 Dead code removal
+- [x] M5-06 Docs sync
+- [x] M5-07 Runbook/SECURITY/ADRs
 - [ ] M6 optional backlog (по решению)
+
+### Execution notes
+
+- **Branch:** `remediation/audit-2026-10`.
+- **Gates:** все gates 0–5 зелёные (backend/frontend checks, тесты, E2E и Docker smoke).
+- **M6:** optional backlog не начат.
+- **Отклонения:**
+  - M1-05: добавлены passthrough `ALLOWED_ORIGINS` в `docker-compose.yml` и изоляция `backend/tests/conftest.py`.
+  - M3-03/M3-04/M3-08/M3-09: использованы согласованные исключения по размеру изменений (authorized size exceptions).
+  - M3-13: выбран backend literal `tombstone` + UI special-case.
+  - M5-04: runtime config переведён в untracked-состояние и named volume.
 
 ---
 
