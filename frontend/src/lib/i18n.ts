@@ -66,7 +66,6 @@ const translations = {
   // Side menu
   "menu.title": { ru: "Меню игры", en: "Game Menu" },
   "menu.settings": { ru: "Настройки", en: "Settings" },
-  "menu.camera": { ru: "Режим камеры", en: "Camera Mode" },
   "menu.controls": { ru: "Управление", en: "Controls" },
   "menu.guide": { ru: "Подсказки", en: "Guide" },
   "menu.admin": { ru: "Админ-панель", en: "Admin Panel" },
@@ -103,7 +102,6 @@ const translations = {
   },
   "control.tilt": { ru: "Наклон телефона", en: "Phone Tilt" },
   "control.tiltDesc": { ru: "Наклон + зона буста", en: "Tilt steering + Boost zone" },
-  "control.gyroPermission": { ru: "Разрешить гироскоп (iOS)", en: "Allow Gyroscope (iOS)" },
   "control.keyboard": { ru: "Клавиатура", en: "Keyboard" },
   "control.keyboardDesc": { ru: "A/D или Стрелочки", en: "A/D or Arrows" },
   "control.mouseSteer": { ru: "Мышь", en: "Mouse Steer" },
@@ -114,14 +112,6 @@ const translations = {
 
   // Desktop controls help
   "help.controls": { ru: "Управление", en: "Controls" },
-  "help.steeringKbd": { ru: "A / D / Стрелочки", en: "A / D / Arrows" },
-  "help.steeringMouse": { ru: "Движение мыши", en: "Mouse movement" },
-  "help.steering": { ru: "Руление", en: "Steering" },
-  "help.space": { ru: "Пробел", en: "Space" },
-  "help.boost": { ru: "Ускорение", en: "Boost" },
-  "help.mode": { ru: "Режим", en: "Mode" },
-  "help.keyboard": { ru: "клавиатура", en: "keyboard" },
-  "help.mouse": { ru: "мышь", en: "mouse" },
 
   // Mobile guide
   "guide.touchSteer": {
@@ -135,10 +125,6 @@ const translations = {
   "guide.tiltSteer": {
     ru: "Наклоняйте телефон влево/вправо для плавного руления.",
     en: "Tilt your phone left/right to steer smoothly.",
-  },
-  "guide.tiltBoost": {
-    ru: "Нижняя зона экрана — зона ускорения. Удерживайте палец для буста.",
-    en: "The bottom area is the boost zone. Hold your finger to boost.",
   },
   "guide.keySteer": {
     ru: "Используйте A/D или стрелочки для руления.",
@@ -179,7 +165,6 @@ const translations = {
   "leaderboard.waiting": { ru: "Ожидание...", en: "Waiting..." },
 
   // Boost zone
-  "boost.label": { ru: "УСКОРЕНИЕ", en: "BOOST" },
   "boost.holdHere": { ru: "Удерживайте для буста", en: "Hold here to boost" },
 
   // HUD
@@ -199,13 +184,6 @@ const translations = {
   "gameOver.playAgain": { ru: "ИГРАТЬ СНОВА", en: "PLAY AGAIN" },
   "gameOver.best": { ru: "Рекорд: {score}", en: "Best: {score}" },
   "gameOver.newRecord": { ru: "Новый рекорд!", en: "New record!" },
-
-  // Gyro permission alert
-  "alert.gyroDenied": { ru: "Доступ к гироскопу отклонён.", en: "Gyroscope permission denied." },
-  "alert.gyroSecureRequired": {
-    ru: "Управление наклоном работает только через безопасное соединение (HTTPS). На HTTP доступ к гироскопу заблокирован браузером.",
-    en: "Tilt controls require a secure connection (HTTPS). On HTTP, sensor access is blocked by the browser.",
-  },
 
   // Default player name
   "game.defaultPlayer": { ru: "Игрок", en: "Player" },
@@ -240,14 +218,6 @@ const translations = {
   "status.environment": { ru: "Среда", en: "Environment" },
   "status.blackHole": { ru: "Чёрная дыра", en: "Black hole" },
   "status.tombstone": { ru: "Надгробие", en: "Tombstone" },
-  "debug.enterScore": {
-    ru: "Укажите новое значение очков для вашей змейки (от 0):",
-    en: "Enter a new score value for your snake (0 or greater):",
-  },
-  "debug.invalidScore": {
-    ru: "Пожалуйста, введите корректное неотрицательное целое число.",
-    en: "Please enter a valid non-negative integer.",
-  },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

@@ -1,9 +1,5 @@
 // ROLE: Единственный источник тороидальной математики на фронте: wrapNearest, wrapDelta,
-// toroidalDelta/toroidalDistance, toroidalLerp и generic lerp-хелперы. Не знает про сеть, рендер и состояние игры.
-
-export const frameSmoothing = (smoothingAt20Hz: number, dt: number): number => {
-  return 1 - (1 - smoothingAt20Hz) ** (dt / 0.05);
-};
+// toroidalDelta/toroidalDistance, toroidalLerp, randomRange и writeMatrix. Не знает про сеть, рендер и состояние игры.
 
 export const randomRange = (min: number, max: number): number => {
   return min + Math.random() * (max - min);
@@ -57,13 +53,6 @@ export const toroidalDistance = (
 ): number => {
   const [dx, dy] = toroidalDelta(x1, y1, x2, y2, width, height);
   return Math.sqrt(dx * dx + dy * dy);
-};
-
-export const lerpAngle = (a: number, b: number, t: number): number => {
-  let da = (b - a) % (Math.PI * 2);
-  if (da > Math.PI) da -= Math.PI * 2;
-  else if (da < -Math.PI) da += Math.PI * 2;
-  return a + da * t;
 };
 
 export const toroidalLerp = (x1: number, x2: number, t: number, size: number): number => {

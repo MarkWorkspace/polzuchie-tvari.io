@@ -60,7 +60,6 @@ def populate_player_message(p_msg, player, in_aoi=True, is_full=False):
 def prepare_cache(state) -> None:
     for p in state.players.values():
         p.new_heads_this_tick.reverse()
-        p.clear_cache()
 
     state.full_players_cache = {}
     state.mini_players_cache = {}

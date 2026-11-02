@@ -89,17 +89,9 @@ class Player:
         self.deaths = 0
         self.new_heads_this_tick = []
         self.just_respawned = False
-        self.clear_cache()
         self.respawn(start_x, start_y)
 
-    def clear_cache(self):
-        self._cached_body_in_aoi = None
-        self._cached_body_out_aoi = None
-        self._cached_new_heads_in_aoi = None
-        self._cached_new_heads_out_aoi = None
-
     def respawn(self, start_x, start_y):
-        self.clear_cache()
         self.body = deque()
         # Wrap each segment so a spawn near the left edge does not put the
         # body outside [0, width); the client would draw it across the seam.
@@ -158,54 +150,3 @@ class Player:
             self.config.snake.base_head_radius
             + effective_score * self.config.snake.score_thickness_scale
         )
-
-    def to_dict(self, in_aoi=True, is_full=False):
-        data = {
-            "angle": round(self.angle, 2),
-            "score": self.score,
-            "kills": self.kills,
-            "deaths": self.deaths,
-            "accelerating": self.is_accelerating_valid if in_aoi else False,
-            "is_dead": self.is_dead,
-        }
-        if self.teleport_state != "none":
-            data["teleport_state"] = self.teleport_state
-            if self.teleport_out_pos:
-                data["teleport_out_x"] = round(self.teleport_out_pos[0], 2)
-                data["teleport_out_y"] = round(self.teleport_out_pos[1], 2)
-                data["teleport_timer_ratio"] = round(
-                    max(0, self.teleport_timer) / max(0.001, self.teleport_delay), 2
-                )
-        if is_full:
-            data["skin"] = self.skin
-            data["nickname"] = self.nickname
-
-        if is_full or self.just_respawned:
-            if in_aoi:
-                if self._cached_body_in_aoi is None:
-                    self._cached_body_in_aoi = [round(v, 2) for v in self.body]
-                data["body"] = self._cached_body_in_aoi
-            else:
-                if self._cached_body_out_aoi is None:
-                    self._cached_body_out_aoi = (
-                        [round(self.body[0], 2), round(self.body[1], 2)] if self.body else []
-                    )
-                data["body"] = self._cached_body_out_aoi
-        else:
-            if in_aoi:
-                if self._cached_new_heads_in_aoi is None:
-                    self._cached_new_heads_in_aoi = [round(v, 2) for v in self.new_heads_this_tick]
-                data["new_heads"] = self._cached_new_heads_in_aoi
-            else:
-                if self._cached_new_heads_out_aoi is None:
-                    self._cached_new_heads_out_aoi = (
-                        [
-                            round(self.new_heads_this_tick[0], 2),
-                            round(self.new_heads_this_tick[1], 2),
-                        ]
-                        if self.new_heads_this_tick
-                        else []
-                    )
-                data["new_heads"] = self._cached_new_heads_out_aoi
-            data["length"] = self.body_len if in_aoi else 1
-        return data
