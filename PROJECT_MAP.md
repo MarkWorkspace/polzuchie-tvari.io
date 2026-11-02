@@ -46,8 +46,8 @@ frontend/
 │   ├── webgl.spec.ts                   # ROLE: WebGL context loss: overlay с reload и паузой rAF (skip без WEBGL_lose_context).
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
-├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite + nginx) в Docker.
-├── nginx.conf                          # ROLE: SPA static serving, /ws proxy, cache and security headers.
+├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite) в Docker; nginx non-root, digest-pinned bases.
+├── nginx.conf                          # ROLE: SPA static serving, /ws proxy, cache/security headers, writable temp paths для non-root.
 ├── public/
 │   └── fonts/                          # ROLE: Self-hosted Outfit WOFF2 files.
 └── src/
@@ -246,7 +246,7 @@ backend/
 ├── pyproject.toml                      # ROLE: PEP 621 metadata, runtime/dev dependencies, pytest + ruff config.
 ├── uv.lock                             # ROLE: [СГЕНЕРИРОВАНО] uv lockfile. Не редактировать вручную.
 ├── .python-version                     # ROLE: Python version for uv (3.13).
-├── Dockerfile                          # ROLE: Production image на Python 3.13 + uv (non-root, healthcheck, WS flags).
+├── Dockerfile                          # ROLE: Production image на Python 3.13 + uv (digest-pinned bases, non-root, healthcheck, WS flags, graceful shutdown 10s).
 ├── scripts/
 │   └── generate_proto.py               # ROLE: Регенерация snake_pb2.py из tests_shared/snake.proto. Не runtime-код.
 └── app/
@@ -366,7 +366,7 @@ tests_shared/
 ```
 .github/
 └── workflows/
-    └── ci.yml                          # ROLE: CI: Ruff/Biome/tsc/pytest/vitest, audits and Docker builds on push/PR.
+    └── ci.yml                          # ROLE: CI: Ruff/Biome/tsc/pytest/vitest, audits, Docker builds + non-root/nginx checks on push/PR.
 ```
 
 ---

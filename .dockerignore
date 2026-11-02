@@ -3,6 +3,16 @@ node_modules
 .git
 .gitignore
 
+# Build/test output that is rebuilt inside the image anyway.
+dist
+test-results
+playwright-report
+*.tmp
+
+# Never ship local env/secrets; keep the committed example.
+.env*
+!.env.example
+
 # Backend
 .venv
 __pycache__

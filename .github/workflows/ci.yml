@@ -133,5 +133,17 @@ jobs:
           ADMIN_PASSWORD: ci-only
       - name: Build backend image
         run: docker build -t polzuchie-backend:ci backend
+      - name: Verify backend runs as non-root
+        run: |
+          uid="$(docker run --rm polzuchie-backend:ci id -u)"
+          test -n "$uid"
+          test "$uid" != "0"
       - name: Build frontend image
         run: docker build -t polzuchie-frontend:ci frontend
+      - name: Verify frontend runs as non-root
+        run: |
+          uid="$(docker run --rm polzuchie-frontend:ci id -u)"
+          test -n "$uid"
+          test "$uid" != "0"
+      - name: Validate nginx configuration in image
+        run: docker run --rm polzuchie-frontend:ci nginx -t
