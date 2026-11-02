@@ -1,10 +1,12 @@
-// ROLE: WebSocket-соединение, реконнект, ping/pong. Не бизнес-логика.
+// ROLE: WebSocket-соединение, реконнект, ping/pong и seq-контроль кадров (RESYNC). Не бизнес-логика.
 
 import { decompress } from "./DeltaDecoder";
 import { decodeGameStateFrame } from "./shared/ProtoFrameDecoder";
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const STABLE_CONNECTION_MS = 10_000;
+const RESYNC_COOLDOWN_MS = 1000;
+const RESYNC_MESSAGE = "RESYNC";
 
 /** Exponential backoff for every retry, including server-full/role-cap closes. */
 export function reconnectDelayMs(attempt: number): number {
@@ -17,6 +19,60 @@ export function reconnectMessageKey(closeCode: number): string {
   return closeCode === 1012 ? "status.serverRestart" : "status.reconnecting";
 }
 
+export interface FrameSequenceDecision {
+  /** The frame may be applied by the worker. */
+  accept: boolean;
+  /** The delta chain is broken and a FULL frame must be requested. */
+  resync: boolean;
+}
+
+/**
+ * Tracks the server `frame_seq` chain for one connection.
+ *
+ * FULL opens a new chain; DELTA must be exactly the next uint32 value. A gap
+ * drops the frame and asks for a FULL, while a DELTA before the first FULL is
+ * dropped silently: requesting a resync there would only duplicate the pending
+ * handshake FULL. Frames without `frame_seq` are legacy and always accepted.
+ */
+export class FrameSequencer {
+  private lastSeq: number | null = null;
+
+  public reset(): void {
+    this.lastSeq = null;
+  }
+
+  public observe(parsedState: any): FrameSequenceDecision {
+    const type = parsedState?.type;
+
+    if (type === "FULL" || type === undefined) {
+      const seq = parsedState?.frame_seq;
+      this.lastSeq = typeof seq === "number" ? seq >>> 0 : null;
+      return { accept: true, resync: false };
+    }
+
+    if (type === "DELTA") {
+      const seq = parsedState?.frame_seq;
+      if (typeof seq !== "number") {
+        // Legacy server: no sequence to validate, keep applying deltas.
+        return { accept: true, resync: false };
+      }
+      if (this.lastSeq === null) {
+        // The initial FULL has not arrived yet (or was lost); wait for it.
+        return { accept: false, resync: false };
+      }
+      const normalized = seq >>> 0;
+      if (normalized === (this.lastSeq + 1) >>> 0) {
+        this.lastSeq = normalized;
+        return { accept: true, resync: false };
+      }
+      return { accept: false, resync: true };
+    }
+
+    // SERVER_RESTART and unknown types never apply to the game state.
+    return { accept: false, resync: false };
+  }
+}
+
 export class WebSocketClient {
   private socket: WebSocket | null = null;
   private reconnectTimer: any = null;
@@ -25,6 +81,8 @@ export class WebSocketClient {
   private reconnectAttempt = 0;
   private isCleaningUp = false;
   private url: string;
+  private sequencer = new FrameSequencer();
+  private lastResyncAt: number | null = null;
 
   private messageCallbacks: ((parsedState: any) => void)[] = [];
   private disconnectCallbacks: (() => void)[] = [];
@@ -54,6 +112,9 @@ export class WebSocketClient {
 
   public connect() {
     this.isCleaningUp = false;
+    // A new connection starts a new server-side sequence and cooldown window.
+    this.sequencer.reset();
+    this.lastResyncAt = null;
     // Identity is carried by the HttpOnly session cookie on the handshake.
     this.socket = new WebSocket(this.url);
     this.socket.binaryType = "arraybuffer";
@@ -73,6 +134,30 @@ export class WebSocketClient {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       this.socket.send(action);
     }
+  }
+
+  /**
+   * Ask the server for a fresh FULL frame. Returns true only when the control
+   * message was actually sent; repeats inside the cooldown are ignored so a
+   * broken chain cannot force a FULL on every tick. The server enforces the
+   * same 1 s window per connection.
+   */
+  public requestResync(now: number = performance.now()): boolean {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return false;
+    if (this.lastResyncAt !== null && now - this.lastResyncAt < RESYNC_COOLDOWN_MS) return false;
+
+    this.socket.send(RESYNC_MESSAGE);
+    this.lastResyncAt = now;
+    return true;
+  }
+
+  /**
+   * Forget the local chain after a frame failed to decode. The accepted seq was
+   * already advanced, so applying the next DELTA would silently skip the lost
+   * change; only a fresh FULL may reopen the chain.
+   */
+  public invalidateSequence(): void {
+    this.sequencer.reset();
   }
 
   private _clearTimers() {
@@ -155,6 +240,10 @@ export class WebSocketClient {
         return;
       }
 
+      const decision = this.sequencer.observe(parsedState);
+      if (decision.resync) this.requestResync();
+      if (!decision.accept) return;
+
       if (parsedState.your_id) {
         this.yourIdCallbacks.forEach((cb) => {
           cb(parsedState.your_id);
@@ -166,6 +255,10 @@ export class WebSocketClient {
       });
     } catch (err) {
       console.error("Worker packet decompression or Protobuf decode error:", err);
+      // A corrupt/truncated frame leaves the delta chain unusable: wait for a
+      // FULL instead of silently dropping one frame and applying the next.
+      this.invalidateSequence();
+      this.requestResync();
     }
   }
 

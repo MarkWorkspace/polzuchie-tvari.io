@@ -43,7 +43,9 @@ ctx.onmessage = (e: MessageEvent) => {
     if (msg.type === "CONNECT") {
       _handleConnect(msg.url);
     } else if (msg.type === "SEND") {
-      client?.send(msg.data);
+      // RESYNC is connection control, never a gameplay input: only
+      // WebSocketClient.requestResync may send it.
+      if (msg.data !== "RESYNC") client?.send(msg.data);
     } else if (msg.type === "CLOSE") {
       _handleClose();
     } else if (msg.type === "REQUEST_FRAME") {
@@ -59,21 +61,33 @@ function _handleWebSocketMessage(parsedState: any) {
     const mapW = parsedState.server_world?.width ?? currentGameState?.server_world?.width ?? 100;
     const mapH = parsedState.server_world?.height ?? currentGameState?.server_world?.height ?? 100;
 
-    if (parsedState.type === "FULL" || !parsedState.type) {
-      currentGameState = decodeFullState(parsedState, mapW, mapH);
-    } else if (parsedState.type === "DELTA" && currentGameState) {
-      currentGameState = decodeDeltaState(parsedState, currentGameState, mapW, mapH);
+    const isFull = parsedState.type === "FULL" || !parsedState.type;
+    if (!isFull && parsedState.type !== "DELTA") return;
+
+    let nextState: GameState;
+    if (isFull) {
+      nextState = decodeFullState(parsedState, mapW, mapH);
+    } else {
+      // The sequencer only forwards a DELTA after a FULL, but keep the guard
+      // so a malformed message cannot decode against a missing base state.
+      if (!currentGameState) return;
+      nextState = decodeDeltaState(parsedState, currentGameState, mapW, mapH);
     }
 
     if (parsedState.kill_events) {
       accumulatedKillEvents.push(...parsedState.kill_events);
     }
 
-    if (currentGameState) {
-      interpolator.pushState(currentGameState, performance.now());
-    }
+    // Commit only after the whole frame decoded: a throw leaves the previous
+    // state, myId and the interpolator untouched.
+    currentGameState = nextState;
+    interpolator.pushState(currentGameState, performance.now());
   } catch (error) {
     console.error("[Worker] Error decoding state:", error);
+    // A partially applied delta chain cannot be repaired locally; ask for FULL
+    // and drop the local seq until that FULL arrives.
+    client?.invalidateSequence();
+    client?.requestResync();
   }
 }
 

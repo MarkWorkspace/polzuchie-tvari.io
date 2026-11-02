@@ -141,7 +141,8 @@ frontend/
     │   ├── EyeComputer.ts              # ROLE: Позиции глаз и зрачков змеек.
     │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера, body/new_heads truth table (dead/truncated/head), final_length и clamp длины. Не сеть, не интерполяция.
     │   ├── DeltaDecoder.parity.test.ts # ROLE: Parity-тест сетевого кадра. Декодирует бинарные фикстуры и сравнивает с expected JSON.
-    │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, cookie-handshake, реконнект с backoff по close-кодам, ping/pong. Не бизнес-логика.
+    │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, cookie-handshake, реконнект с backoff по close-кодам, ping/pong, seq-контроль кадров и RESYNC с cooldown. Не бизнес-логика.
+    │   ├── WebSocketClient.test.ts     # ROLE: Тесты FrameSequencer (full/delta/gap/wrap), cooldown RESYNC и decode-error пути.
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
     │   ├── SnakeProcessor.ts           # ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
     │   └── shared/
