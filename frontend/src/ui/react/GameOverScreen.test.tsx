@@ -85,6 +85,48 @@ describe("GameOverScreen", () => {
     }
   });
 
+  it("is a labelled modal that focuses respawn and restores focus after respawn", () => {
+    const sentinel = document.createElement("button");
+    sentinel.textContent = "sentinel";
+    document.body.appendChild(sentinel);
+    sentinel.focus();
+
+    try {
+      render(
+        <GameOverScreen
+          networkManager={{ send: vi.fn() } as unknown as NetworkManager}
+          getMyId={() => "me"}
+        />,
+      );
+
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent("game-killfeed", {
+            detail: {
+              events: [{ victim: "me" }],
+              players: { me: { score: 5, kills: 0, body_len: 4 } },
+            },
+          }),
+        );
+      });
+
+      const dialog = screen.getByRole("dialog", { name: t("gameOver.title") });
+      expect(dialog).toHaveAttribute("aria-modal", "true");
+
+      const respawn = screen.getByRole("button", { name: t("gameOver.playAgain") });
+      expect(respawn).toHaveFocus();
+
+      fireEvent.keyDown(respawn, { key: "Tab" });
+      expect(respawn).toHaveFocus();
+
+      fireEvent.click(respawn);
+      expect(screen.queryByText(t("gameOver.title"))).not.toBeInTheDocument();
+      expect(sentinel).toHaveFocus();
+    } finally {
+      sentinel.remove();
+    }
+  });
+
   it("shows the preserved final length of the local player's death", () => {
     // FrameComputer fills body_len from Player.final_length for dead players,
     // so the overlay must render that value instead of a zero placeholder.

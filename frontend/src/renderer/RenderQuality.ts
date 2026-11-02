@@ -1,4 +1,6 @@
 // ROLE: Graphics quality presets (shadow map, contact shadow, grass and snake-light budgets), persistence and the quality control contract. No rendering.
+import { safeStorage } from "../lib/safeStorage";
+
 export type RenderQuality = "auto" | "high" | "medium" | "low";
 
 export interface QualityPreset {
@@ -92,18 +94,11 @@ export function isRenderQuality(value: string | null): value is RenderQuality {
 }
 
 export function loadRenderQuality(): RenderQuality {
-  try {
-    const stored = localStorage.getItem(RENDER_QUALITY_STORAGE_KEY);
-    return isRenderQuality(stored) ? stored : DEFAULT_RENDER_QUALITY;
-  } catch {
-    return DEFAULT_RENDER_QUALITY;
-  }
+  const stored = safeStorage.get(RENDER_QUALITY_STORAGE_KEY);
+  return isRenderQuality(stored) ? stored : DEFAULT_RENDER_QUALITY;
 }
 
 export function saveRenderQuality(quality: RenderQuality): void {
-  try {
-    localStorage.setItem(RENDER_QUALITY_STORAGE_KEY, quality);
-  } catch {
-    // Storage can be unavailable in private mode; the current session still works.
-  }
+  // Storage can be unavailable in private mode; the current session still works.
+  safeStorage.set(RENDER_QUALITY_STORAGE_KEY, quality);
 }

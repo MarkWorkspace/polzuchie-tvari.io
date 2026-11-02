@@ -5,6 +5,13 @@ import { shortestToroidalDelta, wrapWithin } from "./spectatorCameraMath";
 
 const FOLLOW_ZOOM = 30 * gridSize;
 const FOLLOW_SMOOTHING = 8;
+const MIN_ZOOM = 50;
+const WHEEL_ZOOM_STEP = 0.1;
+
+interface PointerPosition {
+  x: number;
+  y: number;
+}
 
 export class SpectatorCamera {
   private currentX = (WORLD_WIDTH / 2) * gridSize;
@@ -12,8 +19,11 @@ export class SpectatorCamera {
   private currentZoom = Math.max(WORLD_WIDTH, WORLD_HEIGHT) * gridSize;
 
   private isDragging = false;
-  private lastMouseX = 0;
-  private lastMouseY = 0;
+  private dragPointerId: number | null = null;
+  private lastPointerX = 0;
+  private lastPointerY = 0;
+  private readonly activePointers = new Map<number, PointerPosition>();
+  private pinchDistance: number | null = null;
   private container: HTMLDivElement;
   private mapWidth = WORLD_WIDTH;
   private mapHeight = WORLD_HEIGHT;
@@ -24,9 +34,12 @@ export class SpectatorCamera {
 
   constructor(container: HTMLDivElement) {
     this.container = container;
-    this.container.addEventListener("mousedown", this.onMouseDown);
-    window.addEventListener("mousemove", this.onMouseMove);
-    window.addEventListener("mouseup", this.onMouseUp);
+    // Pointer events cover mouse, touch and pen with one code path.
+    this.container.addEventListener("pointerdown", this.onPointerDown);
+    // Listen on window so a drag keeps panning when the pointer leaves the canvas.
+    window.addEventListener("pointermove", this.onPointerMove, { passive: false });
+    window.addEventListener("pointerup", this.onPointerUp);
+    window.addEventListener("pointercancel", this.onPointerUp);
     this.container.addEventListener("wheel", this.onWheel);
   }
 
@@ -72,49 +85,90 @@ export class SpectatorCamera {
   }
 
   public destroy(): void {
-    this.container.removeEventListener("mousedown", this.onMouseDown);
-    window.removeEventListener("mousemove", this.onMouseMove);
-    window.removeEventListener("mouseup", this.onMouseUp);
+    this.container.removeEventListener("pointerdown", this.onPointerDown);
+    window.removeEventListener("pointermove", this.onPointerMove);
+    window.removeEventListener("pointerup", this.onPointerUp);
+    window.removeEventListener("pointercancel", this.onPointerUp);
     this.container.removeEventListener("wheel", this.onWheel);
+    this.activePointers.clear();
   }
 
-  private onMouseDown = (e: MouseEvent): void => {
+  private onPointerDown = (e: PointerEvent): void => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+
+    this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (this.activePointers.size >= 2) {
+      this.isDragging = false;
+      this.dragPointerId = null;
+      this.pinchDistance = this.getPinchDistance();
+      return;
+    }
+
     if (this.followX !== null) return;
     this.isDragging = true;
-    this.lastMouseX = e.clientX;
-    this.lastMouseY = e.clientY;
+    this.dragPointerId = e.pointerId;
+    this.lastPointerX = e.clientX;
+    this.lastPointerY = e.clientY;
   };
 
-  private onMouseMove = (e: MouseEvent): void => {
-    if (!this.isDragging) return;
+  private onPointerMove = (e: PointerEvent): void => {
+    const pointer = this.activePointers.get(e.pointerId);
+    if (!pointer) return;
+    pointer.x = e.clientX;
+    pointer.y = e.clientY;
 
-    const dx = e.clientX - this.lastMouseX;
-    const dy = e.clientY - this.lastMouseY;
+    if (this.activePointers.size >= 2) {
+      const distance = this.getPinchDistance();
+      if (distance !== null) {
+        if (this.pinchDistance !== null && this.pinchDistance > 0 && distance > 0) {
+          // Fingers apart (distance grows) zoom the camera in: camera Z shrinks.
+          this.applyZoom(this.pinchDistance / distance);
+        }
+        this.pinchDistance = distance;
+      }
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
+
+    if (!this.isDragging || e.pointerId !== this.dragPointerId) return;
+
+    const dx = e.clientX - this.lastPointerX;
+    const dy = e.clientY - this.lastPointerY;
 
     // Convert screen pixels to world coordinates approximately
     const panSpeed = this.currentZoom * 0.002;
     this.currentX -= dx * panSpeed;
     this.currentY += dy * panSpeed;
 
-    this.lastMouseX = e.clientX;
-    this.lastMouseY = e.clientY;
+    this.lastPointerX = e.clientX;
+    this.lastPointerY = e.clientY;
+    if (e.cancelable) e.preventDefault();
   };
 
-  private onMouseUp = (): void => {
-    this.isDragging = false;
+  private onPointerUp = (e: PointerEvent): void => {
+    this.activePointers.delete(e.pointerId);
+    if (this.activePointers.size < 2) this.pinchDistance = null;
+    if (this.dragPointerId === e.pointerId) {
+      this.isDragging = false;
+      this.dragPointerId = null;
+    }
   };
+
+  private getPinchDistance(): number | null {
+    const pointers = Array.from(this.activePointers.values());
+    if (pointers.length < 2) return null;
+    return Math.hypot(pointers[0].x - pointers[1].x, pointers[0].y - pointers[1].y);
+  }
+
+  private applyZoom(factor: number): void {
+    if (!Number.isFinite(factor) || factor <= 0) return;
+    const maxZoom = Math.max(this.mapWidth, this.mapHeight) * gridSize;
+    this.currentZoom = Math.max(MIN_ZOOM, Math.min(this.currentZoom * factor, maxZoom));
+  }
 
   private onWheel = (e: WheelEvent): void => {
-    const zoomSpeed = 0.1;
-    if (e.deltaY > 0) {
-      this.currentZoom *= 1 + zoomSpeed;
-    } else {
-      this.currentZoom *= 1 - zoomSpeed;
-    }
-    this.currentZoom = Math.max(
-      50.0,
-      Math.min(this.currentZoom, Math.max(this.mapWidth, this.mapHeight) * gridSize),
-    );
+    this.applyZoom(e.deltaY > 0 ? 1 + WHEEL_ZOOM_STEP : 1 - WHEEL_ZOOM_STEP);
   };
 
   private clampToMap(): void {

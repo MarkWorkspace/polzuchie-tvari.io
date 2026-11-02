@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InputManager } from "../../game/InputManager";
+import { t } from "../../lib/i18n";
 import type { RenderQualityControl } from "../../renderer/RenderQuality";
 import { SettingsPanel } from "./SettingsPanel";
 
@@ -70,7 +71,19 @@ describe("SettingsPanel", () => {
 
     const trigger = screen.getByRole("button", { name: "Settings" });
     fireEvent.click(trigger);
-    expect(screen.getByRole("button", { name: "Close menu" })).toHaveFocus();
+
+    const dialog = screen.getByRole("dialog", { name: t("menu.title") });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+
+    const close = screen.getByRole("button", { name: "Close menu" });
+    expect(close).toHaveFocus();
+
+    fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+    const admin = screen.getByRole("button", { name: /Admin Panel/ });
+    expect(admin).toHaveFocus();
+
+    fireEvent.keyDown(admin, { key: "Tab" });
+    expect(close).toHaveFocus();
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(document.querySelector(".settings-drawer")).not.toHaveClass("open");

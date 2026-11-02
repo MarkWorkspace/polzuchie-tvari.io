@@ -2,6 +2,7 @@
 
 import Stats from "stats.js";
 import * as THREE from "three";
+import { safeStorage } from "../lib/safeStorage";
 import {
   GLOBE_SPHERE,
   type GlobeParams,
@@ -44,7 +45,7 @@ export class SpectatorApp {
     this.renderOrchestrator = new RenderOrchestrator(this.sceneManager);
     this.debugOverlay = options.debug ? new SpectatorDebugOverlay(container) : null;
 
-    if (localStorage.getItem("snake-show-fps") === "true") {
+    if (safeStorage.get("snake-show-fps") === "true") {
       this.setStatsEnabled(true);
     }
 

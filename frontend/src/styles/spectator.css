@@ -1,5 +1,12 @@
 /* ROLE: Player-facing spectator HUD and admin-only debug panels. */
 
+/* Spectator camera gestures: one-finger drag pans, two fingers pinch-zoom.
+   Scoped to the spectator route so player input is untouched. */
+#app:has(.spectator-badge) #game-canvas-container,
+#app:has(.spectator-debug-panel) #game-canvas-container {
+  touch-action: none;
+}
+
 .spectator-badge {
   grid-column: 1 / span 2;
   grid-row: 1;

@@ -94,6 +94,20 @@
 - React 19: login, HUD (счёт/лидерборд/killfeed/ping), settings, game-over,
   spectator HUD и админка; игровые обновления проходят через throttled store,
   а не через React на 30–60 FPS.
+- Модалки (game-over, session-moved, settings drawer, renderer error) используют
+  `role="dialog"`/`role="alertdialog"`, `aria-modal` и `aria-labelledby`, а
+  также общий `useFocusTrap`: начальный фокус, удержание Tab/Shift+Tab и
+  возврат прежнего фокуса при закрытии/unmount. Escape закрывает settings.
+- KillFeed объявлен как `role="log"` с `aria-live="polite"` и
+  `aria-relevant="additions"`; статусы подключения GameHud и SpectatorHud
+  (`connecting`/`live`/`reconnecting`) идут через `role="status"` и
+  `aria-live="polite"`, без озвучивания каждого тика.
+- Необязательные `localStorage`-обращения (quality, FPS, личный рекорд,
+  spectator FPS) идут через `safeStorage.get/set/remove`, который глотает
+  исключения private mode/quota/blocked storage; ключи не изменились.
+- Spectator-камера использует pointer events: один палец/ЛКМ панорамирует,
+  два пальца делают pinch-zoom, wheel-zoom сохранён; touch-action ограничен
+  spectator-маршрутом, desktop-поведение не меняется.
 - Миникарта обновляется с throttle 12 Гц (`MINIMAP_UPDATE_INTERVAL_MS`) и
   рисует не больше `MAX_MINIMAP_FOODS = 300` food-точек; пропущенные кадры не
   накапливаются. Голова берётся из `head_x/head_y` или плоского `body`, legacy

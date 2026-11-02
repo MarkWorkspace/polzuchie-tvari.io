@@ -1,4 +1,6 @@
 // ROLE: Personal best persistence and comparison. No UI or network.
+import { safeStorage } from "../lib/safeStorage";
+
 export interface RunStats {
   score: number;
   length: number;
@@ -11,6 +13,13 @@ const STORAGE_KEY = "snake-personal-best";
 const EMPTY_BEST: PersonalBest = { score: 0, length: 0, kills: 0 };
 
 type BestStorage = Pick<Storage, "getItem" | "setItem">;
+
+const DEFAULT_STORAGE: BestStorage = {
+  getItem: (key) => safeStorage.get(key),
+  setItem: (key, value) => {
+    safeStorage.set(key, value);
+  },
+};
 
 function sanitizeNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
@@ -26,7 +35,7 @@ function sanitizeBest(value: unknown): PersonalBest {
   };
 }
 
-export function loadPersonalBest(storage: BestStorage = localStorage): PersonalBest {
+export function loadPersonalBest(storage: BestStorage = DEFAULT_STORAGE): PersonalBest {
   try {
     const raw = storage.getItem(STORAGE_KEY);
     return raw ? sanitizeBest(JSON.parse(raw)) : { ...EMPTY_BEST };
@@ -37,7 +46,7 @@ export function loadPersonalBest(storage: BestStorage = localStorage): PersonalB
 
 export function updatePersonalBest(
   stats: RunStats,
-  storage: BestStorage = localStorage,
+  storage: BestStorage = DEFAULT_STORAGE,
 ): { best: PersonalBest; isNewRecord: boolean } {
   const previous = loadPersonalBest(storage);
   const normalized: RunStats = {

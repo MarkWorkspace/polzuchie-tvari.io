@@ -1,8 +1,9 @@
 // ROLE: React death overlay, run summary, personal best and respawn action.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { NetworkManager } from "../../game/NetworkManager";
 import { t } from "../../lib/i18n";
 import { type PersonalBest, type RunStats, updatePersonalBest } from "../personalStats";
+import { useFocusTrap } from "./useFocusTrap";
 
 interface PlayerInfo {
   score?: number;
@@ -24,6 +25,11 @@ interface GameOverScreenProps {
 export function GameOverScreen({ networkManager, getMyId }: GameOverScreenProps) {
   const [state, setState] = useState<GameOverState | null>(null);
   const getMyIdRef = useRef(getMyId);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const respawnRef = useRef<HTMLButtonElement>(null);
+  const titleId = useId();
+
+  useFocusTrap(overlayRef, { enabled: state !== null, initialFocus: respawnRef });
 
   useEffect(() => {
     getMyIdRef.current = getMyId;
@@ -56,9 +62,17 @@ export function GameOverScreen({ networkManager, getMyId }: GameOverScreenProps)
   if (!state) return null;
 
   return (
-    <div className="game-over-overlay hud-interactive">
+    <div
+      ref={overlayRef}
+      className="game-over-overlay hud-interactive"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+    >
       <div className="game-over-modal glass-panel">
-        <h1 className="game-over-title">{t("gameOver.title")}</h1>
+        <h1 id={titleId} className="game-over-title">
+          {t("gameOver.title")}
+        </h1>
         <p className="game-over-subtitle">{t("gameOver.subtitle")}</p>
 
         <div className="game-over-stats">
@@ -83,6 +97,7 @@ export function GameOverScreen({ networkManager, getMyId }: GameOverScreenProps)
         </div>
 
         <button
+          ref={respawnRef}
           type="button"
           className="respawn-btn"
           onClick={() => {

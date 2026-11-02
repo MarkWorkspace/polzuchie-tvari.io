@@ -19,7 +19,13 @@ export function KillFeed() {
   const items = useGameKillFeed();
 
   return (
-    <div className="killfeed-panel hud-interactive">
+    <div
+      className="killfeed-panel hud-interactive"
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions"
+      aria-atomic="false"
+    >
       {items.map((item) => (
         <div key={item.id} className="kill-message">
           <span className="kill-killer">{killCauseLabel(item.killer)}</span>

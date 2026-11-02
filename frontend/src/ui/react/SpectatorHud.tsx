@@ -31,7 +31,11 @@ export function SpectatorHud() {
     <>
       <div className="spectator-badge glass-panel">
         <span className="spectator-badge-title">👁 {t("spectator.title")}</span>
-        <span className={`spectator-badge-status ${isLive ? "online" : "pending"}`}>
+        <span
+          className={`spectator-badge-status ${isLive ? "online" : "pending"}`}
+          role="status"
+          aria-live="polite"
+        >
           {isLive ? t("spectator.live") : t("status.connecting")}
         </span>
         {followedId ? (

@@ -47,12 +47,14 @@ describe("SpectatorHud", () => {
     render(<SpectatorHud />);
 
     expect(screen.getByText(/Spectating/)).toBeInTheDocument();
-    expect(screen.getByText("Connecting to server...")).toBeInTheDocument();
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveTextContent("Connecting to server...");
 
     dispatch("game-status", { status: "connected", controlMode: "mouse" });
     showLeaderboard();
 
-    expect(screen.getByText("Live")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Live");
     expect(screen.getByText(/Alpha/)).toBeInTheDocument();
     expect(screen.getByText(/Top 10/)).toBeInTheDocument();
   });

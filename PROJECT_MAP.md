@@ -96,7 +96,8 @@ frontend/
     │   ├── PlayerSessionLock.ts        # ROLE: Web Locks + BroadcastChannel: одна player-вкладка, takeover между вкладками. Не сеть и не UI.
     │   ├── SpectatorApp.ts             # ROLE: Ядро спектатора: камера, сеть, рендер; debug UI вынесен отдельно.
     │   ├── SpectatorDebugOverlay.ts    # ROLE: Админские debug-панели спектатора (статы, выбор змейки).
-    │   ├── SpectatorCamera.ts          # ROLE: Камера спектатора: free-pan/zoom и плавное слежение за игроком.
+    │   ├── SpectatorCamera.ts          # ROLE: Камера спектатора: pointer drag/пан, pinch-zoom, wheel и плавное слежение за игроком.
+    │   ├── SpectatorCamera.test.ts     # ROLE: Тесты pointer-пана, pinch-zoom и игнорирования не-основных кнопок мыши.
     │   ├── spectatorCameraMath.ts     # ROLE: Тонкие wrapper'ы follow-камеры (shortestToroidalDelta/wrapWithin) над shared MathUtils; своей математики не содержат.
     │   ├── spectatorCameraMath.test.ts # ROLE: Тесты перехода камеры через границу карты и делегирования в MathUtils.
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум; не двигает камеру при нефинитных camX/camY. Не рендеринг.
@@ -104,7 +105,9 @@ frontend/
     │   └── Config.ts                   # ROLE: Клиентские константы мира (WORLD_*, gridSize=20) и список скинов. Скорости/углы/тикрейт приходят в server_simulation.
     ├── lib/
     │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
-    │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
+    │   ├── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
+    │   ├── safeStorage.ts              # ROLE: Non-throwing обёртка над localStorage (get/set/remove) для private mode/quota/blocked storage.
+    │   └── safeStorage.test.ts         # ROLE: Тесты safeStorage: round-trip и бросающие storage-моки.
     ├── renderer/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества, adaptive pixel ratio и listeners потери/восстановления WebGL-контекста.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.78, 1.33), два separable Gaussian-прохода в world units (radius 4, opacity 0.5) и один quad на земле; отдаёт размытую маску траве через getFrame(). Не свет, не shadow map, не пост-эффект.
@@ -149,7 +152,7 @@ frontend/
     │   ├── PostProcessing.ts           # ROLE: SSAO отдельным pass (временно выключен флагом в buildPipeline); bloom/tone mapping и bloom-маска в общем pass; линзирование ЧД отдельным pass; atmosphere grade; globe warp финальным pass.
     │   ├── SilhouetteRenderer.ts       # ROLE: Растеризует слой в маленький alpha-таргет (bloom-маска). Не свет, не пост-эффекты.
     │   ├── SilhouetteRenderer.test.ts  # ROLE: Тесты размера silhouette-таргета под pixel ratio и downscale.
-    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map/radius, contact-shadow base resolution, отдельные grass/grassRadius/stone бюджеты, snake-light budget.
+    │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map/radius, contact-shadow base resolution, отдельные grass/grassRadius/stone бюджеты, snake-light budget; персистенция через safeStorage.
     │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
     │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
@@ -203,29 +206,33 @@ frontend/
     │   ├── Minimap.test.ts             # ROLE: Тесты throttle, food cap и lightweight-игроков для миникарты.
     │   ├── SteeringIndicator.ts        # ROLE: Шкала поворота мыши.
     │   ├── MobileControls.ts           # ROLE: Мобильное руление от центра экрана + нижняя зона буста.
-    │   ├── personalStats.ts             # ROLE: Личный рекорд (score/length/kills) и его localStorage-персистенция.
+    │   ├── personalStats.ts             # ROLE: Личный рекорд (score/length/kills) и его персистенция через safeStorage.
     │   ├── personalStats.test.ts        # ROLE: Тесты рекорда: первый запуск, максимумы, битые данные.
     │   └── react/
     │       ├── gameUiStore.ts          # ROLE: Throttled window-event adapter + external store для игрового UI. Без рендеринга.
     │       ├── gameUiStore.test.ts     # ROLE: Тесты троттлинга лидерборда/счета и TTL killfeed.
-    │       ├── GameHud.tsx             # ROLE: React-композиция HUD (счет, лидерборд, killfeed).
+    │       ├── useFocusTrap.ts         # ROLE: Переиспользуемый focus trap модалок: initial focus, Tab/Shift+Tab loop, restore focus, Escape.
+    │       ├── useFocusTrap.test.tsx   # ROLE: Тесты getFocusableElements и focus trap (wrap/disabled/escape/restore).
+    │       ├── GameHud.tsx             # ROLE: React-композиция HUD (счет, лидерборд, killfeed) + offscreen aria-live статус подключения.
     │       ├── HudPanel.tsx            # ROLE: React score panel, score feed, ping и mobile-подсказки.
     │       ├── Leaderboard.tsx         # ROLE: React топ-таблица для HUD и настроек (опциональный выбор игрока).
-    │       ├── KillFeed.tsx            # ROLE: React лента убийств.
-    │       ├── SpectatorHud.tsx        # ROLE: Player-facing spectator HUD: бейдж, статус, follow и лидерборд.
+    │       ├── KillFeed.tsx            # ROLE: React лента убийств с role=log/aria-live.
+    │       ├── SpectatorHud.tsx        # ROLE: Player-facing spectator HUD: бейдж, aria-live статус, follow и лидерборд.
     │       ├── SpectatorHud.test.tsx   # ROLE: Тесты spectator HUD и follow-событий.
     │       ├── mountSpectatorHud.tsx   # ROLE: Mount/unmount React spectator HUD.
     │       ├── mountGameHud.tsx        # ROLE: Mount/unmount React HUD в grid-контейнере.
     │       ├── GameHud.test.tsx        # ROLE: React HUD regression tests.
     │       ├── LoginScreen.tsx         # ROLE: React login, skin selection и cross-tab conflict flow.
     │       ├── mountLoginScreen.tsx    # ROLE: Mount/unmount React login.
-    │       ├── SessionMovedScreen.tsx  # ROLE: React-экран вкладки, у которой забрали player-сессию.
+    │       ├── SessionMovedScreen.tsx  # ROLE: React-экран вкладки, у которой забрали player-сессию; dialog + focus trap.
+    │       ├── SessionMovedScreen.test.tsx # ROLE: Тесты session-moved dialog, focus trap и действий.
     │       ├── mountSessionMovedScreen.tsx # ROLE: Mount/unmount React session-moved screen.
-    │       ├── SettingsPanel.tsx       # ROLE: React controls/settings drawer.
+    │       ├── SettingsPanel.tsx       # ROLE: React controls/settings drawer с dialog/focus trap.
     │       ├── mountSettingsPanel.tsx  # ROLE: Mount/unmount React settings.
-    │       ├── GameOverScreen.tsx      # ROLE: React death overlay, run summary, personal best и respawn.
+    │       ├── GameOverScreen.tsx      # ROLE: React death overlay, run summary, personal best и respawn; dialog + focus trap.
     │       ├── mountGameOverScreen.tsx # ROLE: Mount/unmount React game-over overlay.
-    │       ├── GameErrorOverlay.tsx    # ROLE: Blocking renderer error overlay с reload; от WebGL не зависит.
+    │       ├── GameErrorOverlay.tsx    # ROLE: Blocking renderer error alertdialog с reload и focus trap; от WebGL не зависит.
+    │       ├── GameErrorOverlay.test.tsx # ROLE: Тесты alertdialog, начального фокуса и reload.
     │       ├── mountGameErrorOverlay.tsx # ROLE: Mount/unmount error overlay + imperative show/hide.
     │       ├── LoginScreen.test.tsx    # ROLE: React login tests.
     │       ├── SettingsPanel.test.tsx  # ROLE: React settings tests.
@@ -265,7 +272,7 @@ frontend/src/styles/
 ├── admin_react.css
 ├── minimap.css
 ├── settings.css
-└── spectator.css                       # ROLE: Player-facing spectator HUD и admin debug-панели.
+└── spectator.css                       # ROLE: Player-facing spectator HUD, admin debug-панели и touch-action для spectator-камеры.
 ```
 
 ---

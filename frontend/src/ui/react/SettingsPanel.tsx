@@ -2,8 +2,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ControlMode, InputManager } from "../../game/InputManager";
 import { t } from "../../lib/i18n";
+import { safeStorage } from "../../lib/safeStorage";
 import type { RenderQuality, RenderQualityControl } from "../../renderer/RenderQuality";
 import { Leaderboard } from "./Leaderboard";
+import { useFocusTrap } from "./useFocusTrap";
 
 export interface SettingsCallbacks {
   onAdminClick: () => void;
@@ -22,15 +24,22 @@ const IS_MOBILE =
 
 export function SettingsPanel({ inputManager, callbacks, qualityControl }: SettingsPanelProps) {
   const [open, setOpen] = useState(false);
-  const [showFps, setShowFps] = useState(() => localStorage.getItem("snake-show-fps") === "true");
+  const [showFps, setShowFps] = useState(() => safeStorage.get("snake-show-fps") === "true");
   const [mode, setMode] = useState<ControlMode>(() => inputManager?.getControlMode() ?? "mouse");
   const [quality, setQuality] = useState<RenderQuality>(
     () => qualityControl?.getQuality() ?? "auto",
   );
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
   const wasOpen = useRef(false);
   const debugMode = new URLSearchParams(window.location.search).get("debug") === "true";
+
+  useFocusTrap(drawerRef, {
+    enabled: open,
+    initialFocus: closeRef,
+    onEscape: () => setOpen(false),
+  });
 
   useEffect(() => {
     inputManager?.setUiOpen(open);
@@ -45,15 +54,7 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
       }
       return;
     }
-
     wasOpen.current = true;
-    closeRef.current?.focus();
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
   const selectMode = (nextMode: ControlMode) => {
@@ -64,7 +65,7 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
   const toggleFps = () => {
     const next = !showFps;
     setShowFps(next);
-    localStorage.setItem("snake-show-fps", next ? "true" : "false");
+    safeStorage.set("snake-show-fps", next ? "true" : "false");
     callbacks.onFpsToggle(next);
   };
 
@@ -101,6 +102,7 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
       />
 
       <aside
+        ref={drawerRef}
         className={`settings-drawer custom-scrollbar ${open ? "open" : ""}`}
         aria-hidden={!open}
         aria-label={t("menu.title")}

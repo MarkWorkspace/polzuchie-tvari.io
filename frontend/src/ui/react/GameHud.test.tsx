@@ -39,9 +39,19 @@ describe("GameHud", () => {
   it("shows connection status, score, score feed and ping", () => {
     render(<GameHud isMobile={false} />);
 
-    expect(screen.getByText("Connecting to server...")).toBeInTheDocument();
+    const status = screen.getByRole("status");
+    expect(status).toHaveAttribute("aria-live", "polite");
+    expect(status).toHaveTextContent("Connecting to server...");
+
+    dispatch("game-status", {
+      status: "reconnecting",
+      msg: "Reconnecting in 5s",
+      controlMode: "mouse",
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Reconnecting in 5s");
 
     dispatch("game-status", { status: "connected", controlMode: "keyboard" });
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(screen.getByText(/A\/D\/Arrows/)).toBeInTheDocument();
 
     dispatch("game-score-update", { score: 42, delta: 12 });
@@ -84,6 +94,10 @@ describe("GameHud", () => {
       ],
       players: { k: { nickname: "Killer" }, v: { nickname: "Victim" } },
     });
+
+    const log = screen.getByRole("log");
+    expect(log).toHaveAttribute("aria-live", "polite");
+    expect(log).toHaveAttribute("aria-relevant", "additions");
 
     expect(screen.getByText("Killer")).toBeInTheDocument();
     expect(screen.getAllByText("Victim")).toHaveLength(5);
