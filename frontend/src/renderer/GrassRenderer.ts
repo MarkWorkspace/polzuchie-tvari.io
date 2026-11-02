@@ -701,17 +701,28 @@ export class GrassRenderer {
         // small cross-wind flutter give the whole field a coherent gust front.
         vec2 grassWindDir = normalize(vec2(0.82, 0.57));
         float grassWindSide =
-          sin(dot(grassRootWorld.xy, vec2(-0.045, 0.060)) - uTime * 0.70);
+          sin(dot(grassRootWorld.xy, vec2(-0.09, 0.12)) - uTime * 1.2);
         vec2 grassWind = normalize(
-          grassWindDir + vec2(-grassWindDir.y, grassWindDir.x) * grassWindSide * 0.28
+          grassWindDir + vec2(-grassWindDir.y, grassWindDir.x) * grassWindSide * 0.45
         );
         float grassGustA =
-          0.55 + 0.45 * sin(dot(grassRootWorld.xy, vec2(0.081, 0.047)) - uTime * 1.25);
+          0.55 + 0.45 * sin(dot(grassRootWorld.xy, vec2(0.13, 0.09)) - uTime * 1.8);
         float grassGustB =
-          0.65 + 0.35 * sin(dot(grassRootWorld.xy, vec2(0.026, 0.015)) - uTime * 0.45);
-        float grassWindAmp = (2.0 + 1.2 * grassGustA * grassGustB) * uWindStrength;
+          0.65 + 0.35 * sin(dot(grassRootWorld.xy, vec2(0.045, 0.03)) - uTime * 0.8);
+        float grassGustFront =
+          0.5 + 0.5 * sin(dot(grassRootWorld.xy, vec2(0.17, 0.11)) - uTime * 2.4);
+        grassGustFront *= grassGustFront * grassGustFront;
+        float grassWindAmp =
+          (2.4 + 1.4 * grassGustA * grassGustB) *
+          (0.75 + 0.5 * grassGustFront) *
+          uWindStrength;
         float grassFlutter =
-          sin(uTime * 3.3 + grassRootWorld.x * 0.7 + grassRootWorld.y * 0.9) * 0.2;
+          sin(
+            uTime * 4.5 +
+            grassRootWorld.x * 1.1 +
+            grassRootWorld.y * 0.9 +
+            position.x * 0.6
+          ) * 0.35;
         mvPosition.xy += grassWind * grassWindAmp * grassBend;
         mvPosition.xy +=
           vec2(-grassWind.y, grassWind.x) * grassFlutter * grassBend;
