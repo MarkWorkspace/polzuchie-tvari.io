@@ -11,6 +11,7 @@ import zlib
 from collections import deque
 
 from fastapi import HTTPException, Response, Cookie, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.engine.systems import snake_pb2
@@ -198,6 +199,38 @@ async def health_check():
     return {"status": "ok"}
 
 
+def _tick_metrics(world, now: float | None = None) -> dict:
+    """Tick heartbeat fields shared by readiness and admin health."""
+    now = time.monotonic() if now is None else now
+    last_tick = getattr(world, "last_tick_monotonic", now)
+    return {
+        "tick_age_ms": round(max(0.0, now - last_tick) * 1000.0, 1),
+        "tick_count": int(getattr(world, "tick_count", 0)),
+        "tick_duration_ms": float(getattr(world, "tick_duration_ms", 0.0)),
+        "tick_errors": int(getattr(world, "tick_errors", 0)),
+    }
+
+
+async def readiness_check(request: Request):
+    """Readiness: is the game loop producing fresh ticks?
+
+    Liveness stays on /health. This endpoint returns 503 when the heartbeat is
+    older than max(2s, five tick intervals), so a hung tick is visible without
+    restarting the in-memory game on a short stall.
+    """
+    world = request.app.state.world
+    now = time.monotonic()
+    age = max(0.0, now - world.last_tick_monotonic)
+    stale_after = max(2.0, world.tick_interval * 5)
+    payload = {
+        "status": "ready" if age <= stale_after else "stale",
+        **_tick_metrics(world, now),
+    }
+    if payload["status"] == "stale":
+        return JSONResponse(status_code=503, content=payload)
+    return payload
+
+
 async def admin_health(request: Request):
     world = getattr(request.app.state, "world", None)
     bot_manager = getattr(world, "bot_manager", None) if world else None
@@ -208,6 +241,7 @@ async def admin_health(request: Request):
         "players": max(0, total_players - bots),
         "bots": bots,
         "spectators": len(world.spectators) if world else 0,
+        **_tick_metrics(world),
     }
 
 

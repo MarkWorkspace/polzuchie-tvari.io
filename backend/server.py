@@ -4,6 +4,7 @@ import os
 import asyncio
 import contextlib
 import logging
+import time
 from app.engine.systems import snake_pb2
 import uvicorn
 import zlib
@@ -29,6 +30,7 @@ from app.api.admin import (
     get_admin_config,
     patch_admin_config,
     health_check,
+    readiness_check,
     admin_health,
     admin_restart_game,
     require_admin,
@@ -90,6 +92,7 @@ async def game_loop(world):
     """Global game loop executing physics ticks and broadcasting states"""
     while True:
         start_time = asyncio.get_running_loop().time()
+        tick_started = time.monotonic()
         try:
             for cid, data in world.input_queue:
                 world.update_direction(cid, data)
@@ -97,10 +100,18 @@ async def game_loop(world):
             world.bot_manager.update()
             world.tick()
         except Exception:
+            # A failed tick is not a heartbeat: readiness must go stale if the
+            # loop keeps throwing, while liveness stays green.
+            world.tick_errors += 1
             logger.exception("Game tick failed")
             elapsed = asyncio.get_running_loop().time() - start_time
             await asyncio.sleep(max(0.0, world.tick_interval - elapsed))
             continue
+
+        tick_finished = time.monotonic()
+        world.last_tick_monotonic = tick_finished
+        world.tick_duration_ms = (tick_finished - tick_started) * 1000.0
+        world.tick_count += 1
 
         tasks = [
             _safe_process_client(cid, conn, world) for cid, conn in list(active_connections.items())
@@ -177,6 +188,8 @@ app.include_router(admin_router)
 
 app.get("/health")(health_check)
 app.get("/ws/health")(health_check)
+app.get("/ready")(readiness_check)
+app.get("/ws/ready")(readiness_check)
 
 # WebSockets routing (mapped to handlers in app/api/websocket.py)
 app.websocket("/ws")(websocket_endpoint)

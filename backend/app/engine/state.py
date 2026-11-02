@@ -6,6 +6,7 @@ import math
 import shutil
 import tempfile
 import errno
+import time
 from copy import deepcopy
 from pathlib import Path
 
@@ -68,6 +69,13 @@ class World:
         # same value, so a client can detect a gap or a duplicate.
         self.frame_seq = 0
         self.server_tick = 0
+        # Tick liveness metrics written only by server.game_loop. reset_state()
+        # must not clear them: process liveness is independent of game
+        # generation, and a restart is not a reason to report a stale tick.
+        self.last_tick_monotonic = time.monotonic()
+        self.tick_count = 0
+        self.tick_duration_ms = 0.0
+        self.tick_errors = 0
         # Disconnected players/spectators are removed by the tick orchestrator,
         # not by the connection lifecycle, so death killfeed entries and food
         # drops land in the tick that reports them.
@@ -592,6 +600,10 @@ class World:
             "players_count": len(self.players),
             "foods_count": len(self.food_manager.foods),
             "tick_rate": self.config.simulation.tick_rate,
+            "tick_age_ms": round(max(0.0, time.monotonic() - self.last_tick_monotonic) * 1000.0, 1),
+            "tick_count": self.tick_count,
+            "tick_duration_ms": self.tick_duration_ms,
+            "tick_errors": self.tick_errors,
         }
 
     def reset_state(self):

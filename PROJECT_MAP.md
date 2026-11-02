@@ -240,7 +240,7 @@ frontend/src/styles/
 
 ```
 backend/
-├── server.py                           # ROLE: Точка входа FastAPI. Не содержит игровой логики.
+├── server.py                           # ROLE: Точка входа FastAPI: liveness `/health`, readiness `/ready`, game loop с tick-метриками. Не содержит игровой логики.
 ├── game_config.py                      # ROLE: Конфигурация через датаклассы (включая секцию bots).
 ├── config.json                         # Runtime-конфигурация (атомарно пишется админкой; не редактировать вручную).
 ├── pyproject.toml                      # ROLE: PEP 621 metadata, runtime/dev dependencies, pytest + ruff config.
@@ -252,7 +252,7 @@ backend/
 └── app/
     ├── logging_setup.py                # ROLE: Настройка stdlib logging и LOG_LEVEL. Не игровая логика.
     ├── api/
-    │   ├── admin.py                    # ROLE: Admin REST API, config read/write (503 на сбой apply/save) и restart с draining/очисткой соединений. Не игровая логика.
+    │   ├── admin.py                    # ROLE: Admin REST API, config read/write (503 на сбой apply/save), restart с draining/очисткой соединений, liveness/readiness и tick-метрики. Не игровая логика.
     │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
     │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie и resolver для WS. WS-аутентификацию выполняет websocket.py.
     │   └── websocket.py                # ROLE: WebSocket endpoint: Origin allowlist, per-IP handshake bucket, role caps via pending reservation, cookie-auth identity, epoch/reconnect grace, draining admission, RESYNC→FULL с cooldown; initial FULL snapshot на event loop, zlib.compress(level=1) в to_thread. Не игровая логика.
@@ -264,7 +264,7 @@ backend/
         ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
         ├── registry.py                 # ROLE: Авто-дискавери и порядок систем.
         ├── events.py                   # ROLE: Синхронная шина событий.
-        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка и транзакционное сохранение конфигурации (backup/rollback), управление игроками, draining/restart_epoch, счётчики frame_seq/server_tick. Не содержит игровой логики тика.
+        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка и транзакционное сохранение конфигурации (backup/rollback), управление игроками, draining/restart_epoch, счётчики frame_seq/server_tick и tick-метрики. Не содержит игровой логики тика.
         ├── entities.py                 # ROLE: Датаклассы Player, Food, Portal, BlackHole. Только структуры данных.
         ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн, live-пересчёт радиусов.
         ├── world_elements/
@@ -311,6 +311,7 @@ backend/tests/
 ├── test_gravity.py                     # ROLE: Тестирование системы гравитации (притяжения еды).
 ├── test_gravity_once_per_tick.py        # ROLE: Тест: гравитация чёрных дыр применяется к углу змейки ровно один раз за тик.
 ├── test_growth.py                      # ROLE: Тесты роста/усыхания змейки.
+├── test_health_ready.py                # ROLE: Liveness `/health` всегда 200; readiness `/ready`/`/ws/ready` 503 при stale tick; tick-поля admin health и game_loop counters.
 ├── test_late_join.py                   # ROLE: Late-join FULL: initial vs resync equivalence, your_id/foods/seq и compress вне event loop.
 ├── test_live_config.py                 # ROLE: Live-config rebind: игроки/боты и Food/Portal/BlackHole видят новый config; respawn берёт новый start_length.
 ├── test_math_parity.py                 # ROLE: Parity-тест тороидальной математики. Сверяет Python с golden vectors.
