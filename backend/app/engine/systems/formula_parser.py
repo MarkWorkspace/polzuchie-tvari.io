@@ -9,8 +9,14 @@ MIN_GROWTH_COST = 0.1
 MAX_GROWTH_COST = 1_000_000.0
 CACHE_SIZE = 128
 
+_GROWTH_COST_RANGE_MESSAGE = "Growth segment cost must be between 0.1 and 1,000,000"
 _BASELINE = (10.0, 9.0)
 _HIGH = (1000.0, 100.0)
+# Legal runtime values that a formula must survive: a dead player has
+# score=0/length=0, while score/length are capped by the game config.
+_EDGE_SCORES = (0.0, 1.0, 2.0, 10.0, 100.0, 1000.0, 1e6, 1e9)
+_EDGE_LENGTHS = (0.0, 1.0, 2.0, 9.0, 100.0, 10000.0)
+_EDGE_GRID = tuple((score, length) for score in _EDGE_SCORES for length in _EDGE_LENGTHS)
 
 _ALLOWED_NAMES = frozenset(
     {
@@ -88,6 +94,7 @@ def _compile_cached(expression: str) -> CompiledFormula:
         raise ValueError(f"Syntax error in formula: {exc}") from exc
 
     _validate_tree(tree)
+    _validate_whole_constant(tree.body)
 
     try:
         code = compile(tree, "<growth_formula>", "eval")
@@ -98,6 +105,11 @@ def _compile_cached(expression: str) -> CompiledFormula:
         value = _evaluate_code(code, score, length)
         if value <= 0:
             raise ValueError("Formula must evaluate to a positive growth cost (greater than 0)")
+
+    # Domain safety: accepted formulas must not raise or produce NaN/inf at
+    # legal runtime values. Zero is allowed here (runtime clamps to 0.1).
+    for score, length in _EDGE_GRID:
+        _evaluate_code(code, score, length)
 
     return CompiledFormula(expression, code)
 
@@ -118,13 +130,31 @@ def _validate_numeric_constant(expression: str) -> None:
     except (TypeError, ValueError, OverflowError):
         return
 
+    _require_cost_bounds(value)
+
+
+def _validate_whole_constant(expression: ast.expr) -> None:
+    node = expression
+    while isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        node = node.operand
+
+    if not isinstance(node, ast.Constant):
+        return
+    value = node.value
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return
+
+    _require_cost_bounds(value)
+
+
+def _require_cost_bounds(value: float) -> None:
     try:
         finite = math.isfinite(value)
     except OverflowError:
         finite = False
 
     if not finite or value < MIN_GROWTH_COST or value > MAX_GROWTH_COST:
-        raise ValueError("Growth segment cost must be between 0.1 and 1,000,000")
+        raise ValueError(_GROWTH_COST_RANGE_MESSAGE)
 
 
 def _validate_tree(tree: ast.Expression) -> None:
@@ -211,6 +241,9 @@ def _build_env(score: float, length: float) -> dict:
         length_value = float(length)
     except (TypeError, ValueError, OverflowError) as exc:
         raise FormulaError(f"Invalid score/length for growth formula: {exc}") from exc
+
+    if not math.isfinite(score_value) or not math.isfinite(length_value):
+        raise FormulaError("Invalid score/length for growth formula: values must be finite")
 
     env = dict(_STATIC_ENV)
     env.update(

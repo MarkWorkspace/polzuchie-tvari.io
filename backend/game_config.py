@@ -323,6 +323,8 @@ def _apply_dataclass_patch(target, patch):
         else:
             expected_type = hints.get(key)
             if expected_type is str and not isinstance(value, str):
+                if isinstance(value, float) and not math.isfinite(value):
+                    raise ValueError(f"{key} must be finite")
                 setattr(target, key, str(value))
             else:
                 setattr(target, key, value)

@@ -1,8 +1,10 @@
 # ROLE: Tests for the single AST growth-formula compiler shared by validation and runtime.
+import logging
 import math
 
 import pytest
 
+from app.engine.entities import Player
 from app.engine.state import World
 from app.engine.systems.formula_parser import (
     compile_growth_formula,
@@ -66,6 +68,13 @@ INVALID_FORMULAS = [
     "s - s",
     "0 - s",
     "s * 0",
+    "1 / s",
+    "1 / l",
+    "s % l",
+    "exp(l)",
+    "s ** 100",
+    "1 / (s - 1)",
+    "1 / (l - 1)",
 ]
 
 
@@ -94,8 +103,24 @@ def test_numeric_formula_accepts_bounds(formula):
     assert evaluate_formula(formula, 100.0, 20.0) == pytest.approx(float(formula))
 
 
-@pytest.mark.parametrize("formula", ["0.05", "0", "-5", "1000000.1", "1e7"])
+@pytest.mark.parametrize("formula", ["0.05", "0", "-5", "1000000.1", "1e7", "1_000_001"])
 def test_numeric_formula_rejects_out_of_range(formula):
+    with pytest.raises(ValueError, match="Growth segment cost must be between"):
+        validate_growth_formula(formula)
+
+
+@pytest.mark.parametrize(
+    ("formula", "expected"),
+    [("0x10", 16.0), ("0b1010", 10.0), ("0o10", 8.0), ("1_000_000", 1_000_000.0)],
+)
+def test_whole_numeric_constant_accepts_range(formula, expected):
+    validate_growth_formula(formula)
+
+    assert evaluate_formula(formula, 0.0, 0.0) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize("formula", ["0x100000", "0x100001", "1_000_000.1"])
+def test_whole_numeric_constant_rejects_out_of_range(formula):
     with pytest.raises(ValueError, match="Growth segment cost must be between"):
         validate_growth_formula(formula)
 
@@ -126,6 +151,19 @@ def test_score_aliases(alias):
 @pytest.mark.parametrize("alias", ["l", "L", "len", "LEN", "length", "LENGTH"])
 def test_length_aliases(alias):
     assert evaluate_formula(alias, 42.0, 7.0) == pytest.approx(7.0)
+
+
+EDGE_SCORES = (0.0, 1.0, 2.0, 10.0, 100.0, 1000.0, 1e6, 1e9)
+EDGE_LENGTHS = (0.0, 1.0, 2.0, 9.0, 100.0, 10000.0)
+EDGE_POINTS = tuple((score, length) for score in EDGE_SCORES for length in EDGE_LENGTHS)
+
+
+@pytest.mark.parametrize("formula", VALID_FORMULAS)
+def test_valid_formulas_are_safe_on_legal_runtime_edges(formula):
+    for score, length in EDGE_POINTS:
+        value = evaluate_formula(formula, score, length)
+
+        assert math.isfinite(value)
 
 
 DIFFERENTIAL_POINTS = [
@@ -174,22 +212,73 @@ def test_division_by_zero_is_rejected_at_validation():
         validate_growth_formula("s / 0")
 
 
-def test_division_by_zero_is_rejected_at_runtime():
-    # Valid at the baseline/high validation points, but not at score == 0.
-    validate_growth_formula("1 / s")
-
+@pytest.mark.parametrize("formula", ["1 / s", "1 / l", "s % l"])
+def test_zero_edge_domain_is_rejected_at_validation(formula):
     with pytest.raises(ValueError):
-        evaluate_formula("1 / s", 0.0, 9.0)
-
-
-def test_overflow_is_rejected_at_runtime():
-    validate_growth_formula("exp(l)")
-
+        validate_growth_formula(formula)
     with pytest.raises(ValueError):
-        evaluate_formula("exp(l)", 10.0, 1000.0)
+        evaluate_formula(formula, 0.0, 0.0)
+
+
+@pytest.mark.parametrize("formula", ["exp(l)", "s ** 100"])
+def test_overflow_prone_formula_is_rejected_at_validation(formula):
+    with pytest.raises(ValueError):
+        validate_growth_formula(formula)
+
+
+def test_sqrt_at_zero_is_safe():
+    validate_growth_formula("sqrt(s)")
+
+    assert evaluate_formula("sqrt(s)", 0.0, 0.0) == pytest.approx(0.1)
+    assert evaluate_formula("sqrt(s)", 1e9, 10000.0) == pytest.approx(math.sqrt(1e9))
+
+
+def test_sqrt_rejects_non_finite_input():
+    with pytest.raises(ValueError):
+        evaluate_formula("sqrt(s)", math.nan, 9.0)
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
 def test_runtime_non_finite_input_is_rejected(value):
     with pytest.raises(ValueError):
         evaluate_formula("s", value, 9.0)
+
+
+def test_growth_formula_runtime_error_is_contained_and_logged_once(caplog):
+    world = World()
+    world.update_config({"snake": {"growth_score_per_segment": "1/(s-3)"}})
+
+    with caplog.at_level(logging.ERROR, logger="app.engine.state"):
+        assert world.growth_segment_cost_func(3.0, 9.0) == pytest.approx(0.1)
+        assert world.growth_segment_cost_func(3.0, 9.0) == pytest.approx(0.1)
+
+    failures = [
+        record for record in caplog.records if "Growth formula failed" in record.getMessage()
+    ]
+    assert len(failures) == 1
+    assert world._growth_formula_error_logged is True
+
+
+def test_align_player_growth_contains_runtime_formula_error():
+    world = World()
+    world.update_config({"snake": {"growth_score_per_segment": "1/(s-3)", "start_score": 3}})
+    player = Player("align_test", 50.0, 50.0, world.config)
+    world.players[player.id] = player
+    while player.body_len > 3:
+        player.body.pop()
+        player.body.pop()
+
+    world.align_player_growth(player)
+
+    assert math.isfinite(player.pending_growth)
+    assert player.pending_growth == pytest.approx(0.6)
+    assert world._growth_formula_error_logged is True
+    assert world.growth_segment_cost_func(10.0, 9.0) == pytest.approx(1 / 7)
+
+
+def test_valid_growth_formula_is_unchanged_by_containment():
+    world = World()
+    world.update_config({"snake": {"growth_score_per_segment": "s * 0.1 + 7"}})
+
+    assert world.growth_segment_cost_func(10.0, 9.0) == pytest.approx(8.0)
+    assert world._growth_formula_error_logged is False

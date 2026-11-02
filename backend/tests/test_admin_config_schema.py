@@ -1,4 +1,4 @@
-# ROLE: Contract tests for the generated admin config PATCH schema and its route. Covers field parity with GameConfig, unknown keys and type errors.
+# ROLE: Contract tests for the generated admin config PATCH schema and its route. Covers field parity, unknown keys, strict types, non-finite payloads and 422/400 behavior.
 import json
 import math
 import typing
@@ -62,7 +62,20 @@ def test_patch_schema_rejects_fractional_int():
 
     error = exc_info.value.errors()[0]
     assert error["loc"] == ("world", "width")
-    assert error["type"] == "int_from_float"
+
+
+@pytest.mark.parametrize("value", [100.0, "100", True])
+def test_patch_schema_rejects_non_strict_int_values(value):
+    with pytest.raises(ValidationError) as exc_info:
+        AdminConfigPatch.model_validate({"world": {"width": value}})
+
+    assert exc_info.value.errors()[0]["loc"] == ("world", "width")
+
+
+def test_patch_schema_accepts_strict_int_value():
+    parsed = AdminConfigPatch.model_validate({"world": {"width": 100}})
+
+    assert parsed.model_dump(exclude_unset=True) == {"world": {"width": 100}}
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
@@ -72,7 +85,46 @@ def test_patch_schema_rejects_non_finite_floats(value):
 
     error = exc_info.value.errors()[0]
     assert error["loc"] == ("world", "portals_radius")
+
+
+@pytest.mark.parametrize(
+    ("payload", "loc"),
+    [
+        (
+            {"snake": {"growth_score_per_segment": math.nan}},
+            ("snake", "growth_score_per_segment"),
+        ),
+        ({"food": {"types": [{"color": math.nan}]}}, ("food", "types", 0, "color")),
+    ],
+)
+def test_patch_schema_rejects_non_finite_string_fields(payload, loc):
+    with pytest.raises(ValidationError) as exc_info:
+        AdminConfigPatch.model_validate(payload)
+
+    error = exc_info.value.errors()[0]
+    assert error["loc"] == loc
     assert error["type"] == "finite_number"
+    json.dumps(exc_info.value.errors(), allow_nan=False)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"world": {"width": math.nan}},
+        {"world": {"width": math.inf}},
+        {"world": {"width": -math.inf}},
+        {"world": {"portals_radius": math.nan}},
+        {"world": {"unknown_key": math.nan}},
+        {"food": {"types": [{"value": math.nan}]}},
+        {"unknown_section": [math.nan]},
+        {"unknown_section": {"nested": [math.inf]}},
+    ],
+)
+def test_patch_schema_non_finite_errors_are_json_serializable(payload):
+    with pytest.raises(ValidationError) as exc_info:
+        AdminConfigPatch.model_validate(payload)
+
+    json.dumps(exc_info.value.errors(), allow_nan=False)
 
 
 def test_patch_schema_rejects_explicit_nulls():
@@ -125,24 +177,47 @@ def test_admin_config_route_rejects_unknown_key(admin_client):
     assert response.json()["detail"][0]["loc"] == ["body", "world", "target_food_cout"]
 
 
-def test_admin_config_route_rejects_fractional_width(admin_client):
-    response = admin_client.patch("/admin/config", json={"world": {"width": 100.5}})
+@pytest.mark.parametrize("width", [100.5, 100.0, "100"])
+def test_admin_config_route_rejects_non_strict_int_values(admin_client, width):
+    response = admin_client.patch("/admin/config", json={"world": {"width": width}})
 
     assert response.status_code == 422
 
 
-@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity"])
-def test_admin_config_route_rejects_non_finite_floats(admin_client, tmp_path, literal):
+def test_admin_config_route_accepts_strict_int_value(admin_client):
+    response = admin_client.patch("/admin/config", json={"world": {"width": 100}})
+
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"world": {"portals_radius": NaN}}',
+        '{"world": {"portals_radius": Infinity}}',
+        '{"world": {"portals_radius": -Infinity}}',
+        '{"world": {"width": NaN}}',
+        '{"world": {"width": Infinity}}',
+        '{"world": {"width": -Infinity}}',
+        '{"world": {"unknown_key": NaN}}',
+        '{"food": {"types": [{"value": NaN}]}}',
+        '{"food": {"types": [{"color": NaN}]}}',
+        '{"snake": {"growth_score_per_segment": NaN}}',
+        '{"unknown_section": [NaN]}',
+    ],
+)
+def test_admin_config_route_rejects_non_finite_payloads(admin_client, tmp_path, payload):
     config_path = tmp_path / "config.json"
     before = config_path.read_text(encoding="utf-8")
 
     response = admin_client.patch(
         "/admin/config",
-        content=f'{{"world": {{"portals_radius": {literal}}}}}',
+        content=payload,
         headers={"Content-Type": "application/json"},
     )
 
     assert response.status_code == 422
+    response.json()
     assert config_path.read_text(encoding="utf-8") == before
 
 

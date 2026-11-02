@@ -14,7 +14,7 @@ from app.bots import BotManager
 from app.engine.entities import Player
 from app.engine.food_manager import FoodManager
 from app.engine.world_elements import PortalManager, BlackHoleManager
-from app.engine.systems.formula_parser import compile_growth_formula
+from app.engine.systems.formula_parser import MIN_GROWTH_COST, compile_growth_formula
 from app.engine.events import EventBus
 import app.engine.game as game_orchestrator
 
@@ -35,6 +35,9 @@ VALID_ACTIONS = frozenset(
 
 class World:
     def __init__(self):
+        # Runtime containment for growth formulas: validation cannot prove
+        # totality, so the first evaluation failure is logged loudly once.
+        self._growth_formula_error_logged = False
         self.config = GameConfig()
         self.config_file_path = os.getenv("CONFIG_PATH", "config.json")
         self._load_config_from_disk()
@@ -103,10 +106,28 @@ class World:
 
     def _update_compiled_formulas(self):
         formula = self.config.snake.growth_score_per_segment
-        # Fail fast: GameConfig.validate() already compiles the formula, so an
-        # invalid expression must never silently fall back to a constant cost.
-        self.growth_segment_cost_func = compile_growth_formula(formula).evaluate
+        # Fail fast on invalid expressions: GameConfig.validate() already
+        # compiles the formula. Runtime poles are contained by
+        # _safe_growth_cost so an accepted formula can never freeze a tick.
+        self._compiled_growth_cost = compile_growth_formula(formula).evaluate
+        self.growth_segment_cost_func = self._safe_growth_cost
         logger.info("Bound growth segment cost function: %s", formula)
+
+    def _safe_growth_cost(self, score, length):
+        try:
+            return max(
+                MIN_GROWTH_COST,
+                float(self._compiled_growth_cost(score, length)),
+            )
+        except Exception:
+            if not self._growth_formula_error_logged:
+                logger.exception(
+                    "Growth formula failed at score=%s length=%s; using minimum cost",
+                    score,
+                    length,
+                )
+                self._growth_formula_error_logged = True
+            return MIN_GROWTH_COST
 
     def align_player_growth(self, player):
         start_score = self.config.snake.start_score
@@ -229,7 +250,7 @@ class World:
             return
         try:
             self._save_config_to_disk(old_config)
-        except OSError:
+        except Exception:
             logger.exception("Failed to rewrite previous config to %s", path)
 
     def _save_config_to_disk(self, config=None):
@@ -314,18 +335,20 @@ class World:
 
         self.bot_manager.sync()
 
-    def _restore_live_config(self, old_config):
-        """Restore config ownership and grid scalars after a failed apply/save.
+    def _restore_live_config(self, old_config, pending_growth_snapshot):
+        """Best-effort rollback of live state after a failed apply/save.
 
-        ``self.config``, player config references, the compiled growth formula,
-        grid dimensions/cell caches and ``spatial_grid`` are rolled back. Food,
-        portals, black holes and bots may keep derived state from a partially
-        applied candidate; the next successful update or restart reconciles
-        them.
+        Restores config/player ownership, the compiled growth formula, grid
+        scalars, pending growth, derived radii and slot counts. Portal/black
+        hole positions may be reconciled, and food removed by
+        ``on_grid_resize`` is not resurrected. Each manager step is isolated so
+        a rollback failure never masks the original exception.
         """
         self.config = old_config
-        for player in self.players.values():
+        for player_id, player in self.players.items():
             player.config = old_config
+            if player_id in pending_growth_snapshot:
+                player.pending_growth = pending_growth_snapshot[player_id]
         self._update_compiled_formulas()
 
         self.grid_width = old_config.world.width
@@ -333,6 +356,31 @@ class World:
         self.target_food_count = old_config.world.target_food_count
         self._recompute_grid_cells()
         self.spatial_grid = {}
+
+        try:
+            self.food_manager.apply_config()
+        except Exception:
+            logger.exception("Failed to restore food radii during config rollback")
+        try:
+            self.portal_manager.update_slots(force_roll=False)
+        except Exception:
+            logger.exception("Failed to restore portal slot count during config rollback")
+        try:
+            self.portal_manager.apply_config()
+        except Exception:
+            logger.exception("Failed to restore portal radii during config rollback")
+        try:
+            self.bh_manager.update_slots(force_roll=False)
+        except Exception:
+            logger.exception("Failed to restore black-hole slot count during config rollback")
+        try:
+            self.bh_manager.apply_config()
+        except Exception:
+            logger.exception("Failed to restore black-hole radii during config rollback")
+        try:
+            self.bot_manager.sync()
+        except Exception:
+            logger.exception("Failed to re-sync bots during config rollback")
 
     def update_config(self, patch):
         """Validate, apply live and then persist a config patch.
@@ -342,7 +390,7 @@ class World:
         disk (with a ``.bak`` of the previous file). A failed apply leaves the
         file untouched; a failed save rolls memory back to ``old_config`` and
         restores the file from the backup. See ``_restore_live_config`` for the
-        intentionally limited rollback scope.
+        best-effort rollback scope.
         """
         old_config = self.config
         old_width = self.grid_width
@@ -351,25 +399,40 @@ class World:
 
         candidate = deepcopy(old_config)
         candidate.apply_patch(patch)
+        pending_growth_snapshot = {
+            player_id: player.pending_growth for player_id, player in self.players.items()
+        }
 
         try:
             self._apply_live_config(candidate, patch, old_width, old_height, old_cluster_count)
         except Exception:
-            self._restore_live_config(old_config)
+            try:
+                self._restore_live_config(old_config, pending_growth_snapshot)
+            except Exception:
+                logger.exception("Config rollback failed")
             raise
 
         config_existed = os.path.exists(self.config_file_path)
         try:
             backup_ok = self._backup_config_file()
         except Exception:
-            self._restore_live_config(old_config)
+            try:
+                self._restore_live_config(old_config, pending_growth_snapshot)
+            except Exception:
+                logger.exception("Config rollback failed")
             raise
 
         try:
             self._save_config_to_disk(candidate)
         except Exception:
-            self._restore_live_config(old_config)
-            self._restore_config_file(old_config, config_existed, backup_ok)
+            try:
+                self._restore_live_config(old_config, pending_growth_snapshot)
+            except Exception:
+                logger.exception("Config rollback failed")
+            try:
+                self._restore_config_file(old_config, config_existed, backup_ok)
+            except Exception:
+                logger.exception("Config rollback failed")
             raise
 
         self._config_updated_this_tick = True

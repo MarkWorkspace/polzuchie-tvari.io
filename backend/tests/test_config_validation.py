@@ -57,6 +57,13 @@ def test_float_field_accepts_int_value():
     assert config.world.portals_radius == 3
 
 
+def test_apply_patch_rejects_non_finite_string_field():
+    config = GameConfig()
+
+    with pytest.raises(ValueError, match="growth_score_per_segment must be finite"):
+        config.apply_patch({"snake": {"growth_score_per_segment": math.nan}})
+
+
 @pytest.mark.parametrize("value", [0, 101])
 def test_max_steps_per_tick_rejects_out_of_range(value):
     config = GameConfig()
@@ -104,6 +111,8 @@ def test_portals_teleport_delay_accepts_valid_bounds(value):
         {"world": {"width": 100.5}},
         {"world": {"portals_teleport_delay_ms": -1}},
         {"simulation": {"max_steps_per_tick": 0}},
+        {"snake": {"growth_score_per_segment": math.nan}},
+        {"food": {"types": [{"color": math.nan}]}},
     ],
 )
 def test_world_rejects_invalid_config_file(tmp_path, monkeypatch, caplog, patch):

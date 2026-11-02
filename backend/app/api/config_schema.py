@@ -3,29 +3,61 @@ import math
 import typing
 from dataclasses import fields, is_dataclass
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, create_model
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    StrictInt,
+    create_model,
+    model_validator,
+)
+from pydantic_core import PydanticCustomError
 
 from game_config import GameConfig
 
 _MODEL_CONFIG = ConfigDict(extra="forbid", coerce_numbers_to_str=True, allow_inf_nan=False)
 _MODEL_CACHE: dict[type, type[BaseModel]] = {}
+_NON_FINITE_SENTINEL = "<non-finite>"
 
 
-def _sanitize_non_finite_input(value):
+def _sanitize_non_finite(value):
     # Pydantic echoes the rejected input in 422 payloads; Starlette's
-    # JSONResponse cannot serialize NaN/inf, so echo it as a string instead.
+    # JSONResponse cannot serialize NaN/inf, so echo a JSON-safe sentinel.
     if isinstance(value, float) and not math.isfinite(value):
-        return str(value)
+        return _NON_FINITE_SENTINEL
+    if isinstance(value, dict):
+        return {key: _sanitize_non_finite(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_non_finite(item) for item in value]
     return value
 
 
-_FINITE_FLOAT = typing.Annotated[float, BeforeValidator(_sanitize_non_finite_input)]
+def _reject_non_finite_string(value):
+    if value == _NON_FINITE_SENTINEL:
+        # A plain ValueError would put the exception object into the 422
+        # payload, which Starlette cannot serialize as JSON.
+        raise PydanticCustomError("finite_number", "Input should be a finite number")
+    return value
+
+
+_FINITE_STR = typing.Annotated[str, BeforeValidator(_reject_non_finite_string)]
+
+
+class _PatchBase(BaseModel):
+    model_config = _MODEL_CONFIG
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_non_finite_input(cls, data):
+        return _sanitize_non_finite(data)
 
 
 def _patch_annotation(annotation: object) -> object:
     """Keep the real type; fields are optional via a None default, so explicit nulls are rejected."""
-    if annotation is float:
-        return _FINITE_FLOAT
+    if annotation is int:
+        return StrictInt
+    if annotation is str:
+        return _FINITE_STR
     origin = typing.get_origin(annotation)
     if origin is list:
         args = typing.get_args(annotation)
@@ -45,7 +77,7 @@ def _patch_model(dataclass_type: type, name: str | None = None) -> type[BaseMode
     hints = typing.get_type_hints(dataclass_type)
     model = create_model(
         name or f"{dataclass_type.__name__}Patch",
-        __config__=_MODEL_CONFIG,
+        __base__=_PatchBase,
         **{
             item.name: (_patch_annotation(hints[item.name]), None)
             for item in fields(dataclass_type)
