@@ -25,6 +25,10 @@ compose.override.yaml
 backend/config.local.json
 backend/config.*.local.json
 backend/config.override.json
+# Runtime config is seeded from config.example.json; never commit live state.
+backend/config.json
+backend/config.json.bak
+backend/.config.json.*.tmp
 
 # OpenCode
 .opencode/plans/

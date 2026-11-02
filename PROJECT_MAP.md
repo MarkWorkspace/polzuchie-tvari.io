@@ -16,7 +16,7 @@
 ├── .pre-commit-config.yaml             # ROLE: Git hooks (Ruff/tests/build).
 ├── .github/dependabot.yml              # ROLE: Weekly dependency updates for uv, npm, actions, Docker and hooks.
 ├── opencode.jsonc                      # ROLE: OpenCode V2 project config.
-├── docker-compose.yml                  # ROLE: Local production-like stack; passes ALLOWED_ORIGINS to backend.
+├── docker-compose.yml                  # ROLE: Local production-like stack; passes ALLOWED_ORIGINS to backend, persists runtime config in the backend_config named volume.
 ├── start_dev.bat                       # ROLE: Windows dev launcher (uv + Vite).
 └── scripts/run_checks.py               # ROLE: Cross-platform check runner used by hooks.
 ```
@@ -242,11 +242,14 @@ frontend/src/styles/
 backend/
 ├── server.py                           # ROLE: Точка входа FastAPI: liveness `/health`, readiness `/ready`, game loop с tick-метриками. Не содержит игровой логики.
 ├── game_config.py                      # ROLE: Конфигурация через датаклассы (включая секцию bots).
-├── config.json                         # Runtime-конфигурация (атомарно пишется админкой; не редактировать вручную).
+├── config.json                         # Runtime-конфигурация (untracked; пишется админкой в named volume, не редактировать вручную).
+├── config.example.json                 # ROLE: Seed-шаблон runtime-конфига для пустого Docker volume. Приложением напрямую не читается.
+├── config.schema-version               # ROLE: Версия схемы runtime-конфига (отдельный файл; GameConfig её не читает).
+├── docker-entrypoint.sh                # ROLE: Засевает config volume из config.example.json без перезаписи live-файла и запускает CMD.
 ├── pyproject.toml                      # ROLE: PEP 621 metadata, runtime/dev dependencies, pytest + ruff config.
 ├── uv.lock                             # ROLE: [СГЕНЕРИРОВАНО] uv lockfile. Не редактировать вручную.
 ├── .python-version                     # ROLE: Python version for uv (3.13).
-├── Dockerfile                          # ROLE: Production image на Python 3.13 + uv (digest-pinned bases, non-root, healthcheck, WS flags, graceful shutdown 10s).
+├── Dockerfile                          # ROLE: Production image на Python 3.13 + uv (digest-pinned bases, non-root, seeded config volume, healthcheck, WS flags, graceful shutdown 10s).
 ├── scripts/
 │   └── generate_proto.py               # ROLE: Регенерация snake_pb2.py из tests_shared/snake.proto. Не runtime-код.
 └── app/
@@ -301,6 +304,7 @@ backend/tests/
 ├── test_boost.py                      # ROLE: Буст сохраняет score целым; late join после буста не ломает FULL-синк.
 ├── test_bots.py                       # ROLE: Lifecycle, live config sync, respawn, personalities и руление ботов.
 ├── test_client_messages.py            # ROLE: Лимит длины текстовых команд клиента.
+├── test_config_example.py             # ROLE: Seed-шаблон config.example.json валиден для GameConfig; schema-версия хранится отдельным файлом.
 ├── test_config_persistence.py         # ROLE: Транзакционное сохранение конфига: backup, rollback apply/save, bind-mount fallback и 503 на admin-маршруте.
 ├── test_config_validation.py          # ROLE: Валидация конфига: finite, строгие int, диапазоны и fail-fast на битом config.json.
 ├── test_collision.py                   # ROLE: Тесты столкновений змейка-змейка.

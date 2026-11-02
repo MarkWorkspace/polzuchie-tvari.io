@@ -113,8 +113,9 @@ npm run test:e2e                  # build + preview + тесты
 Перед первым запуском на Linux CI браузер ставится с системными зависимостями:
 `npx playwright install --with-deps chromium`. Playwright всегда поднимает свой
 backend на `:8000` с `ADMIN_PASSWORD=e2e-admin`; если локальный backend уже
-запущен, остановите его. Backend получает временную копию `backend/config.json`
-через `CONFIG_PATH`, поэтому изменения конфига из E2E не трогают файл в репозитории.
+запущен, остановите его. Backend получает временную копию
+`backend/config.example.json` через `CONFIG_PATH`, поэтому изменения конфига из
+E2E не трогают live-конфиг.
 
 Для production-E2E нужен свободный порт `5173`: `preview:e2e` запускается с
 `--strictPort`, поэтому занятый порт — это явная ошибка, а не тихий переход на
@@ -167,6 +168,62 @@ backend — `8000`. `docker-compose.yml` передаёт в backend
 default). Если frontend опубликован на другом порту (`FRONTEND_PORT`) или за
 доменом, задайте `ALLOWED_ORIGINS` (например, `http://localhost:8080` или
 `https://game.example`), иначе браузерные REST/WS-запросы будут отклонены.
+
+### Runtime config, backup и schema version
+
+`backend/config.json` — runtime-состояние, а не файл репозитория: он в
+`.gitignore`, и контейнер читает его из named volume `backend_config`
+(`/app/data`, `CONFIG_PATH=/app/data/config.json`). При первом старте с пустым
+volume `docker-entrypoint.sh` копирует туда отслеживаемый шаблон
+`backend/config.example.json`; существующий файл он не перезаписывает. Поэтому
+`git pull` и пересборка образа обновляют код и шаблон, но не live-конфиг, а
+правки из админки переживают `docker compose up/down` (без `-v`) и пересоздание
+контейнера.
+
+Каталог `/app/data` создан в образе от `appuser`, поэтому пустой named volume
+наследует владельца при первом монтировании. Внешний bind-mount должен быть
+записываемым для uid приложения, иначе entrypoint завершится с понятной ошибкой.
+
+Перед каждым сохранением админка копирует текущий файл в
+`/app/data/config.json.bak`; неудачная запись откатывается из этого backup'а.
+Снять копию перед обновлением:
+
+```bash
+docker compose cp backend:/app/data/config.json ./config.backup.json
+```
+
+Восстановить:
+
+```bash
+docker compose up -d backend
+docker compose cp ./config.backup.json backend:/app/data/config.json
+docker compose exec -u root backend \
+  sh -c 'chown appuser:appuser /app/data/config.json && chmod 0644 /app/data/config.json'
+docker compose restart backend
+```
+
+`docker compose cp` создаёт файл от root, поэтому `chown`/`chmod` обязательны:
+иначе `appuser` не сможет сохранять конфиг из админки, а entrypoint при
+следующем старте завершится с ошибкой про ownership. Команда `exec` требует
+запущенного контейнера, поэтому сначала `up -d`.
+
+`docker compose down -v` **удаляет** `backend_config` вместе с live-конфигом и
+`.bak`; после этого следующий старт заново засеет пустой volume из
+`config.example.json`. Не используйте `-v`, если конфиг нужно сохранить.
+
+При переходе со старого bind-mount (`./backend/config.json:/app/config.json`)
+сначала сохраните `backend/config.json` командой backup выше, затем после
+обновления и первого старта замените seed в volume процедурой восстановления
+(entrypoint успеет создать `/app/data/config.json`, после чего backup заменит
+его).
+
+Версия схемы хранится отдельным файлом `backend/config.schema-version`
+(сейчас `1`), а не полем JSON: `GameConfig` перезаписывает конфиг целиком, и
+лишний ключ потерялся бы при сохранении из админки. Entrypoint кладёт маркер
+рядом с конфигом в volume, не перезаписывая уже существующий. Автоматических
+миграций нет: при несовместимом изменении схемы увеличьте версию, обновите
+`config.example.json` и перенесите volume вручную либо начните с чистого
+volume.
 
 Локальные переопределения не коммитятся: `.env.*` (кроме `.env.example`),
 `docker-compose.override.yml`, `compose.override.yaml` и

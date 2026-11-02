@@ -83,11 +83,11 @@ def _set_player_pos(player, x: float, y: float) -> None:
 def _pinned_world() -> World:
     """Создать World на pinned-конфиге и вернуть CONFIG_PATH вызывающему.
 
-    Parity-сценарии всегда читают pinned-конфиг, а не tracked runtime
+    Parity-сценарии всегда читают pinned-конфиг, а не live runtime
     `backend/config.json`, даже если тест или генератор передали другой
     CONFIG_PATH. Последующие записи конфига направляются в вызывающий
     CONFIG_PATH (или в pinned-путь, если он не был задан), чтобы
-    `update_config()` не мог перезаписать tracked фикстуру.
+    `update_config()` не мог перезаписать pinned-фикстуру.
     """
     previous_config_path = os.environ.get("CONFIG_PATH")
     os.environ["CONFIG_PATH"] = str(PINNED_CONFIG_PATH)
