@@ -58,7 +58,8 @@ frontend/
     │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
     │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере. Не содержит логики ввода или сети.
-    │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
+    │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа; guard editable/HUD и resync. Не UI, не сеть.
+    │   ├── InputManager.test.ts        # ROLE: Тесты editable/HUD guard, UI-open паузы и resync ввода.
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру, requestId-корреляция кадров + player-session bootstrap (POST /session). Не бизнес-логика.
     │   ├── NetworkManager.test.ts      # ROLE: Тесты session bootstrap, WS URL без client_id, reconnect backoff и requestId-корреляции кадров.
     │   ├── PlayerSessionLock.ts        # ROLE: Web Locks + BroadcastChannel: одна player-вкладка, takeover между вкладками. Не сеть и не UI.

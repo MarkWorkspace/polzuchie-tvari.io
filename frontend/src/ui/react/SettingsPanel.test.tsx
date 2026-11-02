@@ -3,7 +3,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { InputManager } from "../../game/InputManager";
+import { InputManager } from "../../game/InputManager";
 import type { RenderQualityControl } from "../../renderer/RenderQuality";
 import { SettingsPanel } from "./SettingsPanel";
 
@@ -19,6 +19,7 @@ describe("SettingsPanel", () => {
     const inputManager = {
       getControlMode: () => "mouse",
       setControlMode: vi.fn(),
+      setUiOpen: vi.fn(),
     } as unknown as InputManager;
 
     render(
@@ -74,6 +75,65 @@ describe("SettingsPanel", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(document.querySelector(".settings-drawer")).not.toHaveClass("open");
     expect(trigger).toHaveFocus();
+  });
+
+  it("marks input as UI-owned while the drawer is open", () => {
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+    const setUiOpen = vi.fn();
+    const inputManager = {
+      getControlMode: () => "mouse",
+      setControlMode: vi.fn(),
+      setUiOpen,
+    } as unknown as InputManager;
+
+    const { unmount } = render(
+      <SettingsPanel
+        inputManager={inputManager}
+        callbacks={{ onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
+      />,
+    );
+
+    expect(setUiOpen).toHaveBeenLastCalledWith(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(setUiOpen).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Close menu" }));
+    expect(setUiOpen).toHaveBeenLastCalledWith(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    unmount();
+    expect(setUiOpen).toHaveBeenLastCalledWith(false);
+  });
+
+  it("lets Escape close the drawer while a real InputManager is listening", () => {
+    window.matchMedia = vi
+      .fn()
+      .mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+    const inputManager = new InputManager();
+
+    try {
+      render(
+        <SettingsPanel
+          inputManager={inputManager}
+          callbacks={{ onAdminClick: vi.fn(), onFpsToggle: vi.fn() }}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+      expect(inputManager.isUiOpen()).toBe(true);
+
+      fireEvent.keyDown(screen.getByRole("button", { name: "Close menu" }), {
+        key: "Escape",
+        code: "Escape",
+      });
+      expect(document.querySelector(".settings-drawer")).not.toHaveClass("open");
+      expect(inputManager.isUiOpen()).toBe(false);
+    } finally {
+      inputManager.destroy();
+    }
   });
 
   it("changes graphics quality through the control", () => {

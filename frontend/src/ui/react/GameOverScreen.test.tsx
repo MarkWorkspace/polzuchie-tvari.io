@@ -53,6 +53,38 @@ describe("GameOverScreen", () => {
     expect(screen.queryByText(t("gameOver.title"))).not.toBeInTheDocument();
   });
 
+  it("announces respawn before sending RESPAWN so held input is released", () => {
+    const sequence: string[] = [];
+    const send = vi.fn(() => sequence.push("send"));
+    const onRespawn = () => sequence.push("respawn");
+    window.addEventListener("game-respawn", onRespawn);
+
+    try {
+      render(
+        <GameOverScreen
+          networkManager={{ send } as unknown as NetworkManager}
+          getMyId={() => "me"}
+        />,
+      );
+
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent("game-killfeed", {
+            detail: {
+              events: [{ victim: "me" }],
+              players: { me: { score: 1, kills: 0, body_len: 9 } },
+            },
+          }),
+        );
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: t("gameOver.playAgain") }));
+      expect(sequence).toEqual(["respawn", "send"]);
+    } finally {
+      window.removeEventListener("game-respawn", onRespawn);
+    }
+  });
+
   it("shows the preserved final length of the local player's death", () => {
     // FrameComputer fills body_len from Player.final_length for dead players,
     // so the overlay must render that value instead of a zero placeholder.

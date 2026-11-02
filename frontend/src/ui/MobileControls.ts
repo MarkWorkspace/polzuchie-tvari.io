@@ -31,6 +31,7 @@ export class MobileControls {
     window.removeEventListener("touchmove", this.handleTouchMove);
     window.removeEventListener("touchend", this.handleTouchEnd);
     window.removeEventListener("touchcancel", this.handleTouchEnd);
+    window.removeEventListener("blur", this.handleWindowBlur);
     if (this.boostZone) {
       this.boostZone.remove();
       this.boostZone = null;
@@ -50,6 +51,7 @@ export class MobileControls {
     window.addEventListener("touchmove", this.handleTouchMove, { passive: false });
     window.addEventListener("touchend", this.handleTouchEnd, { passive: false });
     window.addEventListener("touchcancel", this.handleTouchEnd, { passive: false });
+    window.addEventListener("blur", this.handleWindowBlur);
   }
 
   private updateAcceleratingState(): void {
@@ -127,6 +129,22 @@ export class MobileControls {
         this.updateAcceleratingState();
       }
     }
+
+    // Once no fingers remain, guarantee that no steering/boost state survives
+    // the gesture (a missed event or a touchcancel must not leave input stuck).
+    if (e.touches.length === 0) {
+      this.steeringTouchId = null;
+      this.boostTouchId = null;
+      this.isSteeringFingerBoosting = false;
+      this.inputManager.resyncInput();
+    }
+  };
+
+  private handleWindowBlur = (): void => {
+    this.steeringTouchId = null;
+    this.boostTouchId = null;
+    this.isSteeringFingerBoosting = false;
+    this.inputManager.resyncInput();
   };
 
   private updateSteering(clientX: number): void {

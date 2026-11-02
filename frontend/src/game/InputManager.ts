@@ -1,6 +1,21 @@
 // ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
 export type ControlMode = "keyboard" | "mouse" | "tilt";
 
+const GAME_KEYS = ["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+
+/**
+ * True when the event target belongs to a UI surface that owns its own input:
+ * form controls, contenteditable, or any HUD widget marked `.hud-interactive`.
+ */
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target.closest(".hud-interactive")) return true;
+  const element = target as HTMLElement;
+  if (element.isContentEditable) return true;
+  if (element.closest('[contenteditable]:not([contenteditable="false"])')) return true;
+  return ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(target.tagName);
+}
+
 export class InputManager {
   private turn = 0.0;
   private accelerating = false;
@@ -8,6 +23,7 @@ export class InputManager {
   private isMobile = false;
   private pressedKeys = new Set<string>();
   private calibrationGamma: number | null = null;
+  private uiOpen = false;
 
   private onControlModeChangeCallback?: (mode: ControlMode) => void;
   private onInputUpdateCallback?: () => void;
@@ -81,26 +97,64 @@ export class InputManager {
     if (mode === "tilt") {
       this.calibrationGamma = null;
     }
-    this.pressedKeys.clear();
-    this.accelerating = false;
-    this.turn = 0.0;
+    this.clearInputState();
     this.onControlModeChangeCallback?.(mode);
     this.onInputUpdateCallback?.();
   }
 
+  /** While a modal/drawer owns input, game keys and mouse steering are ignored. */
+  public setUiOpen(open: boolean): void {
+    if (this.uiOpen === open) return;
+    this.uiOpen = open;
+    if (open) this.resyncInput();
+  }
+
+  public isUiOpen(): boolean {
+    return this.uiOpen;
+  }
+
+  /**
+   * Release everything the server may still consider pressed. Keeps the
+   * control mode and mouse sensitivity (they are settings, not held input).
+   */
+  public resyncInput(): void {
+    this.clearInputState();
+    this.onInputUpdateCallback?.();
+  }
+
+  private clearInputState(): void {
+    this.pressedKeys.clear();
+    this.accelerating = false;
+    this.turn = 0.0;
+  }
+
   private handleKeyDown = (e: KeyboardEvent): void => {
+    // UI and editable widgets own their keyboard events; never prevent or stop
+    // them, otherwise Escape/Space/arrows break inside the settings drawer.
+    if (this.uiOpen || isEditableTarget(e.target)) return;
+
     // Prevent default to stop scrolling, even on repeated keys
-    if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) {
+    if (GAME_KEYS.includes(e.code)) {
       e.preventDefault();
     }
 
-    // Ignore repeated keydown events to prevent lag
-    if (e.repeat) return;
+    const isSteeringKey =
+      this.controlMode === "keyboard" &&
+      ["ArrowLeft", "KeyA", "ArrowRight", "KeyD"].includes(e.code);
 
-    const activeEl = document.activeElement;
-    const isInputActive =
-      activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
-    if (isInputActive) return;
+    // A key held across a resync only produces repeat events. Rebuild the held
+    // state from them (idempotently), so "hold Space/arrow through respawn or
+    // reconnect" works without the repeat-induced lag the early return avoided.
+    if (e.repeat) {
+      if (isSteeringKey) {
+        this.pressedKeys.add(e.code);
+        this.recalculateTurn();
+      } else if (e.code === "Space" && !this.accelerating) {
+        this.accelerating = true;
+        this.onInputUpdateCallback?.();
+      }
+      return;
+    }
 
     e.stopPropagation();
 
@@ -108,10 +162,7 @@ export class InputManager {
       this.setControlMode(this.controlMode === "keyboard" ? "mouse" : "keyboard");
       return;
     }
-    if (
-      this.controlMode === "keyboard" &&
-      ["ArrowLeft", "KeyA", "ArrowRight", "KeyD"].includes(e.code)
-    ) {
+    if (isSteeringKey) {
       this.pressedKeys.add(e.code);
       this.recalculateTurn();
     }
@@ -122,10 +173,10 @@ export class InputManager {
   };
 
   private handleKeyUp = (e: KeyboardEvent): void => {
-    const activeEl = document.activeElement;
-    const isInputActive =
-      activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA");
-    if (isInputActive) return;
+    if (this.uiOpen || isEditableTarget(e.target)) return;
+    if (GAME_KEYS.includes(e.code)) {
+      e.preventDefault();
+    }
     e.stopPropagation();
 
     if (
@@ -142,12 +193,7 @@ export class InputManager {
   };
 
   private handleWindowBlur = (): void => {
-    this.pressedKeys.clear();
-    this.accelerating = false;
-    if (this.turn !== 0.0) {
-      this.turn = 0.0;
-      this.onInputUpdateCallback?.();
-    }
+    this.resyncInput();
   };
 
   private recalculateTurn(): void {
@@ -169,6 +215,8 @@ export class InputManager {
   }
 
   private handleMouseMove = (e: MouseEvent): void => {
+    // Mouse movement over HUD panels must not steer the snake.
+    if (this.uiOpen || isEditableTarget(e.target)) return;
     if (this.controlMode !== "mouse" || this.isMobile) return;
     e.stopPropagation();
     const normX = (e.clientX / window.innerWidth) * 2 - 1;

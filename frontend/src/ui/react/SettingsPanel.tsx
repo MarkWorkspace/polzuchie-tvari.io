@@ -33,6 +33,11 @@ export function SettingsPanel({ inputManager, callbacks, qualityControl }: Setti
   const debugMode = new URLSearchParams(window.location.search).get("debug") === "true";
 
   useEffect(() => {
+    inputManager?.setUiOpen(open);
+    return () => inputManager?.setUiOpen(false);
+  }, [inputManager, open]);
+
+  useEffect(() => {
     if (!open) {
       if (wasOpen.current) {
         wasOpen.current = false;

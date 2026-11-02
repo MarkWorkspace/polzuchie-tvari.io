@@ -86,6 +86,7 @@ export function GameOverScreen({ networkManager, getMyId }: GameOverScreenProps)
           type="button"
           className="respawn-btn"
           onClick={() => {
+            window.dispatchEvent(new Event("game-respawn"));
             networkManager.send("RESPAWN");
             setState(null);
           }}

@@ -54,6 +54,7 @@ export class Game {
 
     this.setupInputCallbacks();
     this.setupNetworkCallbacks();
+    window.addEventListener("game-respawn", this.handleGameRespawn);
   }
 
   public start(nickname: string, skin: string): void {
@@ -65,6 +66,7 @@ export class Game {
 
   public destroy(): void {
     cancelAnimationFrame(this.animFrameId);
+    window.removeEventListener("game-respawn", this.handleGameRespawn);
     this.sendCleanRelease();
     this.clearPlayerId();
     this.networkManager.close();
@@ -102,6 +104,22 @@ export class Game {
     this.sceneManager.setQuality(quality);
   }
 
+  /**
+   * Drop locally held input and send a full snapshot so the server cannot keep
+   * stale boost/steer state across respawn or reconnect.
+   */
+  public resyncInput(): void {
+    this.inputManager.resyncInput();
+    this.throttledTurn = 0.0;
+    this.lastAccelerating = false;
+    this.lastTurnSendTime = 0;
+    this.sendNetworkInput(true);
+  }
+
+  private handleGameRespawn = (): void => {
+    this.resyncInput();
+  };
+
   private setupInputCallbacks(): void {
     this.inputManager.setCallbacks({
       onControlModeChange: (mode: ControlMode) => {
@@ -123,14 +141,14 @@ export class Game {
     }
   }
 
-  private sendNetworkInput(): void {
+  private sendNetworkInput(forceSnapshot = false): void {
     if (!this.isConnected) return;
 
     const mode = this.inputManager.getControlMode();
     const isAccelerating = this.inputManager.isAccelerating();
 
-    // 1. Edge-triggered Accelerating (Boost)
-    if (isAccelerating !== this.lastAccelerating) {
+    // 1. Edge-triggered Accelerating (Boost); a force snapshot always sends it.
+    if (forceSnapshot || isAccelerating !== this.lastAccelerating) {
       this.networkManager.send(isAccelerating ? "SPACE_DOWN" : "SPACE_UP");
       this.lastAccelerating = isAccelerating;
     }
@@ -138,17 +156,8 @@ export class Game {
     // 2. Throttled Steering / Turning
     if (mode === "keyboard") {
       const turn = this.inputManager.getTurn();
-      if (turn !== this.throttledTurn) {
-        if (turn === -1.0) this.networkManager.send("LEFT_DOWN");
-        else if (turn === 1.0) this.networkManager.send("RIGHT_DOWN");
-        else {
-          if (this.throttledTurn === -1.0) this.networkManager.send("LEFT_UP");
-          else if (this.throttledTurn === 1.0) this.networkManager.send("RIGHT_UP");
-          else {
-            this.networkManager.send("LEFT_UP");
-            this.networkManager.send("RIGHT_UP");
-          }
-        }
+      if (forceSnapshot || turn !== this.throttledTurn) {
+        this.sendKeyboardTurn(turn);
         this.throttledTurn = turn;
       }
     } else {
@@ -159,11 +168,22 @@ export class Game {
       const turnChanged = Math.abs(turn - this.throttledTurn) > 0.01;
       const isZeroSnap = turn === 0.0 && this.throttledTurn !== 0.0;
 
-      if (isZeroSnap || (turnChanged && timePassed)) {
+      if (forceSnapshot || isZeroSnap || (turnChanged && timePassed)) {
         this.networkManager.send(`TURN:${turn.toFixed(3)}`);
         this.throttledTurn = turn;
         this.lastTurnSendTime = now;
       }
+    }
+  }
+
+  private sendKeyboardTurn(turn: number): void {
+    if (turn === -1.0) {
+      this.networkManager.send("LEFT_DOWN");
+    } else if (turn === 1.0) {
+      this.networkManager.send("RIGHT_DOWN");
+    } else {
+      this.networkManager.send("LEFT_UP");
+      this.networkManager.send("RIGHT_UP");
     }
   }
 
@@ -177,6 +197,7 @@ export class Game {
             detail: { status, msg, msgKey, msgParams, controlMode },
           }),
         );
+        if (status === "connected") this.resyncInput();
       },
       onPing: (latency) => {
         window.dispatchEvent(new CustomEvent("game-ping", { detail: latency }));
@@ -186,6 +207,8 @@ export class Game {
         if (typeof document !== "undefined") {
           document.body.dataset.playerId = id;
         }
+        // A new/restored identity starts with a clean input snapshot.
+        this.resyncInput();
       },
       onFrameData: (msg) => {
         this.latestFrame = msg;
