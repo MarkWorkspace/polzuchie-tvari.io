@@ -228,6 +228,8 @@ function createRootShadowMaterial(): THREE.ShaderMaterial {
 
 /** Grass is opaque, so a ground-level decal is invisible; tint blades instead. */
 const GRASS_SHADOW_TINT = new THREE.Vector3(0.42, 0.5, 0.68);
+/** Crushed blades lose their fresh green; the trail gets a separate dry-olive tint. */
+const GRASS_TRAIL_TINT = new THREE.Vector3(0.46, 0.42, 0.26);
 
 export class GrassRenderer {
   private readonly scene: THREE.Scene;
@@ -247,7 +249,8 @@ export class GrassRenderer {
     uShadowHalfExtent: { value: 180 },
     uShadowStrength: { value: 0 },
     uShadowTint: { value: GRASS_SHADOW_TINT },
-    uShadowDilate: { value: 0.008 },
+    uTrailTint: { value: GRASS_TRAIL_TINT },
+    uShadowDilate: { value: 0.016 },
     uFieldCenter: { value: new THREE.Vector2() },
     uFieldRadius: { value: 1 },
     uFadeNear: { value: 250 },
@@ -356,6 +359,8 @@ export class GrassRenderer {
     if (contactShadow) {
       this.uniforms.uShadowCenter.value.set(contactShadow.x, contactShadow.y);
       this.uniforms.uShadowHalfExtent.value = Math.max(1, contactShadow.halfExtent);
+      // Keep the trample halo a constant world-space width on every zoom.
+      this.uniforms.uShadowDilate.value = 12 / (2 * this.uniforms.uShadowHalfExtent.value);
     }
 
     const instanceBudget = Number.isFinite(budget) ? Math.min(budget, MAX_INSTANCES) : 0;
@@ -552,6 +557,7 @@ export class GrassRenderer {
       shader.uniforms.uShadowHalfExtent = this.uniforms.uShadowHalfExtent;
       shader.uniforms.uShadowStrength = this.uniforms.uShadowStrength;
       shader.uniforms.uShadowTint = this.uniforms.uShadowTint;
+      shader.uniforms.uTrailTint = this.uniforms.uTrailTint;
       shader.uniforms.uShadowDilate = this.uniforms.uShadowDilate;
       shader.uniforms.uTrail = this.uniforms.uTrail;
       shader.uniforms.uTrailCount = this.uniforms.uTrailCount;
@@ -576,6 +582,7 @@ export class GrassRenderer {
         uniform vec2 uFieldCenter;
         uniform float uFieldRadius;
         varying float vGrassShadow;
+        varying float vGrassTrail;
         float grassBend = 0.0;
 
         // Cheap sin-free hashes keep the gust noise affordable on integrated
@@ -662,15 +669,16 @@ export class GrassRenderer {
         shadowCoverage *= shadowInside.x * shadowInside.y;
 
         float grassFlattenFromShadow = clamp(
-          smoothstep(0.05, 0.5, shadowCoverage) * uShadowStrength,
+          smoothstep(0.01, 0.38, shadowCoverage) * uShadowStrength,
           0.0,
           1.0
         );
         float trailFlatten = 0.0;
+        vec2 trailBendVec = vec2(0.0);
         if (uTrailCount > 0) {
           vec4 trailFirst = uTrail[0];
           trailFlatten =
-            (1.0 - smoothstep(0.0, 8.0, distance(grassRootWorld.xy, trailFirst.xy))) *
+            (1.0 - smoothstep(0.0, 10.0, distance(grassRootWorld.xy, trailFirst.xy))) *
             trailFirst.z;
         }
         // Points are sampled every 250 ms. Treat consecutive points as a
@@ -692,18 +700,54 @@ export class GrassRenderer {
             trailA.xy + trailSegment * trailT
           );
           float trailFade = mix(trailA.z, trailB.z, trailT);
-          trailFlatten = max(
-            trailFlatten,
-            (1.0 - smoothstep(0.0, 8.0, trailDistance)) * trailFade
-          );
+          float trailCoverage =
+            (1.0 - smoothstep(0.0, 10.0, trailDistance)) * trailFade;
+          trailFlatten = max(trailFlatten, trailCoverage);
+          trailBendVec +=
+            trailSegment * inversesqrt(trailSegmentLengthSq) * trailCoverage;
         }
+        vec2 trailBendDir =
+          dot(trailBendVec, trailBendVec) > 1e-6
+            ? normalize(trailBendVec)
+            : vec2(0.0);
 
         float grassFlatten = clamp(
           max(grassFlattenFromShadow, trailFlatten * 0.85),
           0.0,
           1.0
         );
-        transformed.z *= 1.0 - grassFlatten;
+
+        // Splay blades out of the tuft under the body, and lay the residual
+        // trail along the direction the tail travelled. A radial direction
+        // alone would look like a hole; the trail direction makes it a path.
+        vec2 grassBladeOffsetWorld = position.xy;
+        #ifdef USE_INSTANCING
+          grassBladeOffsetWorld = mat2(instanceMatrix[0].xy, instanceMatrix[1].xy) * position.xy;
+        #endif
+        vec2 grassSplayDir = normalize(grassBladeOffsetWorld + vec2(0.001, 0.001));
+        vec2 grassBendVec =
+          grassSplayDir * (grassFlattenFromShadow * 0.9) +
+          trailBendDir * trailFlatten;
+        vec2 grassBendDir =
+          dot(grassBendVec, grassBendVec) > 1e-6
+            ? normalize(grassBendVec)
+            : grassSplayDir;
+
+        // Lay the blade over instead of only shrinking it. The tip travels
+        // almost a full blade height along the bend direction, while the root
+        // stays anchored, which reads as crushed grass from the game camera.
+        transformed.z *= 1.0 - 0.94 * grassFlatten;
+
+        vec2 grassBendDirLocal = grassBendDir;
+        #ifdef USE_INSTANCING
+          vec2 grassRotX = normalize(instanceMatrix[0].xy);
+          vec2 grassRotY = normalize(instanceMatrix[1].xy);
+          grassBendDirLocal = vec2(
+            dot(grassBendDir, grassRotX),
+            dot(grassBendDir, grassRotY)
+          );
+        #endif
+        transformed.xy += grassBendDirLocal * (position.z * grassFlatten);
 
         vec4 mvPosition = vec4( transformed, 1.0 );
 
@@ -766,9 +810,11 @@ export class GrassRenderer {
             windAcross * 0.45
           ) * (0.03 + 0.08 * gust);
 
-        mvPosition.xy += grassWind * grassWindAmp * grassBend;
+        // Crushed blades stay down instead of springing back with the gust.
+        float grassWindScale = 1.0 - 0.8 * grassFlatten;
+        mvPosition.xy += grassWind * grassWindAmp * grassBend * grassWindScale;
         mvPosition.xy +=
-          grassWindSideDir * (flutter + shimmer) * grassBend * uWindStrength;
+          grassWindSideDir * (flutter + shimmer) * grassBend * uWindStrength * grassWindScale;
 
         vec4 grassWorld = modelMatrix * mvPosition;
         vec2 grassToPlayer = grassWorld.xy - uPlayerPos;
@@ -778,10 +824,9 @@ export class GrassRenderer {
         float grassPush = (1.0 - smoothstep(10.0, 28.0, grassDist)) * grassBend * 1.8;
         mvPosition.xy += (grassToPlayer / max(grassDist, 0.001)) * grassPush;
 
-        vGrassShadow = max(
-          clamp(shadowCoverage * 1.6, 0.0, 1.0) * uShadowStrength,
-          trailFlatten * 0.65
-        );
+        vGrassShadow =
+          clamp(shadowCoverage * 1.6, 0.0, 1.0) * uShadowStrength;
+        vGrassTrail = clamp(trailFlatten * 0.85, 0.0, 1.0);
 
         mvPosition = modelViewMatrix * mvPosition;
         gl_Position = projectionMatrix * mvPosition;
@@ -799,13 +844,16 @@ export class GrassRenderer {
       );
 
       shader.fragmentShader = `varying float vGrassShadow;
+      varying float vGrassTrail;
       uniform vec3 uShadowTint;
+      uniform vec3 uTrailTint;
       ${shader.fragmentShader}`;
 
       shader.fragmentShader = shader.fragmentShader.replace(
         "#include <color_fragment>",
         `#include <color_fragment>
         diffuseColor.rgb *= mix(vec3(1.0), uShadowTint, vGrassShadow);
+        diffuseColor.rgb *= mix(vec3(1.0), uTrailTint, vGrassTrail);
         `,
       );
 
