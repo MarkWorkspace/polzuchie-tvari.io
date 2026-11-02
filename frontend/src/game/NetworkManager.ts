@@ -26,6 +26,21 @@ export type PlayerSessionResult =
   | { ok: false; status: number | null; error: string };
 
 /**
+ * A frame response belongs to the in-flight request when its `requestId`
+ * matches. Responses without an id come from an older worker and are accepted
+ * for backward compatibility; once the main-side timeout fired there is no
+ * pending id, so a late numeric-id response is stale and must be dropped.
+ */
+export function isCurrentFrameResponse(
+  msg: { requestId?: unknown } | null | undefined,
+  pendingRequestId: number | null,
+): boolean {
+  const requestId = msg?.requestId;
+  if (typeof requestId !== "number" || !Number.isFinite(requestId)) return true;
+  return pendingRequestId !== null && requestId === pendingRequestId;
+}
+
+/**
  * Dev serves Vite on :5173 and the backend on :8000, so the session cookie must
  * be issued by the backend origin. Production serves the API on the same origin
  * under the nginx `/ws` prefix.
@@ -98,6 +113,9 @@ export class NetworkManager {
   private isWaitingForFrame = false;
   private frameTimeoutId: number | null = null;
   private connectGeneration = 0;
+  /** Monotonic across reconnects so a late reply can never match a new request. */
+  private requestSequence = 0;
+  private pendingRequestId: number | null = null;
 
   private onStatusChange?: (
     status: NetworkStatus,
@@ -159,9 +177,15 @@ export class NetworkManager {
   ): void {
     if (!this.worker || this.isWaitingForFrame) return;
 
+    const requestId = ++this.requestSequence;
     this.isWaitingForFrame = true;
+    this.pendingRequestId = requestId;
     this.frameTimeoutId = window.setTimeout(() => {
+      // Main-side fallback: allow the next request. A late worker reply keeps
+      // the old id and is ignored by isCurrentFrameResponse.
       this.isWaitingForFrame = false;
+      this.pendingRequestId = null;
+      this.frameTimeoutId = null;
     }, 100);
 
     this.worker.postMessage({
@@ -173,7 +197,7 @@ export class NetworkManager {
       spectatorCam,
       gridSize,
       localInput: input,
-      sentTime: performance.now(),
+      requestId,
     });
   }
 
@@ -184,11 +208,7 @@ export class NetworkManager {
       this.worker.terminate();
       this.worker = null;
     }
-    this.isWaitingForFrame = false;
-    if (this.frameTimeoutId !== null) {
-      window.clearTimeout(this.frameTimeoutId);
-      this.frameTimeoutId = null;
-    }
+    this.resolvePendingFrame();
   }
 
   public setCallbacks(callbacks: {
@@ -215,7 +235,17 @@ export class NetworkManager {
   }
 
   public clearWaitingForFrame(): void {
+    this.resolvePendingFrame();
+  }
+
+  /** Drop the in-flight request so its late reply cannot be applied. */
+  private resolvePendingFrame(): void {
     this.isWaitingForFrame = false;
+    this.pendingRequestId = null;
+    if (this.frameTimeoutId !== null) {
+      window.clearTimeout(this.frameTimeoutId);
+      this.frameTimeoutId = null;
+    }
   }
 
   private spawnWorker(nickname: string, skin: string, role: string): void {
@@ -237,13 +267,12 @@ export class NetworkManager {
       this.onPing?.(msg.latency);
     } else if (msg.type === "YOUR_ID") {
       this.onYourId?.(msg.your_id);
-    } else if (msg.type === "FRAME_DATA") {
-      this.isWaitingForFrame = false;
-      if (this.frameTimeoutId !== null) {
-        window.clearTimeout(this.frameTimeoutId);
-        this.frameTimeoutId = null;
-      }
-      this.onFrameData?.(msg);
+    } else if (msg.type === "FRAME_DATA" || msg.type === "FRAME_UNAVAILABLE") {
+      if (!isCurrentFrameResponse(msg, this.pendingRequestId)) return;
+      this.resolvePendingFrame();
+      // Unavailable frames keep the previous latestFrame on screen; they must
+      // never reach onFrameData because they carry no camX/camY/gameState.
+      if (msg.type === "FRAME_DATA") this.onFrameData?.(msg);
     }
   };
 }

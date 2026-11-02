@@ -59,15 +59,16 @@ frontend/
     │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа. Не UI, не сеть.
-    │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру + player-session bootstrap (POST /session). Не бизнес-логика.
-    │   ├── NetworkManager.test.ts      # ROLE: Тесты session bootstrap, WS URL без client_id и reconnect backoff.
+    │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру, requestId-корреляция кадров + player-session bootstrap (POST /session). Не бизнес-логика.
+    │   ├── NetworkManager.test.ts      # ROLE: Тесты session bootstrap, WS URL без client_id, reconnect backoff и requestId-корреляции кадров.
     │   ├── PlayerSessionLock.ts        # ROLE: Web Locks + BroadcastChannel: одна player-вкладка, takeover между вкладками. Не сеть и не UI.
     │   ├── SpectatorApp.ts             # ROLE: Ядро спектатора: камера, сеть, рендер; debug UI вынесен отдельно.
     │   ├── SpectatorDebugOverlay.ts    # ROLE: Админские debug-панели спектатора (статы, выбор змейки).
     │   ├── SpectatorCamera.ts          # ROLE: Камера спектатора: free-pan/zoom и плавное слежение за игроком.
     │   ├── spectatorCameraMath.ts     # ROLE: Чистая тороидальная дельта для follow-камеры.
     │   ├── spectatorCameraMath.test.ts # ROLE: Тесты перехода камеры через границу карты.
-    │   ├── Camera.ts                   # ROLE: Следование камеры, зум. Не рендеринг.
+    │   ├── Camera.ts                   # ROLE: Следование камеры, зум; не двигает камеру при нефинитных camX/camY. Не рендеринг.
+    │   ├── Camera.test.ts              # ROLE: Тесты finite-guard камеры (пустой кадр не даёт NaN-позу).
     │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
     ├── lib/
     │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
@@ -128,7 +129,8 @@ frontend/
     │       ├── blackHole.glsl.ts       # ROLE: Шейдер чёрной дыры.
     │       └── ground.glsl.ts          # ROLE: Шейдер пола: AA-сетка, процедурная фактура и distance fade.
     ├── worker/
-    │   ├── worker.ts                   # ROLE: Точка входа воркера, onmessage-роутер. Не содержит вычислений.
+    │   ├── worker.ts                   # ROLE: Точка входа воркера, onmessage-роутер, FRAME_DATA/FRAME_UNAVAILABLE с requestId. Не содержит вычислений.
+    │   ├── worker.test.ts              # ROLE: Тесты FRAME_UNAVAILABLE и проброса requestId из воркера.
     │   ├── StateInterpolation.ts       # ROLE: Очередь состояний, интерполяция между тиками.
     │   ├── SplineComputer.ts           # ROLE: Расчёт 3D-сплайнов змеек.
     │   ├── MeshBuilder.ts              # ROLE: Сборка vertex/index-буферов из сплайнов.

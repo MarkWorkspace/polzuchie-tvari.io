@@ -24,6 +24,19 @@ let currentGameState: GameState | null = null;
 let myId = "";
 let accumulatedKillEvents: any[] = [];
 
+/**
+ * A request-scoped "no frame yet" reply. It carries no camera/game state, so
+ * the main thread only clears its pending request instead of applying it.
+ */
+export function buildFrameUnavailable(requestId?: number): {
+  type: "FRAME_UNAVAILABLE";
+  requestId?: number;
+} {
+  return requestId === undefined
+    ? { type: "FRAME_UNAVAILABLE" }
+    : { type: "FRAME_UNAVAILABLE", requestId };
+}
+
 // Reusable geometry buffers to avoid garbage collection
 const bodyBufs: GeometryBuffers = {
   vertices: new GrowableFloat32Array(),
@@ -121,34 +134,20 @@ function _handleClose() {
   accumulatedKillEvents = [];
 }
 
-function _handleRequestFrame(msg: any) {
-  if (typeof msg.sentTime === "number" && performance.now() - msg.sentTime > 100) {
-    ctx.postMessage({
-      type: "FRAME_DATA",
-      eyeCount: 0,
-      pupilCount: 0,
-      particleCount: 0,
-      foodCount: 0,
-      portalCount: 0,
-      blackHoleCount: 0,
-    });
-    return;
-  }
+function _requestIdOf(msg: any): number | undefined {
+  return typeof msg?.requestId === "number" && Number.isFinite(msg.requestId)
+    ? msg.requestId
+    : undefined;
+}
 
+function _handleRequestFrame(msg: any) {
+  const requestId = _requestIdOf(msg);
   const { dt, localInput, gridSize, isSpectator, showAllInMainCopy, spectatorCam } = msg;
   const tickRate = currentGameState?.server_simulation?.tick_rate ?? 30;
 
   const interpolated = interpolator.interpolate(dt, tickRate);
   if (!interpolated) {
-    ctx.postMessage({
-      type: "FRAME_DATA",
-      eyeCount: 0,
-      pupilCount: 0,
-      particleCount: 0,
-      foodCount: 0,
-      portalCount: 0,
-      blackHoleCount: 0,
-    });
+    ctx.postMessage(buildFrameUnavailable(requestId));
     return;
   }
 
@@ -176,17 +175,10 @@ function _handleRequestFrame(msg: any) {
     );
 
     accumulatedKillEvents = [];
+    if (requestId !== undefined) frame.payload.requestId = requestId;
     ctx.postMessage(frame.payload, frame.transferables);
   } catch (error) {
     console.error("[Worker] Frame computation error:", error);
-    ctx.postMessage({
-      type: "FRAME_DATA",
-      eyeCount: 0,
-      pupilCount: 0,
-      particleCount: 0,
-      foodCount: 0,
-      portalCount: 0,
-      blackHoleCount: 0,
-    });
+    ctx.postMessage(buildFrameUnavailable(requestId));
   }
 }

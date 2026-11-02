@@ -6,7 +6,9 @@ import {
   buildSessionUrl,
   clearLegacyClientId,
   ensurePlayerSession,
+  isCurrentFrameResponse,
   LEGACY_CLIENT_ID_STORAGE_KEY,
+  NetworkManager,
 } from "./NetworkManager";
 
 class FakeWebSocket {
@@ -117,6 +119,99 @@ describe("game WebSocket URL", () => {
       "wss://game.example/ws/?nickname=%D0%A1%D0%BF%D0%B5%D0%BA%D1%82%D0%B0%D1%82%D0%BE%D1%80&skin=spectator&role=spectator",
     );
     expect(prodUrl).not.toContain("client_id");
+  });
+});
+
+describe("frame request correlation", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  function createManager() {
+    vi.useFakeTimers();
+    vi.stubGlobal("window", {
+      setTimeout: (handler: () => void, timeout: number) =>
+        globalThis.setTimeout(handler, timeout) as unknown as number,
+      clearTimeout: (id: number) => globalThis.clearTimeout(id),
+    });
+
+    const manager = new NetworkManager();
+    const postMessage = vi.fn();
+    (manager as any).worker = { postMessage };
+    const frames: any[] = [];
+    manager.setCallbacks({ onFrameData: (msg) => frames.push(msg) });
+    return { manager, postMessage, frames };
+  }
+
+  function deliver(manager: NetworkManager, msg: any): void {
+    (manager as any).handleWorkerMessage({ data: msg } as MessageEvent);
+  }
+
+  it("accepts matching and legacy responses, rejects stale ids", () => {
+    expect(isCurrentFrameResponse({ requestId: 2 }, 2)).toBe(true);
+    expect(isCurrentFrameResponse({ requestId: 1 }, 2)).toBe(false);
+    expect(isCurrentFrameResponse({}, 2)).toBe(true);
+    expect(isCurrentFrameResponse({ requestId: 2 }, null)).toBe(false);
+    expect(isCurrentFrameResponse({ requestId: Number.NaN }, 2)).toBe(true);
+  });
+
+  it("tags each request and ignores a stale FRAME_DATA", () => {
+    const { manager, postMessage, frames } = createManager();
+
+    manager.requestFrame(0.016, "me", { turn: 0 });
+    const request = postMessage.mock.calls[0][0];
+    expect(request.requestId).toBe(1);
+    expect(request).not.toHaveProperty("sentTime");
+    expect(manager.getWaitingForFrame()).toBe(true);
+
+    // One in-flight request at a time.
+    manager.requestFrame(0.016, "me", { turn: 0 });
+    expect(postMessage).toHaveBeenCalledTimes(1);
+
+    deliver(manager, { type: "FRAME_DATA", requestId: 999, camX: 1, camY: 2 });
+    deliver(manager, { type: "FRAME_UNAVAILABLE", requestId: 999 });
+    expect(frames).toHaveLength(0);
+    expect(manager.getWaitingForFrame()).toBe(true);
+
+    deliver(manager, { type: "FRAME_DATA", requestId: 1, camX: 1, camY: 2 });
+    expect(frames).toHaveLength(1);
+    expect(manager.getWaitingForFrame()).toBe(false);
+  });
+
+  it("clears the pending request on FRAME_UNAVAILABLE without emitting a frame", () => {
+    const { manager, postMessage, frames } = createManager();
+
+    manager.requestFrame(0.016, "me", { turn: 0 });
+    deliver(manager, { type: "FRAME_UNAVAILABLE", requestId: 1 });
+
+    expect(frames).toHaveLength(0);
+    expect(manager.getWaitingForFrame()).toBe(false);
+
+    // The next tick may request again with a fresh id.
+    manager.requestFrame(0.016, "me", { turn: 0 });
+    expect(postMessage.mock.calls[1][0].requestId).toBe(2);
+  });
+
+  it("accepts a legacy FRAME_DATA without a request id", () => {
+    const { manager, frames } = createManager();
+
+    manager.requestFrame(0.016, "me", { turn: 0 });
+    deliver(manager, { type: "FRAME_DATA", camX: 1, camY: 2 });
+
+    expect(frames).toHaveLength(1);
+    expect(manager.getWaitingForFrame()).toBe(false);
+  });
+
+  it("ignores a response that arrives after the main-side timeout", () => {
+    const { manager, frames } = createManager();
+
+    manager.requestFrame(0.016, "me", { turn: 0 });
+    vi.advanceTimersByTime(100);
+    expect(manager.getWaitingForFrame()).toBe(false);
+
+    deliver(manager, { type: "FRAME_DATA", requestId: 1, camX: 1, camY: 2 });
+    expect(frames).toHaveLength(0);
   });
 });
 

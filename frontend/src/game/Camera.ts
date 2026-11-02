@@ -24,6 +24,10 @@ export class GameCamera {
   }
 
   private updatePositionAndRotation(camera: THREE.PerspectiveCamera, msg: any, myId: string): void {
+    // FRAME_UNAVAILABLE and legacy empty frames carry no camera target. Keep the
+    // last pose instead of turning `undefined + offset` into a NaN camera.
+    if (!Number.isFinite(msg?.camX) || !Number.isFinite(msg?.camY)) return;
+
     const gameState = msg.gameState;
     const serverVisual = gameState?.server_visual;
     const cameraBaseZoom = serverVisual?.camera_base_zoom ?? 1.0;
