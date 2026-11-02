@@ -1,15 +1,50 @@
-// ROLE: Unit tests for the pre-login Worker/WebGL2 feature probe.
+// ROLE: Unit tests for the pre-login Worker/WebGL2 probe and lazy Game loader.
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+const gameModuleFactory = vi.hoisted(() => vi.fn(() => ({ Game: class FakeGame {} })));
+vi.mock("./Game", gameModuleFactory);
 
 type RuntimeSupportModule = typeof import("./bootstrap");
 
 let checkRuntimeSupport: RuntimeSupportModule["checkRuntimeSupport"];
+let loadGameModule: RuntimeSupportModule["loadGameModule"];
 
 beforeAll(async () => {
   // The bootstrap graph reads window at module scope (mobile detection), but
   // the probe itself must work with an injected environment.
   vi.stubGlobal("window", { innerWidth: 1024 });
-  ({ checkRuntimeSupport } = await import("./bootstrap"));
+  ({ checkRuntimeSupport, loadGameModule } = await import("./bootstrap"));
+});
+
+describe("loadGameModule", () => {
+  it("does not evaluate the Game module until the player starts", async () => {
+    expect(gameModuleFactory).not.toHaveBeenCalled();
+
+    const module = await loadGameModule();
+
+    expect(gameModuleFactory).toHaveBeenCalledTimes(1);
+    expect(typeof module.Game).toBe("function");
+  });
+
+  it("delegates to an injected loader", async () => {
+    const fakeModule = { Game: class FakeGame {} } as unknown as Awaited<
+      ReturnType<RuntimeSupportModule["loadGameModule"]>
+    >;
+    const loader = vi.fn(async () => fakeModule);
+
+    await expect(loadGameModule(loader)).resolves.toBe(fakeModule);
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates chunk-loading failures", async () => {
+    const failure = new Error("chunk failed");
+
+    await expect(
+      loadGameModule(async () => {
+        throw failure;
+      }),
+    ).rejects.toBe(failure);
+  });
 });
 
 describe("checkRuntimeSupport", () => {

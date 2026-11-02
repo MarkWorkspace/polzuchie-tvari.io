@@ -103,6 +103,12 @@
   пока не выполняется, нужен reload.
 - Runtime-проверка Worker/WebGL2 выполняется до login; при отсутствии
   поддержки показывается понятная ошибка вместо пустого экрана.
+- Игровой bundle загружается лениво: `bootstrap` не импортирует `Game`
+  статически, `Game`/`SceneManager`/Three подтягиваются динамическим import
+  только после Play; login остаётся видимым с busy-состоянием, пока chunk
+  грузится. Сборка выносит `three`/`postprocessing` в `vendor-three`,
+  React/ReactDOM — в `vendor-react`; ошибка загрузки chunk возвращается в
+  login, а не оставляет пустой экран.
 
 ## Архитектурные инварианты
 
@@ -154,6 +160,9 @@
   пересобираются, поэтому пользователю предлагается reload (M6-13).
 - **SSAO временно выключен** флагом в `PostProcessing.buildPipeline`; код
   оставлен компилируемым до визуальной приёмки contact shadow.
+- **Крупный `vendor-three` chunk.** Three/postprocessing (~646 kB minified)
+  вынесен из login-графа, но остаётся отдельным тяжёлым chunk'ом после Play;
+  предупреждение Vite о размере >500 kB сохраняется.
 - **Крупные god-объекты.** `World` и `SceneManager` остаются точками
   сопровождения; их разделение — M6-08/M6-09.
 - **Ручной Protobuf-декодер.** `ProtoFrameDecoder.ts` не использует runtime

@@ -1,4 +1,4 @@
-// ROLE: Lazy game UI bootstrap (login, HUD, game lifecycle). Not network or renderer logic.
+// ROLE: Lazy game UI bootstrap (login, HUD, on-demand Game/Three import, game lifecycle). Not network or renderer logic.
 
 import { t } from "../lib/i18n";
 import { Minimap } from "../ui/Minimap";
@@ -11,8 +11,23 @@ import { mountLoginScreen } from "../ui/react/mountLoginScreen";
 import { mountSessionMovedScreen } from "../ui/react/mountSessionMovedScreen";
 import { mountSettingsPanel } from "../ui/react/mountSettingsPanel";
 import { SteeringIndicator } from "../ui/SteeringIndicator";
-import { Game } from "./Game";
+import type { Game } from "./Game";
 import { PlayerSessionLock } from "./PlayerSessionLock";
+
+/** Only the class is needed; the module type keeps the dynamic import typed. */
+export interface GameModule {
+  Game: new (container: HTMLDivElement) => Game;
+}
+
+/**
+ * Load the heavy Game/Three bundle on demand. Kept as an injectable helper so
+ * tests can verify that no static import pulls the renderer into the login chunk.
+ */
+export function loadGameModule(
+  loader: () => Promise<GameModule> = () => import("./Game"),
+): Promise<GameModule> {
+  return loader();
+}
 
 export type RuntimeSupport = { ok: true } | { ok: false; reason: "worker" | "webgl2" };
 
@@ -65,21 +80,31 @@ export function showLoginScreen(app: HTMLDivElement): void {
   const sessionLock = new PlayerSessionLock();
   let unmountLogin: (() => void) | null = null;
   let stopGame: (() => void) | null = null;
+  let sessionTakenOver = false;
 
-  const beginGame = (nickname: string, skin: string): void => {
+  const beginGame = async (nickname: string, skin: string): Promise<void> => {
     stopGame?.();
     stopGame = null;
-    unmountLogin?.();
-    unmountLogin = null;
     try {
-      stopGame = launchGame(app, nickname, skin);
+      // Keep the login (and its busy state) visible while the heavy chunk loads.
+      const stop = await launchGame(app, nickname, skin, () => sessionTakenOver);
+      if (sessionTakenOver) {
+        stop();
+        return;
+      }
+      // Only a successfully started game may be stopped later.
+      stopGame = stop;
+      unmountLogin?.();
+      unmountLogin = null;
     } catch (error) {
+      if (sessionTakenOver) return;
       console.error("[Bootstrap] Failed to start the game", error);
-      showStartupError(app, t("error.title"), t("session.startFailed"));
+      throw error;
     }
   };
 
   sessionLock.onTakeOver(() => {
+    sessionTakenOver = true;
     stopGame?.();
     stopGame = null;
     unmountLogin?.();
@@ -99,7 +124,7 @@ export function showLoginScreen(app: HTMLDivElement): void {
         return "busy";
       }
       try {
-        beginGame(nickname, skin);
+        await beginGame(nickname, skin);
       } catch (error) {
         sessionLock.release();
         throw error;
@@ -112,7 +137,7 @@ export function showLoginScreen(app: HTMLDivElement): void {
         return "timeout";
       }
       try {
-        beginGame(nickname, skin);
+        await beginGame(nickname, skin);
       } catch (error) {
         sessionLock.release();
         throw error;
@@ -125,7 +150,15 @@ export function showLoginScreen(app: HTMLDivElement): void {
   });
 }
 
-function launchGame(app: HTMLDivElement, nickname: string, skin: string): () => void {
+async function launchGame(
+  app: HTMLDivElement,
+  nickname: string,
+  skin: string,
+  isCancelled: () => boolean = () => false,
+): Promise<() => void> {
+  const { Game } = await loadGameModule();
+  if (isCancelled()) return () => {};
+
   const cleanups: Array<() => void> = [];
   let stopped = false;
   const stop = (): void => {

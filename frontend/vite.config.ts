@@ -1,4 +1,4 @@
-// ROLE: Конфигурация Vite (сборка) и Vitest (тесты). Единственная точка настройки фронтенд-сборки и тестов.
+// ROLE: Конфигурация Vite (сборка с vendor-chunks) и Vitest (тесты). Единственная точка настройки фронтенд-сборки и тестов.
 
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
@@ -19,6 +19,28 @@ export default defineConfig({
   plugins: [react()],
   server: { proxy: backendProxy },
   preview: { proxy: backendProxy },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Keep large third-party libraries in cacheable chunks. Three/postprocessing
+        // are only reachable from the dynamically imported game/spectator modules.
+        codeSplitting: {
+          groups: [
+            {
+              name: "vendor-react",
+              test: /[\\/]node_modules[\\/](?:react|react-dom|scheduler)[\\/]/,
+              priority: 20,
+            },
+            {
+              name: "vendor-three",
+              test: /[\\/]node_modules[\\/](?:three|postprocessing)[\\/]/,
+              priority: 10,
+            },
+          ],
+        },
+      },
+    },
+  },
   test: {
     // Математика и декодер работают в чистом node — DOM не нужен.
     environment: "node",

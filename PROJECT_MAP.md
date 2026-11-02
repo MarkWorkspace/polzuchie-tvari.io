@@ -41,7 +41,7 @@
 ```
 frontend/
 ├── index.html
-├── vite.config.ts
+├── vite.config.ts                      # ROLE: Vite/Vitest config; production build выносит three/postprocessing и React в отдельные vendor-chunks.
 ├── package.json
 ├── package-lock.json
 ├── tsconfig.json                       # ROLE: Production TypeScript config (strict, excludes tests).
@@ -82,8 +82,8 @@ frontend/
     ├── assets/                         # ROLE: Статические изображения/логотипы Vite-шаблона; не игровые текстуры.
     ├── main.ts                         # ROLE: Route selection and lazy loading; no game logic.
     ├── game/
-    │   ├── bootstrap.ts                # ROLE: Lazy game UI bootstrap (runtime Worker/WebGL2 check, login, HUD, game lifecycle, startup error overlay).
-    │   ├── bootstrap.test.ts           # ROLE: Тесты pre-login проверки Worker/WebGL2 через checkRuntimeSupport.
+    │   ├── bootstrap.ts                # ROLE: Lazy game UI bootstrap (runtime Worker/WebGL2 check, login, HUD, dynamic Game/Three import on Play, startup error overlay).
+    │   ├── bootstrap.test.ts           # ROLE: Тесты pre-login проверки Worker/WebGL2 и ленивого Game-модуля через loadGameModule.
     │   ├── spectatorBootstrap.ts       # ROLE: Lazy spectator bootstrap; выбирает player-HUD или debug-панели.
     │   ├── spectatorMode.ts            # ROLE: Чистый разбор `?spectator=` / `?debug=` в player/debug режим.
     │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
