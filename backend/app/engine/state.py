@@ -63,6 +63,11 @@ class World:
         self.tombstones = []
         self.tombstone_seq = 0
         self.spatial_grid = {}
+        # Monotonic frame sequence, advanced exactly once per tick by the
+        # orchestrator. Every client frame built from the same tick carries the
+        # same value, so a client can detect a gap or a duplicate.
+        self.frame_seq = 0
+        self.server_tick = 0
         # Disconnected players/spectators are removed by the tick orchestrator,
         # not by the connection lifecycle, so death killfeed entries and food
         # drops land in the tick that reports them.
@@ -591,6 +596,8 @@ class World:
 
     def reset_state(self):
         self.restart_epoch += 1
+        self.frame_seq = 0
+        self.server_tick = 0
         self.players.clear()
         self.spectators.clear()
         self.client_visibility.clear()

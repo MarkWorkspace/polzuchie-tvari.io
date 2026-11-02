@@ -2010,6 +2010,7 @@
       "y": 44.21
     }
   ],
+  "frame_seq": 2,
   "moved_foods": [
     {
       "id": 17,
@@ -2189,6 +2190,7 @@
     "start_length": 9,
     "start_score": 1
   },
+  "server_tick": 2,
   "server_tick_rate": 30,
   "server_visual": {
     "camera_base_zoom": 7.0,

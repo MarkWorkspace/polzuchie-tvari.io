@@ -16,7 +16,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.engine.systems import snake_pb2
 from app.engine.systems.serialization import populate_player_message
-from tests.frame_scenario import build_deterministic_world, build_full_and_delta_world
+from tests.frame_scenario import (
+    AOI_TICKS,
+    DELTA_TICKS,
+    build_deterministic_world,
+    build_full_and_delta_world,
+)
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tests_shared", "golden_frames")
 
@@ -298,3 +303,83 @@ def test_alive_player_does_not_emit_final_length(in_aoi, is_full):
 
     msg = _player_message(player, in_aoi=in_aoi, is_full=is_full)
     assert not msg.HasField("final_length")
+
+
+# --- frame_seq / server_tick (M3-05). ---
+
+
+def test_full_and_delta_carry_frame_sequence(fresh_world_frames):
+    _world, full_frame, delta_frame = fresh_world_frames
+
+    for frame in (full_frame, delta_frame):
+        assert frame.HasField("frame_seq")
+        assert frame.HasField("server_tick")
+        assert frame.frame_seq == frame.server_tick
+        # The fields are distinct from server_tick_rate (field 2).
+        assert frame.frame_seq != frame.server_tick_rate
+
+    # Each tick advances the sequence once, across the FULL -> DELTA boundary.
+    assert full_frame.frame_seq == AOI_TICKS
+    assert delta_frame.frame_seq == AOI_TICKS + DELTA_TICKS
+
+
+def test_all_clients_in_one_tick_share_frame_sequence():
+    world = build_deterministic_world()
+    world.tick()
+    tick_seq = world.frame_seq
+
+    full_a = world.get_full_state("player_aoi")
+    full_b = world.get_full_state("player_far", serialize_proto=True)
+    delta = world.get_delta_state("player_new", is_full=False)
+
+    assert tick_seq > 0
+    assert full_a.frame_seq == tick_seq
+    assert full_a.server_tick == tick_seq
+    decoded_b = snake_pb2.GameStateFrame()
+    decoded_b.ParseFromString(full_b)
+    assert decoded_b.frame_seq == tick_seq
+    assert delta.frame_seq == tick_seq
+
+
+def test_serializing_a_client_does_not_advance_frame_sequence():
+    world = build_deterministic_world()
+    world.tick()
+    after_tick = world.frame_seq
+
+    for client_id in ("player_aoi", "player_far", "player_new"):
+        world.get_delta_state(client_id, is_full=True)
+        world.get_delta_state(client_id, is_full=False)
+
+    # The counter belongs to the tick, not to the number of connected clients.
+    assert world.frame_seq == after_tick
+    assert world.server_tick == after_tick
+
+
+def test_frame_sequence_advances_exactly_once_per_tick():
+    world = build_deterministic_world()
+    start = world.frame_seq
+
+    world.tick()
+    assert world.frame_seq == start + 1
+    assert world.server_tick == world.frame_seq
+
+    world.get_delta_state("player_aoi")
+    world.get_full_state("player_aoi")
+    assert world.frame_seq == start + 1
+
+    world.tick()
+    assert world.frame_seq == start + 2
+
+
+def test_reset_state_zeroes_frame_sequence():
+    world = build_deterministic_world()
+    world.tick()
+    world.tick()
+    assert world.frame_seq == 2
+
+    world.reset_state()
+
+    assert world.frame_seq == 0
+    assert world.server_tick == 0
+    assert world.get_delta_state("player_aoi").frame_seq == 0
+    assert world.get_full_state("player_aoi").server_tick == 0

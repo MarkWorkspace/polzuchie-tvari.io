@@ -352,6 +352,8 @@ function decodeFrameFieldExtended(r: Reader, frame: Record<string, any>, tag: nu
   else if (field === 16) frame.server_food = decodeFoodConfig(readBytes(r));
   else if (field === 17) frame.your_id = readString(r);
   else if (field === 18) frame.restart_message = readString(r);
+  else if (field === 19) frame.frame_seq = readVarint(r);
+  else if (field === 20) frame.server_tick = readVarint(r);
   else skipField(r, tag & 7);
 }
 

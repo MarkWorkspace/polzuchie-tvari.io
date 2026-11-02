@@ -45,6 +45,7 @@ WS_MAX_CLIENT_MESSAGE_BYTES = 4096
 
 
 async def process_client(client_id, connection, world):
+    resync_epoch = connection.get("resync_epoch", 0)
     is_full_sync = connection.get("needs_full_sync", False)
     if is_full_sync and connection["queue"].full():
         # A FULL is already waiting for the sender. Building another one every
@@ -81,6 +82,12 @@ async def process_client(client_id, connection, world):
 
     compressed = await asyncio.to_thread(zlib.compress, state_bytes, 1)
     status = replace_queued_state(connection["queue"], (compressed, visible_players, is_full_sync))
+    # A RESYNC can arrive while the frame above is built off-loop. Its request
+    # must survive: a DELTA in flight is based on the old chain, so a FULL still
+    # has to follow. A FULL in flight already is the resync point.
+    if connection.get("resync_epoch", 0) != resync_epoch:
+        connection["needs_full_sync"] = not is_full_sync
+        return
     # Only a replaced DELTA leaves a hole in the delta chain. A queued FULL or a
     # dropped DELTA behind a pending FULL is already a resync point, so asking
     # for another FULL here would start a storm on a slow client.

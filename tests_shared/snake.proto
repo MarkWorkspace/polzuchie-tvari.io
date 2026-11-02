@@ -168,4 +168,9 @@ message GameStateFrame {
 
   optional string your_id = 17;
   optional string restart_message = 18;
+
+  // Monotonic frame sequence and the server tick it was built from. Both are
+  // identical for every client in the same tick and reset by a world restart.
+  optional uint32 frame_seq = 19;
+  optional uint32 server_tick = 20;
 }

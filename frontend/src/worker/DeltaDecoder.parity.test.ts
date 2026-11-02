@@ -66,6 +66,10 @@ describe("Frame parity (golden fixtures)", () => {
     expect(state.foods.length).toBe((expected["foods"] as unknown[]).length);
     expect(state.portals).toBeDefined();
     expect(state.server_tick_rate).toBe(expected["server_tick_rate"]);
+    // frame_seq/server_tick are distinct from server_tick_rate (field 2).
+    expect(parsed.frame_seq).toBe(expected["frame_seq"]);
+    expect(parsed.server_tick).toBe(expected["server_tick"]);
+    expect(parsed.frame_seq).not.toBe(parsed.server_tick_rate);
   });
 
   it("decodes DELTA frame and matches expected structure", () => {
@@ -116,6 +120,10 @@ describe("Frame parity (golden fixtures)", () => {
     }
 
     expect(state.server_tick_rate).toBe(expected["server_tick_rate"]);
+    // The DELTA continues the FULL's tick sequence by exactly one tick.
+    expect(parsed.frame_seq).toBe(expected["frame_seq"]);
+    expect(parsed.server_tick).toBe(expected["server_tick"]);
+    expect(parsed.frame_seq).toBe(fullParsed.frame_seq + 1);
   });
 
   it("clears portals, black holes, and tombstones when they are undefined in the delta payload", () => {

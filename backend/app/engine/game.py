@@ -31,3 +31,9 @@ def tick(state) -> None:
     registry.update_all(state)
 
     state.food_manager.ensure_target_count()
+
+    # Exactly one seq bump per tick, after every system has mutated the world.
+    # The broadcast loop only reads it: frames for all clients of this tick share
+    # the same frame_seq, and a client sees a gap when one is skipped.
+    state.server_tick = (state.server_tick + 1) & 0xFFFFFFFF
+    state.frame_seq = state.server_tick

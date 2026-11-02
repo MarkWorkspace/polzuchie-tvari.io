@@ -153,7 +153,7 @@ frontend/
     │       ├── GrowableArray.test.ts   # ROLE: Тесты копирования буферов (без SharedArrayBuffer alias).
     │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex, glow-тинт для специальных скинов.
     │       ├── ColorUtils.test.ts      # ROLE: Тесты парсинга цветов и glow-тинтов скинов.
-    │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame/Player (включая final_length) для воркера. Не генерирует и не кодирует сообщения.
+    │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame/Player (включая final_length и frame_seq/server_tick) для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
     │   ├── Minimap.test.ts             # ROLE: Тесты разбора lightweight-игроков для миникарты.
@@ -242,7 +242,7 @@ backend/
     │   ├── admin.py                    # ROLE: Admin REST API, config read/write (503 на сбой apply/save) и restart с draining/очисткой соединений. Не игровая логика.
     │   ├── config_schema.py            # ROLE: Pydantic-схема PATCH /admin/config из dataclass'ов GameConfig. Без диапазонов значений.
     │   ├── session.py                  # ROLE: Player session store + POST/DELETE /session cookie и resolver для WS. WS-аутентификацию выполняет websocket.py.
-    │   └── websocket.py                # ROLE: WebSocket endpoint: Origin allowlist, per-IP handshake bucket, role caps via pending reservation, cookie-auth identity, epoch/reconnect grace, draining admission. Не игровая логика.
+    │   └── websocket.py                # ROLE: WebSocket endpoint: Origin allowlist, per-IP handshake bucket, role caps via pending reservation, cookie-auth identity, epoch/reconnect grace, draining admission, RESYNC→FULL с cooldown. Не игровая логика.
     ├── bots/
     │   ├── __init__.py                 # ROLE: Изолированный пакет ботов; удаляется вместе с 3 engine-хуками.
     │   ├── manager.py                  # ROLE: Lifecycle/спавн/респавн ботов, personalities и сглаживание руления. Без сети и рендера.
@@ -251,7 +251,7 @@ backend/
         ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
         ├── registry.py                 # ROLE: Авто-дискавери и порядок систем.
         ├── events.py                   # ROLE: Синхронная шина событий.
-        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка и транзакционное сохранение конфигурации (backup/rollback), управление игроками, draining/restart_epoch. Не содержит игровой логики тика.
+        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка и транзакционное сохранение конфигурации (backup/rollback), управление игроками, draining/restart_epoch, счётчики frame_seq/server_tick. Не содержит игровой логики тика.
         ├── entities.py                 # ROLE: Датаклассы Player, Food, Portal, BlackHole. Только структуры данных.
         ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн, live-пересчёт радиусов.
         ├── world_elements/
@@ -270,7 +270,7 @@ backend/
             ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
             ├── visibility.py           # ROLE: AoI-фильтрация видимых игроков.
             ├── formula_parser.py       # ROLE: Единственный AST compile/eval формул роста: validation и runtime. Не regex-парсер.
-            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, truth table body/new_heads/body_truncated/final_length, кэши игроков.
+            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, truth table body/new_heads/body_truncated/final_length, frame_seq/server_tick, кэши игроков.
             └── snake_pb2.py            # ROLE: [СГЕНЕРИРОВАНО] Python-модуль Protobuf.
 ```
 
@@ -303,6 +303,7 @@ backend/tests/
 ├── test_physics.py                     # ROLE: Тесты физики движения.
 ├── test_player_session.py              # ROLE: Player session cookie/store и WS cookie-auth: флаги cookie, reuse, delete, TTL, cap, rate limit, reconnect identity, spectator isolation.
 ├── test_reconnect_race.py              # ROLE: Reconnect epoch, ownership FULL-send, delayed-remove vs новая сессия/grace-boundary, отмена pending, restart draining и отсутствие ghost.
+├── test_resync.py                      # ROLE: Клиентский RESYNC: cooldown на соединение, дренаж очереди, ровно один FULL без шторма, PING/input не ломаются.
 ├── test_serialization_cache_race.py    # ROLE: Позднее подключение игрока не вызывает KeyError в кэше кадра.
 ├── test_server_resilience.py           # ROLE: Сбой сериализации одного клиента не убивает game loop.
 ├── test_spectator_identity.py          # ROLE: Cookie-auth identity; spectator не переиспользует player id; неудачный handshake не оставляет призрака.
@@ -322,7 +323,7 @@ backend/tests/
 
 ```
 tests_shared/
-├── snake.proto                     # ROLE: Protobuf-схема сетевого протокола обмена (Player.body/new_heads/length/final_length/body_truncated).
+├── snake.proto                     # ROLE: Protobuf-схема сетевого протокола обмена (Player.body/new_heads/length/final_length/body_truncated; frame_seq/server_tick кадра).
 ├── golden_vectors/
 │   └── math.json                       # Эталонные векторы для тороидальной математики (25 кейсов).
 └── golden_frames/

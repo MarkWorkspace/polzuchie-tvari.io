@@ -44,6 +44,11 @@ CLOSE_SPECTATOR_CAPACITY = 4003
 CLOSE_TOO_MANY_ATTEMPTS = 4029
 RATE_LIMIT_PER_SECOND = 50
 MAX_CLIENT_MESSAGE_LENGTH = 32
+RESYNC_MESSAGE = "RESYNC"
+# A client may ask for a FULL at most once per second. Without the cooldown a
+# client stuck on a decode error would force a FULL every tick, which is more
+# expensive than the DELTA it is failing to apply.
+RESYNC_COOLDOWN_SECONDS = 1.0
 VALID_SKINS = frozenset({"zebra", "tiger", "rainbow", "cyberpunk"})
 HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 NICKNAME_MAX_LENGTH = 16
@@ -429,11 +434,45 @@ def _claim_connection(client_id: str, websocket: WebSocket, role: str = "player"
         "queue": asyncio.Queue(maxsize=1),
         "task": None,
         "needs_full_sync": False,
+        "last_resync_at": None,
+        "resync_epoch": 0,
         "epoch": _next_connection_epoch(),
         "role": role,
     }
     active_connections[client_id] = connection
     return connection
+
+
+def request_resync(connection: dict, now: float | None = None) -> bool:
+    """Handle a client ``RESYNC``: request one FULL and drop stale frames.
+
+    Returns True when the request was accepted. Repeated requests inside
+    ``RESYNC_COOLDOWN_SECONDS`` are ignored, so a client that keeps failing
+    cannot turn every tick into a FULL build.
+
+    Draining the one-slot queue discards a DELTA whose chain the client has
+    already broken. The FULL built on a following tick supersedes it; the
+    ``resync_epoch`` bump keeps ``process_client`` from clearing the flag after
+    a build that was already in flight when the request arrived.
+    """
+    if now is None:
+        now = asyncio.get_running_loop().time()
+    last = connection.get("last_resync_at")
+    if last is not None and now - last < RESYNC_COOLDOWN_SECONDS:
+        return False
+
+    connection["last_resync_at"] = now
+    connection["needs_full_sync"] = True
+    connection["resync_epoch"] = connection.get("resync_epoch", 0) + 1
+
+    queue = connection.get("queue")
+    if queue is not None:
+        while True:
+            try:
+                queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+    return True
 
 
 async def _send_full_state(client_id: str, websocket: WebSocket, world) -> None:
@@ -447,7 +486,9 @@ def _start_sender(client_id: str, connection: dict, world) -> None:
     )
 
 
-async def _run_receive_loop(client_id: str, websocket: WebSocket, world):
+async def _run_receive_loop(
+    client_id: str, websocket: WebSocket, world, connection: dict | None = None
+):
     msg_timestamps = deque()
     while True:
         data = await websocket.receive_text()
@@ -462,6 +503,12 @@ async def _run_receive_loop(client_id: str, websocket: WebSocket, world):
         msg_timestamps.append(now)
 
         if data.startswith("SCORE:"):
+            continue
+
+        if data == RESYNC_MESSAGE:
+            # Never an input action: only the connection's resync state changes.
+            if connection is not None:
+                request_resync(connection, now)
             continue
 
         if data.startswith("PING:"):
@@ -687,7 +734,7 @@ async def websocket_endpoint(
             closed = True
             await websocket.close(code=1012, reason="Server restarting")
             return
-        await _run_receive_loop(client_id, websocket, world)
+        await _run_receive_loop(client_id, websocket, world, connection)
     except Exception:
         logger.debug("WebSocket session failed", exc_info=True)
     finally:

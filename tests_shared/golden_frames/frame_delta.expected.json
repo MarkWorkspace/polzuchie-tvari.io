@@ -8,6 +8,7 @@
       "y": 63.02
     }
   ],
+  "frame_seq": 3,
   "moved_foods": [
     {
       "id": 17,
@@ -70,6 +71,7 @@
       "y2": 76.67
     }
   ],
+  "server_tick": 3,
   "server_tick_rate": 30,
   "type": "DELTA"
 }

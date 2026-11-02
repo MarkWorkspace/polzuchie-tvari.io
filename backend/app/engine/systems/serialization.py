@@ -287,6 +287,10 @@ def _assemble_final_frame(state, is_full: bool, client_id: str = None) -> snake_
         else snake_pb2.GameStateFrame.FrameType.DELTA
     )
     frame.server_tick_rate = state.config.simulation.tick_rate
+    # Shared per-tick sequence: FULL, DELTA, handshake full state and config
+    # broadcasts all carry the seq of the tick the state was built from.
+    frame.frame_seq = state.frame_seq
+    frame.server_tick = state.server_tick
 
     _assemble_entities(frame, state, client_id)
     _assemble_structures(frame, state)
