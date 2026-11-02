@@ -319,6 +319,33 @@ export class GrassRenderer {
     this.scene.add(this.rootMesh);
   }
 
+  /**
+   * The trail is left by the tail tip, not the head: the body already gets the
+   * live contact-shadow flattening, while the fading path must continue behind
+   * the visible body.
+   */
+  private resolveTrailPoint(frame: any, headX: number, headY: number): { x: number; y: number } {
+    const body = frame?.gameState?.players?.[frame?.myId]?.body;
+    if (!body || body.length < 2) return { x: headX, y: headY };
+
+    const cellX = Number(body[body.length - 2]);
+    const cellY = Number(body[body.length - 1]);
+    if (!Number.isFinite(cellX) || !Number.isFinite(cellY)) {
+      return { x: headX, y: headY };
+    }
+
+    const mapCellsX = frame?.gameState?.server_world?.width ?? WORLD_WIDTH;
+    const mapCellsY = frame?.gameState?.server_world?.height ?? WORLD_HEIGHT;
+    const mapW = Math.max(1, mapCellsX) * gridSize;
+    const mapH = Math.max(1, mapCellsY) * gridSize;
+
+    let x = cellX * gridSize + gridSize / 2;
+    let y = -(cellY * gridSize + gridSize / 2);
+    x += Math.round((headX - x) / mapW) * mapW;
+    y += Math.round((headY - y) / mapH) * mapH;
+    return { x, y };
+  }
+
   public update(
     frame: any,
     budget: number,
@@ -342,10 +369,12 @@ export class GrassRenderer {
       this.uniforms.uTrailCount.value = 0;
       this.lastTrailCount = 0;
     } else {
-      this.trail.update(nowMs, pushX, pushY);
+      const trailPoint = this.resolveTrailPoint(frame, pushX, pushY);
+      this.trail.update(nowMs, trailPoint.x, trailPoint.y);
       this.lastTrailCount = this.trail.fill(nowMs, this.uniforms.uTrail.value as Float32Array);
       this.uniforms.uTrailCount.value = this.lastTrailCount;
     }
+
     // The shadow mask is sampled in the vertex shader, so opaque blades under
     // the ribbon darken instead of hiding a ground decal. One frame behind the
     // mask render is invisible at 60 fps and keeps the passes independent.
