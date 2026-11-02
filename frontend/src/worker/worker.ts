@@ -1,6 +1,6 @@
 // ROLE: Точка входа воркера, onmessage-роутер. Не содержит вычислений.
 
-import type { GameState } from "../types/game";
+import type { GameState, KillEvent } from "../types/game";
 import { CameraPredictor } from "./CameraPredictor";
 import { decodeDeltaState, decodeFullState } from "./DeltaDecoder";
 import { EyeComputer } from "./EyeComputer";
@@ -9,9 +9,21 @@ import type { GeometryBuffers } from "./MeshBuilder";
 import { ParticleComputer } from "./ParticleComputer";
 import { StateInterpolator } from "./StateInterpolation";
 import { GrowableFloat32Array, GrowableUint32Array } from "./shared/GrowableArray";
+import type {
+  FrameRequest,
+  FrameUnavailableMessage,
+  MainToWorker,
+  WorkerConnectionStatus,
+  WorkerToMain,
+} from "./shared/WorkerProtocol";
 import { WebSocketClient } from "./WebSocketClient";
 
-const ctx: Worker = self as any;
+interface WorkerScope {
+  onmessage: ((event: MessageEvent<MainToWorker>) => void) | null;
+  postMessage(message: WorkerToMain, transfer?: Transferable[]): void;
+}
+
+const ctx = self as unknown as WorkerScope;
 
 let client: WebSocketClient | null = null;
 const interpolator = new StateInterpolator();
@@ -22,16 +34,13 @@ const eyes = new EyeComputer();
 let currentGameState: GameState | null = null;
 
 let myId = "";
-let accumulatedKillEvents: any[] = [];
+let accumulatedKillEvents: KillEvent[] = [];
 
 /**
  * A request-scoped "no frame yet" reply. It carries no camera/game state, so
  * the main thread only clears its pending request instead of applying it.
  */
-export function buildFrameUnavailable(requestId?: number): {
-  type: "FRAME_UNAVAILABLE";
-  requestId?: number;
-} {
+export function buildFrameUnavailable(requestId?: number): FrameUnavailableMessage {
   return requestId === undefined
     ? { type: "FRAME_UNAVAILABLE" }
     : { type: "FRAME_UNAVAILABLE", requestId };
@@ -50,7 +59,7 @@ const tempFoodMatrices = new Float32Array(5000 * 16);
 const tempFoodColors = new Float32Array(5000 * 3);
 const tempFoodImageIndices = new Int32Array(5000);
 
-ctx.onmessage = (e: MessageEvent) => {
+ctx.onmessage = (e: MessageEvent<MainToWorker>) => {
   try {
     const msg = e.data;
     if (msg.type === "CONNECT") {
@@ -108,7 +117,14 @@ function _handleConnect(url: string) {
   _handleClose();
   client = new WebSocketClient(url);
 
-  client.onStatus((status, details) => ctx.postMessage({ type: "STATUS", status, ...details }));
+  client.onStatus((status, details) => {
+    const message: WorkerToMain = {
+      type: "STATUS",
+      status: status as WorkerConnectionStatus,
+      ...(details ?? {}),
+    };
+    ctx.postMessage(message);
+  });
   client.onDisconnect(() => ctx.postMessage({ type: "DISCONNECT" }));
   client.onPing((latency) => ctx.postMessage({ type: "PING", latency }));
   client.onYourId((id) => {
@@ -134,13 +150,13 @@ function _handleClose() {
   accumulatedKillEvents = [];
 }
 
-function _requestIdOf(msg: any): number | undefined {
-  return typeof msg?.requestId === "number" && Number.isFinite(msg.requestId)
+function _requestIdOf(msg: FrameRequest): number | undefined {
+  return typeof msg.requestId === "number" && Number.isFinite(msg.requestId)
     ? msg.requestId
     : undefined;
 }
 
-function _handleRequestFrame(msg: any) {
+function _handleRequestFrame(msg: FrameRequest) {
   const requestId = _requestIdOf(msg);
   const { dt, localInput, gridSize, isSpectator, showAllInMainCopy, spectatorCam } = msg;
   const tickRate = currentGameState?.server_simulation?.tick_rate ?? 30;
@@ -153,7 +169,7 @@ function _handleRequestFrame(msg: any) {
 
   const { state, lastState, progress } = interpolated;
   try {
-    const frame = computeFrame(
+    const frame = computeFrame({
       dt,
       localInput,
       gridSize,
@@ -172,7 +188,7 @@ function _handleRequestFrame(msg: any) {
       tempFoodMatrices,
       tempFoodColors,
       tempFoodImageIndices,
-    );
+    });
 
     accumulatedKillEvents = [];
     if (requestId !== undefined) frame.payload.requestId = requestId;

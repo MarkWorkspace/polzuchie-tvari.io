@@ -163,6 +163,7 @@ frontend/
     │       ├── ColorUtils.test.ts      # ROLE: Тесты парсинга цветов и glow-тинтов скинов.
     │       ├── WorldMath.ts            # ROLE: Единое преобразование координат grid↔world (gridToWorldX/Y, worldToGridX/Y, worldSizeFromGrid). Не выполняет тороидальный wrap.
     │       ├── WorldMath.test.ts       # ROLE: Тесты известных точек, round-trip и seam для grid↔world.
+    │       ├── WorkerProtocol.ts       # ROLE: Типы wire-протокола main↔worker (MainToWorker/WorkerToMain, FrameContext, SnakeContext, FrameDataMessage). Только типы, без логики.
     │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame/Player (включая final_length и frame_seq/server_tick) для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.

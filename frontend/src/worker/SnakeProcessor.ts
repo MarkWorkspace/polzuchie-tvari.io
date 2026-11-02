@@ -1,36 +1,39 @@
 // ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
-import type { GameState } from "../types/game";
-import type { CameraPredictor } from "./CameraPredictor";
-import type { EyeComputer } from "./EyeComputer";
-import { appendSnakeMesh, type GeometryBuffers } from "./MeshBuilder";
-import type { ParticleComputer } from "./ParticleComputer";
+import { appendSnakeMesh } from "./MeshBuilder";
 import { computeSplinePaths } from "./SplineComputer";
 import { resolveSkinGlowColor } from "./shared/ColorUtils";
 import { wrapDelta } from "./shared/MathUtils";
+import type { ActivePlayerInfo, SnakeContext, SnakeSceneContext } from "./shared/WorkerProtocol";
 import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
-function _processSingleSnake(
-  playerId: string,
-  p: any,
-  oldP: any,
-  isSelf: boolean,
-  state: GameState,
-  progress: number,
-  gridSize: number,
-  startLength: number,
-  camera: CameraPredictor,
-  particles: ParticleComputer,
-  eyes: EyeComputer,
-  bodyBufs: GeometryBuffers,
-  calcFog: (wx: number, wy: number) => number,
-  activePlayers: any[],
-  nicknames: any[],
-  baseHeadRadius: number,
-  scoreThicknessScale: number,
-  pitchAngle: number,
-  showAllInMainCopy: boolean,
-): void {
-  const activePlayerObj: any = { id: playerId, isMe: isSelf, nickname: p.nickname || "Игрок" };
+function _processSingleSnake(ctx: SnakeContext): void {
+  const {
+    playerId,
+    p,
+    oldP,
+    isSelf,
+    state,
+    progress,
+    gridSize,
+    startLength,
+    camera,
+    particles,
+    eyes,
+    bodyBufs,
+    calcFog,
+    activePlayers,
+    nicknames,
+    baseHeadRadius,
+    scoreThicknessScale,
+    pitchAngle,
+    showAllInMainCopy,
+  } = ctx;
+
+  const activePlayerObj: ActivePlayerInfo = {
+    id: playerId,
+    isMe: isSelf,
+    nickname: p.nickname || "Игрок",
+  };
   activePlayers.push(activePlayerObj);
   const mapW = state.server_world?.width ?? 100;
   const mapH = state.server_world?.height ?? 100;
@@ -119,23 +122,25 @@ function _processSingleSnake(
   }
 }
 
-export function processSnakes(
-  state: GameState,
-  lastState: GameState | null,
-  progress: number,
-  myId: string,
-  gridSize: number,
-  startLength: number,
-  camera: CameraPredictor,
-  particles: ParticleComputer,
-  eyes: EyeComputer,
-  bodyBufs: GeometryBuffers,
-  calcFog: (wx: number, wy: number) => number,
-  activePlayers: any[],
-  nicknames: any[],
-  fogRadiusWorld: number,
-  showAllInMainCopy: boolean,
-): void {
+export function processSnakes(ctx: SnakeSceneContext): void {
+  const {
+    state,
+    lastState,
+    progress,
+    myId,
+    gridSize,
+    startLength,
+    camera,
+    particles,
+    eyes,
+    bodyBufs,
+    calcFog,
+    activePlayers,
+    nicknames,
+    fogRadiusWorld,
+    wrapAll,
+  } = ctx;
+
   const baseHeadRadius = state.server_snake?.base_head_radius ?? 0.2;
   const scoreThicknessScale = state.server_snake?.score_thickness_scale ?? 0.0005;
   const pitchAngle = ((state.server_visual?.camera_pitch_angle ?? 55) * Math.PI) / 180;
@@ -147,7 +152,7 @@ export function processSnakes(
 
     const isSelf = playerId === myId;
 
-    if (!isSelf && !showAllInMainCopy) {
+    if (!isSelf && !wrapAll) {
       const pLength = Math.floor(p.body.length / 2);
       const mapW = state.server_world?.width ?? 100;
       const mapH = state.server_world?.height ?? 100;
@@ -172,7 +177,7 @@ export function processSnakes(
       }
     }
 
-    _processSingleSnake(
+    _processSingleSnake({
       playerId,
       p,
       oldP,
@@ -191,7 +196,7 @@ export function processSnakes(
       baseHeadRadius,
       scoreThicknessScale,
       pitchAngle,
-      showAllInMainCopy,
-    );
+      showAllInMainCopy: wrapAll,
+    });
   }
 }

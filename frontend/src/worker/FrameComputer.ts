@@ -1,17 +1,24 @@
 // ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
 
-import type { GameState } from "../types/game";
-import { computeBlackHoles } from "./BlackHoleComputer";
-import type { CameraPredictor } from "./CameraPredictor";
-import type { EyeComputer } from "./EyeComputer";
+import type { Food, GameState, Player } from "../types/game";
+import { type BlackHoleBuffers, computeBlackHoles } from "./BlackHoleComputer";
 import { computeFood } from "./FoodComputer";
-import type { GeometryBuffers } from "./MeshBuilder";
-import type { ParticleComputer } from "./ParticleComputer";
-import { computePortals } from "./PortalComputer";
+import { computePortals, type PortalBuffers } from "./PortalComputer";
 import { processSnakes } from "./SnakeProcessor";
 import { parseColor } from "./shared/ColorUtils";
 import { GrowableFloat32Array } from "./shared/GrowableArray";
 import { computeFogRadiusWorld } from "./shared/PlayerMetrics";
+import type {
+  ActivePlayerInfo,
+  EyeBuffers,
+  FrameContext,
+  FrameDataMessage,
+  FrameGameState,
+  FramePlayer,
+  LeaderboardEntry,
+  NicknameLabel,
+  ParticleBuffers,
+} from "./shared/WorkerProtocol";
 import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 const FOG_R = 12 / 255;
@@ -19,15 +26,39 @@ const FOG_G = 12 / 255;
 const FOG_B = 15 / 255;
 
 export interface FrameResult {
-  payload: any;
+  payload: FrameDataMessage;
   transferables: ArrayBuffer[];
 }
 
-function _calcFogRadius(state: GameState, myPlayer: any, isSpectator: boolean): number {
+interface FrameCamera {
+  camX: number;
+  camY: number;
+  camAngle: number;
+}
+
+interface FrameBuild {
+  cam: FrameCamera;
+  fogRadiusWorld: number;
+  foodCount: number;
+  portals: PortalBuffers;
+  blackHoles: BlackHoleBuffers;
+  eyeBufs: EyeBuffers;
+  partBufs: ParticleBuffers;
+  nicknames: NicknameLabel[];
+  activePlayers: ActivePlayerInfo[];
+  leaderboard: LeaderboardEntry[];
+  foodMinimapData: Float32Array;
+}
+
+function _calcFogRadius(
+  state: GameState,
+  myPlayer: Player | undefined,
+  isSpectator: boolean,
+): number {
   return computeFogRadiusWorld(state, myPlayer?.body, isSpectator || !!myPlayer?.is_dead);
 }
 
-function _buildLeaderboard(state: GameState, myId: string): any[] {
+function _buildLeaderboard(state: GameState, myId: string): LeaderboardEntry[] {
   return Object.entries(state.players)
     .filter(([_, p]) => !p.is_dead)
     .map(([pid, p]) => ({
@@ -44,7 +75,7 @@ function _buildLeaderboard(state: GameState, myId: string): any[] {
 
 const foodMinimapBuffer = new GrowableFloat32Array(2000 * 4);
 
-function _buildFoodMinimap(foods: any[]): Float32Array {
+function _buildFoodMinimap(foods: Food[]): Float32Array {
   foodMinimapBuffer.reset();
   for (let i = 0; i < foods.length; i++) {
     const f = foods[i];
@@ -55,27 +86,22 @@ function _buildFoodMinimap(foods: any[]): Float32Array {
   return foodMinimapBuffer.slice();
 }
 
-function _buildFrameResult(
-  state: GameState,
-  cam: any,
-  fogRadiusWorld: number,
-  foodCount: number,
-  portals: any,
-  blackHoles: any,
-  bodyBufs: GeometryBuffers,
-  eyeBufs: any,
-  eyeCount: number,
-  pupilCount: number,
-  partBufs: any,
-  tempFoodMatrices: Float32Array,
-  tempFoodColors: Float32Array,
-  tempFoodImageIndices: Int32Array,
-  nicknames: any[],
-  activePlayers: any[],
-  leaderboard: any[],
-  accumulatedKillEvents: any[],
-  foodMinimapData: Float32Array,
-): FrameResult {
+function _buildFrameResult(ctx: FrameContext, build: FrameBuild): FrameResult {
+  const { state, bodyBufs, tempFoodMatrices, tempFoodColors, tempFoodImageIndices, eyes } = ctx;
+  const {
+    cam,
+    fogRadiusWorld,
+    foodCount,
+    portals,
+    blackHoles,
+    eyeBufs,
+    partBufs,
+    nicknames,
+    activePlayers,
+    leaderboard,
+    foodMinimapData,
+  } = build;
+
   const bVerts = bodyBufs.vertices.slice();
   const bUVs = bodyBufs.uvs.slice();
   const bColors = bodyBufs.colors.slice();
@@ -86,7 +112,7 @@ function _buildFrameResult(
   const fColors = tempFoodColors.slice(0, foodCount * 3);
   const fImageIndices = tempFoodImageIndices.slice(0, foodCount);
 
-  const lightweightPlayers: Record<string, any> = {};
+  const lightweightPlayers: Record<string, FramePlayer> = {};
   for (const pid in state.players) {
     const p = state.players[pid];
     lightweightPlayers[pid] = {
@@ -109,7 +135,22 @@ function _buildFrameResult(
     };
   }
 
-  const payload = {
+  const gameState: FrameGameState = {
+    server_tick_rate: state.server_tick_rate,
+    server_world: state.server_world,
+    server_simulation: state.server_simulation,
+    server_snake: state.server_snake,
+    server_visual: state.server_visual,
+    server_food: state.server_food,
+    server_boost: state.server_boost,
+    players: lightweightPlayers,
+    foods: [],
+    portals: state.portals,
+    black_holes: state.black_holes,
+    tombstones: state.tombstones,
+  };
+
+  const payload: FrameDataMessage = {
     type: "FRAME_DATA",
     bodyVertices: bVerts,
     bodyUVs: bUVs,
@@ -118,10 +159,10 @@ function _buildFrameResult(
     bodyIndices: bIndices,
     eyeMatrices: eyeBufs.eyeMatrices,
     eyeColors: eyeBufs.eyeColors,
-    eyeCount,
+    eyeCount: eyes.eyeCount,
     pupilMatrices: eyeBufs.pupilMatrices,
     pupilColors: eyeBufs.pupilColors,
-    pupilCount,
+    pupilCount: eyes.pupilCount,
     particleMatrices: partBufs.particleMatrices,
     particleColors: partBufs.particleColors,
     particleCount: partBufs.particleCount,
@@ -145,23 +186,10 @@ function _buildFrameResult(
     nicknames,
     activePlayers,
     leaderboard,
-    kill_events: [...accumulatedKillEvents],
+    kill_events: [...ctx.accumulatedKillEvents],
     tombstones: state.tombstones || [],
     foodMinimapData,
-    gameState: {
-      server_tick_rate: state.server_tick_rate,
-      server_world: state.server_world,
-      server_simulation: state.server_simulation,
-      server_snake: state.server_snake,
-      server_visual: state.server_visual,
-      server_food: state.server_food,
-      server_boost: state.server_boost,
-      players: lightweightPlayers,
-      foods: [],
-      portals: state.portals,
-      black_holes: state.black_holes,
-      tombstones: state.tombstones,
-    },
+    gameState,
   };
 
   const transferables: ArrayBuffer[] = [];
@@ -199,26 +227,27 @@ function _buildFrameResult(
   return { payload, transferables };
 }
 
-export function computeFrame(
-  dt: number,
-  localInput: any,
-  gridSize: number,
-  state: GameState,
-  lastState: GameState | null,
-  progress: number,
-  myId: string,
-  isSpectator: boolean,
-  showAllInMainCopy: boolean,
-  spectatorCam: { x: number; y: number } | undefined,
-  camera: CameraPredictor,
-  particles: ParticleComputer,
-  eyes: EyeComputer,
-  accumulatedKillEvents: any[],
-  bodyBufs: GeometryBuffers,
-  tempFoodMatrices: Float32Array,
-  tempFoodColors: Float32Array,
-  tempFoodImageIndices: Int32Array,
-): FrameResult {
+export function computeFrame(ctx: FrameContext): FrameResult {
+  const {
+    dt,
+    localInput,
+    gridSize,
+    state,
+    lastState,
+    progress,
+    myId,
+    isSpectator,
+    showAllInMainCopy,
+    spectatorCam,
+    camera,
+    particles,
+    eyes,
+    bodyBufs,
+    tempFoodMatrices,
+    tempFoodColors,
+    tempFoodImageIndices,
+  } = ctx;
+
   const cam = camera.predict(
     dt,
     myId,
@@ -299,9 +328,9 @@ export function computeFrame(
   bodyBufs.indices.reset();
   eyes.reset();
 
-  const activePlayers: any[] = [];
-  const nicknames: any[] = [];
-  processSnakes(
+  const activePlayers: ActivePlayerInfo[] = [];
+  const nicknames: NicknameLabel[] = [];
+  processSnakes({
     state,
     lastState,
     progress,
@@ -317,7 +346,7 @@ export function computeFrame(
     nicknames,
     fogRadiusWorld,
     wrapAll,
-  );
+  });
 
   particles.update(dt);
   const partBufs = particles.buildBuffers(FOG_R, FOG_G, FOG_B, calcFog);
@@ -328,30 +357,22 @@ export function computeFrame(
 
   _addTombstoneNicknames(state, nicknames, gridSize);
 
-  return _buildFrameResult(
-    state,
+  return _buildFrameResult(ctx, {
     cam,
     fogRadiusWorld,
     foodCount,
     portals,
     blackHoles,
-    bodyBufs,
     eyeBufs,
-    eyes.eyeCount,
-    eyes.pupilCount,
     partBufs,
-    tempFoodMatrices,
-    tempFoodColors,
-    tempFoodImageIndices,
     nicknames,
     activePlayers,
     leaderboard,
-    accumulatedKillEvents,
     foodMinimapData,
-  );
+  });
 }
 
-function _addTombstoneNicknames(state: GameState, nicknames: any[], gridSize: number) {
+function _addTombstoneNicknames(state: GameState, nicknames: NicknameLabel[], gridSize: number) {
   if (!state.tombstones) return;
   for (let i = 0; i < state.tombstones.length; i++) {
     const tomb = state.tombstones[i];

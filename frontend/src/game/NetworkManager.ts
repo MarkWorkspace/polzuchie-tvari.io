@@ -1,9 +1,20 @@
 // ROLE: WebSocket-интерфейс к воркеру и player-session bootstrap. Не бизнес-логика.
 
+import type {
+  FrameDataMessage,
+  FrameInput,
+  FrameRequest,
+  MainToWorker,
+  SpectatorCam,
+  WorkerConnectionStatus,
+  WorkerToMain,
+} from "../worker/shared/WorkerProtocol";
 import { reconnectDelayMs } from "../worker/WebSocketClient";
 import { gridSize } from "./Config";
 
-export type NetworkStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
+export type NetworkStatus = WorkerConnectionStatus;
+
+export type { FrameInput } from "../worker/shared/WorkerProtocol";
 
 /** A worker is presumed wedged after this many consecutive 100 ms frame timeouts. */
 export const FRAME_TIMEOUT_STALL_THRESHOLD = 30;
@@ -15,12 +26,6 @@ export interface ConnectArgs {
   nickname: string;
   skin: string;
   role: string;
-}
-
-export interface FrameInput {
-  turn: number;
-  accelerating: boolean;
-  mode: string;
 }
 
 export const LEGACY_CLIENT_ID_STORAGE_KEY = "snake_client_id";
@@ -143,7 +148,7 @@ export class NetworkManager {
   ) => void;
   private onPing?: (latency: number) => void;
   private onYourId?: (id: string) => void;
-  private onFrameData?: (msg: any) => void;
+  private onFrameData?: (msg: FrameDataMessage) => void;
   private onDisconnect?: () => void;
   private onWorkerRestart?: () => void;
   private onFatalError?: (reason: WorkerFailureReason) => void;
@@ -194,15 +199,16 @@ export class NetworkManager {
   }
 
   public send(msg: string): void {
-    this.worker?.postMessage({ type: "SEND", data: msg });
+    const message: MainToWorker = { type: "SEND", data: msg };
+    this.worker?.postMessage(message);
   }
 
   public requestFrame(
     dt: number,
     myId: string,
-    input: any,
+    input: FrameInput,
     showAllInMainCopy: boolean = false,
-    spectatorCam?: { x: number; y: number },
+    spectatorCam?: SpectatorCam,
   ): void {
     if (!this.worker || this.isWaitingForFrame) return;
 
@@ -232,7 +238,7 @@ export class NetworkManager {
       gridSize,
       localInput: input,
       requestId,
-    });
+    } satisfies FrameRequest);
   }
 
   /** Manual teardown (destroy/takeover): no watchdog restart may survive it. */
@@ -253,7 +259,7 @@ export class NetworkManager {
     ) => void;
     onPing?: (latency: number) => void;
     onYourId?: (id: string) => void;
-    onFrameData?: (msg: any) => void;
+    onFrameData?: (msg: FrameDataMessage) => void;
     onDisconnect?: () => void;
     onWorkerRestart?: () => void;
     onFatalError?: (reason: WorkerFailureReason) => void;
@@ -302,7 +308,8 @@ export class NetworkManager {
       worker.onerror = null;
       worker.onmessageerror = null;
       try {
-        worker.postMessage({ type: "CLOSE" });
+        const message: MainToWorker = { type: "CLOSE" };
+        worker.postMessage(message);
       } catch {
         // The worker may already be dead; terminate still releases it.
       }
@@ -362,10 +369,11 @@ export class NetworkManager {
     };
 
     const wsUrl = buildGameWsUrl(nickname, skin, role, window.location, import.meta.env.DEV);
-    worker.postMessage({ type: "CONNECT", url: wsUrl });
+    const message: MainToWorker = { type: "CONNECT", url: wsUrl };
+    worker.postMessage(message);
   }
 
-  private handleWorkerMessage = (event: MessageEvent): void => {
+  private handleWorkerMessage = (event: MessageEvent<WorkerToMain>): void => {
     const msg = event.data;
     if (msg.type === "STATUS") {
       this.onStatusChange?.(msg.status, msg.msg, msg.msgKey, msg.msgParams);
