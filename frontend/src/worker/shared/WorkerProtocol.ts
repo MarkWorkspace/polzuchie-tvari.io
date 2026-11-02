@@ -139,6 +139,9 @@ export interface ActivePlayerInfo {
   nickname: string;
   hx?: number;
   hy?: number;
+  /** Tail tip in world units, useful for fading ground effects. */
+  tailX?: number;
+  tailY?: number;
   radius?: number;
   glowColor?: number;
 }

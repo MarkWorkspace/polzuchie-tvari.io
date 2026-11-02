@@ -1,8 +1,13 @@
-// ROLE: CPU-side fading trample trail: records recent snake head positions and exposes a fixed-size uniform buffer. No rendering, no game logic.
+// ROLE: CPU-side fading trample trail: records recent snake tail-tip positions and exposes a fixed-size uniform buffer. No rendering, no game logic.
 
-export const GRASS_TRAIL_LIFETIME_MS = 3200;
-export const GRASS_TRAIL_INTERVAL_MS = 100;
-export const GRASS_TRAIL_MAX_POINTS = 32;
+/**
+ * The trail is intentionally long-lived: the meadow should remember where the
+ * tail passed for half a minute. Points are sampled sparsely and the shader
+ * connects them as segments, so the length does not need one sample per frame.
+ */
+export const GRASS_TRAIL_LIFETIME_MS = 32000;
+export const GRASS_TRAIL_INTERVAL_MS = 250;
+export const GRASS_TRAIL_MAX_POINTS = 128;
 const TELEPORT_DISTANCE = 160;
 const MIN_STEP_DISTANCE = 3;
 
@@ -12,7 +17,28 @@ interface TrailPoint {
   time: number;
 }
 
-/** Ring of recent head positions, faded by age and reset on a map wrap/teleport. */
+/**
+ * Resolves the tail tip from the worker-built frame. Render frames carry
+ * lightweight players without bodies, so `activePlayers` is the source of
+ * truth; falling back to the head only happens on an early/truncated frame.
+ */
+export function resolveGrassTrailPoint(
+  frame: any,
+  headX: number,
+  headY: number,
+): { x: number; y: number } {
+  if (!Array.isArray(frame?.activePlayers)) return { x: headX, y: headY };
+
+  const me = frame.activePlayers.find(
+    (player: any) => player?.isMe === true || player?.id === frame?.myId,
+  );
+  if (!me || !Number.isFinite(me.tailX) || !Number.isFinite(me.tailY)) {
+    return { x: headX, y: headY };
+  }
+  return { x: me.tailX, y: me.tailY };
+}
+
+/** Ring of recent tail-tip positions, faded by age and reset on a map wrap/teleport. */
 export class GrassTrail {
   private readonly points: TrailPoint[] = [];
   private lastX = Number.NaN;

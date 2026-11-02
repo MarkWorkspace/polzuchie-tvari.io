@@ -109,9 +109,9 @@ frontend/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества, adaptive pixel ratio и listeners потери/восстановления WebGL-контекста.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.78, 1.33), два separable Gaussian-прохода в world units (radius 4, opacity 0.5) и один quad на земле; отдаёт размытую маску траве через getFrame(). Не свет, не shadow map, не пост-эффект.
     │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
-    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок в широкой розетке, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + две волны + gust), локальное раздвигание у головы, per-blade tint, root-shadow decals, полное приминание по dilated contact mask, fading trail приминания, dither-фейд края, stable density cache и shader-side distance-LOD. Бюджет/радиус — из пресета; декор без коллизий.
-    │   ├── GrassTrail.ts               # ROLE: CPU-буфер следа змейки: последние 32 точки кончика хвоста, затухание 3.2 с, сброс на телепорте/торе. Не рендерит.
-    │   ├── GrassTrail.test.ts          # ROLE: Тесты интервала, затухания, срока жизни, телепорта и ёмкости trail-буфера.
+    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок в широкой розетке, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + advected noise gust + per-blade flutter), локальное раздвигание у головы, per-blade tint, root-shadow decals, полное приминание по dilated contact mask, 32-секундный fading trail приминания с сегментной интерполяцией, dither-фейд края, stable density cache и shader-side distance-LOD. Бюджет/радиус — из пресета; декор без коллизий.
+    │   ├── GrassTrail.ts               # ROLE: CPU-буфер следа змейки: 128 точек кончика хвоста, затухание 32 с, шаг 250 мс, сброс на телепорте/торе; resolve хвоста из `activePlayers` worker-кадра. Не рендерит.
+    │   ├── GrassTrail.test.ts          # ROLE: Тесты интервала, затухания, срока жизни, телепорта, ёмкости trail-буфера и выбора хвоста из activePlayers.
     │   ├── DecorField.ts               # ROLE: Чистая математика декора: хэш клетки, тороидальная генерация куртин двух масштабов (fine 20 u / broad 80 u), общий цвет/высота/сухость clump'а, стабильная плотность клетки, раскладка камней, пер-тировые бюджеты, camera-distance LOD и клип по ground-трапеции.
     │   ├── DecorField.test.ts          # ROLE: Тесты детерминизма, тора, кластеров, бюджетов и устойчивости к NaN.
     │   ├── PropRenderer.ts             # ROLE: Один instanced mesh вкопанных камней-акцентов. Декор без коллизий, без теней и bloom.
@@ -184,7 +184,7 @@ frontend/
     │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, cookie-handshake, реконнект с backoff по close-кодам, ping/pong, seq-контроль кадров и RESYNC с cooldown. Не бизнес-логика.
     │   ├── WebSocketClient.test.ts     # ROLE: Тесты FrameSequencer (full/delta/gap/wrap), cooldown RESYNC и decode-error пути.
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
-    │   ├── SnakeProcessor.ts           # ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
+    │   ├── SnakeProcessor.ts           # ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера; публикует tail-tip в activePlayers для травяного следа. Не содержит рендеринг.
     │   └── shared/
     │       ├── MathUtils.ts            # ROLE: Единственный источник torus-математики: wrapNearest, wrapDelta, toroidalDelta/Distance/Lerp, randomRange, writeMatrix. Не сеть/рендер/состояние.
     │       ├── MathUtils.parity.test.ts # ROLE: Parity-тест тороидальной математики. Сверяет TS с golden vectors.
