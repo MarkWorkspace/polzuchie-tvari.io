@@ -306,6 +306,7 @@ backend/tests/
 ├── test_serialization_cache_race.py    # ROLE: Позднее подключение игрока не вызывает KeyError в кэше кадра.
 ├── test_server_resilience.py           # ROLE: Сбой сериализации одного клиента не убивает game loop.
 ├── test_spectator_identity.py          # ROLE: Cookie-auth identity; spectator не переиспользует player id; неудачный handshake не оставляет призрака.
+├── test_tick_events.py                 # ROLE: События на границе тика: очередь pending_removals, killfeed/food drop при disconnect, cleanup без death, reset/reconnect.
 ├── test_websocket_limits.py            # ROLE: Origin allowlist, per-IP bucket (включая denied origins), proxy-header trust, role caps и атомарный pending reservation.
 ├── test_world_lifecycle.py             # ROLE: Resize карты и полная очистка World.reset_state.
 ├── test_world_elements.py              # ROLE: Тесты порталов и чёрных дыр.

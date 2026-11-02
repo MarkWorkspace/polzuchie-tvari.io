@@ -63,6 +63,10 @@ class World:
         self.tombstones = []
         self.tombstone_seq = 0
         self.spatial_grid = {}
+        # Disconnected players/spectators are removed by the tick orchestrator,
+        # not by the connection lifecycle, so death killfeed entries and food
+        # drops land in the tick that reports them.
+        self.pending_removals: set[str] = set()
 
         self.events = EventBus()
         self.food_manager = FoodManager(self)
@@ -443,9 +447,17 @@ class World:
         start_x, start_y = self.food_manager.get_safe_spawn_location()
         self.players[player_id] = Player(player_id, start_x, start_y, self.config, nickname, skin)
 
-    def remove_player(self, player_id):
+    def remove_player(self, player_id, emit_death=True):
+        """Drop a player/spectator identity from the world.
+
+        ``emit_death`` controls whether the removal counts as a death. It must
+        stay ``False`` for cleanup of identities that never really played
+        (failed handshake, restart reject), otherwise they show up in the
+        killfeed and drop food. Real disconnects are queued through
+        ``queue_player_removal`` and removed at the tick boundary with events.
+        """
         p = self.players.get(player_id)
-        if p and not p.is_dead:
+        if emit_death and p and not p.is_dead:
             self.kill_events.append({"killer": None, "victim": player_id})
             self.events.emit("player_died", player=p, killer_pid=None)
             p.is_dead = True
@@ -456,6 +468,25 @@ class World:
         self.client_visibility.pop(player_id, None)
         for visible_players in self.client_visibility.values():
             visible_players.discard(player_id)
+
+    def queue_player_removal(self, player_id):
+        """Schedule a removal for the start of the next tick."""
+        self.pending_removals.add(player_id)
+
+    def cancel_pending_removal(self, player_id):
+        """Cancel a queued removal (e.g. the player reconnected in time)."""
+        self.pending_removals.discard(player_id)
+
+    def process_pending_removals(self):
+        """Apply queued removals at the tick boundary.
+
+        Called by the orchestrator after transient events were cleared, so the
+        death/drop produced here belongs to the tick being broadcast. The copy
+        and per-id discard make the pass re-entrancy safe.
+        """
+        for player_id in list(self.pending_removals):
+            self.pending_removals.discard(player_id)
+            self.remove_player(player_id)
 
     def reset_player_input(self, player_id):
         if player_id in self.players:
@@ -567,6 +598,7 @@ class World:
         self.tombstones.clear()
         self.tombstone_seq = 0
         self.input_queue.clear()
+        self.pending_removals.clear()
         self.full_players_cache.clear()
         self.mini_players_cache.clear()
         self.spatial_grid = {}

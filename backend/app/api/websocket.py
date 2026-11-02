@@ -348,6 +348,9 @@ async def _handle_reconnection(
     close the socket.
     """
     _cancel_pending_disconnect(client_id)
+    # A queued removal is applied by the next tick. A reconnect that lands
+    # before that tick keeps the snake and its identity.
+    world.cancel_pending_removal(client_id)
 
     if reconnecting:
         old_conn = active_connections.pop(client_id, None)
@@ -473,7 +476,10 @@ async def delayed_remove(client_id: str, epoch: int | None, world) -> None:
             return
 
         pending_disconnects.pop(client_id, None)
-        world.remove_player(client_id)
+        # The actual removal happens at the tick boundary. Removing here would
+        # clear kill_events/new_foods at the start of the next tick before the
+        # frame is built, so the death and its food drop would be lost.
+        world.queue_player_removal(client_id)
     except asyncio.CancelledError:
         raise
 
@@ -531,9 +537,10 @@ async def _reject_after_restart(client_id: str, connection: dict, world) -> None
         if active_connections.get(client_id) is not None:
             return
         # During an active drain, reset_state() owns cleanup and clears players
-        # and events itself. Otherwise this identity is a ghost of the restart.
+        # and events itself. Otherwise this identity is a ghost of the restart
+        # and must be dropped without a death event or food drop.
         if not getattr(world, "draining", False):
-            world.remove_player(client_id)
+            world.remove_player(client_id, emit_death=False)
 
 
 async def websocket_endpoint(
@@ -629,7 +636,7 @@ async def websocket_endpoint(
         try:
             connection = _claim_connection(client_id, websocket, role)
         except BaseException:
-            world.remove_player(client_id)
+            world.remove_player(client_id, emit_death=False)
             raise
 
         # The active slot now represents the reservation.
@@ -673,7 +680,8 @@ async def websocket_endpoint(
                 and not getattr(world, "draining", False)
             ):
                 _cancel_pending_disconnect(client_id)
-                world.remove_player(client_id)
+                # A failed handshake never played: no killfeed, no food drop.
+                world.remove_player(client_id, emit_death=False)
             if not closed:
                 with contextlib.suppress(Exception):
                     await websocket.close()

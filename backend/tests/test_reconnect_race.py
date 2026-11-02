@@ -202,6 +202,7 @@ async def test_delayed_remove_does_not_kill_new_session(monkeypatch):
     await removal
 
     assert "p" in world.players
+    assert "p" not in world.pending_removals
     assert "p" not in pending_disconnects
     await _cancel(new_connection["task"])
 
@@ -212,6 +213,7 @@ async def test_pending_disconnect_cancelled_on_reconnect():
     world.add_player("p", "Player", "#22c55e")
     pending = asyncio.create_task(asyncio.sleep(3600))
     pending_disconnects["p"] = pending
+    world.queue_player_removal("p")
 
     applied = await _handle_reconnection(
         "p",
@@ -226,6 +228,7 @@ async def test_pending_disconnect_cancelled_on_reconnect():
 
     assert applied is True
     assert "p" not in pending_disconnects
+    assert "p" not in world.pending_removals
     await asyncio.sleep(0)
     assert pending.cancelled() is True
     assert "p" in world.players
@@ -243,10 +246,13 @@ async def test_reconnect_recreates_player_removed_during_accept_window(monkeypat
     try:
         await websocket.accept_started.wait()
         # _validate_client already saw the player, but delayed_remove now wins
-        # the grace race while the handshake is blocked in accept().
+        # the grace race while the handshake is blocked in accept(). The queued
+        # removal is applied by the next tick before accept() is released.
         removal = asyncio.create_task(ws_module.delayed_remove("p", 0, world))
         pending_disconnects["p"] = removal
         await removal
+        assert "p" in world.pending_removals
+        world.process_pending_removals()
         assert "p" not in world.players
 
         websocket.release_accept.set()
@@ -472,9 +478,17 @@ async def test_delayed_remove_removes_disconnected_identity(role, monkeypatch):
     pending_disconnects["p"] = removal
     await removal
 
+    # delayed_remove only enqueues: the next tick applies the removal.
+    assert "p" in world.pending_removals
+    assert ("p" in world.players) is (role == "player")
+    assert ("p" in world.spectators) is (role == "spectator")
+    assert "p" not in pending_disconnects
+
+    world.process_pending_removals()
+
     assert "p" not in world.players
     assert "p" not in world.spectators
-    assert "p" not in pending_disconnects
+    assert "p" not in world.pending_removals
 
 
 @pytest.mark.asyncio
@@ -491,4 +505,5 @@ async def test_superseded_pending_timer_is_noop(monkeypatch):
     await stale
 
     assert "p" in world.players
+    assert "p" not in world.pending_removals
     await _cancel(pending_disconnects.pop("p"))

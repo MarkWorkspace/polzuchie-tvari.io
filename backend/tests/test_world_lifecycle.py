@@ -27,6 +27,7 @@ def test_reset_state_clears_all_transient_state(monkeypatch):
     world.add_player("a", "A", "#22c55e")
     world.spectators.add("spectator")
     world.input_queue.append(("a", "LEFT_DOWN"))
+    world.pending_removals.add("a")
     world.tombstones.append({"id": "tomb", "x": 1, "y": 2, "nickname": "A", "time_left": 60})
     world.tombstone_seq = 7
     world.full_players_cache["a"] = object()
@@ -38,6 +39,7 @@ def test_reset_state_clears_all_transient_state(monkeypatch):
     assert world.players == {}
     assert world.spectators == set()
     assert world.input_queue == []
+    assert world.pending_removals == set()
     assert world.tombstones == []
     assert world.tombstone_seq == 0
     assert world.full_players_cache == {}

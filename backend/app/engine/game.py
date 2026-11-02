@@ -16,6 +16,11 @@ def tick(state) -> None:
     state.food_manager.tick_start()
     state.kill_events = []
 
+    # Removals are applied only here, after the transient events were cleared,
+    # so a disconnect between ticks still produces its death killfeed entry and
+    # food drop in this tick's frame.
+    state.process_pending_removals()
+
     tick_interval = state.tick_interval
     state.food_manager.update_moving_food(tick_interval)
     state.food_manager.update_clusters(tick_interval)
