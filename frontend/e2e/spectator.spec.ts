@@ -1,6 +1,6 @@
 // ROLE: E2E tests for the player spectator and the admin debug spectator.
 import { expect, test } from "@playwright/test";
-import { loginAdmin, patchConfig, readConfig } from "./adminApi";
+import { loginAdmin, patchConfig, readConfig, restartGame } from "./adminApi";
 
 test("player spectator shows a clean HUD without player identity", async ({ page }) => {
   const pageErrors: string[] = [];
@@ -64,6 +64,10 @@ test("follows a selected player and returns to overview", async ({ page, context
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
   await loginAdmin(request);
+  // Earlier specs (notably the black-hole death) can leave tombstones behind.
+  // A fresh target spawning on one would die immediately, so start from a
+  // restarted world: it clears players, tombstones and kill events.
+  await restartGame(request);
   const originalConfig = await readConfig(request);
 
   const playerPage = await context.newPage();
@@ -85,6 +89,9 @@ test("follows a selected player and returns to overview", async ({ page, context
     await expect(playerPage.locator(".hud-guide.connected")).toBeVisible();
 
     await page.goto("/?spectator=true");
+    // Establish a live spectator stream first so a missing leaderboard row is
+    // reported as a follow problem rather than a slow handshake.
+    await expect(page.locator(".spectator-badge-status")).toContainText("Live");
     const row = page.locator(".leaderboard-item--selectable").filter({ hasText: "Follow Target" });
     await expect(row).toBeVisible();
     await row.click();

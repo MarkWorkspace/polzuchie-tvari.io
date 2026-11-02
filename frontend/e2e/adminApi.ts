@@ -11,6 +11,11 @@ export async function loginAdmin(request: APIRequestContext): Promise<void> {
   expect(response.ok()).toBe(true);
 }
 
+export async function restartGame(request: APIRequestContext): Promise<void> {
+  const response = await request.post(`${BACKEND_URL}/admin/restart`);
+  expect(response.ok()).toBe(true);
+}
+
 export async function readConfig(request: APIRequestContext): Promise<unknown> {
   const response = await request.get(`${BACKEND_URL}/admin/config`);
   expect(response.ok()).toBe(true);
