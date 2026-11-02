@@ -1,5 +1,6 @@
 // ROLE: Food type editor for the React admin dashboard. Uses ConfigEditor as data model.
 import type { ConfigEditor } from "../ConfigEditor";
+import { FOOD_IMAGE_PATH_RULE, isSafeFoodImagePath, sanitizeFoodImagePath } from "../foodImagePath";
 
 export interface FoodTypeDraft {
   key: string;
@@ -60,6 +61,10 @@ export function FoodTypesEditor({ editor, originalTypes, onChange }: FoodTypesEd
             original.weight !== foodType.weight ||
             original.color !== foodType.color ||
             original.image !== foodType.image;
+          const imageIsSafe = isSafeFoodImagePath(foodType.image);
+          const imageError = foodType.image !== "" && !imageIsSafe;
+          const imageErrorId = `food-image-error-${foodType.key}`;
+          const imagePreview = imageIsSafe ? sanitizeFoodImagePath(foodType.image) : "";
 
           return (
             <div
@@ -146,10 +151,21 @@ export function FoodTypesEditor({ editor, originalTypes, onChange }: FoodTypesEd
                       value={foodType.image}
                       placeholder="e.g. apple.svg"
                       onChange={(event) => update(index, "image", event.target.value)}
+                      aria-invalid={imageError}
+                      aria-describedby={imageError ? imageErrorId : undefined}
                     />
-                    {foodType.image ? (
+                    {imageError ? (
+                      <span
+                        id={imageErrorId}
+                        className="admin-field-error admin-formula-error"
+                        aria-live="polite"
+                      >
+                        {FOOD_IMAGE_PATH_RULE}
+                      </span>
+                    ) : null}
+                    {imagePreview ? (
                       <span className="admin-food-image-preview">
-                        <img src={`/${foodType.image}`} alt="" />
+                        <img src={`/${imagePreview}`} alt="" />
                       </span>
                     ) : null}
                   </label>

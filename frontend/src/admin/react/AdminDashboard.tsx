@@ -31,6 +31,7 @@ interface AdminDashboardProps {
   notice: AdminNotice | null;
   formulaError: string | null;
   restartOpen: boolean;
+  isSaving?: boolean;
   onTabChange: (tab: AdminTab) => void;
   onQueryChange: (query: string) => void;
   onFieldChange: (draftKey: string, value: string) => void;
@@ -54,6 +55,7 @@ export function AdminDashboard({
   notice,
   formulaError,
   restartOpen,
+  isSaving = false,
   onTabChange,
   onQueryChange,
   onFieldChange,
@@ -136,6 +138,7 @@ export function AdminDashboard({
             type="button"
             className="login-button admin-danger-button"
             onClick={onRestartClick}
+            disabled={isSaving}
           >
             🔄 Restart
           </button>
@@ -251,11 +254,18 @@ export function AdminDashboard({
               type="button"
               className="login-button admin-secondary-button"
               onClick={onResetAll}
+              disabled={isSaving}
             >
               Reset
             </button>
-            <button type="button" className="login-button admin-primary-button" onClick={onSave}>
-              Apply ({counts.all})
+            <button
+              type="button"
+              className="login-button admin-primary-button"
+              onClick={onSave}
+              disabled={isSaving}
+              aria-busy={isSaving}
+            >
+              {isSaving ? "Saving..." : `Apply (${counts.all})`}
             </button>
           </div>
         </div>

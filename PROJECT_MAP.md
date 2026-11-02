@@ -240,7 +240,9 @@ frontend/
     ├── admin/
     │   ├── adminApi.ts                 # ROLE: Admin API URL/fetch helper (dev/prod prefix).
     │   ├── ConfigEditor.ts             # ROLE: Состояние и бизнес-логика конфигурации админ-панели. Без UI.
-    │   ├── ConfigEditor.test.ts        # ROLE: Regression tests for config save error handling.
+    │   ├── ConfigEditor.test.ts        # ROLE: Regression tests for save result kinds and image path validation.
+    │   ├── foodImagePath.ts            # ROLE: Food image path allowlist/sanitizer. No fetch or UI.
+    │   ├── foodImagePath.test.ts       # ROLE: Tests for safe/unsafe food image paths.
     │   ├── FoodSimulator.ts            # ROLE: Canvas-симулятор распределения еды. Без UI.
     │   ├── AdminLabels.ts              # ROLE: Метаданные (названия полей, единицы измерения, подсказки) для панели администратора.
     │   └── react/

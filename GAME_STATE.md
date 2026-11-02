@@ -72,6 +72,12 @@
 - PATCH `/admin/config` проходит Pydantic-схему на HTTP-границе, затем
   транзакционный apply: backup `config.json.bak`, запись через `os.replace`
   (fallback для single-file mount), rollback памяти и файла при ошибке.
+- Админка сериализует сохранение (`isSaving`, disabled Apply/Reset/Restart) и
+  возвращает типизированный `SaveResult` (`validation`/`auth`/`network`/
+  `server`). Пути food-изображений проверяются до PATCH по относительному
+  allowlist (`[A-Za-z0-9._/-]+`), без абсолютных путей, `..`, `\`, URL и
+  управляющих символов; небезопасный путь показывается inline и не уходит на
+  сервер.
 - Runtime-конфиг не хранится в git: `backend/config.example.json` — seed,
   `backend/config.schema-version` — отдельный маркер версии. Docker монтирует
   named volume `backend_config` в `/app/data`; entrypoint не перезаписывает

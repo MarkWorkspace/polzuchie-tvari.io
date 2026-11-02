@@ -20,6 +20,7 @@ export function AdminApp() {
   const [status, setStatus] = useState<AdminStatus>("loading");
   const [loginError, setLoginError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [revision, setRevision] = useState(0);
   const [tab, setTab] = useState<AdminTab>("world_network");
   const [query, setQuery] = useState("");
@@ -180,20 +181,23 @@ export function AdminApp() {
   };
 
   const handleSave = async () => {
-    const result = await editor.save();
-    if (
-      result.message.includes("Invalid password") ||
-      result.message.includes("Invalid admin session") ||
-      result.message.includes("Access error")
-    ) {
-      setStatus("login");
-      setLoginError(result.message);
-      return;
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      const result = await editor.save();
+      if (!result.ok && result.kind === "auth") {
+        setStatus("login");
+        setLoginError(result.message);
+        return;
+      }
+      const isFormulaError =
+        !result.ok && result.kind === "validation" && /growth|formula/i.test(result.message);
+      setFormulaError(isFormulaError ? result.message : null);
+      setNotice({ kind: result.ok ? "success" : "error", text: result.message });
+      setRevision((current) => current + 1);
+    } finally {
+      setIsSaving(false);
     }
-    const isFormulaError = /growth|segment|formula|math|variable/i.test(result.message);
-    setFormulaError(!result.ok && isFormulaError ? result.message : null);
-    setNotice({ kind: result.ok ? "success" : "error", text: result.message });
-    setRevision((current) => current + 1);
   };
 
   const handleRestart = async () => {
@@ -243,6 +247,7 @@ export function AdminApp() {
       notice={notice}
       formulaError={formulaError}
       restartOpen={restartOpen}
+      isSaving={isSaving}
       onTabChange={setTab}
       onQueryChange={setQuery}
       onFieldChange={handleFieldChange}

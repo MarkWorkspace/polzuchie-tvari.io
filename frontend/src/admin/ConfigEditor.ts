@@ -2,8 +2,18 @@
 
 import { getNewSectionKey, HIDDEN_FIELDS } from "./AdminLabels";
 import { adminFetch } from "./adminApi";
+import { validateFoodImagePaths } from "./foodImagePath";
 
 let nextFoodTypeKey = 0;
+
+export type SaveResult =
+  | { ok: true; message: string }
+  | {
+      ok: false;
+      kind: "validation" | "auth" | "network" | "server";
+      message: string;
+      status?: number;
+    };
 
 export class ConfigEditor {
   private config: any = null;
@@ -45,11 +55,17 @@ export class ConfigEditor {
     }
   }
 
-  public async save(): Promise<{ ok: boolean; message: string }> {
+  public async save(): Promise<SaveResult> {
     const patch = this.buildPatch();
     if (Object.keys(patch).length === 0) {
       return { ok: true, message: "No changes detected" };
     }
+
+    const imageError = validateFoodImagePaths(this.foodTypes);
+    if (imageError) {
+      return { ok: false, kind: "validation", message: imageError };
+    }
+
     try {
       const res = await adminFetch("/admin/config", {
         method: "PATCH",
@@ -57,24 +73,20 @@ export class ConfigEditor {
         body: JSON.stringify(patch),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        const detail = err?.detail;
-        const message = Array.isArray(detail)
-          ? detail
-              .map((item: { loc?: unknown[]; msg?: string }) => {
-                const path = Array.isArray(item.loc) ? item.loc.slice(1).join(".") : "";
-                const text = item.msg ?? String(item);
-                return path ? `${path}: ${text}` : text;
-              })
-              .join("; ")
-          : detail || `Error saving config: ${res.status}`;
-        return { ok: false, message };
+        const message = await readErrorMessage(res);
+        if (res.status === 400 || res.status === 422) {
+          return { ok: false, kind: "validation", message, status: res.status };
+        }
+        if (res.status === 401 || res.status === 403) {
+          return { ok: false, kind: "auth", message, status: res.status };
+        }
+        return { ok: false, kind: "server", message, status: res.status };
       }
       this.config = await res.json();
       this.resetLocalDrafts();
       return { ok: true, message: "✓ Configuration successfully updated in real-time!" };
     } catch (e) {
-      return { ok: false, message: `Network error: ${String(e)}` };
+      return { ok: false, kind: "network", message: `Network error: ${String(e)}` };
     }
   }
 
@@ -192,4 +204,23 @@ export class ConfigEditor {
     }
     return patch;
   }
+}
+
+async function readErrorMessage(response: Response): Promise<string> {
+  const body = (await response.json().catch(() => null)) as { detail?: unknown } | null;
+  const detail = body?.detail;
+  if (Array.isArray(detail)) {
+    const message = detail
+      .map((item: { loc?: unknown[]; msg?: string }) => {
+        const path = Array.isArray(item.loc) ? item.loc.slice(1).join(".") : "";
+        const text = item.msg ?? String(item);
+        return path ? `${path}: ${text}` : text;
+      })
+      .join("; ");
+    if (message) return message;
+  }
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (response.status === 401) return "Admin session expired. Please sign in again.";
+  if (response.status === 403) return "Access denied: admin session is not authorized.";
+  return `Error saving config: ${response.status}`;
 }
