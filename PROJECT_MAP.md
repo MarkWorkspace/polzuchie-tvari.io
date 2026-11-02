@@ -10,8 +10,18 @@
 ```
 .
 ├── README.md                           # ROLE: Quickstart, stack, checks and docs index.
+├── RUNBOOK.md                          # ROLE: Deploy/rollback, health triage, config restore, OOM/WS/TLS и учебный drill log.
+├── SECURITY.md                         # ROLE: Supported versions, private vulnerability reporting и threat model.
 ├── REMEDIATION_PLAN.md                 # ROLE: Decomposed audit remediation plan; one task = one subagent.
-├── docs/HISTORY.md                     # ROLE: Historical changelog M1–M5 and pre-remediation fixes; not current state.
+├── docs/
+│   ├── HISTORY.md                      # ROLE: Historical changelog M1–M5 and pre-remediation fixes; not current state.
+│   └── adr/
+│       ├── README.md                   # ROLE: ADR index and format; links to accepted decisions.
+│       ├── ADR-001-session-auth.md     # ROLE: Player HttpOnly cookie, WS identity и spectator isolation.
+│       ├── ADR-002-frame-sequencing.md # ROLE: frame_seq/server_tick, FULL-coalescing и RESYNC.
+│       ├── ADR-003-config-ownership.md # ROLE: World.config ownership, transactional save и config volume.
+│       ├── ADR-004-grid-world-conversion.md # ROLE: grid↔world helper, half-cell и torus boundaries.
+│       └── ADR-005-tick-events.md      # ROLE: Tick-boundary removals, killfeed/food drop и failed handshake.
 ├── .env.example                        # ROLE: Docker port, admin password and log-level template.
 ├── .dockerignore                       # ROLE: Build-context exclusions for the root/compose build context.
 ├── .editorconfig                       # ROLE: Shared editor whitespace/charset conventions.

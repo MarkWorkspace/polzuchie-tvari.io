@@ -262,5 +262,11 @@ backend недоступен напрямую (штатный compose/nginx).
 - `PROJECT_MAP.md` — структура и ответственность файлов.
 - `ARCHITECTURE.md` — потоки данных и межстековые инварианты.
 - `GAME_STATE.md` — текущее состояние, инварианты и известные риски.
+- [`RUNBOOK.md`](RUNBOOK.md) — deploy/rollback, health triage, восстановление
+  конфига, OOM/CPU, WebSocket/TLS и учебный drill log.
+- [`SECURITY.md`](SECURITY.md) — поддерживаемые версии, приватное раскрытие
+  уязвимостей и threat model.
+- [`docs/adr/README.md`](docs/adr/README.md) — принятые архитектурные решения
+  (ADR-001…ADR-005).
 - `docs/HISTORY.md` — исторический changelog M1–M5 и старых итераций.
 - `.opencode/instructions/project.md` — правила разработки для OpenCode.
