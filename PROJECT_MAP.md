@@ -11,6 +11,9 @@
 .
 ├── README.md                           # ROLE: Quickstart, stack, checks and docs index.
 ├── REMEDIATION_PLAN.md                 # ROLE: Decomposed audit remediation plan; one task = one subagent.
+├── docs/HISTORY.md                     # ROLE: Historical changelog M1–M5 and pre-remediation fixes; not current state.
+├── .env.example                        # ROLE: Docker port, admin password and log-level template.
+├── .dockerignore                       # ROLE: Build-context exclusions for the root/compose build context.
 ├── .editorconfig                       # ROLE: Shared editor whitespace/charset conventions.
 ├── .gitattributes                      # ROLE: Line-ending and binary-file rules.
 ├── .pre-commit-config.yaml             # ROLE: Git hooks (Ruff/tests/build).
@@ -34,7 +37,7 @@ frontend/
 ├── tsconfig.json                       # ROLE: Production TypeScript config (strict, excludes tests).
 ├── tsconfig.test.json                  # ROLE: Test TypeScript config (DOM + Node types).
 ├── biome.json                          # ROLE: Biome lint/format config for the frontend.
-├── playwright.config.ts                # ROLE: Playwright E2E config; поднимает backend и Vite.
+├── playwright.config.ts                # ROLE: Playwright E2E config; поднимает isolated backend с temp config и `vite preview` production-сборки.
 ├── e2e/
 │   ├── adminApi.ts                     # ROLE: Общие REST-хелперы Playwright для админ-конфига.
 │   ├── game.spec.ts                    # ROLE: Smoke login, HUD и настроек качества.
@@ -46,11 +49,27 @@ frontend/
 │   ├── webgl.spec.ts                   # ROLE: WebGL context loss: overlay с reload и паузой rAF (skip без WEBGL_lose_context).
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
+├── .gitignore                          # ROLE: Frontend build/test output and editor artifacts.
+├── .dockerignore                       # ROLE: Frontend Docker build-context exclusions.
 ├── Dockerfile                          # ROLE: Сборка и запуск фронтенда (Vite) в Docker; nginx non-root, digest-pinned bases.
 ├── nginx.conf                          # ROLE: SPA static serving, /ws proxy, cache/security headers, writable temp paths для non-root.
 ├── public/
+│   ├── apple.svg                       # ROLE: SVG fallback для типа еды; 3D-геометрия имеет приоритет.
+│   ├── cherry.svg                      # ROLE: SVG fallback для типа еды.
+│   ├── grape.svg                       # ROLE: SVG fallback для типа еды.
+│   ├── mandarin.svg                    # ROLE: SVG fallback для типа еды.
+│   ├── melon.svg                       # ROLE: SVG fallback для типа еды.
+│   ├── peach.svg                       # ROLE: SVG fallback для типа еды.
+│   ├── pear.svg                        # ROLE: SVG fallback для типа еды.
+│   ├── persimmon.svg                   # ROLE: SVG fallback для типа еды.
+│   ├── pineapple.svg                   # ROLE: SVG fallback для типа еды.
+│   ├── strawberry.svg                  # ROLE: SVG fallback для типа еды.
+│   ├── watermelon.svg                  # ROLE: SVG fallback для типа еды.
+│   ├── favicon.svg                     # ROLE: Favicon приложения.
+│   ├── icons.svg                       # ROLE: SVG-спрайт интерфейсных иконок.
 │   └── fonts/                          # ROLE: Self-hosted Outfit WOFF2 files.
 └── src/
+    ├── assets/                         # ROLE: Статические изображения/логотипы Vite-шаблона; не игровые текстуры.
     ├── main.ts                         # ROLE: Route selection and lazy loading; no game logic.
     ├── game/
     │   ├── bootstrap.ts                # ROLE: Lazy game UI bootstrap (runtime Worker/WebGL2 check, login, HUD, game lifecycle, startup error overlay).
@@ -72,7 +91,7 @@ frontend/
     │   ├── spectatorCameraMath.test.ts # ROLE: Тесты перехода камеры через границу карты и делегирования в MathUtils.
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум; не двигает камеру при нефинитных camX/camY. Не рендеринг.
     │   ├── Camera.test.ts              # ROLE: Тесты finite-guard камеры (пустой кадр не даёт NaN-позу).
-    │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
+    │   └── Config.ts                   # ROLE: Клиентские константы мира (WORLD_*, gridSize=20) и список скинов. Скорости/углы/тикрейт приходят в server_simulation.
     ├── lib/
     │   ├── escapeHtml.ts               # ROLE: Escaping untrusted strings before HTML insertion.
     │   └── i18n.ts                     # ROLE: Локализация текстов интерфейса (RU/EN). Не содержит игровую логику.
@@ -89,6 +108,8 @@ frontend/
     │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
     │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, skin-tinted head glow. Тело попадает в bloom-маску и top-down contact-shadow маску через отдельные слои; само тень не кастует. Не физика, не HUD.
+    │   ├── SnakeRenderer.test.ts       # ROLE: Тесты dynamic update ranges буферов тела/индексов; не покрывает материалы и instanced eyes.
+    │   ├── SnakeRenderer.glow.test.ts  # ROLE: Тесты размещения head-only glow (bloom рисует свечение тела).
     │   ├── AtmosphereEffect.ts         # ROLE: Дешёвый финальный grade: vignette, split-tone, saturation и dither. Без знания сцены.
     │   ├── NicknameRenderer.ts         # ROLE: Отображение 2D HTML никнеймов над головами змеек. Не трехмерный рендеринг, не HUD.
     │   ├── FoodRenderer.ts             # ROLE: Инстансированные меши еды.
@@ -134,7 +155,7 @@ frontend/
     ├── worker/
     │   ├── worker.ts                   # ROLE: Точка входа воркера, onmessage-роутер, FRAME_DATA/FRAME_UNAVAILABLE с requestId. Не содержит вычислений.
     │   ├── worker.test.ts              # ROLE: Тесты FRAME_UNAVAILABLE и проброса requestId из воркера.
-    │   ├── StateInterpolation.ts       # ROLE: Очередь состояний, интерполяция между тиками.
+    │   ├── StateInterpolation.ts       # ROLE: Очередь до 20 состояний, jitter-фильтр таймлайна и интерполяция между тиками.
     │   ├── SplineComputer.ts           # ROLE: Расчёт 3D-сплайнов змеек.
     │   ├── MeshBuilder.ts              # ROLE: Сборка vertex/index-буферов из сплайнов.
     │   ├── CameraPredictor.ts          # ROLE: Клиентское предсказание позиции камеры; для спектатора использует позицию камеры.
@@ -153,7 +174,7 @@ frontend/
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
     │   ├── SnakeProcessor.ts           # ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
     │   └── shared/
-    │       ├── MathUtils.ts            # ROLE: Единственный источник torus-математики: wrapNearest, wrapDelta, toroidalDelta/Distance/Lerp, lerp. Не сеть/рендер/состояние.
+    │       ├── MathUtils.ts            # ROLE: Единственный источник torus-математики: wrapNearest, wrapDelta, toroidalDelta/Distance/Lerp, randomRange, writeMatrix. Не сеть/рендер/состояние.
     │       ├── MathUtils.parity.test.ts # ROLE: Parity-тест тороидальной математики. Сверяет TS с golden vectors.
     │       ├── PlayerMetrics.ts        # ROLE: Чистая математика размеров змейки (сегменты, радиус, туман).
     │       ├── PlayerMetrics.test.ts   # ROLE: Тесты размеров/тумана без DOM.
@@ -231,7 +252,8 @@ frontend/src/styles/
 ├── admin.css
 ├── admin_react.css
 ├── minimap.css
-└── settings.css
+├── settings.css
+└── spectator.css                       # ROLE: Player-facing spectator HUD и admin debug-панели.
 ```
 
 ---
@@ -248,6 +270,7 @@ backend/
 ├── docker-entrypoint.sh                # ROLE: Засевает config volume из config.example.json без перезаписи live-файла и запускает CMD.
 ├── pyproject.toml                      # ROLE: PEP 621 metadata, runtime/dev dependencies, pytest + ruff config.
 ├── uv.lock                             # ROLE: [СГЕНЕРИРОВАНО] uv lockfile. Не редактировать вручную.
+├── .dockerignore                       # ROLE: Backend Docker build-context exclusions.
 ├── .python-version                     # ROLE: Python version for uv (3.13).
 ├── Dockerfile                          # ROLE: Production image на Python 3.13 + uv (digest-pinned bases, non-root, seeded config volume, healthcheck, WS flags, graceful shutdown 10s).
 ├── scripts/
@@ -283,7 +306,7 @@ backend/
             ├── food_eating.py          # ROLE: Поедание и притяжение еды.
             ├── boost.py                # ROLE: Ускорение, потеря массы, спавн еды при бусте.
             ├── growth.py               # ROLE: Рост/усыхание, формула сегментов.
-            ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
+            ├── math_utils.py           # ROLE: wrap_coordinate, wrap_delta, toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия torus-математики на бэке.
             ├── visibility.py           # ROLE: AoI-фильтрация видимых игроков.
             ├── formula_parser.py       # ROLE: Единственный AST compile/eval формул роста: validation и runtime. Не regex-парсер.
             ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, truth table body/new_heads/body_truncated/final_length, frame_seq/server_tick, кэши игроков, единый build_full_frame для handshake/late join/RESYNC.
@@ -296,10 +319,14 @@ backend/
 
 ```
 backend/tests/
+├── conftest.py                        # ROLE: Test isolation: temp CONFIG_PATH из fixtures/config_parity.json и очистка module-level runtime state.
+├── fixtures/
+│   └── config_parity.json             # ROLE: Pinned deterministic config для parity/isolation-тестов; не production-конфиг.
 ├── test_admin_audit.py                # ROLE: JSON audit login/config/restart: timestamp/event/ip/result/keys, отсутствие паролей, токенов и значений конфига.
 ├── test_admin_auth.py                 # ROLE: Тесты Admin API аутентификации: парсинг пароля, session-cookie, X-Real-IP за trusted proxy, spoofed XFF и bounded login limiter.
 ├── test_admin_config_schema.py        # ROLE: Контракт Pydantic-схемы PATCH /admin/config: parity с GameConfig, неизвестные ключи, типы и 422/400 на маршруте.
 ├── test_admin_restart.py              # ROLE: Тесты Admin API restart-потока: Protobuf restart-frame, ожидание/отмена соединений, draining-флаг.
+├── test_admin_routes.py               # ROLE: Route-level tests публичных /health, /ready и admin session endpoints.
 ├── test_black_hole_timer.py           # ROLE: Таймеры чёрных дыр двигаются ровно один раз за тик.
 ├── test_boost.py                      # ROLE: Буст сохраняет score целым; late join после буста не ломает FULL-синк.
 ├── test_bots.py                       # ROLE: Lifecycle, live config sync, respawn, personalities и руление ботов.
@@ -328,6 +355,7 @@ backend/tests/
 ├── test_server_resilience.py           # ROLE: Сбой сериализации одного клиента не убивает game loop.
 ├── test_spawn.py                       # ROLE: Стартовое тело заворачивается по ширине карты: край, map shrink, head-first parity с parity-сценарием.
 ├── test_spectator_identity.py          # ROLE: Cookie-auth identity; spectator не переиспользует player id; неудачный handshake не оставляет призрака.
+├── test_test_isolation.py              # ROLE: Регрессии изоляции тестов: pinned config вместо backend/config.json и чистые module globals.
 ├── test_tick_events.py                 # ROLE: События на границе тика: очередь pending_removals, killfeed/food drop при disconnect, cleanup без death, reset/reconnect.
 ├── test_websocket_limits.py            # ROLE: Origin allowlist, per-IP bucket (включая denied origins), proxy-header trust, role caps и атомарный pending reservation.
 ├── test_websocket_queue.py             # ROLE: Backpressure sender-очереди: QueueStatus FULL/DELTA, coalescing FULL у медленного клиента, close 1011 при сбое sender.

@@ -88,8 +88,10 @@ Playwright поднимает backend на `:8000` и `vite preview` на `:5173
 проксируются на backend через `preview.proxy` в `vite.config.ts`. Build вынесен
 из `webServer`, поэтому Playwright управляет ровно одним процессом preview и
 корректно его останавливает. Сценарии: `login → HUD → качество`, реальная
-смерть от чёрной дыры → respawn, spectator-режим, admin login/logout и
-`security.spec.ts` (Origin allowlist, spectator flood, role caps).
+смерть от чёрной дыры → respawn, session-lock takeover, live-боты,
+spectator-режим, admin login/logout, `security.spec.ts` (Origin allowlist,
+spectator flood, role caps) и `webgl.spec.ts` (context-loss overlay; skip без
+`WEBGL_lose_context`).
 
 E2E принудительно стартует каждый контекст в `low` quality: в headless Linux CI
 нет GPU, WebGL идёт через software-рендерер SwiftShader, и на `auto`/`high`
@@ -239,8 +241,12 @@ production-дефолт — `http://localhost:3000` и `http://127.0.0.1:3000`.
 
 | Переменная | По умолчанию | Назначение |
 | --- | --- | --- |
+| `ADMIN_PASSWORD` | — | Пароль `/admin`; в production обязателен. Не коммитится. |
 | `ALLOWED_ORIGINS` | dev/prod-список выше | Comma-separated allowlist; пустое значение запрещает браузерные origin. |
-| `TRUST_PROXY_HEADERS` | `1` в production, иначе `0` | Доверять `X-Real-IP`/`X-Forwarded-For` (только за nginx). |
+| `TRUST_PROXY_HEADERS` | `1` в production, иначе `0` | Доверять forwarding-заголовкам только за nginx: WS использует `X-Real-IP`/первый `X-Forwarded-For`, admin login — только `X-Real-IP`. |
+| `CONFIG_PATH` | `/app/data/config.json` в образе | Путь к runtime-конфигу; entrypoint создаёт каталог и seed из `config.example.json`. |
+| `CONFIG_DIR` | каталог `CONFIG_PATH` | Каталог для `config.schema-version`; обычно вычисляется автоматически. |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` или `ERROR`. |
 | `MAX_PLAYER_CONNECTIONS` | `50` | Максимум активных player-соединений (takeover не блокируется). |
 | `MAX_SPECTATOR_CONNECTIONS` | `100` | Максимум spectator-соединений; не занимает player-слоты. |
 | `WS_HANDSHAKE_RATE_LIMIT` | `30` | Handshake-попыток на IP за окно; отказ — close `4029`. |
@@ -255,5 +261,6 @@ backend недоступен напрямую (штатный compose/nginx).
 
 - `PROJECT_MAP.md` — структура и ответственность файлов.
 - `ARCHITECTURE.md` — потоки данных и межстековые инварианты.
-- `GAME_STATE.md` — статус механик и история исправлений.
+- `GAME_STATE.md` — текущее состояние, инварианты и известные риски.
+- `docs/HISTORY.md` — исторический changelog M1–M5 и старых итераций.
 - `.opencode/instructions/project.md` — правила разработки для OpenCode.
