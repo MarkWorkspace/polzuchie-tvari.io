@@ -13,11 +13,10 @@ export const GRASS_SEED = 0x2f6e5b17;
 export const GRASS_CELL_DENSITY = 1;
 
 /**
- * Radial falloff exponent. A mild falloff keeps the grass under the snake
- * lush while the outer rings thin into the fog; the field is biased forward so
- * the density peak sits in front of the player, not behind the camera.
+ * Radial falloff exponent. A stronger falloff concentrates the instance budget
+ * under the snake instead of spending it on the fog edge.
  */
-export const GRASS_DENSITY_FALLOFF = 1.0;
+export const GRASS_DENSITY_FALLOFF = 1.6;
 
 /** Upper bound of tufts a single occupied cell may produce. */
 export const GRASS_TUFTS_PER_CELL_MAX = 6;
@@ -42,10 +41,16 @@ export const GRASS_CLUSTER_CELLS = 8;
 export const GRASS_FINE_CLUSTER_CELLS = 2;
 
 /** Lowest density factor a clump may reach; thin patches still keep a full grass cover. */
-export const GRASS_CLUSTER_MIN = 0.55;
+export const GRASS_CLUSTER_MIN = 0.75;
 
 /** Mean of the combined cluster factor; placement divides by it so the budget still lands. */
 export const GRASS_CLUSTER_MEAN = (GRASS_CLUSTER_MIN + 1) / 2;
+
+/** Last density computed by placeGrassTufts, for the renderer's stable cache. */
+let lastCalibratedDensity = 0;
+export function getLastCalibratedDensity(): number {
+  return lastCalibratedDensity;
+}
 
 /** Hard per-family buffer caps: the dense grass field and the sparse stones. */
 export const DECOR_BUDGET_CAPS = {
@@ -95,6 +100,25 @@ export interface GrassFieldConfig {
   mapCellsY: number;
   /** Probability that a visited cell holds a tuft, clamped to 0..1. */
   density: number;
+}
+
+/**
+ * Camera-relative visibility and distance LOD for grass placement. `corners`
+ * is the camera frustum's footprint on the ground; an empty list means "no
+ * frustum culling" (the placement disc is used instead).
+ */
+export interface GrassPlacementView {
+  cameraX: number;
+  cameraY: number;
+  cameraZ: number;
+  groundZ: number;
+  /** Camera distance at which grass is still fully dense. */
+  near: number;
+  /** Camera distance at which grass has faded out. */
+  far: number;
+  /** Stable orientation signature used to throttle placement rebuilds. */
+  viewKey?: number;
+  corners: readonly { x: number; y: number }[];
 }
 
 /** Tufts produced by one cell. Fixed capacity, written in place. */
@@ -203,6 +227,61 @@ export function toroidalDistance(
   worldHeight: number,
 ): number {
   return sharedToroidalDistance(ax, ay, bx, by, worldWidth, worldHeight);
+}
+
+/**
+ * Point-in-convex-quad test for the camera's ground footprint. A degenerate
+ * or missing quad returns true, so callers fall back to the placement disc
+ * instead of hiding the whole field.
+ */
+export function pointInConvexQuad(
+  x: number,
+  y: number,
+  corners: readonly { x: number; y: number }[],
+): boolean {
+  if (!corners || corners.length < 3) return true;
+
+  let sign = 0;
+  for (let i = 0; i < corners.length; i++) {
+    const a = corners[i];
+    const b = corners[(i + 1) % corners.length];
+    const cross = (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
+    if (Math.abs(cross) < 1e-7) continue;
+    const side = cross > 0 ? 1 : -1;
+    if (sign === 0) sign = side;
+    else if (side !== sign) return false;
+  }
+  // All points on the boundary count as visible.
+  return true;
+}
+
+/**
+ * Smooth camera-distance LOD: full density up to `near`, then a smoothstep
+ * fade to zero at `far`. The spectator overview camera is far enough that
+ * this returns zero, leaving the ground carpet in charge.
+ */
+export function cameraDistanceDensity(x: number, y: number, view: GrassPlacementView): number {
+  const near = Number.isFinite(view.near) ? Math.max(0, view.near) : 0;
+  const far = Number.isFinite(view.far) ? Math.max(near + 1, view.far) : near + 1;
+  const dz = (Number.isFinite(view.groundZ) ? view.groundZ : 0) - view.cameraZ;
+  const distance = Math.hypot(x - view.cameraX, y - view.cameraY, dz);
+  if (distance <= near) return 1;
+  if (distance >= far) return 0;
+  const t = (distance - near) / (far - near);
+  return 1 - t * t * (3 - 2 * t);
+}
+
+/** Distance LOD multiplied by the camera frustum cull. */
+export function cameraViewExposure(
+  x: number,
+  y: number,
+  view: GrassPlacementView | null | undefined,
+): number {
+  if (!view) return 1;
+  if (view.corners && view.corners.length >= 3 && !pointInConvexQuad(x, y, view.corners)) {
+    return 0;
+  }
+  return cameraDistanceDensity(x, y, view);
 }
 
 function safeCellSize(value: number): number {
@@ -345,7 +424,9 @@ function sampleNormalizedCell(
   const localDensity = Math.min(1, (density * clump.density) / GRASS_CLUSTER_MEAN);
   if (hashUnit(hashCell(cx, cy, SALT_OCCUPANCY, seed)) >= localDensity) return 0;
 
-  const count = 3 + Math.min(3, Math.floor(hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) * 4));
+  const baseCount =
+    3 + Math.min(3, Math.floor(hashUnit(hashCell(cx, cy, SALT_TUFT_COUNT, seed)) * 4));
+  const count = Math.max(2, Math.min(GRASS_TUFTS_PER_CELL_MAX, baseCount));
   const clumpTone = 0.5 + (clump.color - 0.5) * 0.5;
   const tuftVariation = 0.45;
 
@@ -393,6 +474,7 @@ function tryPlaceCell(
   out: GrassTuftBuffer,
   offset: number,
   capacity: number,
+  view?: GrassPlacementView | null,
 ): number {
   const written = sampleNormalizedCell(
     cellX,
@@ -412,13 +494,18 @@ function tryPlaceCell(
     const dx = toroidalDelta(placementCell.x[i] - camX, worldWidth);
     const dy = toroidalDelta(placementCell.y[i] - camY, worldHeight);
     if (dx * dx + dy * dy > radiusSq) continue;
+    const worldX = camX + dx;
+    const worldY = camY + dy;
+    if (view && view.corners.length >= 3 && !pointInConvexQuad(worldX, worldY, view.corners)) {
+      continue;
+    }
 
     const slot = offset + placed;
     // Write the wrapped copy nearest the camera. The cell content is canonical
     // inside the map, but at the seam its absolute position is a full period
     // away; drawing that copy would make half the field disappear.
-    out.x[slot] = camX + dx;
-    out.y[slot] = camY + dy;
+    out.x[slot] = worldX;
+    out.y[slot] = worldY;
     out.yaw[slot] = placementCell.yaw[i];
     out.scale[slot] = placementCell.scale[i];
     out.colorMix[slot] = placementCell.colorMix[i];
@@ -431,10 +518,13 @@ function tryPlaceCell(
  * Fills `out` with deterministic tufts within `cullRadiusWorld` of the camera,
  * nearest rings first, capped by `budget`. Returns the number of written tufts.
  *
- * Density is lowered automatically when the budget cannot cover the cull disc,
- * so the same field radius is kept while quality presets only change how many
- * tufts appear. Positions are wrapped to the camera side, so near the seam they
- * can lie just outside the canonical `[0, width] x [-height, 0]` rectangle.
+ * When `view` is supplied, placement is clipped to the camera's ground
+ * footprint and weighted by smooth camera-distance LOD; the same function then
+ * serves the player, the spectator overview and follow mode. Density is
+ * lowered automatically when the budget cannot cover the visible area, so
+ * quality presets only change how many tufts appear. Positions are wrapped to
+ * the camera side, so near the seam they can lie just outside the canonical
+ * `[0, width] x [-height, 0]` rectangle.
  */
 export function placeGrassTufts(
   camX: number,
@@ -443,6 +533,8 @@ export function placeGrassTufts(
   budget: number,
   config: GrassFieldConfig,
   out: GrassTuftBuffer,
+  view?: GrassPlacementView | null,
+  densityOverride?: number,
 ): number {
   const capacity = out.x.length;
   const requested = Math.min(
@@ -451,6 +543,15 @@ export function placeGrassTufts(
   );
   if (requested <= 0) return 0;
   if (!(cullRadiusWorld > 0) || !Number.isFinite(cullRadiusWorld)) return 0;
+  if (
+    view &&
+    Number.isFinite(view.far) &&
+    Math.abs(view.cameraZ - (Number.isFinite(view.groundZ) ? view.groundZ : 0)) >= view.far
+  ) {
+    // Every ground point is at least the camera height away; the LOD is zero.
+    lastCalibratedDensity = 0;
+    return 0;
+  }
 
   const safeX = Number.isFinite(camX) ? camX : 0;
   const safeY = Number.isFinite(camY) ? camY : 0;
@@ -467,19 +568,53 @@ export function placeGrassTufts(
   );
   if (maxRing < 0) return 0;
 
-  const visitedCells = Math.PI * (maxRing + 0.5) * (maxRing + 0.5);
-  // Integral of (1 - t^2)^p over the disc is pi * R^2 / (p + 1); this spends
-  // the same budget across the whole cull disc instead of a hard cut at its edge.
-  const weightedCells = visitedCells / (GRASS_DENSITY_FALLOFF + 1);
-  const calibrated = requested / (GRASS_MEAN_TUFTS_PER_CELL * weightedCells);
-  // A config density of 1 means "no artificial cap": the calibrated density may
-  // exceed 1 in a dense field, and per-cell occupancy clamps at 1.
-  const densityCap = cfg.density >= 1 ? Number.POSITIVE_INFINITY : cfg.density;
-  const centerDensity = Math.min(calibrated, densityCap);
-  if (!(centerDensity > 0)) return 0;
-
   const camCellX = Math.floor(safeX / gs);
   const camCellY = Math.floor(-safeY / gs);
+
+  const visitedCells = Math.PI * (maxRing + 0.5) * (maxRing + 0.5);
+  let centerDensity = 0;
+  if (Number.isFinite(densityOverride) && (densityOverride ?? 0) > 0) {
+    centerDensity = densityOverride as number;
+  } else {
+    let averageVisibility = 1;
+    if (view) {
+      // Estimate the fraction of the placement disc inside the camera footprint.
+      // Distance falloff is deliberately not compensated here: far grass must
+      // fade and leave budget unused instead of forming a small dense patch.
+      const step = Math.max(1, Math.ceil(maxRing / 24));
+      const radiusCells = maxRing + 0.5;
+      const radiusCellsSq = radiusCells * radiusCells;
+      let visibleSum = 0;
+      let samples = 0;
+      for (let cy = -maxRing; cy <= maxRing; cy += step) {
+        for (let cx = -maxRing; cx <= maxRing; cx += step) {
+          if ((cx * cx + cy * cy) / radiusCellsSq >= 1) continue;
+          const worldX = (camCellX + cx + 0.5) * gs;
+          const worldY = -(camCellY + cy + 0.5) * gs;
+          const visible =
+            !view.corners ||
+            view.corners.length < 3 ||
+            pointInConvexQuad(worldX, worldY, view.corners);
+          visibleSum += visible ? 1 : 0;
+          samples++;
+        }
+      }
+      averageVisibility = samples > 0 ? visibleSum / samples : 0;
+      if (!(averageVisibility > 0)) return 0;
+    }
+
+    // Integral of (1 - t^2)^p over the disc is pi * R^2 / (p + 1); multiply it by
+    // the visible fraction so the budget lands on the camera view.
+    const weightedCells = (visitedCells * averageVisibility) / (GRASS_DENSITY_FALLOFF + 1);
+    const calibrated = requested / (GRASS_MEAN_TUFTS_PER_CELL * weightedCells);
+    // A config density of 1 means "no artificial cap": the calibrated density may
+    // exceed 1 in a dense field, and per-cell occupancy clamps at 1.
+    const densityCap = cfg.density >= 1 ? Number.POSITIVE_INFINITY : cfg.density;
+    centerDensity = Math.min(calibrated, densityCap);
+  }
+  lastCalibratedDensity = centerDensity;
+  if (!(centerDensity > 0)) return 0;
+
   const radiusSq = cullRadiusWorld * cullRadiusWorld;
   const radiusCells = Math.max(1, cullRadiusWorld / gs);
   const radiusCellsSq = radiusCells * radiusCells;
@@ -490,6 +625,12 @@ export function placeGrassTufts(
     const dy = cellY - camCellY;
     const t2 = (dx * dx + dy * dy) / radiusCellsSq;
     if (t2 >= 1) return;
+
+    const worldX = (cellX + 0.5) * gs;
+    const worldY = -(cellY + 0.5) * gs;
+    const visible =
+      !view || view.corners.length < 3 || pointInConvexQuad(worldX, worldY, view.corners);
+    if (!visible) return;
     const density = centerDensity * (1 - t2) ** GRASS_DENSITY_FALLOFF;
     if (!(density > 0)) return;
 
@@ -509,6 +650,7 @@ export function placeGrassTufts(
       out,
       count,
       requested,
+      view,
     );
   };
 

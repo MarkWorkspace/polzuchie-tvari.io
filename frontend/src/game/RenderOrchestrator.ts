@@ -19,6 +19,10 @@ import type { GameCamera } from "./Camera";
 const GRASS_VIEW_FORWARD_FACTOR = 0.5;
 /** Cap so a zoomed-out camera does not drag the field away from the player. */
 const GRASS_VIEW_FORWARD_MAX = 120;
+/** Camera distance where grass is fully dense. */
+const GRASS_FADE_NEAR = 250;
+/** Camera distance where grass has faded out and the ground carpet takes over. */
+const GRASS_FADE_FAR = 850;
 
 export class RenderOrchestrator {
   private sceneManager: SceneManager;
@@ -34,7 +38,22 @@ export class RenderOrchestrator {
   private propRenderer: PropRenderer;
   private postRenderCallbacks: ((frame: any, myId: string) => void)[] = [];
   private readonly grassForward = new THREE.Vector3();
-  private readonly grassView = { x: 0, y: 0, halfExtent: 0 };
+  private readonly grassRight = new THREE.Vector3();
+  private readonly grassUp = new THREE.Vector3();
+  private readonly grassRay = new THREE.Vector3();
+  private readonly grassView = {
+    x: 0,
+    y: 0,
+    halfExtent: 0,
+    cameraX: 0,
+    cameraY: 0,
+    cameraZ: 0,
+    groundZ: GRASS_GROUND_Z,
+    near: GRASS_FADE_NEAR,
+    far: GRASS_FADE_FAR,
+    corners: [] as { x: number; y: number }[],
+    viewKey: 0,
+  };
 
   constructor(sceneManager: SceneManager) {
     this.sceneManager = sceneManager;
@@ -83,6 +102,7 @@ export class RenderOrchestrator {
       this.grassView.y,
       this.grassView.halfExtent,
       preset.grassRadius,
+      this.grassView,
       this.sceneManager.getContactShadowFrame(),
     );
     this.propRenderer.update(
@@ -125,21 +145,34 @@ export class RenderOrchestrator {
   /**
    * Grass follows the camera's actual ground target, which exists in both player
    * and spectator modes (spectator frames do not carry usable camX/camY).
-   * Intersects the camera forward ray with the grass plane and returns the
-   * half-extent of the visible ground for cull-radius scaling. The field is
-   * biased toward the visible half of the frustum: at the player pitch most of
-   * the camera cone is in front of the target, so a centered disc would spend
-   * half its budget behind the snake.
+   * Builds the ground-plane footprint of the camera frustum and a distance LOD:
+   * the placement is clipped to what the camera can see and fades out with
+   * camera distance, so player, spectator overview and follow share one rule.
    */
   private resolveGrassView(camera: THREE.PerspectiveCamera, frame: any): void {
     let x = Number.isFinite(frame?.camX) ? frame.camX : 0;
     let y = Number.isFinite(frame?.camY) ? frame.camY : 0;
     let halfExtent = 0;
 
+    camera.updateMatrixWorld();
     const camX = camera.position.x;
     const camY = camera.position.y;
     const camZ = camera.position.z;
     const forward = camera.getWorldDirection(this.grassForward);
+    const right = this.grassRight.setFromMatrixColumn(camera.matrixWorld, 0);
+    const up = this.grassUp.setFromMatrixColumn(camera.matrixWorld, 1);
+    const aspect = Number.isFinite(camera.aspect) && camera.aspect > 0 ? camera.aspect : 1;
+
+    this.grassView.cameraX = camX;
+    this.grassView.cameraY = camY;
+    this.grassView.cameraZ = camZ;
+    this.grassView.groundZ = GRASS_GROUND_Z;
+    this.grassView.near = GRASS_FADE_NEAR;
+    this.grassView.far = GRASS_FADE_FAR;
+    this.grassView.viewKey =
+      Math.round(Math.atan2(forward.y, forward.x) * 1000) * 1_000_000 +
+      Math.round(Math.asin(Math.max(-1, Math.min(1, -forward.z))) * 1000) * 1_000 +
+      Math.round(aspect * 1000);
 
     if (Number.isFinite(camX) && Number.isFinite(camY) && Number.isFinite(camZ)) {
       const t = Math.abs(forward.z) >= 1e-4 ? (GRASS_GROUND_Z - camZ) / forward.z : Number.NaN;
@@ -163,6 +196,49 @@ export class RenderOrchestrator {
       y += (forward.y / flat) * offset;
     }
 
+    // Intersect the four frustum corner rays with the grass plane. The result
+    // is the exact ground trapezoid the camera sees, not an approximate circle.
+    const tanV = Math.tan((camera.fov * Math.PI) / 360);
+    const tanH = tanV * aspect;
+    const signs: readonly [number, number][] = [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ];
+    const corners: { x: number; y: number }[] = [];
+    let cornersValid = Number.isFinite(camX) && Number.isFinite(camY) && Number.isFinite(camZ);
+
+    for (const [sx, sy] of signs) {
+      if (!cornersValid) break;
+      this.grassRay.set(
+        forward.x + right.x * tanH * sx + up.x * tanV * sy,
+        forward.y + right.y * tanH * sx + up.y * tanV * sy,
+        forward.z + right.z * tanH * sx + up.z * tanV * sy,
+      );
+      const length = this.grassRay.length();
+      if (!(length > 1e-6)) {
+        cornersValid = false;
+        break;
+      }
+      this.grassRay.divideScalar(length);
+      if (this.grassRay.z >= -1e-4) {
+        cornersValid = false;
+        break;
+      }
+      const hit = (GRASS_GROUND_Z - camZ) / this.grassRay.z;
+      if (!(hit > 0) || !Number.isFinite(hit)) {
+        cornersValid = false;
+        break;
+      }
+      corners.push({
+        x: camX + this.grassRay.x * hit,
+        y: camY + this.grassRay.y * hit,
+      });
+    }
+
+    // An invalid/parallel camera falls back to the placement disc.
+    this.grassView.corners = cornersValid ? corners : [];
     this.grassView.x = x;
     this.grassView.y = y;
     this.grassView.halfExtent = halfExtent;

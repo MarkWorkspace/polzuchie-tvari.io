@@ -1,6 +1,8 @@
 // ROLE: Tests for deterministic grass clumping and prop placement, toroidal wrap, culling and budget caps.
 import { describe, expect, it } from "vitest";
 import {
+  cameraDistanceDensity,
+  cameraViewExposure,
   clumpDensity,
   clumpProfile,
   createCellTufts,
@@ -14,10 +16,12 @@ import {
   GRASS_SEED,
   GRASS_TUFTS_PER_CELL_MAX,
   type GrassFieldConfig,
+  type GrassPlacementView,
   hashCell,
   PROP_VARIANT_COUNTS,
   placeDecorProps,
   placeGrassTufts,
+  pointInConvexQuad,
   sampleCellTufts,
   toroidalDelta,
   toroidalDistance,
@@ -292,6 +296,67 @@ describe("placeGrassTufts", () => {
   });
 });
 
+describe("camera visibility and distance LOD", () => {
+  const square = [
+    { x: -200, y: -200 },
+    { x: 200, y: -200 },
+    { x: 200, y: 200 },
+    { x: -200, y: 200 },
+  ];
+  const baseView: GrassPlacementView = {
+    cameraX: 0,
+    cameraY: 0,
+    cameraZ: 200,
+    groundZ: 0,
+    near: 250,
+    far: 1000,
+    corners: square,
+  };
+
+  it("tests points against the camera ground quad", () => {
+    expect(pointInConvexQuad(0, 0, square)).toBe(true);
+    expect(pointInConvexQuad(199, 199, square)).toBe(true);
+    expect(pointInConvexQuad(200, 0, square)).toBe(true);
+    expect(pointInConvexQuad(201, 0, square)).toBe(false);
+    expect(pointInConvexQuad(0, -201, square)).toBe(false);
+  });
+
+  it("fades grass smoothly with camera distance", () => {
+    expect(cameraDistanceDensity(0, 0, baseView)).toBe(1);
+    const middle = cameraDistanceDensity(0, 500, baseView);
+    expect(middle).toBeGreaterThan(0);
+    expect(middle).toBeLessThan(1);
+    expect(cameraDistanceDensity(0, 1000, baseView)).toBe(0);
+  });
+
+  it("clips placement to the camera footprint", () => {
+    const buffer = createGrassTuftBuffer(500);
+    const count = placeGrassTufts(0, 0, 500, 500, denseConfig, buffer, baseView);
+
+    expect(count).toBeGreaterThan(0);
+    for (let i = 0; i < count; i++) {
+      expect(pointInConvexQuad(buffer.x[i], buffer.y[i], square)).toBe(true);
+    }
+  });
+
+  it("hides grass when the camera is farther than the LOD range", () => {
+    const follow: GrassPlacementView = { ...baseView, cameraZ: 600 };
+    const followBuffer = createGrassTuftBuffer(20000);
+    const followCount = placeGrassTufts(0, 0, 500, 20000, denseConfig, followBuffer, follow);
+    expect(followCount).toBeGreaterThan(0);
+
+    const overview: GrassPlacementView = { ...baseView, cameraZ: 1500 };
+    const buffer = createGrassTuftBuffer(500);
+    expect(placeGrassTufts(0, 0, 500, 500, denseConfig, buffer, overview)).toBe(0);
+  });
+
+  it("combines the quad and distance into one exposure", () => {
+    expect(cameraViewExposure(0, 0, baseView)).toBe(1);
+    expect(cameraViewExposure(300, 0, baseView)).toBe(0);
+    expect(cameraViewExposure(0, 0, null)).toBe(1);
+  });
+});
+
 describe("grass clumping", () => {
   it("keeps the cluster factor inside its band and varies across the map", () => {
     const values = new Set<number>();
@@ -308,9 +373,10 @@ describe("grass clumping", () => {
         max = Math.max(max, value);
       }
     }
-    // Both lush and nearly bare patches must exist, with real contrast between them.
+    // The band stays intentionally gentle: enough variation to avoid a flat
+    // carpet, not enough to form obvious bare patches.
     expect(values.size).toBeGreaterThan(4);
-    expect(max - min).toBeGreaterThan(0.4);
+    expect(max - min).toBeGreaterThan(0.15);
     expect(Number.isFinite(clumpDensity(Number.NaN, Number.NaN, 100, 100, GRASS_SEED))).toBe(true);
   });
 
@@ -373,7 +439,7 @@ describe("grass clumping", () => {
     }
   });
 
-  it("makes fine clumps sparser in thin patches than in lush ones", () => {
+  it("keeps thin clumps populated instead of forming bare gaps", () => {
     let lushX = 0;
     let lushY = 0;
     let bareX = 0;
@@ -409,9 +475,10 @@ describe("grass clumping", () => {
 
     const lush = occupied(lushX, lushY);
     const bare = occupied(bareX, bareY);
-    expect(lush).toBeGreaterThan(bare);
+    // At CLUSTER_MIN=0.75 both patches are covered; variation is gentle.
     expect(lush).toBeGreaterThanOrEqual(3);
-    expect(bare).toBeLessThanOrEqual(3);
+    expect(bare).toBeGreaterThanOrEqual(3);
+    expect(Math.abs(lush - bare)).toBeLessThanOrEqual(1);
   });
 });
 

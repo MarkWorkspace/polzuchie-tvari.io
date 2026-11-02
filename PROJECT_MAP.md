@@ -88,7 +88,7 @@ frontend/
     │   ├── spectatorMode.ts            # ROLE: Чистый разбор `?spectator=` / `?debug=` в player/debug режим.
     │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
     │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy, пауза rAF и reload-overlay при потере WebGL-контекста или фатальном сбое worker. Не содержит рендеринг.
-    │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере. Не содержит логики ввода или сети.
+    │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере, строит ground-трапецию камеры и distance-LOD. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа; guard editable/HUD и resync. Не UI, не сеть.
     │   ├── InputManager.test.ts        # ROLE: Тесты editable/HUD guard, UI-open паузы и resync ввода.
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру, requestId-корреляция кадров, player-session bootstrap (POST /session), worker watchdog/restart с backoff. Не бизнес-логика.
@@ -109,12 +109,14 @@ frontend/
     │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества, adaptive pixel ratio и listeners потери/восстановления WebGL-контекста.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.78, 1.33), два separable Gaussian-прохода в world units (radius 4, opacity 0.5) и один quad на земле; отдаёт размытую маску траве через getFrame(). Не свет, не shadow map, не пост-эффект.
     │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
-    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок на пучок, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + две волны + gust), локальное раздвигание у головы, per-blade tint, затемнение и приминание внутри contact shadow, dither-фейд края поля. Бюджет/радиус — из пресета; декор без коллизий.
-    │   ├── DecorField.ts               # ROLE: Чистая математика декора: хэш клетки, тороидальная генерация куртин двух масштабов (fine 20 u / broad 80 u), общий цвет/высота/сухость clump'а, раскладка камней, пер-тировые бюджеты травы/камней и culling radius.
+    │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок в широкой розетке, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + две волны + gust), локальное раздвигание у головы, per-blade tint, root-shadow decals, полное приминание по dilated contact mask, fading trail приминания, dither-фейд края, stable density cache и shader-side distance-LOD. Бюджет/радиус — из пресета; декор без коллизий.
+    │   ├── GrassTrail.ts               # ROLE: CPU-буфер следа змейки: последние 32 точки кончика хвоста, затухание 3.2 с, сброс на телепорте/торе. Не рендерит.
+    │   ├── GrassTrail.test.ts          # ROLE: Тесты интервала, затухания, срока жизни, телепорта и ёмкости trail-буфера.
+    │   ├── DecorField.ts               # ROLE: Чистая математика декора: хэш клетки, тороидальная генерация куртин двух масштабов (fine 20 u / broad 80 u), общий цвет/высота/сухость clump'а, стабильная плотность клетки, раскладка камней, пер-тировые бюджеты, camera-distance LOD и клип по ground-трапеции.
     │   ├── DecorField.test.ts          # ROLE: Тесты детерминизма, тора, кластеров, бюджетов и устойчивости к NaN.
     │   ├── PropRenderer.ts             # ROLE: Один instanced mesh вкопанных камней-акцентов. Декор без коллизий, без теней и bloom.
     │   ├── PropGeometry.ts             # ROLE: Процедурные силуэты камней. Не рендерит.
-    │   ├── DecorUpdateGate.ts          # ROLE: Общий throttle перестроения декора (250 мс / 4 юнита) с инвалидацией при смене пресета.
+    │   ├── DecorUpdateGate.ts          # ROLE: Общий throttle перестроения декора: 250 мс для сдвига, 60 мс для поворота/зума, инвалидация при смене пресета/карты.
     │   ├── SnakeLightPool.ts           # ROLE: Пул из 3–4 головных PointLight для ближайших змей; без теней и геймплея.
     │   ├── SnakeLightPool.test.ts      # ROLE: Тест приоритета local player, лимита и очистки пула.
     │   ├── SnakeRenderer.ts            # ROLE: Меши змеек, emissive-скины, skin-tinted head glow. Тело попадает в bloom-маску и top-down contact-shadow маску через отдельные слои; само тень не кастует. Не физика, не HUD.
@@ -161,7 +163,7 @@ frontend/
     │       ├── food.glsl.ts            # ROLE: Шейдер еды.
     │       ├── portal.glsl.ts          # ROLE: Шейдер портала.
     │       ├── blackHole.glsl.ts       # ROLE: Шейдер чёрной дыры.
-    │       └── ground.glsl.ts          # ROLE: Шейдер пола: AA-сетка, процедурная фактура и distance fade.
+    │       └── ground.glsl.ts          # ROLE: Шейдер пола: AA-сетка, периодическая по карте процедурная фактура, анизотропные grass-пряди и distance fade.
     ├── worker/
     │   ├── worker.ts                   # ROLE: Точка входа воркера, onmessage-роутер, FRAME_DATA/FRAME_UNAVAILABLE с requestId. Не содержит вычислений.
     │   ├── worker.test.ts              # ROLE: Тесты FRAME_UNAVAILABLE и проброса requestId из воркера.
