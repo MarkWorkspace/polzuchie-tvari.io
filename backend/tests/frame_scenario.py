@@ -7,6 +7,7 @@ import random
 from pathlib import Path
 
 from app.engine.state import World
+from app.engine.systems.math_utils import wrap_coordinate
 
 SEED = 42
 CLIENT_ID = "player_aoi"
@@ -16,11 +17,17 @@ PINNED_CONFIG_PATH = Path(__file__).resolve().parent / "fixtures" / "config_pari
 
 
 def _set_player_pos(player, x: float, y: float) -> None:
-    """Перенести тело игрока в (x, y) с прямой начальной геометрией."""
+    """Перенести тело игрока в (x, y) с прямой начальной геометрией.
+
+    Сегменты заворачиваются по ширине карты тем же правилом, что и
+    `Player.respawn`, поэтому голова остаётся первой, а тело не выходит
+    за шов.
+    """
     player.body.clear()
     start_len = player.config.snake.start_length
+    width = player.config.world.width
     for i in range(start_len):
-        player.body.append(x - i)
+        player.body.append(wrap_coordinate(x - i, width))
         player.body.append(y)
     player.angle = 0.0
 

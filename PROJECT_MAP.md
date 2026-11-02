@@ -314,6 +314,7 @@ backend/tests/
 ├── test_resync.py                      # ROLE: Клиентский RESYNC: cooldown на соединение, дренаж очереди, ровно один FULL без шторма, PING/input не ломаются.
 ├── test_serialization_cache_race.py    # ROLE: Позднее подключение игрока не вызывает KeyError в кэше кадра.
 ├── test_server_resilience.py           # ROLE: Сбой сериализации одного клиента не убивает game loop.
+├── test_spawn.py                       # ROLE: Стартовое тело заворачивается по ширине карты: край, map shrink, head-first parity с parity-сценарием.
 ├── test_spectator_identity.py          # ROLE: Cookie-auth identity; spectator не переиспользует player id; неудачный handshake не оставляет призрака.
 ├── test_tick_events.py                 # ROLE: События на границе тика: очередь pending_removals, killfeed/food drop при disconnect, cleanup без death, reset/reconnect.
 ├── test_websocket_limits.py            # ROLE: Origin allowlist, per-IP bucket (включая denied origins), proxy-header trust, role caps и атомарный pending reservation.

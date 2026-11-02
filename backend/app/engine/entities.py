@@ -2,6 +2,8 @@
 import math
 from collections import deque
 
+from app.engine.systems.math_utils import wrap_coordinate
+
 
 class Food:
     def __init__(self, fid, x, y, value, config, color="#ef4444", image=""):
@@ -99,8 +101,12 @@ class Player:
     def respawn(self, start_x, start_y):
         self.clear_cache()
         self.body = deque()
+        # Wrap each segment so a spawn near the left edge does not put the
+        # body outside [0, width); the client would draw it across the seam.
+        # y is trusted to be in range because spawn points are generated there.
+        width = self.config.world.width
         for i in range(self.config.snake.start_length):
-            self.body.append(start_x - i)
+            self.body.append(wrap_coordinate(start_x - i, width))
             self.body.append(start_y)
         self.angle = 0.0
         self.turn = 0
