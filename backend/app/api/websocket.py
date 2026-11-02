@@ -1,6 +1,6 @@
 # ROLE: WebSocket endpoint, cookie-based player identity, origin allowlist,
-# per-IP/role admission caps, connection epochs, reconnect grace and draining.
-# Не игровая логика.
+# per-IP/role admission caps, connection epochs, reconnect grace, draining and
+# sender-queue backpressure. Не игровая логика.
 import asyncio
 import contextlib
 import ipaddress
@@ -11,6 +11,7 @@ import time
 import uuid
 import zlib
 from collections import deque
+from enum import Enum
 from urllib.parse import urlsplit
 from fastapi import WebSocket
 
@@ -37,6 +38,7 @@ DEFAULT_WS_HANDSHAKE_RATE_LIMIT = 30
 DEFAULT_WS_HANDSHAKE_WINDOW_SECONDS = 10.0
 MAX_HANDSHAKE_RATE_KEYS = 10_000
 CLOSE_ORIGIN_NOT_ALLOWED = 1008
+CLOSE_SENDER_FAILED = 1011
 CLOSE_PLAYER_CAPACITY = 4002
 CLOSE_SPECTATOR_CAPACITY = 4003
 CLOSE_TOO_MANY_ATTEMPTS = 4029
@@ -262,6 +264,24 @@ def _lifecycle_changed(world, restart_epoch) -> bool:
     )
 
 
+class QueueStatus(Enum):
+    """Outcome of storing the newest frame in a size-1 sender queue.
+
+    ``QUEUED``: the new frame was stored and nothing was displaced.
+    ``REPLACED_DELTA``: a queued DELTA was replaced by a newer DELTA, so the
+    client misses one frame and needs a FULL resync.
+    ``REPLACED_FULL``: a FULL is now queued (either it replaced a DELTA/FULL or
+    the caller explicitly queued it).
+    ``DROPPED_DELTA_FULL_PENDING``: the new DELTA was dropped because a FULL was
+    already queued; that FULL covers the client's next state.
+    """
+
+    QUEUED = "queued"
+    REPLACED_DELTA = "replaced_delta"
+    REPLACED_FULL = "replaced_full"
+    DROPPED_DELTA_FULL_PENDING = "dropped_delta_full_pending"
+
+
 async def sender_loop(client_id, websocket, queue, world):
     try:
         while True:
@@ -272,30 +292,34 @@ async def sender_loop(client_id, websocket, queue, world):
     except asyncio.CancelledError:
         raise
     except Exception:
-        logger.debug("Sender loop stopped", exc_info=True)
+        # A failed sender must not keep a live slot: close the socket so the
+        # receive loop exits and the endpoint finally-block unregisters it.
+        logger.exception("Sender loop failed for %s; closing connection", client_id)
+        with contextlib.suppress(Exception):
+            await websocket.close(code=CLOSE_SENDER_FAILED, reason="Send failed")
 
 
-def replace_queued_state(queue, data_tuple):
-    new_is_full = data_tuple[2]
-    skipped = False
+def replace_queued_state(queue, data_tuple) -> QueueStatus:
+    """Store the newest frame in a one-slot sender queue without awaiting.
 
-    if queue.full():
-        try:
-            current_item = queue._queue[0]
-            current_is_full = current_item[2]
-            if current_is_full and not new_is_full:
-                # Do not replace a full sync with a partial sync
-                return False
-        except Exception:
-            pass
-
-        with contextlib.suppress(asyncio.QueueEmpty):
-            queue.get_nowait()
-            skipped = True
-
-    with contextlib.suppress(asyncio.QueueFull):
+    The queue holds at most one frame. ``get_nowait`` + ``put_nowait`` form an
+    atomic section on the event loop because there is no ``await`` between
+    them. A pending FULL is never replaced by a DELTA: the DELTA is dropped and
+    the caller keeps the FULL as the resync point (no FULL storm).
+    """
+    new_is_full = bool(data_tuple[2])
+    try:
+        current_item = queue.get_nowait()
+    except asyncio.QueueEmpty:
         queue.put_nowait(data_tuple)
-    return skipped
+        return QueueStatus.QUEUED
+
+    if bool(current_item[2]) and not new_is_full:
+        queue.put_nowait(current_item)
+        return QueueStatus.DROPPED_DELTA_FULL_PENDING
+
+    queue.put_nowait(data_tuple)
+    return QueueStatus.REPLACED_FULL if new_is_full else QueueStatus.REPLACED_DELTA
 
 
 def _new_client_id() -> str:

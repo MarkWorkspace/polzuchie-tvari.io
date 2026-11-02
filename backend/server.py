@@ -18,6 +18,7 @@ if backend_dir not in sys.path:
 from app.engine.state import World
 from app.logging_setup import configure_logging
 from app.api.websocket import (
+    QueueStatus,
     active_connections,
     allowed_origins,
     websocket_endpoint,
@@ -46,6 +47,8 @@ WS_MAX_CLIENT_MESSAGE_BYTES = 4096
 async def process_client(client_id, connection, world):
     is_full_sync = connection.get("needs_full_sync", False)
     if is_full_sync and connection["queue"].full():
+        # A FULL is already waiting for the sender. Building another one every
+        # tick would only burn CPU (FULL storm), so wait for the queue to drain.
         return
 
     if is_full_sync:
@@ -68,7 +71,6 @@ async def process_client(client_id, connection, world):
                 f.image or "",
             )
         state_bytes = frame.SerializeToString()
-        connection["needs_full_sync"] = False
     else:
         state_bytes, visible_players = world.get_delta_state(
             client_id,
@@ -78,9 +80,11 @@ async def process_client(client_id, connection, world):
         )
 
     compressed = await asyncio.to_thread(zlib.compress, state_bytes, 1)
-    skipped = replace_queued_state(connection["queue"], (compressed, visible_players, is_full_sync))
-    if skipped:
-        connection["needs_full_sync"] = True
+    status = replace_queued_state(connection["queue"], (compressed, visible_players, is_full_sync))
+    # Only a replaced DELTA leaves a hole in the delta chain. A queued FULL or a
+    # dropped DELTA behind a pending FULL is already a resync point, so asking
+    # for another FULL here would start a storm on a slow client.
+    connection["needs_full_sync"] = status is QueueStatus.REPLACED_DELTA
 
 
 async def _safe_process_client(client_id, connection, world) -> None:
