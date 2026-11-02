@@ -5,6 +5,7 @@ import {
   GRASS_TRAIL_LIFETIME_MS,
   GRASS_TRAIL_MAX_POINTS,
   GrassTrail,
+  resolveGrassTrailPoint,
 } from "./GrassTrail";
 
 describe("GrassTrail", () => {
@@ -31,6 +32,15 @@ describe("GrassTrail", () => {
     expect(trail.fill(GRASS_TRAIL_LIFETIME_MS + 500, out)).toBe(1);
   });
 
+  it("keeps the trample visible for tens of seconds", () => {
+    const trail = new GrassTrail();
+    const out = new Float32Array(GRASS_TRAIL_MAX_POINTS * 4);
+    trail.update(0, 0, 0);
+    trail.update(GRASS_TRAIL_INTERVAL_MS, 10, 0);
+    expect(trail.fill(30000, out)).toBe(2);
+    expect(trail.fill(GRASS_TRAIL_LIFETIME_MS + 1, out)).toBe(0);
+  });
+
   it("resets on a teleport and caps the buffer", () => {
     const trail = new GrassTrail();
     const out = new Float32Array(GRASS_TRAIL_MAX_POINTS * 4);
@@ -42,8 +52,49 @@ describe("GrassTrail", () => {
     for (let i = 0; i < GRASS_TRAIL_MAX_POINTS + 10; i++) {
       trail.update(GRASS_TRAIL_INTERVAL_MS * (3 + i), i * 4, 0);
     }
-    expect(trail.fill(GRASS_TRAIL_INTERVAL_MS * 40, out)).toBeLessThanOrEqual(
+    expect(trail.fill(GRASS_TRAIL_INTERVAL_MS * 140, out)).toBeLessThanOrEqual(
       GRASS_TRAIL_MAX_POINTS,
     );
+  });
+});
+
+describe("resolveGrassTrailPoint", () => {
+  it("prefers the worker tail over the head", () => {
+    const point = resolveGrassTrailPoint(
+      {
+        myId: "me",
+        activePlayers: [
+          { id: "other", isMe: false, tailX: 1, tailY: 2 },
+          { id: "me", isMe: true, tailX: 10, tailY: 20 },
+        ],
+      },
+      100,
+      200,
+    );
+    expect(point).toEqual({ x: 10, y: 20 });
+  });
+
+  it("finds the local player by id when isMe is absent", () => {
+    expect(
+      resolveGrassTrailPoint(
+        { myId: "me", activePlayers: [{ id: "me", tailX: 5, tailY: 6 }] },
+        0,
+        0,
+      ),
+    ).toEqual({ x: 5, y: 6 });
+  });
+
+  it("falls back to the head when the tail is missing or non-finite", () => {
+    expect(
+      resolveGrassTrailPoint({ myId: "me", activePlayers: [{ id: "me", isMe: true }] }, 3, 4),
+    ).toEqual({ x: 3, y: 4 });
+    expect(
+      resolveGrassTrailPoint(
+        { myId: "me", activePlayers: [{ id: "me", isMe: true, tailX: Number.NaN, tailY: 1 }] },
+        3,
+        4,
+      ),
+    ).toEqual({ x: 3, y: 4 });
+    expect(resolveGrassTrailPoint({}, 3, 4)).toEqual({ x: 3, y: 4 });
   });
 });

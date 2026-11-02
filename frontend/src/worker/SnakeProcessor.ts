@@ -120,6 +120,17 @@ function _processSingleSnake(ctx: SnakeContext): void {
       );
     }
   }
+
+  // Expose the tail tip for ground effects. The last spline subpath is the
+  // tail end of the body and is already unwrapped/shifted into the same visual
+  // frame as the head, so the trail shader can consume it directly.
+  if (subPaths.length > 0) {
+    const lastPath = subPaths[subPaths.length - 1];
+    if (lastPath.pointsCount > 0) {
+      activePlayerObj.tailX = lastPath.x[lastPath.pointsCount - 1];
+      activePlayerObj.tailY = lastPath.y[lastPath.pointsCount - 1];
+    }
+  }
 }
 
 export function processSnakes(ctx: SnakeSceneContext): void {
