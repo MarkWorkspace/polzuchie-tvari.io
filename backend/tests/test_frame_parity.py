@@ -270,7 +270,9 @@ def test_out_of_aoi_without_points_still_marks_truncated():
 def test_dead_player_has_empty_body_and_zero_length(in_aoi, is_full):
     world = build_deterministic_world()
     player = world.players["player_aoi"]
-    player.final_length = player.body_len
+    expected_final = player.body_len
+    assert expected_final > 0
+    player.final_length = expected_final
     player.is_dead = True
     player.body.clear()
     player.new_heads_this_tick = []
@@ -279,4 +281,20 @@ def test_dead_player_has_empty_body_and_zero_length(in_aoi, is_full):
     assert not msg.body
     assert not msg.new_heads
     assert msg.length == 0
+    assert msg.HasField("final_length")
+    assert msg.final_length == expected_final
     assert not msg.HasField("body_truncated")
+
+
+@pytest.mark.parametrize(
+    ("in_aoi", "is_full"),
+    [(True, False), (False, False), (True, True), (False, True)],
+)
+def test_alive_player_does_not_emit_final_length(in_aoi, is_full):
+    world = build_deterministic_world()
+    player = world.players["player_aoi"]
+    # A stale final_length from a previous life must never leak while alive.
+    player.final_length = 99
+
+    msg = _player_message(player, in_aoi=in_aoi, is_full=is_full)
+    assert not msg.HasField("final_length")

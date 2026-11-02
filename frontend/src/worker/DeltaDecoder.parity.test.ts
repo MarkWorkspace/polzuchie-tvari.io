@@ -250,4 +250,88 @@ describe("DeltaDecoder body truth table", () => {
     expect(state.players.snake.head_x).toBe(11);
     expect(state.players.snake.head_y).toBe(10);
   });
+
+  it("decodes final_length for dead FULL and DELTA frames", () => {
+    const full = decodeFullState(
+      {
+        players: {
+          ghost: { is_dead: true, length: 0, final_length: 23 },
+        },
+      } as any,
+      MAP_W,
+      MAP_H,
+    );
+    expect(full.players.ghost.is_dead).toBe(true);
+    expect(full.players.ghost.length).toBe(0);
+    expect(full.players.ghost.body).toEqual([]);
+    expect(full.players.ghost.final_length).toBe(23);
+
+    const prev = makeState({
+      ghost: { body: [5, 5, 4, 5], angle: 0, score: 0, kills: 0, deaths: 0 },
+    });
+    const delta = decodeDeltaState(
+      makeDelta({ ghost: { is_dead: true, length: 0, final_length: 17 } }),
+      prev,
+      MAP_W,
+      MAP_H,
+    );
+    expect(delta.players.ghost.is_dead).toBe(true);
+    expect(delta.players.ghost.length).toBe(0);
+    expect(delta.players.ghost.body).toEqual([]);
+    expect(delta.players.ghost.final_length).toBe(17);
+  });
+
+  it("keeps alive length and does not invent final_length", () => {
+    const state = decodeFullState(
+      {
+        players: {
+          alive: { body: [1, 2, 0, 2, -1, 2, -2, 2], length: 4 },
+        },
+      } as any,
+      MAP_W,
+      MAP_H,
+    );
+    expect(state.players.alive.is_dead).toBe(false);
+    expect(state.players.alive.length).toBe(4);
+    expect(state.players.alive.body).toEqual([1, 2, 0, 2, -1, 2, -2, 2]);
+    expect(state.players.alive.final_length).toBeUndefined();
+  });
+
+  it("does not leave undefined holes when a delta outruns a one-segment body", () => {
+    // First delta leaves the player with a real one-segment body.
+    const afterTiny = decodeDeltaState(
+      makeDelta({ tiny: { body: [], new_heads: [10, 10], length: 1 } }),
+      makeState({
+        tiny: { body: [9, 10, 8, 10], angle: 0, score: 0, kills: 0, deaths: 0 },
+      }),
+      MAP_W,
+      MAP_H,
+    );
+    expect(afterTiny.players.tiny.body).toEqual([10, 10]);
+
+    // A later delta claims more length than old tail + new heads can supply.
+    const afterJump = decodeDeltaState(
+      makeDelta({ tiny: { body: [], new_heads: [11, 10], length: 5 } }),
+      afterTiny,
+      MAP_W,
+      MAP_H,
+    );
+    const body = afterJump.players.tiny.body;
+    expect(body).toEqual([11, 10, 10, 10]);
+    expect(body.length % 2).toBe(0);
+    expect(body.every((v) => typeof v === "number" && Number.isFinite(v))).toBe(true);
+    expect(body.some((v) => Number.isNaN(v))).toBe(false);
+  });
+});
+
+describe("ProtoFrameDecoder Player.final_length", () => {
+  it("maps field 16 to final_length in the player payload", () => {
+    const playerBytes = [0x80, 0x01, 23]; // field 16 (varint), value 23
+    const key = Array.from(new TextEncoder().encode("ghost"));
+    const entry = [0x0a, key.length, ...key, 0x12, playerBytes.length, ...playerBytes];
+    const frameBytes = Uint8Array.from([0x1a, entry.length, ...entry]);
+
+    const parsed = decodeGameStateFrame(frameBytes);
+    expect(parsed.players.ghost.final_length).toBe(23);
+  });
 });

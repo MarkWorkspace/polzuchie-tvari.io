@@ -140,6 +140,7 @@ const PLAYER: FieldSpec = {
   11: ["skin", "string"],
   12: ["nickname", "string"],
   15: ["length", "int32"],
+  16: ["final_length", "int32"],
   17: ["body_truncated", "bool"],
 };
 

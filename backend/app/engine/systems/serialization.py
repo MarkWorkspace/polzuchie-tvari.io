@@ -1,4 +1,4 @@
-# ROLE: Protobuf-упаковка, AoI-фильтрация и truth table body/new_heads/body_truncated.
+# ROLE: Protobuf-упаковка, AoI-фильтрация и truth table body/new_heads/body_truncated/final_length.
 
 from app.engine.systems.visibility import get_visible_players
 from app.engine.systems import snake_pb2
@@ -28,9 +28,10 @@ def populate_player_message(p_msg, player, in_aoi=True, is_full=False):
     # Body truth table:
     # alive + in AoI  -> full body/new_heads, length=body_len, flag unset;
     # alive + out AoI -> first point only, length=1, flag=true;
-    # dead            -> empty body/new_heads, length=0, flag unset.
+    # dead            -> empty body/new_heads, length=0, final_length preserved, flag unset.
     if player.is_dead:
         p_msg.length = 0
+        p_msg.final_length = player.final_length
         return
 
     if is_full or player.just_respawned:

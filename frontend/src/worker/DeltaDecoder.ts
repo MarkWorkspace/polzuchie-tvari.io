@@ -113,12 +113,17 @@ function getNewBody(
 
   const targetLen =
     length !== undefined && length !== 0 ? length : Math.floor(oldPlayer.body.length / 2);
-  const newBody = new Array(targetLen * 2);
-  const headsCount = addedHeads.length;
-  for (let i = 0; i < headsCount && i < targetLen * 2; i++) {
+  // A DELTA can claim a length that outruns old tail + new heads (e.g. after a
+  // truncated/one-segment body). Clamp to what can actually be reconstructed so
+  // the flat body never contains undefined holes; new heads stay first.
+  let targetFloats = Math.min(targetLen * 2, oldPlayer.body.length + addedHeads.length);
+  if (targetFloats % 2 !== 0) targetFloats -= 1;
+  const newBody = new Array(targetFloats);
+  const headsCount = Math.min(addedHeads.length, targetFloats);
+  for (let i = 0; i < headsCount; i++) {
     newBody[i] = addedHeads[i];
   }
-  for (let i = headsCount; i < targetLen * 2; i++) {
+  for (let i = headsCount; i < targetFloats; i++) {
     newBody[i] = oldPlayer.body[i - headsCount];
   }
   return newBody;

@@ -34,6 +34,8 @@ test("dies to a black hole and respawns", async ({ page, request }) => {
 
     await expect(page.locator(".game-over-overlay")).toBeVisible({ timeout: 15_000 });
     await expect(page.locator(".game-over-title")).toHaveText("GAME OVER");
+    // final_length must arrive over the wire: a real death is never zero length.
+    await expect(page.locator(".stat-length")).toHaveText(/^[1-9]\d*$/);
   } finally {
     await patchConfig(request, originalConfig);
   }

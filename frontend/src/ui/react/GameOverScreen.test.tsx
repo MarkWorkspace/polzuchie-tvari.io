@@ -52,4 +52,28 @@ describe("GameOverScreen", () => {
     expect(send).toHaveBeenCalledWith("RESPAWN");
     expect(screen.queryByText(t("gameOver.title"))).not.toBeInTheDocument();
   });
+
+  it("shows the preserved final length of the local player's death", () => {
+    // FrameComputer fills body_len from Player.final_length for dead players,
+    // so the overlay must render that value instead of a zero placeholder.
+    render(
+      <GameOverScreen
+        networkManager={{ send: vi.fn() } as unknown as NetworkManager}
+        getMyId={() => "me"}
+      />,
+    );
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("game-killfeed", {
+          detail: {
+            events: [{ victim: "me" }],
+            players: { me: { score: 0, kills: 0, body_len: 12 } },
+          },
+        }),
+      );
+    });
+
+    expect(screen.getByText("12")).toHaveClass("stat-length");
+  });
 });

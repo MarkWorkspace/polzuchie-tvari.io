@@ -139,7 +139,7 @@ frontend/
     │   ├── BlackHoleComputer.ts        # ROLE: Матрицы инстансов чёрных дыр.
     │   ├── ParticleComputer.ts         # ROLE: Симуляция частиц хвоста.
     │   ├── EyeComputer.ts              # ROLE: Позиции глаз и зрачков змеек.
-    │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера, body/new_heads truth table (dead/truncated/head). Не сеть, не интерполяция.
+    │   ├── DeltaDecoder.ts             # ROLE: Декодирование delta-стейтов с сервера, body/new_heads truth table (dead/truncated/head), final_length и clamp длины. Не сеть, не интерполяция.
     │   ├── DeltaDecoder.parity.test.ts # ROLE: Parity-тест сетевого кадра. Декодирует бинарные фикстуры и сравнивает с expected JSON.
     │   ├── WebSocketClient.ts          # ROLE: WebSocket-соединение, cookie-handshake, реконнект с backoff по close-кодам, ping/pong. Не бизнес-логика.
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
@@ -153,7 +153,7 @@ frontend/
     │       ├── GrowableArray.test.ts   # ROLE: Тесты копирования буферов (без SharedArrayBuffer alias).
     │       ├── ColorUtils.ts           # ROLE: parseColor, lerpColors, hslToHex, glow-тинт для специальных скинов.
     │       ├── ColorUtils.test.ts      # ROLE: Тесты парсинга цветов и glow-тинтов скинов.
-    │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame для воркера. Не генерирует и не кодирует сообщения.
+    │       └── ProtoFrameDecoder.ts    # ROLE: Минимальный Protobuf-декодер GameStateFrame/Player (включая final_length) для воркера. Не генерирует и не кодирует сообщения.
     ├── ui/
     │   ├── Minimap.ts                  # ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
     │   ├── Minimap.test.ts             # ROLE: Тесты разбора lightweight-игроков для миникарты.
@@ -270,7 +270,7 @@ backend/
             ├── math_utils.py           # ROLE: toroidal_delta, toroidal_distance. ЕДИНСТВЕННАЯ копия математики на бэке.
             ├── visibility.py           # ROLE: AoI-фильтрация видимых игроков.
             ├── formula_parser.py       # ROLE: Единственный AST compile/eval формул роста: validation и runtime. Не regex-парсер.
-            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, truth table body/new_heads/body_truncated, кэши игроков.
+            ├── serialization.py        # ROLE: Protobuf-упаковка, AoI-фильтрация, truth table body/new_heads/body_truncated/final_length, кэши игроков.
             └── snake_pb2.py            # ROLE: [СГЕНЕРИРОВАНО] Python-модуль Protobuf.
 ```
 
@@ -322,7 +322,7 @@ backend/tests/
 
 ```
 tests_shared/
-├── snake.proto                     # ROLE: Protobuf-схема сетевого протокола обмена.
+├── snake.proto                     # ROLE: Protobuf-схема сетевого протокола обмена (Player.body/new_heads/length/final_length/body_truncated).
 ├── golden_vectors/
 │   └── math.json                       # Эталонные векторы для тороидальной математики (25 кейсов).
 └── golden_frames/
