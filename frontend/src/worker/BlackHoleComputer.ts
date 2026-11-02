@@ -1,7 +1,7 @@
 // ROLE: Матрицы инстансов чёрных дыр.
 
 import type { GameState } from "../types/game";
-import { writeMatrix } from "./shared/MathUtils";
+import { wrapDelta, writeMatrix } from "./shared/MathUtils";
 import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 export interface BlackHoleBuffers {
@@ -53,15 +53,8 @@ export function computeBlackHoles(
       let wy = gridToWorldY(bh.y, gridSize);
 
       if (!showAllInMainCopy) {
-        let dx = wx - camX;
-        if (dx > worldW / 2) dx -= worldW;
-        else if (dx < -worldW / 2) dx += worldW;
-        wx = camX + dx;
-
-        let dy = wy - camY;
-        if (dy > worldH / 2) dy -= worldH;
-        else if (dy < -worldH / 2) dy += worldH;
-        wy = camY + dy;
+        wx = camX + wrapDelta(wx - camX, worldW);
+        wy = camY + wrapDelta(wy - camY, worldH);
       }
 
       if (showAllInMainCopy || (wx - camX) ** 2 + (wy - camY) ** 2 <= (fogRadiusWorld * 1.2) ** 2) {

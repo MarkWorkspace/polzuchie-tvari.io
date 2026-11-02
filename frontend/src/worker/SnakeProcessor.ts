@@ -6,6 +6,7 @@ import { appendSnakeMesh, type GeometryBuffers } from "./MeshBuilder";
 import type { ParticleComputer } from "./ParticleComputer";
 import { computeSplinePaths } from "./SplineComputer";
 import { resolveSkinGlowColor } from "./shared/ColorUtils";
+import { wrapDelta } from "./shared/MathUtils";
 import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 function _processSingleSnake(
@@ -63,15 +64,8 @@ function _processSingleSnake(
     const camY = gridToWorldY(camera.localY, gridSize);
 
     if (!showAllInMainCopy) {
-      let dx = hx - camX;
-      if (dx > mapW_geo / 2) dx -= mapW_geo;
-      else if (dx < -mapW_geo / 2) dx += mapW_geo;
-      hx = camX + dx;
-
-      let dy = hy - camY;
-      if (dy > mapH_geo / 2) dy -= mapH_geo;
-      else if (dy < -mapH_geo / 2) dy += mapH_geo;
-      hy = camY + dy;
+      hx = camX + wrapDelta(hx - camX, mapW_geo);
+      hy = camY + wrapDelta(hy - camY, mapH_geo);
     }
 
     const fogAmt = calcFog(hx, hy);
@@ -166,13 +160,8 @@ export function processSnakes(
       const hx = gridToWorldX(p.body[0], gridSize);
       const hy = gridToWorldY(p.body[1], gridSize);
 
-      let dx = hx - camX;
-      if (dx > mapW_geo / 2) dx -= mapW_geo;
-      else if (dx < -mapW_geo / 2) dx += mapW_geo;
-
-      let dy = hy - camY;
-      if (dy > mapH_geo / 2) dy -= mapH_geo;
-      else if (dy < -mapH_geo / 2) dy += mapH_geo;
+      const dx = wrapDelta(hx - camX, mapW_geo);
+      const dy = wrapDelta(hy - camY, mapH_geo);
 
       const dist = Math.sqrt(dx * dx + dy * dy);
       const safeRadius = fogRadiusWorld * 1.1 + pLength * gridSize * 0.6;

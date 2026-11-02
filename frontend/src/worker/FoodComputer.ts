@@ -2,6 +2,7 @@
 
 import type { Food, GameState } from "../types/game";
 import { parseColor } from "./shared/ColorUtils";
+import { wrapDelta } from "./shared/MathUtils";
 import { computeHeadRadiusWorld } from "./shared/PlayerMetrics";
 import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
@@ -58,15 +59,8 @@ export function computeFood(
     const worldH = mapH * gridSize;
 
     if (!showAllInMainCopy) {
-      let dx = wx - camX;
-      if (dx > worldW / 2) dx -= worldW;
-      else if (dx < -worldW / 2) dx += worldW;
-      wx = camX + dx;
-
-      let dy = wy - camY;
-      if (dy > worldH / 2) dy -= worldH;
-      else if (dy < -worldH / 2) dy += worldH;
-      wy = camY + dy;
+      wx = camX + wrapDelta(wx - camX, worldW);
+      wy = camY + wrapDelta(wy - camY, worldH);
     }
 
     const distToCamSq = (wx - camX) ** 2 + (wy - camY) ** 2;
@@ -210,15 +204,10 @@ function _applyBHGravityOnFood(
     const bhWx = gridToWorldX(bh.x, gridSize);
     const bhWy = gridToWorldY(bh.y, gridSize);
 
-    let bhDx = bhWx - wx;
-    let bhDy = bhWy - wy;
     const worldW = mapW * gridSize;
     const worldH = mapH * gridSize;
-
-    if (bhDx > worldW / 2) bhDx -= worldW;
-    else if (bhDx < -worldW / 2) bhDx += worldW;
-    if (bhDy > worldH / 2) bhDy -= worldH;
-    else if (bhDy < -worldH / 2) bhDy += worldH;
+    const bhDx = wrapDelta(bhWx - wx, worldW);
+    const bhDy = wrapDelta(bhWy - wy, worldH);
 
     const bhDist = Math.sqrt(bhDx * bhDx + bhDy * bhDy);
     const effKillRadius = bh.kill_radius * (bh.current_scale ?? 1.0) * gridSize;

@@ -1,7 +1,8 @@
 # ROLE: Protobuf-упаковка, AoI-фильтрация и truth table body/new_heads/body_truncated/final_length.
 
-from app.engine.systems.visibility import get_visible_players
 from app.engine.systems import snake_pb2
+from app.engine.systems.math_utils import toroidal_delta
+from app.engine.systems.visibility import get_visible_players
 
 
 def populate_player_message(p_msg, player, in_aoi=True, is_full=False):
@@ -130,16 +131,9 @@ def _filter_moved_foods(state, client_player, moved_foods_list):
 
     filtered = []
     gw, gh = state.grid_width, state.grid_height
-    gw2, gh2 = gw / 2.0, gh / 2.0
 
     for f in moved_foods_list:
-        dx = abs(cx - f["x"])
-        if dx > gw2:
-            dx = gw - dx
-        dy = abs(cy - f["y"])
-        if dy > gh2:
-            dy = gh - dy
-
+        dx, dy = toroidal_delta(cx, cy, f["x"], f["y"], gw, gh)
         if (dx * dx + dy * dy) < aoi_sq:
             filtered.append(f)
     return filtered

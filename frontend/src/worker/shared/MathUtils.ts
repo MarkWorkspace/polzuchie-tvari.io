@@ -1,4 +1,5 @@
-// ROLE: Тороидальные операции, lerp. ЕДИНСТВЕННАЯ копия математики на фронте.
+// ROLE: Единственный источник тороидальной математики на фронте: wrapNearest, wrapDelta,
+// toroidalDelta/toroidalDistance, toroidalLerp и generic lerp-хелперы. Не знает про сеть, рендер и состояние игры.
 
 export const frameSmoothing = (smoothingAt20Hz: number, dt: number): number => {
   return 1 - (1 - smoothingAt20Hz) ** (dt / 0.05);
@@ -6,6 +7,33 @@ export const frameSmoothing = (smoothingAt20Hz: number, dt: number): number => {
 
 export const randomRange = (min: number, max: number): number => {
   return min + Math.random() * (max - min);
+};
+
+/**
+ * Wraps a coordinate into `[0, size)`.
+ *
+ * Non-finite values and non-positive/non-finite sizes are returned unchanged:
+ * callers that need a numeric fallback (e.g. decor cells) guard first.
+ */
+export const wrapNearest = (value: number, size: number): number => {
+  if (!(size > 0) || !Number.isFinite(size) || !Number.isFinite(value)) return value;
+  return ((value % size) + size) % size;
+};
+
+/**
+ * Shortest signed delta on a torus of the given size.
+ *
+ * Exact half-size ties keep the sign of the input (`+size / 2` stays positive,
+ * `-size / 2` stays negative), matching `toroidalDelta` and the backend
+ * `wrap_delta`/golden vectors. Invalid sizes and non-finite deltas return the
+ * delta unchanged.
+ */
+export const wrapDelta = (delta: number, size: number): number => {
+  if (!(size > 0) || !Number.isFinite(size) || !Number.isFinite(delta)) return delta;
+  const reduced = delta % size;
+  if (reduced > size / 2) return reduced - size;
+  if (reduced < -size / 2) return reduced + size;
+  return reduced;
 };
 
 export const toroidalDelta = (
@@ -16,15 +44,7 @@ export const toroidalDelta = (
   width: number,
   height: number,
 ): [number, number] => {
-  let dx = x2 - x1;
-  if (dx > width / 2) dx -= width;
-  else if (dx < -width / 2) dx += width;
-
-  let dy = y2 - y1;
-  if (dy > height / 2) dy -= height;
-  else if (dy < -height / 2) dy += height;
-
-  return [dx, dy];
+  return [wrapDelta(x2 - x1, width), wrapDelta(y2 - y1, height)];
 };
 
 export const toroidalDistance = (
@@ -47,13 +67,7 @@ export const lerpAngle = (a: number, b: number, t: number): number => {
 };
 
 export const toroidalLerp = (x1: number, x2: number, t: number, size: number): number => {
-  let dx = x2 - x1;
-  if (dx > size / 2) dx -= size;
-  else if (dx < -size / 2) dx += size;
-  let result = x1 + dx * t;
-  if (result < 0) result += size;
-  else if (result >= size) result -= size;
-  return result;
+  return wrapNearest(x1 + wrapDelta(x2 - x1, size) * t, size);
 };
 
 export const writeMatrix = (

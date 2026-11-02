@@ -65,8 +65,8 @@ frontend/
     │   ├── SpectatorApp.ts             # ROLE: Ядро спектатора: камера, сеть, рендер; debug UI вынесен отдельно.
     │   ├── SpectatorDebugOverlay.ts    # ROLE: Админские debug-панели спектатора (статы, выбор змейки).
     │   ├── SpectatorCamera.ts          # ROLE: Камера спектатора: free-pan/zoom и плавное слежение за игроком.
-    │   ├── spectatorCameraMath.ts     # ROLE: Чистая тороидальная дельта для follow-камеры.
-    │   ├── spectatorCameraMath.test.ts # ROLE: Тесты перехода камеры через границу карты.
+    │   ├── spectatorCameraMath.ts     # ROLE: Тонкие wrapper'ы follow-камеры (shortestToroidalDelta/wrapWithin) над shared MathUtils; своей математики не содержат.
+    │   ├── spectatorCameraMath.test.ts # ROLE: Тесты перехода камеры через границу карты и делегирования в MathUtils.
     │   ├── Camera.ts                   # ROLE: Следование камеры, зум; не двигает камеру при нефинитных camX/camY. Не рендеринг.
     │   ├── Camera.test.ts              # ROLE: Тесты finite-guard камеры (пустой кадр не даёт NaN-позу).
     │   └── Config.ts                   # ROLE: Клиентские константы рендеринга. Не содержит физические константы.
@@ -150,7 +150,7 @@ frontend/
     │   ├── FrameComputer.ts            # ROLE: Сборка кадра игры (матрицы, вершины, лидерборд) для отправки на фронтенд.
     │   ├── SnakeProcessor.ts           # ROLE: Обработка сплайнов, мешей, глаз и частиц змеек на каждом кадре воркера. Не содержит рендеринг.
     │   └── shared/
-    │       ├── MathUtils.ts            # ROLE: Тороидальные операции, lerp. ЕДИНСТВЕННАЯ копия математики на фронте.
+    │       ├── MathUtils.ts            # ROLE: Единственный источник torus-математики: wrapNearest, wrapDelta, toroidalDelta/Distance/Lerp, lerp. Не сеть/рендер/состояние.
     │       ├── MathUtils.parity.test.ts # ROLE: Parity-тест тороидальной математики. Сверяет TS с golden vectors.
     │       ├── PlayerMetrics.ts        # ROLE: Чистая математика размеров змейки (сегменты, радиус, туман).
     │       ├── PlayerMetrics.test.ts   # ROLE: Тесты размеров/тумана без DOM.

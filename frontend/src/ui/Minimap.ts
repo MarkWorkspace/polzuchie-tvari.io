@@ -1,5 +1,6 @@
 // ROLE: 2D-радар на Canvas с частотой обновления экрана. Не UI, не ввод.
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
+import { wrapDelta } from "../worker/shared/MathUtils";
 import { worldToGridX, worldToGridY } from "../worker/shared/WorldMath";
 
 export function getPlayerHead(player: any): { x: number; y: number } | null {
@@ -138,12 +139,8 @@ export class Minimap {
         fcolorInt = temp;
       }
 
-      let baseRx = fx - px;
-      let baseRy = fy - py;
-      if (baseRx > mapW / 2) baseRx -= mapW;
-      else if (baseRx < -mapW / 2) baseRx += mapW;
-      if (baseRy > mapH / 2) baseRy -= mapH;
-      else if (baseRy < -mapH / 2) baseRy += mapH;
+      const baseRx = wrapDelta(fx - px, mapW);
+      const baseRy = wrapDelta(fy - py, mapH);
 
       let hexColor = "#ef4444";
       if (typeof fcolorInt === "number" && !isNaN(fcolorInt) && fcolorInt > 0) {
@@ -189,12 +186,8 @@ export class Minimap {
       if (!head) continue;
 
       ctx.fillStyle = getPlayerDotColor(p.skin);
-      let baseRx = head.x - px;
-      let baseRy = head.y - py;
-      if (baseRx > mapW / 2) baseRx -= mapW;
-      else if (baseRx < -mapW / 2) baseRx += mapW;
-      if (baseRy > mapH / 2) baseRy -= mapH;
-      else if (baseRy < -mapH / 2) baseRy += mapH;
+      const baseRx = wrapDelta(head.x - px, mapW);
+      const baseRy = wrapDelta(head.y - py, mapH);
 
       const sx = baseRx * scale;
       const sy = baseRy * scale;

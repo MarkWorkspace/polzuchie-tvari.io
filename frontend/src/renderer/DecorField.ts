@@ -1,5 +1,11 @@
 // ROLE: Deterministic decor placement math: grass clumps, prop scattering, cell hashing,
-// toroidal wrapping and camera-radius culling. No three.js, no rendering, no gameplay.
+// toroidal wrapping via shared MathUtils and camera-radius culling. No three.js, no rendering, no gameplay.
+
+import {
+  toroidalDistance as sharedToroidalDistance,
+  wrapDelta,
+  wrapNearest,
+} from "../worker/shared/MathUtils";
 
 export const GRASS_SEED = 0x2f6e5b17;
 
@@ -173,17 +179,19 @@ export function hashUnit(hash: number): number {
   return (hash >>> 8) / 0x1000000;
 }
 
-/** Positive modulo; the result always lives in [0, size). */
+/**
+ * Positive modulo; the result always lives in [0, size). Invalid cells map to 0,
+ * preserving the decor generators' no-NaN contract.
+ */
 export function wrapIndex(value: number, size: number): number {
-  if (!(size > 0) || !Number.isFinite(value)) return 0;
-  const wrapped = value - Math.floor(value / size) * size;
-  return wrapped < 0 ? wrapped + size : wrapped;
+  if (!(size > 0) || !Number.isFinite(size) || !Number.isFinite(value)) return 0;
+  return wrapNearest(value, size);
 }
 
-/** Shortest signed delta on a torus of the given size. */
+/** Shortest signed delta on a torus of the given size (shared tie convention). */
 export function toroidalDelta(delta: number, size: number): number {
-  if (!(size > 0) || !Number.isFinite(delta)) return 0;
-  return delta - Math.round(delta / size) * size;
+  if (!(size > 0) || !Number.isFinite(size) || !Number.isFinite(delta)) return 0;
+  return wrapDelta(delta, size);
 }
 
 export function toroidalDistance(
@@ -194,9 +202,7 @@ export function toroidalDistance(
   worldWidth: number,
   worldHeight: number,
 ): number {
-  const dx = toroidalDelta(ax - bx, worldWidth);
-  const dy = toroidalDelta(ay - by, worldHeight);
-  return Math.hypot(dx, dy);
+  return sharedToroidalDistance(ax, ay, bx, by, worldWidth, worldHeight);
 }
 
 function safeCellSize(value: number): number {

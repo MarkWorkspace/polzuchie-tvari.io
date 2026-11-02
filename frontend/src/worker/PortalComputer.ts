@@ -2,7 +2,7 @@
 
 import type { GameState } from "../types/game";
 import { parseColor } from "./shared/ColorUtils";
-import { writeMatrix } from "./shared/MathUtils";
+import { wrapDelta, writeMatrix } from "./shared/MathUtils";
 import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 export interface PortalBuffers {
@@ -48,15 +48,8 @@ export function computePortals(
       let wy1 = gridToWorldY(p.y1, gridSize);
 
       if (!showAllInMainCopy) {
-        let dx1 = wx1 - camX;
-        if (dx1 > worldW / 2) dx1 -= worldW;
-        else if (dx1 < -worldW / 2) dx1 += worldW;
-        wx1 = camX + dx1;
-
-        let dy1 = wy1 - camY;
-        if (dy1 > worldH / 2) dy1 -= worldH;
-        else if (dy1 < -worldH / 2) dy1 += worldH;
-        wy1 = camY + dy1;
+        wx1 = camX + wrapDelta(wx1 - camX, worldW);
+        wy1 = camY + wrapDelta(wy1 - camY, worldH);
       }
 
       if (
@@ -70,15 +63,8 @@ export function computePortals(
       let wy2 = gridToWorldY(p.y2, gridSize);
 
       if (!showAllInMainCopy) {
-        let dx2 = wx2 - camX;
-        if (dx2 > worldW / 2) dx2 -= worldW;
-        else if (dx2 < -worldW / 2) dx2 += worldW;
-        wx2 = camX + dx2;
-
-        let dy2 = wy2 - camY;
-        if (dy2 > worldH / 2) dy2 -= worldH;
-        else if (dy2 < -worldH / 2) dy2 += worldH;
-        wy2 = camY + dy2;
+        wx2 = camX + wrapDelta(wx2 - camX, worldW);
+        wy2 = camY + wrapDelta(wy2 - camY, worldH);
       }
 
       if (

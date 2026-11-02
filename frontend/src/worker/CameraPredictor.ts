@@ -1,7 +1,7 @@
 // ROLE: Клиентское предсказание позиции камеры.
 
 import type { GameState } from "../types/game";
-import { toroidalLerp } from "./shared/MathUtils";
+import { toroidalLerp, wrapDelta, wrapNearest } from "./shared/MathUtils";
 import { gridToWorldX, gridToWorldY, worldToGridX, worldToGridY } from "./shared/WorldMath";
 
 export class CameraPredictor {
@@ -67,10 +67,8 @@ export class CameraPredictor {
     this._predictPosition(dt, myId, myPlayer, localInput, state, lastState, progress, mapW, mapH);
 
     // Apply wrap corrections
-    if (this.localX < 0) this.localX += mapW;
-    if (this.localX >= mapW) this.localX -= mapW;
-    if (this.localY < 0) this.localY += mapH;
-    if (this.localY >= mapH) this.localY -= mapH;
+    this.localX = wrapNearest(this.localX, mapW);
+    this.localY = wrapNearest(this.localY, mapH);
 
     return {
       camX: gridToWorldX(this.localX, gridSize),
@@ -131,15 +129,9 @@ export class CameraPredictor {
     const x1 = toroidalLerp(ox1, bx1, progress, mapW);
     const y1 = toroidalLerp(oy1, by1, progress, mapH);
 
-    let dx = x0 - x1;
-    let dy = y0 - y1;
-
     // Toroidal correction for displacement vector
-    if (dx > mapW / 2) dx -= mapW;
-    else if (dx < -mapW / 2) dx += mapW;
-
-    if (dy > mapH / 2) dy -= mapH;
-    else if (dy < -mapH / 2) dy += mapH;
+    const dx = wrapDelta(x0 - x1, mapW);
+    const dy = wrapDelta(y0 - y1, mapH);
 
     // Convert to visual coordinates (where Y is negated) and compute angle
     const visualDx = dx;
@@ -202,13 +194,8 @@ export class CameraPredictor {
       this.myVisualOffsetX = 0;
       this.myVisualOffsetY = 0;
     } else {
-      this.myVisualOffsetX = this.localX - serverX;
-      if (this.myVisualOffsetX > mapW / 2) this.myVisualOffsetX -= mapW;
-      else if (this.myVisualOffsetX < -mapW / 2) this.myVisualOffsetX += mapW;
-
-      this.myVisualOffsetY = this.localY - serverY;
-      if (this.myVisualOffsetY > mapH / 2) this.myVisualOffsetY -= mapH;
-      else if (this.myVisualOffsetY < -mapH / 2) this.myVisualOffsetY += mapH;
+      this.myVisualOffsetX = wrapDelta(this.localX - serverX, mapW);
+      this.myVisualOffsetY = wrapDelta(this.localY - serverY, mapH);
     }
   }
 
@@ -224,12 +211,8 @@ export class CameraPredictor {
     serverX = myPlayer.teleport_out_x;
     serverY = myPlayer.teleport_out_y;
 
-    if (Math.abs(this.localX - serverX) > mapW / 2) {
-      this.localX += this.localX < serverX ? mapW : -mapW;
-    }
-    if (Math.abs(this.localY - serverY) > mapH / 2) {
-      this.localY += this.localY < serverY ? mapH : -mapH;
-    }
+    this.localX = serverX + wrapDelta(this.localX - serverX, mapW);
+    this.localY = serverY + wrapDelta(this.localY - serverY, mapH);
 
     const ratio = Math.max(0.001, myPlayer.teleport_timer_ratio ?? 0.001);
     const delay = (state.server_world?.portals_teleport_delay_ms ?? 1500) / 1000.0;
