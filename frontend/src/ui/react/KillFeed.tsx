@@ -4,13 +4,14 @@ import { useGameKillFeed } from "./gameUiStore";
 
 /**
  * The server sends raw ids for non-player killers: "black_hole" for the event
- * horizon and `tomb_<player>_<n>` for a gravestone. A null killer means the
- * player left the world, so neither case should leak the raw id into the HUD.
+ * horizon and "tombstone" for a gravestone collision (older builds used
+ * `tomb_<player>_<n>`). A null killer means the player left the world, so none
+ * of these cases should leak the raw id into the HUD.
  */
 export function killCauseLabel(killer: string | null): string {
   if (!killer) return t("status.environment");
   if (killer === "black_hole") return t("status.blackHole");
-  if (killer.startsWith("tomb_")) return t("status.tombstone");
+  if (killer === "tombstone" || killer.startsWith("tomb_")) return t("status.tombstone");
   return killer;
 }
 

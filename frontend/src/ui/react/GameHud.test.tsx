@@ -80,20 +80,29 @@ describe("GameHud", () => {
         { killer: "", victim: "v" },
         { killer: "black_hole", victim: "v" },
         { killer: "tomb_k_3", victim: "v" },
+        { killer: "tombstone", victim: "v" },
       ],
       players: { k: { nickname: "Killer" }, v: { nickname: "Victim" } },
     });
 
     expect(screen.getByText("Killer")).toBeInTheDocument();
-    expect(screen.getAllByText("Victim")).toHaveLength(4);
+    expect(screen.getAllByText("Victim")).toHaveLength(5);
     expect(screen.getByText("Environment")).toBeInTheDocument();
     expect(screen.getByText("Black hole")).toBeInTheDocument();
-    expect(screen.getByText("Tombstone")).toBeInTheDocument();
+    // Both the current literal and the legacy prefixed id resolve to the same label.
+    expect(screen.getAllByText("Tombstone")).toHaveLength(2);
     // The separator is an arrow, so no untranslated English verb leaks into RU.
-    expect(screen.getAllByText("→")).toHaveLength(4);
+    expect(screen.getAllByText("→")).toHaveLength(5);
     expect(screen.queryByText(/killed/)).not.toBeInTheDocument();
     // Raw server ids must never leak into the HUD.
-    expect(screen.queryByText(/black_hole|tomb_/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/black_hole|tombstone|tomb_/)).not.toBeInTheDocument();
+    expect(Array.from(document.querySelectorAll(".kill-killer"), (el) => el.textContent)).toEqual([
+      "Killer",
+      "Environment",
+      "Black hole",
+      "Tombstone",
+      "Tombstone",
+    ]);
   });
 
   it("limits the leaderboard to three rows and hides the header on mobile", () => {
