@@ -171,11 +171,13 @@ frontend/
     │   ├── worker.ts                   # ROLE: Точка входа воркера, onmessage-роутер, FRAME_DATA/FRAME_UNAVAILABLE с requestId. Не содержит вычислений.
     │   ├── worker.test.ts              # ROLE: Тесты FRAME_UNAVAILABLE и проброса requestId из воркера.
     │   ├── StateInterpolation.ts       # ROLE: Очередь до 20 состояний, jitter-фильтр таймлайна и интерполяция между тиками.
-    │   ├── SplineComputer.ts           # ROLE: Расчёт 3D-сплайнов змеек.
+    │   ├── SplineComputer.ts           # ROLE: Расчёт 3D-сплайнов змеек на scratch-буферах без per-point аллокаций.
+    │   ├── SplineComputer.test.ts      # ROLE: Тесты сплайнов: density, split на портале, unwrap границы, self-offset и независимость результатов.
     │   ├── MeshBuilder.ts              # ROLE: Сборка vertex/index-буферов из сплайнов.
     │   ├── CameraPredictor.ts          # ROLE: Клиентское предсказание позиции камеры; для спектатора использует позицию камеры.
     │   ├── CameraPredictor.test.ts     # ROLE: Тест обёртки/камеры спектатора в CameraPredictor.
-    │   ├── FoodComputer.ts             # ROLE: Матрицы и цвета инстансов еды.
+    │   ├── FoodComputer.ts             # ROLE: Матрицы и цвета инстансов еды на переиспользуемых позициях; last-food кэш на WeakRef пересобирается по смене ссылки.
+    │   ├── FoodComputer.test.ts        # ROLE: Тесты еды: fog/visibleCount, интерполяция, attraction, black-hole gravity/fast path и смена lastState.
     │   ├── PortalComputer.ts           # ROLE: Матрицы инстансов порталов.
     │   ├── PortalComputer.test.ts      # ROLE: Тест привязки центров порталов к gridToWorld.
     │   ├── BlackHoleComputer.ts        # ROLE: Матрицы инстансов чёрных дыр.

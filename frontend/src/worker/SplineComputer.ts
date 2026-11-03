@@ -1,7 +1,7 @@
-// ROLE: Расчет 3D-сплайнов змеек.
+// ROLE: Расчет 3D-сплайнов змеек на переиспользуемых scratch-буферах.
 
 import type { Player } from "../types/game";
-import { toroidalDelta, toroidalLerp } from "./shared/MathUtils";
+import { toroidalLerp, wrapDelta } from "./shared/MathUtils";
 import { gridToWorldX, gridToWorldY } from "./shared/WorldMath";
 
 export interface SplineSubPath {
@@ -12,6 +12,15 @@ export interface SplineSubPath {
   uvY: Float32Array;
   pointsCount: number;
 }
+
+// Intermediate arrays are reused between frames. They are valid only inside a
+// single computeSplinePaths call; returned subpaths own independent buffers.
+const scratchSegX: number[] = [];
+const scratchSegY: number[] = [];
+const scratchUnwrappedX: number[] = [];
+const scratchUnwrappedY: number[] = [];
+const scratchSubPathStarts: number[] = [];
+const scratchSubPathLengths: number[] = [];
 
 export function computeSplinePaths(
   p: Player,
@@ -24,8 +33,8 @@ export function computeSplinePaths(
   isSelf: boolean,
   gridSize: number,
 ): SplineSubPath[] {
-  const segX: number[] = [];
-  const segY: number[] = [];
+  scratchSegX.length = 0;
+  scratchSegY.length = 0;
   _interpolateSegments(
     p,
     oldP,
@@ -35,19 +44,27 @@ export function computeSplinePaths(
     myVisualOffsetX,
     myVisualOffsetY,
     isSelf,
-    segX,
-    segY,
+    scratchSegX,
+    scratchSegY,
   );
 
-  if (segX.length === 0) return [];
+  if (scratchSegX.length === 0) return [];
 
-  const subPaths = _splitSubPaths(segX, segY, mapW, mapH);
+  const subPathCount = _splitSubPaths(scratchSegX, scratchSegY, mapW, mapH);
   const density = p.body.length > 40 ? 1 : 2;
   const result: SplineSubPath[] = [];
 
-  for (const sub of subPaths) {
-    if (sub.len < 2) continue;
-    const smooth = _generateSmoothSpline(segX, segY, sub.start, sub.len, density, gridSize);
+  for (let s = 0; s < subPathCount; s++) {
+    const len = scratchSubPathLengths[s];
+    if (len < 2) continue;
+    const smooth = _generateSmoothSpline(
+      scratchUnwrappedX,
+      scratchUnwrappedY,
+      scratchSubPathStarts[s],
+      len,
+      density,
+      gridSize,
+    );
     if (smooth.pointsCount < 2) continue;
 
     _computeNormals(smooth.x, smooth.y, smooth.nx, smooth.ny, smooth.pointsCount);
@@ -55,27 +72,6 @@ export function computeSplinePaths(
   }
 
   return result;
-}
-
-function _getInterpolatedSegment(
-  bx: number,
-  by: number,
-  ox: number | undefined,
-  oy: number | undefined,
-  useInterpolation: boolean,
-  progress: number,
-  mapW: number,
-  mapH: number,
-): { x: number; y: number } {
-  if (ox === undefined || oy === undefined) return { x: bx, y: by };
-  if (!useInterpolation) return { x: bx, y: by };
-  const dx = bx - ox,
-    dy = by - oy;
-  if (dx * dx + dy * dy > 36.0) return { x: bx, y: by };
-  return {
-    x: toroidalLerp(ox, bx, progress, mapW),
-    y: toroidalLerp(oy, by, progress, mapH),
-  };
 }
 
 function _interpolateSegments(
@@ -91,25 +87,30 @@ function _interpolateSegments(
   outY: number[],
 ) {
   const count = Math.floor(p.body.length / 2);
-  const useInterp = !!(oldP && oldP.body && oldP.body.length > 0);
+  const oldBody = oldP?.body && oldP.body.length > 0 ? oldP.body : null;
+  const oldLen = oldBody ? Math.floor(oldBody.length / 2) : 0;
+
+  outX.length = count;
+  outY.length = count;
 
   for (let i = 0; i < count; i++) {
     const bx = p.body[2 * i];
     const by = p.body[2 * i + 1];
 
-    let ox: number | undefined;
-    let oy: number | undefined;
+    let x = bx;
+    let y = by;
 
-    if (useInterp && oldP && oldP.body) {
-      const oldLen = Math.floor(oldP.body.length / 2);
-      if (oldLen > 0) {
-        const oldIdx = i < oldLen ? i : oldLen - 1;
-        ox = oldP.body[2 * oldIdx];
-        oy = oldP.body[2 * oldIdx + 1];
+    if (oldBody && oldLen > 0) {
+      const oldIdx = i < oldLen ? i : oldLen - 1;
+      const ox = oldBody[2 * oldIdx];
+      const oy = oldBody[2 * oldIdx + 1];
+      const dx = bx - ox;
+      const dy = by - oy;
+      if (!(dx * dx + dy * dy > 36.0)) {
+        x = toroidalLerp(ox, bx, progress, mapW);
+        y = toroidalLerp(oy, by, progress, mapH);
       }
     }
-
-    let { x, y } = _getInterpolatedSegment(bx, by, ox, oy, useInterp, progress, mapW, mapH);
 
     if (isSelf) {
       x += visualX;
@@ -119,50 +120,49 @@ function _interpolateSegments(
       if (y < 0) y += mapH;
       else if (y >= mapH) y -= mapH;
     }
-    outX.push(x);
-    outY.push(y);
+    outX[i] = x;
+    outY[i] = y;
   }
 }
 
-function _splitSubPaths(
-  segX: number[],
-  segY: number[],
-  mapW: number,
-  mapH: number,
-): { start: number; len: number }[] {
-  const newSegX = [segX[0]];
-  const newSegY = [segY[0]];
-  const subPaths = [{ start: 0, len: 1 }];
+function _splitSubPaths(segX: number[], segY: number[], mapW: number, mapH: number): number {
+  scratchUnwrappedX.length = 0;
+  scratchUnwrappedY.length = 0;
+  scratchSubPathStarts.length = 0;
+  scratchSubPathLengths.length = 0;
+
+  scratchUnwrappedX.push(segX[0]);
+  scratchUnwrappedY.push(segY[0]);
+  scratchSubPathStarts.push(0);
+  scratchSubPathLengths.push(1);
   let subCount = 0;
 
   for (let i = 1; i < segX.length; i++) {
-    const prevX = newSegX[newSegX.length - 1];
-    const prevY = newSegY[newSegY.length - 1];
+    const prevX = scratchUnwrappedX[scratchUnwrappedX.length - 1];
+    const prevY = scratchUnwrappedY[scratchUnwrappedY.length - 1];
 
     // Calculate shortest path to the next point
-    const [adjDx, adjDy] = toroidalDelta(segX[i - 1], segY[i - 1], segX[i], segY[i], mapW, mapH);
+    const adjDx = wrapDelta(segX[i] - segX[i - 1], mapW);
+    const adjDy = wrapDelta(segY[i] - segY[i - 1], mapH);
     const adjDistSq = adjDx * adjDx + adjDy * adjDy;
 
     if (adjDistSq > 36.0) {
       // Portal jump! We MUST split the subpath.
       subCount++;
-      subPaths.push({ start: newSegX.length, len: 1 });
-      newSegX.push(segX[i]);
-      newSegY.push(segY[i]);
+      scratchSubPathStarts.push(scratchUnwrappedX.length);
+      scratchSubPathLengths.push(1);
+      scratchUnwrappedX.push(segX[i]);
+      scratchUnwrappedY.push(segY[i]);
     } else {
       // Normal movement or Map Border Crossing.
       // We UNWRAP the coordinate by adding the delta to our continuous sequence.
-      newSegX.push(prevX + adjDx);
-      newSegY.push(prevY + adjDy);
-      subPaths[subCount].len++;
+      scratchUnwrappedX.push(prevX + adjDx);
+      scratchUnwrappedY.push(prevY + adjDy);
+      scratchSubPathLengths[subCount]++;
     }
   }
 
-  segX.length = 0;
-  segY.length = 0;
-  segX.push(...newSegX);
-  segY.push(...newSegY);
-  return subPaths;
+  return subCount + 1;
 }
 
 function _generateSmoothSpline(
@@ -173,23 +173,24 @@ function _generateSmoothSpline(
   density: number,
   gridSize: number,
 ): SplineSubPath {
-  const maxPoints = len * (density + 1);
-  const smoothX = new Float32Array(maxPoints);
-  const smoothY = new Float32Array(maxPoints);
-  const uvY = new Float32Array(maxPoints);
+  // Each source segment contributes one endpoint plus one midpoint when the
+  // density is 2. Allocating the exact count avoids the previous maxPoints
+  // buffers followed by .slice() copies.
+  const pointsCount = 1 + (len - 1) * (density > 1 ? 2 : 1);
+  const smoothX = new Float32Array(pointsCount);
+  const smoothY = new Float32Array(pointsCount);
+  const uvY = new Float32Array(pointsCount);
 
-  smoothX[0] = gridToWorldX(segX[start], gridSize);
-  smoothY[0] = gridToWorldY(segY[start], gridSize);
+  let prevWx = gridToWorldX(segX[start], gridSize);
+  let prevWy = gridToWorldY(segY[start], gridSize);
+  smoothX[0] = prevWx;
+  smoothY[0] = prevWy;
   uvY[0] = 0.0;
   let sCount = 1;
 
   let accumulatedDist = 0.0;
   for (let i = 1; i < len; i++) {
-    const prevIdx = start + i - 1;
     const currIdx = start + i;
-
-    const prevWx = gridToWorldX(segX[prevIdx], gridSize);
-    const prevWy = gridToWorldY(segY[prevIdx], gridSize);
     const currWx = gridToWorldX(segX[currIdx], gridSize);
     const currWy = gridToWorldY(segY[currIdx], gridSize);
 
@@ -207,15 +208,18 @@ function _generateSmoothSpline(
     smoothY[sCount] = currWy;
     uvY[sCount] = accumulatedDist;
     sCount++;
+
+    prevWx = currWx;
+    prevWy = currWy;
   }
 
   return {
-    x: smoothX.slice(0, sCount),
-    y: smoothY.slice(0, sCount),
-    nx: new Float32Array(sCount),
-    ny: new Float32Array(sCount),
-    uvY: uvY.slice(0, sCount),
-    pointsCount: sCount,
+    x: smoothX,
+    y: smoothY,
+    nx: new Float32Array(pointsCount),
+    ny: new Float32Array(pointsCount),
+    uvY,
+    pointsCount,
   };
 }
 

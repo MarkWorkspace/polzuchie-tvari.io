@@ -1,6 +1,6 @@
-// ROLE: Матрицы и цвета инстансов еды.
+// ROLE: Матрицы и цвета инстансов еды на переиспользуемых буферах и last-food кэше.
 
-import type { Food, GameState } from "../types/game";
+import type { BlackHole, Food, GameState } from "../types/game";
 import { parseColor } from "./shared/ColorUtils";
 import { wrapDelta } from "./shared/MathUtils";
 import { computeHeadRadiusWorld } from "./shared/PlayerMetrics";
@@ -19,6 +19,19 @@ const FRUIT_IMAGE_MAP: Record<string, number> = {
   "melon.svg": 10,
   "watermelon.svg": 11,
 };
+
+interface MutablePoint {
+  x: number;
+  y: number;
+}
+
+const scratchPoint: MutablePoint = { x: 0, y: 0 };
+
+// Rebuild the id -> food lookup only when the last state reference changes.
+// The map is reused across frames so a new tick does not allocate 5000 entries.
+// WeakRef avoids retaining the previous GameState strongly after a session ends.
+let cachedLastStateRef: WeakRef<GameState> | null = null;
+const cachedLastFoodMap = new Map<number, Food>();
 
 export function computeFood(
   state: GameState,
@@ -45,48 +58,90 @@ export function computeFood(
   const baseRadius = state.server_food?.base_radius ?? 0.2;
   const radiusValueScale = state.server_food?.radius_value_scale ?? 0.1;
 
+  const worldW = mapW * gridSize;
+  const worldH = mapH * gridSize;
+  const fogRadiusSq = (fogRadiusWorld * 1.05) ** 2;
+
+  const myHeadRadius = myPlayer ? computeHeadRadiusWorld(state, myPlayer.body, gridSize) : 0;
+  const attractionRadius = (state.server_food?.attraction_radius ?? 3.0) * gridSize;
+  const attractionSpeed = (state.server_food?.attraction_speed ?? 8.0) * gridSize;
+  const attractionPullDist = attractionSpeed * dt;
+
+  const blackHoles = state.black_holes;
+  const hasBlackHoles =
+    state.server_world?.black_holes_enabled !== 0 && !!blackHoles && blackHoles.length > 0;
+  const blackHolesPullForce = state.server_world?.black_holes_pull_force ?? 6.0;
+
   let visibleCount = 0;
   const maxFoodsLimit = Math.min(foods.length, 5000);
 
   for (let i = 0; i < maxFoodsLimit; i++) {
     const food = foods[i];
-    const interpolatedPos = _interpolateFoodPosition(food, lastFoodMap, progress, mapW, mapH);
-    let wx = gridToWorldX(interpolatedPos.x, gridSize);
-    let wy = gridToWorldY(interpolatedPos.y, gridSize);
+
+    // Interpolate the grid position in local numbers instead of returning a
+    // fresh {x, y} object for every food item.
+    let gridX = food.x;
+    let gridY = food.y;
+    const lf = lastFoodMap.get(food.id);
+    if (lf) {
+      const dx = food.x - lf.x;
+      const dy = food.y - lf.y;
+      gridX = Math.abs(dx) > mapW / 2 ? food.x : lf.x + dx * progress;
+      gridY = Math.abs(dy) > mapH / 2 ? food.y : lf.y + dy * progress;
+    }
+
+    let wx = gridToWorldX(gridX, gridSize);
+    let wy = gridToWorldY(gridY, gridSize);
 
     // Wrap wx and wy relative to camera position to handle boundary rendering
-    const worldW = mapW * gridSize;
-    const worldH = mapH * gridSize;
-
     if (!showAllInMainCopy) {
       wx = camX + wrapDelta(wx - camX, worldW);
       wy = camY + wrapDelta(wy - camY, worldH);
     }
 
     const distToCamSq = (wx - camX) ** 2 + (wy - camY) ** 2;
-    if (!showAllInMainCopy && distToCamSq > (fogRadiusWorld * 1.05) ** 2) {
+    if (!showAllInMainCopy && distToCamSq > fogRadiusSq) {
       continue;
     }
 
     const foodRadius = (baseRadius + Math.sqrt(food.value) * radiusValueScale) * gridSize;
     const dist = Math.sqrt(distToCamSq);
 
-    const attractionResult = _applyAttractionAndGravity(
-      state,
-      myPlayer,
-      myHeadX,
-      myHeadY,
-      foodRadius,
-      wx,
-      wy,
-      dist,
-      dt,
-      gridSize,
-      mapW,
-      mapH,
-    );
-    if (attractionResult === null) {
+    scratchPoint.x = wx;
+    scratchPoint.y = wy;
+
+    if (
+      myPlayer &&
+      !_applyAttraction(
+        scratchPoint,
+        myHeadX,
+        myHeadY,
+        myHeadRadius,
+        attractionRadius,
+        attractionPullDist,
+        foodRadius,
+        dist,
+      )
+    ) {
       continue;
+    }
+
+    // Fast path: when black holes are disabled or absent, skip the per-food
+    // gravity pass entirely.
+    if (hasBlackHoles && blackHoles) {
+      if (
+        !_applyBHGravityOnFood(
+          blackHoles,
+          scratchPoint,
+          dt,
+          gridSize,
+          worldW,
+          worldH,
+          blackHolesPullForce,
+        )
+      ) {
+        continue;
+      }
     }
 
     const colorHex = parseColor(food.color);
@@ -94,8 +149,8 @@ export function computeFood(
     const theta = Math.sin(food.id) * Math.PI * 2;
     _writeFoodInstance(
       visibleCount,
-      attractionResult.x,
-      attractionResult.y,
+      scratchPoint.x,
+      scratchPoint.y,
       foodRadius,
       theta,
       colorHex,
@@ -110,121 +165,91 @@ export function computeFood(
   return visibleCount;
 }
 
-const lastStateFoodCache = new WeakMap<GameState, Map<number, Food>>();
-
 function _buildLastFoodMap(lastState: GameState | null): Map<number, Food> {
-  if (!lastState || !lastState.foods) return new Map();
-
-  let map = lastStateFoodCache.get(lastState);
-  if (map) return map;
-
-  map = new Map<number, Food>();
-  for (let i = 0; i < lastState.foods.length; i++) {
-    const lf = lastState.foods[i];
-    map.set(lf.id, lf);
+  if (!lastState?.foods) {
+    cachedLastFoodMap.clear();
+    cachedLastStateRef = null;
+    return cachedLastFoodMap;
   }
 
-  lastStateFoodCache.set(lastState, map);
-  return map;
+  if (cachedLastStateRef?.deref() === lastState) {
+    return cachedLastFoodMap;
+  }
+
+  // Drop the ref before filling the map: if a getter throws mid-build, the next
+  // call cannot mistake the partially filled map for a valid cache.
+  cachedLastStateRef = null;
+  cachedLastFoodMap.clear();
+  const foods = lastState.foods;
+  for (let i = 0; i < foods.length; i++) {
+    const lf = foods[i];
+    cachedLastFoodMap.set(lf.id, lf);
+  }
+  cachedLastStateRef = new WeakRef(lastState);
+  return cachedLastFoodMap;
 }
 
-function _interpolateFoodPosition(
-  food: Food,
-  lastFoodMap: Map<number, Food>,
-  progress: number,
-  mapW: number,
-  mapH: number,
-): { x: number; y: number } {
-  const lf = lastFoodMap.get(food.id);
-  if (!lf) return { x: food.x, y: food.y };
-
-  const dx = food.x - lf.x;
-  const dy = food.y - lf.y;
-
-  const x = Math.abs(dx) > mapW / 2 ? food.x : lf.x + dx * progress;
-  const y = Math.abs(dy) > mapH / 2 ? food.y : lf.y + dy * progress;
-  return { x, y };
-}
-
-function _applyAttractionAndGravity(
-  state: GameState,
-  myPlayer: any,
+function _applyAttraction(
+  point: MutablePoint,
   myHeadX: number,
   myHeadY: number,
+  myHeadRadius: number,
+  attractionRadius: number,
+  attractionPullDist: number,
   foodRadius: number,
-  wx: number,
-  wy: number,
   dist: number,
-  dt: number,
-  gridSize: number,
-  mapW: number,
-  mapH: number,
-): { x: number; y: number } | null {
-  if (myPlayer) {
-    const myHeadRadius = computeHeadRadiusWorld(state, myPlayer.body, gridSize);
-
-    if (dist < myHeadRadius + foodRadius) {
-      return null;
-    }
-
-    const attractionRadius = (state.server_food?.attraction_radius ?? 3.0) * gridSize;
-    const distToHeadSq = (wx - myHeadX) ** 2 + (wy - myHeadY) ** 2;
-    const distToHead = Math.sqrt(distToHeadSq);
-    if (distToHead < attractionRadius) {
-      const attractionSpeed = (state.server_food?.attraction_speed ?? 8.0) * gridSize;
-      const pullDist = attractionSpeed * dt;
-      if (distToHead > 0.1) {
-        const ratio = Math.min(1.0, pullDist / distToHead);
-        wx -= (wx - myHeadX) * ratio;
-        wy -= (wy - myHeadY) * ratio;
-      }
-    }
+): boolean {
+  if (dist < myHeadRadius + foodRadius) {
+    return false;
   }
 
-  return _applyBHGravityOnFood(state, wx, wy, dt, gridSize, mapW, mapH);
+  const dx = point.x - myHeadX;
+  const dy = point.y - myHeadY;
+  const distToHead = Math.sqrt(dx * dx + dy * dy);
+  if (distToHead < attractionRadius && distToHead > 0.1) {
+    const ratio = Math.min(1.0, attractionPullDist / distToHead);
+    point.x -= (point.x - myHeadX) * ratio;
+    point.y -= (point.y - myHeadY) * ratio;
+  }
+
+  return true;
 }
 
 function _applyBHGravityOnFood(
-  state: GameState,
-  wx: number,
-  wy: number,
+  blackHoles: BlackHole[],
+  point: MutablePoint,
   dt: number,
   gridSize: number,
-  mapW: number,
-  mapH: number,
-): { x: number; y: number } | null {
-  if (state.server_world?.black_holes_enabled === 0 || !state.black_holes) {
-    return { x: wx, y: wy };
-  }
-
-  for (let i = 0; i < state.black_holes.length; i++) {
-    const bh = state.black_holes[i];
+  worldW: number,
+  worldH: number,
+  pullForce: number,
+): boolean {
+  for (let i = 0; i < blackHoles.length; i++) {
+    const bh = blackHoles[i];
     if (!bh || bh.state === "dead" || (bh.current_scale ?? 1.0) <= 0.01) continue;
 
+    const scale = bh.current_scale ?? 1.0;
     const bhWx = gridToWorldX(bh.x, gridSize);
     const bhWy = gridToWorldY(bh.y, gridSize);
 
-    const worldW = mapW * gridSize;
-    const worldH = mapH * gridSize;
-    const bhDx = wrapDelta(bhWx - wx, worldW);
-    const bhDy = wrapDelta(bhWy - wy, worldH);
+    const bhDx = wrapDelta(bhWx - point.x, worldW);
+    const bhDy = wrapDelta(bhWy - point.y, worldH);
 
     const bhDist = Math.sqrt(bhDx * bhDx + bhDy * bhDy);
-    const effKillRadius = bh.kill_radius * (bh.current_scale ?? 1.0) * gridSize;
-    const effPullRadius = bh.pull_radius * (bh.current_scale ?? 1.0) * gridSize;
+    const effKillRadius = bh.kill_radius * scale * gridSize;
+    const effPullRadius = bh.pull_radius * scale * gridSize;
 
     if (bhDist < effKillRadius) {
-      return null;
+      return false;
     } else if (bhDist < effPullRadius && bhDist > 0.001) {
       const pullDistFactor = (effPullRadius - bhDist) / effPullRadius;
-      const pullForce = state.server_world?.black_holes_pull_force ?? 6.0;
-      const pullMag = pullForce * (bh.current_scale ?? 1.0) * pullDistFactor * dt * gridSize * 12.0;
-      wx += (bhDx / bhDist) * pullMag;
-      wy += (bhDy / bhDist) * pullMag;
+      const pullMag = pullForce * scale * pullDistFactor * dt * gridSize * 12.0;
+      point.x += (bhDx / bhDist) * pullMag;
+      point.y += (bhDy / bhDist) * pullMag;
     }
   }
 
-  return { x: wx, y: wy };
+  return true;
 }
 
 function _writeFoodInstance(
