@@ -2,6 +2,8 @@
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { AdaptiveResolution } from "./AdaptiveResolution";
+import { GpuTimer } from "./GpuTimer";
+import { GpuWatchdog } from "./GpuWatchdog";
 import { PostProcessing } from "./PostProcessing";
 import { OVERLAY_LAYER, RenderConfig, RenderLayer } from "./RenderConfig";
 import {
@@ -111,6 +113,9 @@ export class SceneManager {
 
   private quality: RenderQuality;
   private adaptiveResolution: AdaptiveResolution | null = null;
+  /** GPU-time source for adaptive resolution; null only until initRenderer finishes. */
+  private gpuTimer: GpuTimer | null = null;
+  private readonly gpuWatchdog = new GpuWatchdog(0, true);
   private currentPixelRatio = 1;
   private lastFrameTime = 0;
   /** Reused per frame so the aerial-fog update does not allocate. */
@@ -125,6 +130,7 @@ export class SceneManager {
     this.currentWidth = Math.max(1, this.container.clientWidth);
     this.currentHeight = Math.max(1, this.container.clientHeight);
     this.initRenderer();
+    this.gpuTimer = new GpuTimer(this.renderer.getContext() as WebGL2RenderingContext);
     this.initSceneAndCamera();
     this.setupLighting();
     this.setupSnakeLights();
@@ -133,6 +139,7 @@ export class SceneManager {
     this.setupContactShadow();
     this.initPostProcessing();
     window.addEventListener("resize", this.handleResize);
+    document.addEventListener("visibilitychange", this.handleVisibilityChange);
   }
 
   private initRenderer(): void {
@@ -229,7 +236,10 @@ export class SceneManager {
     this.adaptiveResolution = preset.adaptive
       ? new AdaptiveResolution(MIN_PIXEL_RATIO, maxRatio, Math.min(1, maxRatio))
       : null;
-    this.lastFrameTime = performance.now();
+    const now = performance.now();
+    this.lastFrameTime = now;
+    this.gpuWatchdog.reset(now, document.visibilityState === "visible");
+    this.gpuTimer?.reset();
   }
 
   private applyPixelRatio(ratio: number): void {
@@ -257,14 +267,40 @@ export class SceneManager {
     if (nextRatio !== null) this.applyPixelRatio(nextRatio);
   }
 
+  /**
+   * GPU time is measured from the contact-shadow pass through the composer, so
+   * it covers the actual draw cost without following VSync. Sampling only
+   * happens in Auto; the frame-gap fallback is skipped entirely while this runs.
+   */
+  private updateAdaptiveResolutionFromGpu(timer: GpuTimer, applySample: boolean): void {
+    const gpuMs = timer.poll();
+    if (gpuMs === null) return;
+
+    // Any usable result, even after a watchdog fallback, proves the timer works.
+    this.gpuWatchdog.onSample(performance.now());
+
+    // A probe result can arrive on a frame where the frame-time sampler already
+    // steered the ratio; only the next frame should hand control back to the GPU.
+    if (!applySample) return;
+
+    const adaptive = this.adaptiveResolution;
+    if (!adaptive) return;
+
+    const nextRatio = adaptive.sampleGpu(gpuMs);
+    if (nextRatio !== null) this.applyPixelRatio(nextRatio);
+  }
+
   public destroy(): void {
     window.removeEventListener("resize", this.handleResize);
+    document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     this.renderer.domElement.removeEventListener("webglcontextlost", this.handleContextLost);
     this.renderer.domElement.removeEventListener(
       "webglcontextrestored",
       this.handleContextRestored,
     );
     this.contextLostListeners.clear();
+    this.gpuTimer?.dispose();
+    this.gpuTimer = null;
     this.snakeLights.destroy();
     this.contactShadow.dispose();
     this.postProcessing.destroy();
@@ -334,7 +370,21 @@ export class SceneManager {
   public render(msg: any): void {
     if (this.contextLost) return;
 
-    this.updateAdaptiveResolution();
+    const gpuTimer = this.gpuTimer;
+    const visible = document.visibilityState === "visible";
+    const now = performance.now();
+    const gpuSupported = gpuTimer?.supported === true;
+
+    // The watchdog rebaselines on visibility transitions and stale GPU samples;
+    // one sampler may steer the ratio at a time.
+    const useGpuSampler =
+      this.adaptiveResolution !== null && this.gpuWatchdog.shouldUseGpu(now, visible, gpuSupported);
+
+    if (!useGpuSampler) this.updateAdaptiveResolution();
+
+    // A hidden tab can suspend GPU work for seconds; do not open a query then
+    // or its elapsed time would describe the suspension, not a frame.
+    const measureGpu = this.adaptiveResolution !== null && gpuSupported && visible;
 
     if (msg) {
       const camX = msg.camX || 0;
@@ -384,10 +434,19 @@ export class SceneManager {
     }
     // Rasterize before the composer so the ground quad is part of the same
     // frame as the body whose silhouette it follows.
-    this.contactShadow.render(this.renderer, this.scene);
-    const rendered = this.postProcessing.render(this.scene, this.camera, msg);
-    if (!rendered) {
-      this.renderer.render(this.scene, this.camera);
+    if (measureGpu && gpuTimer) gpuTimer.begin();
+    try {
+      this.contactShadow.render(this.renderer, this.scene);
+      const rendered = this.postProcessing.render(this.scene, this.camera, msg);
+      if (!rendered) {
+        this.renderer.render(this.scene, this.camera);
+      }
+    } finally {
+      // Always close the query so a render exception cannot leave it recording forever.
+      if (measureGpu && gpuTimer) {
+        gpuTimer.end();
+        this.updateAdaptiveResolutionFromGpu(gpuTimer, useGpuSampler);
+      }
     }
   }
 
@@ -565,6 +624,14 @@ export class SceneManager {
       uniforms.uTime.value = performance.now() * 0.001;
     }
   }
+
+  /**
+   * rAF is throttled or stopped in background tabs, so the hide event is often
+   * the only signal we get. The watchdog rebaselines on the next transition.
+   */
+  private handleVisibilityChange = (): void => {
+    this.gpuWatchdog.onVisibilityChange(document.visibilityState === "visible", performance.now());
+  };
 
   private handleResize = (): void => {
     this.currentWidth = Math.max(1, this.container.clientWidth);

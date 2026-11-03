@@ -109,7 +109,7 @@ frontend/
     │   ├── safeStorage.ts              # ROLE: Non-throwing обёртка над localStorage (get/set/remove) для private mode/quota/blocked storage.
     │   └── safeStorage.test.ts         # ROLE: Тесты safeStorage: round-trip и бросающие storage-моки.
     ├── renderer/
-    │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества, adaptive pixel ratio и listeners потери/восстановления WebGL-контекста.
+    │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества, adaptive pixel ratio по GPU time (EXT_disjoint_timer_query_webgl2) с frame-time fallback и вынесенным GpuWatchdog (5 s, probe продолжается), listeners потери/восстановления WebGL-контекста.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.78, 1.33), два separable Gaussian-прохода в world units (radius 4, opacity 0.5) и один quad на земле; отдаёт размытую маску траве через getFrame(). Не свет, не shadow map, не пост-эффект.
     │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
     │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок в широкой розетке, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + advected noise gust + per-blade flutter), локальное раздвигание у головы, per-blade tint, root-shadow decals, приминание с наклоном/раскрытием блейдов по dilated contact mask и направлению 32-секундного trail, сухой tint следа, dither-фейд края, stable density cache и shader-side distance-LOD. Бюджет/радиус — из пресета; декор без коллизий.
@@ -153,8 +153,12 @@ frontend/
     │   ├── SilhouetteRenderer.ts       # ROLE: Растеризует слой в маленький alpha-таргет (bloom-маска). Не свет, не пост-эффекты.
     │   ├── SilhouetteRenderer.test.ts  # ROLE: Тесты размера silhouette-таргета под pixel ratio и downscale.
     │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map/radius, contact-shadow base resolution, отдельные grass/grassRadius/stone бюджеты, snake-light budget; персистенция через safeStorage.
-    │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер frame time → pixel ratio. Без DOM/WebGL.
-    │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения.
+    │   ├── AdaptiveResolution.ts       # ROLE: Чистый сэмплер GPU time / frame time → pixel ratio: окно 45 GPU-сэмплов, пороги 14/18 ms, clamp; frame-time fallback. Без DOM/WebGL.
+    │   ├── AdaptiveResolution.test.ts  # ROLE: Тесты адаптивного разрешения: frame-time fallback, GPU-окно 45 сэмплов, границы 14/18 ms и независимые аккумуляторы.
+    │   ├── GpuTimer.ts                 # ROLE: Обёртка одной in-flight EXT_disjoint_timer_query_webgl2 query на core WebGL2 API: begin/end/poll в ms, disjoint, reset(), mutable support, dispose. Без рендера.
+    │   ├── GpuTimer.test.ts            # ROLE: Тесты GpuTimer на fake WebGL2: имя extension, null query, pending/recording, disjoint, reset, dispose.
+    │   ├── GpuWatchdog.ts              # ROLE: Чистый watchdog adaptive resolution: visibility-переходы, 5-секундный таймаут GPU-сэмплов, fallback flag и восстановление по сэмплу. Без DOM/WebGL.
+    │   ├── GpuWatchdog.test.ts         # ROLE: Тесты watchdog: unsupported, таймаут/восстановление, скрытая вкладка, reset и hidden-кадры.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
     │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, overlay-layer для NormalPass, bloom-mask и snake-shadow mask layers, фабрики материалов и glow-конверсия.
     │   ├── RenderConfig.test.ts        # ROLE: Тест перевода head_glow_radius из клеток в мировые единицы.
