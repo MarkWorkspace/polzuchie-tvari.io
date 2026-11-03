@@ -94,6 +94,12 @@
 - Three.js-рендер: instanced еда/порталы/чёрные дыры/частицы/надгробия, тени,
   contact shadow змейки, трава/камни, bloom-маска, атмосферный grade и
   линзирование чёрных дыр.
+- Renderer-слой разделён (M6-09): `SceneManager` оркестрирует renderer, сцену и
+  камеру, пресеты качества, world-space contact shadow, композер, adaptive pixel
+  ratio и context-loss/restore lifecycle. Свет/тени вынесены в `SceneLighting`,
+  земля — в `GroundPlane`, aerial fog и ground-fog overlay — в `FogOverlay`.
+  Публичный API класса не менялся; константы света/тумана ре-экспортируются
+  из `SceneManager`, `GROUND_Z` добавлен additive-only.
 - Горячие пути воркера (`SplineComputer`, `FoodComputer`) после M6-01 работают
   на переиспользуемых буферах и кэше: нет per-point/per-food объектов,
   `lastFood`-кэш пересобирается только при смене `lastState` и не удерживает
@@ -216,8 +222,10 @@
 - **Крупный `vendor-three` chunk.** Three/postprocessing (~622 kB minified)
   вынесен из login-графа, но остаётся отдельным тяжёлым chunk'ом после Play;
   предупреждение Vite о размере >500 kB сохраняется.
-- **Крупные god-объекты.** `World` и `SceneManager` остаются точками
-  сопровождения; их разделение — M6-08/M6-09.
+- **Крупные god-объекты.** `World` остаётся точкой сопровождения (M6-08).
+  `SceneManager` после M6-09 — оркестратор renderer/composer/adaptive/context
+  lifecycle; свет/тени, земля и туман вынесены в `SceneLighting`,
+  `GroundPlane` и `FogOverlay`.
 - **Ручной Protobuf-декодер.** `ProtoFrameDecoder.ts` не использует runtime
   `protobufjs`; любое изменение `snake.proto` требует синхронного обновления
   декодера, `snake_pb2.py` и golden-фикстур.
@@ -243,8 +251,8 @@
 ## WIP и сломанное
 
 Критичных незакрытых дефектов и известных «сломанных» механик нет. Задачи,
-которые сознательно отложены (prediction/reconciliation, split `World`/
-`SceneManager`, полный WebGL rebuild, CD, расширение E2E), перечислены в
+которые сознательно отложены (prediction/reconciliation, split `World`,
+полный WebGL rebuild, CD, расширение E2E), перечислены в
 `REMEDIATION_PLAN.md` как M6 backlog.
 
 ## Проверки
