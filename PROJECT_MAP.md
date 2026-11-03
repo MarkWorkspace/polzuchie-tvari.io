@@ -56,7 +56,7 @@ frontend/
 │   ├── bots.spec.ts                    # ROLE: Live-включение/выключение ботов через админку.
 │   ├── spectator.spec.ts               # ROLE: Player- и debug-спектатор, follow по клику и возврат к обзору.
 │   ├── security.spec.ts                # ROLE: Origin allowlist и role caps WebSocket: cross-origin отказ, spectator flood, player slot.
-│   ├── webgl.spec.ts                   # ROLE: WebGL context loss: overlay с reload и паузой rAF (skip без WEBGL_lose_context).
+│   ├── webgl.spec.ts                   # ROLE: WebGL context lifecycle: loss → пауза rAF + overlay, restore → rebuild, рост `dataset.gameFrames` и продолжение loop без reload (skip без WEBGL_lose_context).
 │   └── admin.spec.ts                   # ROLE: Smoke admin login/dashboard/logout.
 ├── .nvmrc                             # ROLE: Node.js version for the frontend toolchain (22).
 ├── .gitignore                          # ROLE: Frontend build/test output and editor artifacts.
@@ -87,7 +87,7 @@ frontend/
     │   ├── spectatorBootstrap.ts       # ROLE: Lazy spectator bootstrap; выбирает player-HUD или debug-панели.
     │   ├── spectatorMode.ts            # ROLE: Чистый разбор `?spectator=` / `?debug=` в player/debug режим.
     │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
-    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy, пауза rAF и reload-overlay при потере WebGL-контекста или фатальном сбое worker. Не содержит рендеринг.
+    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy, пауза rAF и reload-overlay при потере WebGL-контекста, возобновление loop после restore, overlay при фатальном сбое worker, `dataset.gameFrames` как E2E/debug-наблюдаемость. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере, строит ground-трапецию камеры и distance-LOD. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа; guard editable/HUD и resync. Не UI, не сеть.
     │   ├── InputManager.test.ts        # ROLE: Тесты editable/HUD guard, UI-open паузы и resync ввода.
@@ -109,7 +109,7 @@ frontend/
     │   ├── safeStorage.ts              # ROLE: Non-throwing обёртка над localStorage (get/set/remove) для private mode/quota/blocked storage.
     │   └── safeStorage.test.ts         # ROLE: Тесты safeStorage: round-trip и бросающие storage-моки.
     ├── renderer/
-    │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества, adaptive pixel ratio по GPU time (EXT_disjoint_timer_query_webgl2) с frame-time fallback и вынесенным GpuWatchdog (5 s, probe продолжается), listeners потери/восстановления WebGL-контекста.
+    │   ├── SceneManager.ts             # ROLE: Three.js сцена, солнечный sun/hemisphere/fill rig, aerial fog, цветные snake-light'ы, тени, adaptive world-space contact shadow, пресеты качества, adaptive pixel ratio по GPU time (EXT_disjoint_timer_query_webgl2) с frame-time fallback и вынесенным GpuWatchdog (5 s, probe продолжается), listeners потери/восстановления WebGL-контекста и пересборка своих GPU-ресурсов (composer/bloom/contact-shadow targets, shadow map, GpuTimer) после restore.
     │   ├── SnakeContactShadow.ts       # ROLE: World-space contact shadow: adaptive top-down ortho-маска тела (box 180–600 юнитов из view cone, маска 512/256 → до 1024), key-light parallax offset (1.78, 1.33), два separable Gaussian-прохода в world units (radius 4, opacity 0.5) и один quad на земле; отдаёт размытую маску траве через getFrame(). Не свет, не shadow map, не пост-эффект.
     │   ├── SnakeContactShadow.test.ts  # ROLE: Тесты light-offset, adaptive extent/resolution, texel size, world-radius → texels, blur step, quad pose и защиты от toroidal wrap-дубля.
     │   ├── GrassRenderer.ts            # ROLE: Один instanced mesh травы: 5 травинок в широкой розетке, детерминированные пучки из сида, когерентный world-space ветер (глобальное направление + advected noise gust + per-blade flutter), локальное раздвигание у головы, per-blade tint, root-shadow decals, приминание с наклоном/раскрытием блейдов по dilated contact mask и направлению 32-секундного trail, сухой tint следа, dither-фейд края, stable density cache и shader-side distance-LOD. Бюджет/радиус — из пресета; декор без коллизий.

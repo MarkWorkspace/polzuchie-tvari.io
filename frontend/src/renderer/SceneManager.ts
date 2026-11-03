@@ -1,4 +1,4 @@
-// ROLE: Инициализация Three.js сцены, hemisphere/key/fill свет, тени, туман, world-space contact shadow и рендерер.
+// ROLE: Инициализация Three.js сцены, hemisphere/key/fill свет, тени, туман, world-space contact shadow, рендерер и пересборка собственных GPU-ресурсов (composer, contact shadow, shadow map, timer query) после webglcontextrestored.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { AdaptiveResolution } from "./AdaptiveResolution";
@@ -110,6 +110,7 @@ export class SceneManager {
 
   private contextLost = false;
   private readonly contextLostListeners = new Set<() => void>();
+  private readonly contextRestoredListeners = new Set<() => void>();
 
   private quality: RenderQuality;
   private adaptiveResolution: AdaptiveResolution | null = null;
@@ -299,6 +300,7 @@ export class SceneManager {
       this.handleContextRestored,
     );
     this.contextLostListeners.clear();
+    this.contextRestoredListeners.clear();
     this.gpuTimer?.dispose();
     this.gpuTimer = null;
     this.snakeLights.destroy();
@@ -341,11 +343,19 @@ export class SceneManager {
     this.handleResize();
   }
 
-  /** Notifies the app once the GPU context is gone; v1 recovery is a page reload. */
+  /** Notifies the app once the GPU context is gone; the page cannot draw until a restore arrives. */
   public onContextLost(callback: () => void): () => void {
     this.contextLostListeners.add(callback);
     return () => {
       this.contextLostListeners.delete(callback);
+    };
+  }
+
+  /** Notifies the app after the context is back and every owned GPU resource has been rebuilt. */
+  public onContextRestored(callback: () => void): () => void {
+    this.contextRestoredListeners.add(callback);
+    return () => {
+      this.contextRestoredListeners.delete(callback);
     };
   }
 
@@ -361,10 +371,74 @@ export class SceneManager {
     }
   };
 
+  /**
+   * Three re-creates its own caches (programs, attributes, properties, state) on
+   * restore, but everything this class holds a GL handle for must be replaced:
+   * composer targets, contact-shadow targets, the shadow map and the timer query
+   * all still point at the lost context.
+   *
+   * A failure keeps `contextLost` true and skips the notification, so the app
+   * stays on the reload overlay instead of resuming with a half-built renderer.
+   */
   private handleContextRestored = (): void => {
-    this.contextLost = false;
-    // v1 does not rebuild composer targets, materials or shadow maps here.
-    console.warn("SceneManager: WebGL context restored; reload the page to rebuild GPU resources");
+    if (!this.contextLost) return;
+
+    const preset = QUALITY_PRESETS[this.quality];
+    const now = performance.now();
+
+    try {
+      this.renderer.setPixelRatio(this.currentPixelRatio);
+      this.renderer.setSize(this.currentWidth, this.currentHeight);
+      this.renderer.setClearColor(CLEAR_COLOR, 1);
+      // Tone mapping stays in the composer's ToneMappingEffect; exposure feeds it.
+      this.renderer.toneMapping = THREE.NoToneMapping;
+      this.renderer.toneMappingExposure = TONE_MAPPING_EXPOSURE;
+      this.renderer.shadowMap.enabled = preset.shadows;
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      this.renderer.setRenderTarget(null);
+
+      this.dirLight.castShadow = preset.shadows;
+      this.groundMesh.receiveShadow = preset.shadows;
+      // Drops the stale shadow.map so the next pass allocates a fresh one.
+      this.configureShadowQuality(preset);
+
+      // Must run after setPixelRatio: the bloom mask sizes itself from it.
+      this.postProcessing.destroy();
+      this.postProcessing = new PostProcessing(
+        this.renderer,
+        this.scene,
+        this.camera,
+        this.currentWidth,
+        this.currentHeight,
+        { bloom: preset.bloom },
+      );
+
+      // dispose() removes the ground quad from the scene, so the replacement
+      // owns exactly one quad instead of stacking a second copy.
+      this.contactShadow.dispose();
+      this.contactShadow = new SnakeContactShadow(this.scene, {
+        resolution: preset.contactShadow,
+        groundZ: GROUND_Z,
+      });
+
+      this.snakeLights.setCount(preset.snakeLights);
+
+      // Queries belong to the lost context, so deleteQuery on the old wrapper is
+      // meaningless; drop it and allocate a new query against the live context.
+      this.gpuTimer = new GpuTimer(this.renderer.getContext() as WebGL2RenderingContext);
+      this.gpuWatchdog.reset(now, document.visibilityState === "visible");
+      this.lastFrameTime = now;
+
+      this.contextLost = false;
+    } catch (error) {
+      console.error("SceneManager: WebGL context restore rebuild failed", error);
+      return;
+    }
+
+    console.warn("SceneManager: WebGL context restored; GPU resources rebuilt");
+    for (const callback of this.contextRestoredListeners) {
+      callback();
+    }
   };
 
   public render(msg: any): void {

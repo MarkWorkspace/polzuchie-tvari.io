@@ -30,6 +30,7 @@ export class Game {
   private latestFrame: any = null;
   private lastTime = performance.now();
   private animFrameId = 0;
+  private frameCounter = 0;
   private contextLost = false;
   private fatalError = false;
   private gameErrorOverlay: GameErrorOverlayHandle | null = null;
@@ -41,6 +42,7 @@ export class Game {
     this.container = container;
     this.sceneManager = new SceneManager(container);
     this.sceneManager.onContextLost(this.handleContextLost);
+    this.sceneManager.onContextRestored(this.handleContextRestored);
     this.inputManager = new InputManager();
     this.networkManager = new NetworkManager();
     this.gameCamera = new GameCamera();
@@ -78,6 +80,9 @@ export class Game {
   public destroy(): void {
     cancelAnimationFrame(this.animFrameId);
     window.removeEventListener("game-respawn", this.handleGameRespawn);
+    if (typeof document !== "undefined") {
+      delete document.body.dataset.gameFrames;
+    }
     this.sendCleanRelease();
     this.clearPlayerId();
     this.networkManager.setCallbacks({});
@@ -135,16 +140,39 @@ export class Game {
   };
 
   /**
-   * v1 GPU-reset response: stop the frame loop and ask for a reload. Rebuilding
-   * composer targets, materials and shadow maps in place is a separate task.
+   * GPU reset response: stop the frame loop and show the blocking overlay. The
+   * overlay stays until SceneManager rebuilds its GPU resources and reports a
+   * restore; if no restore arrives the player still has the reload action.
    */
   private handleContextLost = (): void => {
     if (this.contextLost) return;
+    // A fatal worker failure owns the overlay; do not replace it with a WebGL message.
+    if (this.fatalError) return;
     this.contextLost = true;
     cancelAnimationFrame(this.animFrameId);
     this.animFrameId = 0;
 
-    this.showErrorOverlay("WebGL context lost", "Перезагрузите страницу, чтобы продолжить игру.");
+    this.showErrorOverlay(
+      "WebGL context lost",
+      "Восстанавливаем контекст… Если не восстановится, перезагрузите страницу.",
+    );
+  };
+
+  /**
+   * The renderer rebuilt its GPU resources in place, so resume the loop without
+   * a reload. A fatal worker failure keeps priority: its overlay stays up.
+   */
+  private handleContextRestored = (): void => {
+    // Nothing to resume if no loss was observed, or if the worker is already fatal.
+    if (!this.contextLost || this.fatalError) return;
+
+    this.contextLost = false;
+    this.lastTime = performance.now();
+    this.gameErrorOverlay?.unmount();
+    this.gameErrorOverlay = null;
+
+    // tick() schedules the next frame itself, so only restart a stopped loop.
+    if (this.animFrameId === 0) this.tick();
   };
 
   /**
@@ -312,9 +340,25 @@ export class Game {
     }
   }
 
+  /**
+   * E2E/debug observability, like `dataset.playerId`: a frame number that proves
+   * the loop is advancing. Written on the first frame and then every 15 frames,
+   * so it stays off the per-frame DOM path.
+   */
+  private publishFrameCounter(): void {
+    if (typeof document !== "undefined") {
+      document.body.dataset.gameFrames = String(this.frameCounter);
+    }
+  }
+
   private tick = (): void => {
     if (this.contextLost || this.fatalError) return;
     this.animFrameId = requestAnimationFrame(this.tick);
+
+    this.frameCounter += 1;
+    if (this.frameCounter === 1 || this.frameCounter % 15 === 0) {
+      this.publishFrameCounter();
+    }
 
     if (this.stats) {
       this.stats.begin();

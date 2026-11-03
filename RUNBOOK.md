@@ -509,9 +509,16 @@ CSP разрешает только same-origin скрипты, `worker-src 'sel
   считает worker зависшим, пересоздаёт его с backoff (до 3 попыток), затем
   показывает фатальный overlay с reload. В DevTools смотрите Console/Worker,
   ошибки `onerror`/`onmessageerror`, статус `reconnecting`.
-- **WebGL context loss.** `webglcontextlost` останавливает rAF и показывает
-  `GameErrorOverlay` с кнопкой Reload. Полного rebuild GPU-ресурсов после
-  restore нет: нужен reload (см. `GAME_STATE.md`, ограничения).
+- **WebGL context loss.** На player-route `webglcontextlost` останавливает rAF
+  и показывает `GameErrorOverlay` с кнопкой Reload; spectator на эти события не
+  подписан и продолжает тикать (его `SceneManager.render` early-return'ит на
+  время loss). После `webglcontextrestored` `SceneManager` пересобирает
+  composer/bloom/contact-shadow targets, shadow map и `GpuTimer`, player снимает
+  overlay, а loop продолжается без reload; spectator просто возобновляет рендер.
+  Если restore не пришёл или rebuild упал, player остаётся с overlay и reload
+  (см. `GAME_STATE.md`, ограничения). Наблюдаемость: `document.body.dataset.gameFrames`
+  (player-route) растёт только пока rAF-loop живой — по нему в DevTools видно,
+  что loop возобновился, а не только исчез overlay.
 - **Локальная проверка.** Попробуйте hard reload, затем временно выставьте
   `localStorage["snake-quality"]="low"` и перезагрузите страницу. Это снижает
   нагрузку на слабом GPU, но не лечит ошибку backend.

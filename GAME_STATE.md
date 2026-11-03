@@ -142,9 +142,15 @@
   рисует не больше `MAX_MINIMAP_FOODS = 300` food-точек; пропущенные кадры не
   накапливаются. Голова берётся из `head_x/head_y` или плоского `body`, legacy
   object-body и auto-correct value/color удалены.
-- Потеря WebGL-контекста и фатальный сбой worker показывают блокирующий
-  `GameErrorOverlay` с reload; после `webglcontextrestored` полноценный rebuild
-  пока не выполняется, нужен reload.
+- Потеря WebGL-контекста останавливает rAF и показывает блокирующий
+  `GameErrorOverlay` только на player-route (`Game`); spectator (`SpectatorApp`)
+  на эти события не подписан, его rAF продолжает тикать, а `SceneManager.render`
+  сам early-return'ит на время loss, поэтому после restore рендер просто
+  продолжается без overlay. После `webglcontextrestored` `SceneManager`
+  пересобирает composer/bloom/contact-shadow targets, shadow map и `GpuTimer`, а
+  `Game` снимает overlay и возобновляет loop без reload. Если restore не пришёл
+  или rebuild упал, player остаётся с overlay и reload; фатальный сбой worker
+  показывает тот же overlay и приоритетнее WebGL-сообщения.
 - Runtime-проверка Worker/WebGL2 выполняется до login; при отсутствии
   поддержки показывается понятная ошибка вместо пустого экрана.
 - Игровой bundle загружается лениво: `bootstrap` не импортирует `Game`
@@ -199,9 +205,12 @@
 - **Медленный клиент и FULL-шторм.** Backpressure и `RESYNC`-cooldown снижают
   риск, но при систематических пропусках кадров возможны всплески трафика и
   CPU из-за повторных FULL-синхронизаций.
-- **WebGL restore неполный.** После потери контекста `webglcontextrestored`
-  только снимает флаг; composer targets, materials и shadow maps не
-  пересобираются, поэтому пользователю предлагается reload (M6-13).
+- **WebGL restore пересобирает GPU-ресурсы.** `webglcontextrestored` заново
+  создаёт composer/bloom/contact-shadow targets, shadow map и `GpuTimer` и
+  возобновляет loop без reload; reload-overlay при loss видит только player
+  (`Game`), spectator продолжает тикать. Если restore не пришёл (драйвер не
+  вернул контекст) или rebuild бросил исключение, player остаётся с overlay и
+  reload.
 - **SSAO удалён из пайплайна.** Вместо него работает world-space contact shadow;
   пресеты качества больше не содержат флаг SSAO.
 - **Крупный `vendor-three` chunk.** Three/postprocessing (~622 kB minified)
