@@ -192,6 +192,9 @@ Release публикуется GitHub Actions (`.github/workflows/release.yml`) 
    `:latest` двигается только для stable push-тега, не для prerelease и не для
    `workflow_dispatch`.
 
+Pipeline проверен на `v0.1.0-rc.3` и `v0.1.0`: для stable-тега `:v0.1.0`,
+`:sha-<12>` и `:latest` указывают на один digest.
+
 После `promote` скачайте artifact `release-manifest-<tag>`: в нём записаны
 commit и digest'ы backend/frontend. Для rollback используйте digest, а не
 только тег: тег может быть перезаписан или удалён, digest — нет.

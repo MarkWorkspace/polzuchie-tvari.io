@@ -103,9 +103,12 @@
   `:sha-<12>`; smoke поднимает эти digest-образы через compose и проверяет
   `/ready`, `/health`, `/ws/ready`, корневую страницу, WebSocket upgrade,
   non-root и OCI revision. Только после smoke `promote` создаёт `:vX.Y.Z` по
-  digest, а `:latest` двигает лишь stable push-тег. Деплоя на хосты нет:
-  обновление и rollback выполняются через `BACKEND_IMAGE`/`FRONTEND_IMAGE`
-  и `docker compose pull/up --no-build`.
+  digest, а `:latest` двигает лишь stable push-тег. Pipeline проверен реальными
+  прогонами `v0.1.0-rc.3` и `v0.1.0`: GHCR publish, compose smoke и digest
+  promotion зелёные; для stable-тега `:v0.1.0`, `:sha-<12>` и `:latest`
+  указывают на один digest. Деплоя на хосты нет: обновление и rollback
+  выполняются через `BACKEND_IMAGE`/`FRONTEND_IMAGE` и
+  `docker compose pull/up --no-build`.
 
 ### Клиент и рендер
 
@@ -281,8 +284,9 @@
 Критичных незакрытых дефектов и известных «сломанных» механик нет. WebGL
 rebuild и расширение E2E уже реализованы. M6-10 закрыт как решение
 server-authoritative follower (ADR-006), а не как «сделанный prediction»;
-M6-06 реализован, но ждёт первого реального release-тега и smoke. Остальные
-пункты M6 перечислены в `REMEDIATION_PLAN.md`.
+M6-06 проверен реальными release-тегами `v0.1.0-rc.3` и `v0.1.0` (GHCR,
+compose smoke и digest promotion зелёные). Остальные пункты M6 перечислены в
+`REMEDIATION_PLAN.md`.
 
 ## Проверки
 

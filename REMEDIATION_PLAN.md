@@ -205,19 +205,20 @@ tests_shared/golden_frames/*
 - [x] M5-05 Dead code removal
 - [x] M5-06 Docs sync
 - [x] M5-07 Runbook/SECURITY/ADRs
-- [ ] M6 optional backlog (M6-06 ждёт release-тега; M6-10 deferred by ADR-006)
+- [x] M6 optional backlog (M6-06 проверен `v0.1.0-rc.3`/`v0.1.0`; M6-10 deferred by ADR-006)
 
 ### Execution notes
 
 - **Branch:** `remediation/audit-2026-10`.
 - **Gates:** все gates 0–5 зелёные (backend/frontend checks, тесты, E2E и Docker smoke).
 - **M6:** M6-01…M6-05, M6-07…M6-09 и M6-11…M6-13 слиты в `dev`.
-  M6-06 реализован, но ждёт первого release-тега и smoke. M6-10 закрыт как
-  решение server-authoritative follower (ADR-006), а не как полный prediction:
-  полный CSP/C-position отклонены, допустим только будущий presentation-only
-  angle lead за флагом. Дешёвое снижение задержки выделено в M6-10b (event-driven
-  ввод, throttle 25–30 мс, адаптивная интерполяция 2–3 тика, 60 Гц после
-  нагрузочного теста).
+  M6-06 проверен реальными `v0.1.0-rc.3` и `v0.1.0`: GHCR publish, compose
+  smoke и digest promotion зелёные; version/sha/latest для `v0.1.0` совпадают
+  по digest. M6-10 закрыт как решение server-authoritative follower (ADR-006),
+  а не как полный prediction: полный CSP/C-position отклонены, допустим только
+  будущий presentation-only angle lead за флагом. Дешёвое снижение задержки
+  выделено в M6-10b (event-driven ввод, throttle 25 мс, адаптивная
+  интерполяция 2–3 тика, 60 Гц после нагрузочного теста).
 - **Отклонения:**
   - M1-05: добавлены passthrough `ALLOWED_ORIGINS` в `docker-compose.yml` и изоляция `backend/tests/conftest.py`.
   - M3-03/M3-04/M3-08/M3-09: использованы согласованные исключения по размеру изменений (authorized size exceptions).
