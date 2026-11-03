@@ -175,12 +175,39 @@ alias `curl` от `Invoke-WebRequest`, и подставляйте timestamp/ID 
 
 ### 4.1. Откат кода
 
-В репозитории нет CD и автоматических release-тегов для каждого деплоя.
-Откат — это checkout известного рабочего commit/тега и пересборка:
+Release публикуется GitHub Actions (`.github/workflows/release.yml`) по тегу
+`vX.Y.Z` (или вручную через `workflow_dispatch` с input `tag`): job `verify`
+прогоняет backend/frontend-проверки и `docker compose config`, job `publish`
+собирает и пушит в GHCR
+`ghcr.io/<repo>/backend:vX.Y.Z` и `ghcr.io/<repo>/frontend:vX.Y.Z` (плюс
+`:sha-<12>`; `:latest` двигается только для stable-тега без `-`, prerelease
+его не трогает), job `smoke` поднимает compose из опубликованных образов и
+проверяет `/ready`, `/health` и non-root.
+
+Откат на предыдущий release — переключить образы и перезапустить стек:
+
+```bash
+export BACKEND_IMAGE="ghcr.io/<repo>/backend:vX.Y.Z"
+export FRONTEND_IMAGE="ghcr.io/<repo>/frontend:vX.Y.Z"
+docker compose pull backend frontend
+docker compose up -d --no-build
+docker compose ps
+curl -sS -o - -w '\nHTTP %{http_code}\n' http://127.0.0.1:8000/ready
+```
+
+Образы можно задать в `.env` или окружении; без `BACKEND_IMAGE`/
+`FRONTEND_IMAGE` compose использует локальные `polzuchie-tvari-*:local` и
+собирает их из `build:`. Для приватного пакета GHCR на хосте нужен
+`docker login ghcr.io` с токеном, у которого есть `read:packages`.
+
+Если GHCR-образ нужной версии недоступен или проблема в инфраструктуре,
+остаётся source-rollback — checkout известного рабочего commit/тега и
+пересборка:
 
 ```bash
 git log --oneline -10
 git checkout <known-good-commit-or-tag>
+unset BACKEND_IMAGE FRONTEND_IMAGE
 docker compose build backend frontend
 docker compose up -d
 docker compose ps

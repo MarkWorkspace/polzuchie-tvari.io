@@ -1,0 +1,208 @@
+# ROLE: CD для проекта: проверка тега, публикация GHCR-образов backend/frontend и smoke-тест compose. Не деплоит на хосты и не хранит секреты приложения.
+name: Release
+
+permissions:
+  contents: read
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v1.2.3)"
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  verify:
+    name: Verify release
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Validate release tag
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid release tag '$RELEASE_TAG' (expected vMAJOR.MINOR.PATCH[-prerelease])"
+            exit 1
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.11.2"
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+          working-directory: backend
+
+      - name: Sync backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Check backend formatting
+        working-directory: backend
+        run: uv run --frozen ruff format --check .
+
+      - name: Lint backend
+        working-directory: backend
+        run: uv run --frozen ruff check .
+
+      - name: Run backend tests
+        working-directory: backend
+        run: uv run --frozen pytest tests/ -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Run frontend tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Validate compose configuration
+        run: docker compose config --quiet
+        env:
+          ADMIN_PASSWORD: ci-only
+
+  publish:
+    name: Publish GHCR images
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push backend image
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          sha="$(git rev-parse HEAD)"
+          sha_tag="${sha::12}"
+          tags=(
+            -t "ghcr.io/$repo/backend:$RELEASE_TAG"
+            -t "ghcr.io/$repo/backend:sha-$sha_tag"
+          )
+          if [[ "$RELEASE_TAG" != *-* ]]; then
+            tags+=(-t "ghcr.io/$repo/backend:latest")
+          fi
+          docker build "${tags[@]}" \
+            --label "org.opencontainers.image.revision=$sha" \
+            --label "org.opencontainers.image.version=$RELEASE_TAG" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            backend
+          docker push --all-tags "ghcr.io/$repo/backend"
+
+      - name: Build and push frontend image
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          sha="$(git rev-parse HEAD)"
+          sha_tag="${sha::12}"
+          tags=(
+            -t "ghcr.io/$repo/frontend:$RELEASE_TAG"
+            -t "ghcr.io/$repo/frontend:sha-$sha_tag"
+          )
+          if [[ "$RELEASE_TAG" != *-* ]]; then
+            tags+=(-t "ghcr.io/$repo/frontend:latest")
+          fi
+          docker build "${tags[@]}" \
+            --label "org.opencontainers.image.revision=$sha" \
+            --label "org.opencontainers.image.version=$RELEASE_TAG" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            frontend
+          docker push --all-tags "ghcr.io/$repo/frontend"
+
+  smoke:
+    name: Compose smoke (GHCR images)
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    env:
+      ADMIN_PASSWORD: release-smoke
+      BACKEND_PORT: "18000"
+      FRONTEND_PORT: "13000"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Select release images
+        run: |
+          repo="${GITHUB_REPOSITORY,,}"
+          echo "BACKEND_IMAGE=ghcr.io/$repo/backend:$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "FRONTEND_IMAGE=ghcr.io/$repo/frontend:$RELEASE_TAG" >> "$GITHUB_ENV"
+
+      - name: Pull release images
+        run: docker compose pull backend frontend
+
+      - name: Start release stack
+        run: docker compose up -d --no-build
+
+      - name: Wait for backend readiness and frontend health
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:18000/ready >/dev/null \
+              && curl -fsS http://127.0.0.1:13000/health >/dev/null; then
+              echo "Release stack healthy after ${attempt} attempt(s)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Release stack did not become healthy in 120s"
+          docker compose ps
+          docker compose logs --tail=100 backend frontend
+          exit 1
+
+      - name: Verify containers run as non-root
+        run: |
+          backend_uid="$(docker compose exec -T backend id -u)"
+          frontend_uid="$(docker compose exec -T frontend id -u)"
+          echo "backend uid=$backend_uid frontend uid=$frontend_uid"
+          test "$backend_uid" != "0"
+          test "$frontend_uid" != "0"
+
+      - name: Tear down release stack
+        if: always()
+        run: docker compose down -v || true

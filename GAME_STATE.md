@@ -96,6 +96,12 @@
 - Docker-образы работают non-root (backend `appuser`, frontend `nginx`),
   base images закреплены digest'ами, healthcheck локальный, логи ограничены
   `json-file` (`10m × 3`).
+- CD: тег `vX.Y.Z` запускает `.github/workflows/release.yml` — verify
+  (Ruff/pytest, frontend lint/typecheck/test/build, compose config), publish в
+  GHCR (`:vX.Y.Z`, `:sha-<12>`, `:latest` только для stable-тегов без `-`) и
+  compose smoke из опубликованных образов с проверкой `/ready`, `/health` и
+  non-root. Деплоя на хосты нет: обновление и rollback выполняются через
+  `BACKEND_IMAGE`/`FRONTEND_IMAGE` и `docker compose pull/up --no-build`.
 
 ### Клиент и рендер
 
@@ -261,7 +267,7 @@
 
 Критичных незакрытых дефектов и известных «сломанных» механик нет. Задачи,
 которые сознательно отложены (prediction/reconciliation, полный WebGL rebuild,
-CD, расширение E2E), перечислены в `REMEDIATION_PLAN.md` как M6 backlog.
+расширение E2E), перечислены в `REMEDIATION_PLAN.md` как M6 backlog.
 
 ## Проверки
 

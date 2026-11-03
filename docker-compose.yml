@@ -2,6 +2,7 @@ name: polzuchie-tvari
 
 services:
   backend:
+    image: ${BACKEND_IMAGE:-polzuchie-tvari-backend:local}
     build: ./backend
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
@@ -30,6 +31,7 @@ services:
           memory: 256M
 
   frontend:
+    image: ${FRONTEND_IMAGE:-polzuchie-tvari-frontend:local}
     build: ./frontend
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"

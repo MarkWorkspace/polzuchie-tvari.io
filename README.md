@@ -162,6 +162,16 @@ Playwright E2E запускается в CI отдельным job.
 docker compose up --build
 ```
 
+Релизы публикуются по тегу `vX.Y.Z` workflow
+`.github/workflows/release.yml` в GHCR:
+`ghcr.io/<repo>/backend:vX.Y.Z` и `ghcr.io/<repo>/frontend:vX.Y.Z` (плюс
+`:sha-<12>`; `:latest` обновляется только для stable-тегов без `-`). Чтобы
+запустить опубликованные образы вместо локальной сборки, задайте
+`BACKEND_IMAGE` и `FRONTEND_IMAGE`, затем выполните
+`docker compose pull backend frontend` и `docker compose up -d --no-build`.
+Без этих переменных compose собирает локальные
+`polzuchie-tvari-backend:local` и `polzuchie-tvari-frontend:local`.
+
 Порты по умолчанию опубликованы только на `127.0.0.1`: frontend — `3000`,
 backend — `8000`. `docker-compose.yml` передаёт в backend
 `ALLOWED_ORIGINS=${ALLOWED_ORIGINS-http://localhost:3000,http://127.0.0.1:3000}`:

@@ -29,7 +29,7 @@
 ├── .pre-commit-config.yaml             # ROLE: Git hooks (Ruff/tests/build).
 ├── .github/dependabot.yml              # ROLE: Weekly dependency updates for uv, npm, actions, Docker and hooks.
 ├── opencode.jsonc                      # ROLE: OpenCode V2 project config.
-├── docker-compose.yml                  # ROLE: Local production-like stack; passes ALLOWED_ORIGINS to backend, persists runtime config in the backend_config named volume.
+├── docker-compose.yml                  # ROLE: Local production-like stack with BACKEND_IMAGE/FRONTEND_IMAGE overrides; passes ALLOWED_ORIGINS to backend, persists runtime config in the backend_config named volume.
 ├── start_dev.bat                       # ROLE: Windows dev launcher (uv + Vite).
 └── scripts/run_checks.py               # ROLE: Cross-platform check runner used by hooks.
 ```
@@ -435,7 +435,8 @@ tests_shared/
 ```
 .github/
 └── workflows/
-    └── ci.yml                          # ROLE: CI: Ruff/Biome/tsc/pytest/vitest, audits, Docker builds + non-root/nginx checks on push/PR.
+    ├── ci.yml                          # ROLE: CI: Ruff/Biome/tsc/pytest/vitest, audits, Docker builds + non-root/nginx checks on push/PR.
+    └── release.yml                     # ROLE: CD: tag validation, GHCR publish (tag/sha/latest) and compose smoke; no host deploy.
 ```
 
 ---
