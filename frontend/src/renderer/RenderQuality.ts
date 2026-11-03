@@ -10,7 +10,6 @@ export interface QualityPreset {
   shadowMapSize: number;
   shadowRadius: number;
   snakeLights: number;
-  ssao: boolean;
   bloom: boolean;
   /** Base resolution of the world-space snake contact shadow at the reference box. */
   contactShadow: number;
@@ -33,7 +32,6 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     shadowMapSize: 2048,
     shadowRadius: 3,
     snakeLights: 3,
-    ssao: true,
     bloom: true,
     contactShadow: 512,
     grass: 16000,
@@ -47,7 +45,6 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     shadowMapSize: 2048,
     shadowRadius: 3,
     snakeLights: 3,
-    ssao: true,
     bloom: true,
     contactShadow: 512,
     grass: 16000,
@@ -61,7 +58,6 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     shadowMapSize: 1024,
     shadowRadius: 2,
     snakeLights: 2,
-    ssao: false,
     bloom: true,
     contactShadow: 512,
     grass: 8000,
@@ -75,7 +71,6 @@ export const QUALITY_PRESETS: Record<RenderQuality, QualityPreset> = {
     shadowMapSize: 512,
     shadowRadius: 0,
     snakeLights: 1,
-    ssao: false,
     bloom: false,
     contactShadow: 256,
     grass: 0,

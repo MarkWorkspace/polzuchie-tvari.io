@@ -30,7 +30,7 @@ test("plays the game and changes quality", async ({ page }) => {
   await expect(quality).toHaveValue(/^(auto|high|medium|low)$/);
   await quality.selectOption("low");
   await expect(quality).toHaveValue("low");
-  // Re-enable SSAO/bloom and the normal pass, then go back to the cheap preset.
+  // Re-enable bloom, then go back to the cheap preset.
   await quality.selectOption("high");
   await expect(quality).toHaveValue("high");
   await quality.selectOption("low");

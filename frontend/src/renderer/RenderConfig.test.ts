@@ -26,7 +26,7 @@ describe("render layers", () => {
   it("keeps every mask pass on its own layer", () => {
     // Sharing layers would make one pass rasterize the wrong objects: the
     // overlay layer holds fog/glow sprites, the bloom mask holds every glow
-    // object, the occlusion pass must see the ribbon alone.
+    // object, and the contact-shadow mask needs the ribbon alone on its layer.
     const layers = [OVERLAY_LAYER, BLOOM_MASK_LAYER, SNAKE_SHADOW_LAYER];
     expect(new Set(layers).size).toBe(layers.length);
   });

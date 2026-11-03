@@ -1,4 +1,4 @@
-// ROLE: EffectComposer-пайплайн: tone mapping, SSAO без overlay-слоя, bloom, линзирование ЧД и atmosphere grade.
+// ROLE: EffectComposer-пайплайн: tone mapping, bloom, линзирование ЧД и atmosphere grade.
 
 import {
   BlendFunction,
@@ -6,9 +6,7 @@ import {
   Effect,
   EffectComposer,
   EffectPass,
-  NormalPass,
   RenderPass,
-  SSAOEffect,
   ToneMappingEffect,
   ToneMappingMode,
 } from "postprocessing";
@@ -87,38 +85,7 @@ class BloomMaskEffect extends Effect {
   }
 }
 
-/**
- * The fog, head glow and boost particles live on OVERLAY_LAYER. They must not
- * write into the normal buffer, otherwise a full-screen fog plane overwrites
- * every normal and SSAO sees a flat surface.
- */
-class BaseLayerNormalPass extends NormalPass {
-  private readonly cameraRef: THREE.PerspectiveCamera;
-
-  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
-    super(scene, camera);
-    this.cameraRef = camera;
-  }
-
-  public render(
-    renderer: THREE.WebGLRenderer,
-    inputBuffer: THREE.WebGLRenderTarget | null,
-    outputBuffer: THREE.WebGLRenderTarget | null,
-    deltaTime?: number,
-    stencilTest?: boolean,
-  ): void {
-    const mask = this.cameraRef.layers.mask;
-    this.cameraRef.layers.set(0);
-    try {
-      super.render(renderer, inputBuffer, outputBuffer, deltaTime, stencilTest);
-    } finally {
-      this.cameraRef.layers.mask = mask;
-    }
-  }
-}
-
 export interface PostProcessingOptions {
-  ssao?: boolean;
   bloom?: boolean;
 }
 
@@ -131,7 +98,6 @@ export class PostProcessing {
   private lensingEffect!: LensingEffect;
   private atmosphereEffect!: AtmosphereEffect;
   private globeEffect!: GlobeEffect;
-  private ssaoEnabled: boolean;
   private bloomEnabled: boolean;
   private pipelineReady = false;
 
@@ -153,7 +119,6 @@ export class PostProcessing {
     this.composer = new EffectComposer(renderer, {
       frameBufferType: THREE.HalfFloatType,
     });
-    this.ssaoEnabled = options.ssao ?? true;
     this.bloomEnabled = options.bloom ?? true;
 
     this.buildPipeline();
@@ -163,11 +128,9 @@ export class PostProcessing {
 
   /** Rebuild passes in place. Keeps the composer buffers and shared fullscreen geometry alive. */
   public setOptions(options: PostProcessingOptions): void {
-    const ssao = options.ssao ?? true;
     const bloom = options.bloom ?? true;
-    if (this.pipelineReady && ssao === this.ssaoEnabled && bloom === this.bloomEnabled) return;
+    if (this.pipelineReady && bloom === this.bloomEnabled) return;
 
-    this.ssaoEnabled = ssao;
     this.bloomEnabled = bloom;
 
     const oldPasses = [...this.composer.passes];
@@ -180,39 +143,10 @@ export class PostProcessing {
   }
 
   private buildPipeline(): void {
-    // TODO(contact-shadow): SSAO is temporarily off while the world-space snake
-    // contact shadow lands and is tuned. Its noisy 0.05-radius term was the
-    // third dark layer under the ribbon. RenderQuality.ts is edited by another
-    // change, so the preset flag stays untouched and the pass is skipped here;
-    // remove this flag to bring SSAO back without touching the code below.
-    const SSAO_TEMPORARILY_DISABLED: boolean = true;
-    const useSsao = this.ssaoEnabled && !SSAO_TEMPORARILY_DISABLED;
     const useBloom = this.bloomEnabled;
     const baseEffects: Effect[] = [];
 
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-
-    if (useSsao) {
-      const normalPass = new BaseLayerNormalPass(this.scene, this.camera);
-      this.composer.addPass(normalPass);
-      // SSAO gets its own pass so it is baked into the buffer that later passes
-      // read. In a shared pass inputBuffer stays pre-SSAO, and BloomMaskEffect
-      // restores inputBuffer over masked objects, which would erase their AO.
-      this.composer.addPass(
-        new EffectPass(
-          this.camera,
-          new SSAOEffect(this.camera, normalPass.texture, {
-            intensity: 1.5,
-            radius: 0.05,
-            samples: 16,
-            rings: 4,
-            distanceScaling: true,
-            distanceThreshold: 0.5,
-            distanceFalloff: 0.1,
-          }),
-        ),
-      );
-    }
 
     if (useBloom) {
       baseEffects.push(

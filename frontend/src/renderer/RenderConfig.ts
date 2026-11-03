@@ -31,7 +31,8 @@ export type RenderLayer = (typeof RenderLayer)[keyof typeof RenderLayer];
 
 /**
  * Overlay objects on this layer are visible to the main camera but excluded
- * from the normal pass, so the fog/glow/particles do not flatten SSAO normals.
+ * from dedicated passes and the shadow map, so fog/glow/particles never get
+ * captured by them.
  */
 export const OVERLAY_LAYER = 1;
 

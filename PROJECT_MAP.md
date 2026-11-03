@@ -149,7 +149,7 @@ frontend/
     │   ├── ParticleRenderer.ts         # ROLE: Мягкие additive-частицы хвоста (radial sprite без текстуры).
     │   ├── GlobeLens.ts                # ROLE: Чистая математика globe warp/overscan и финальный screen-space GlobeEffect с limb darkening. Без знания сцены.
     │   ├── GlobeLens.test.ts           # ROLE: Тесты warp-функции и overscan для разных aspect/curvature.
-    │   ├── PostProcessing.ts           # ROLE: SSAO отдельным pass (временно выключен флагом в buildPipeline); bloom/tone mapping и bloom-маска в общем pass; линзирование ЧД отдельным pass; atmosphere grade; globe warp финальным pass.
+    │   ├── PostProcessing.ts           # ROLE: EffectComposer-пайплайн: bloom/tone mapping и bloom-маска в общем pass; линзирование ЧД отдельным pass; atmosphere grade; globe warp финальным pass.
     │   ├── SilhouetteRenderer.ts       # ROLE: Растеризует слой в маленький alpha-таргет (bloom-маска). Не свет, не пост-эффекты.
     │   ├── SilhouetteRenderer.test.ts  # ROLE: Тесты размера silhouette-таргета под pixel ratio и downscale.
     │   ├── RenderQuality.ts            # ROLE: Пресеты качества (auto/high/medium/low), shadow map/radius, contact-shadow base resolution, отдельные grass/grassRadius/stone бюджеты, snake-light budget; персистенция через safeStorage.
@@ -160,7 +160,7 @@ frontend/
     │   ├── GpuWatchdog.ts              # ROLE: Чистый watchdog adaptive resolution: visibility-переходы, 5-секундный таймаут GPU-сэмплов, fallback flag и восстановление по сэмплу. Без DOM/WebGL.
     │   ├── GpuWatchdog.test.ts         # ROLE: Тесты watchdog: unsupported, таймаут/восстановление, скрытая вкладка, reset и hidden-кадры.
     │   ├── RenderQuality.test.ts       # ROLE: Тесты пресетов качества и localStorage.
-    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, overlay-layer для NormalPass, bloom-mask и snake-shadow mask layers, фабрики материалов и glow-конверсия.
+    │   ├── RenderConfig.ts             # ROLE: Слои отрисовки, overlay-layer для эффектов вне dedicated-пассов и shadow map, bloom-mask и snake-shadow mask layers, фабрики материалов и glow-конверсия.
     │   ├── RenderConfig.test.ts        # ROLE: Тест перевода head_glow_radius из клеток в мировые единицы.
     │   ├── DebugRenderer.ts            # ROLE: Отрисовка отладочной сетки и коллизий в режиме debug.
     │   ├── DebugRenderer.test.ts       # ROLE: Тест кратности debug-буферов размеру атрибута.

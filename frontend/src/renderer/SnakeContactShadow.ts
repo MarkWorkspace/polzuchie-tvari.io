@@ -356,8 +356,8 @@ export class SnakeContactShadow {
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.compositeMaterial);
     this.quad.renderOrder = options.renderOrder ?? RenderLayer.Shadow;
     this.quad.frustumCulled = false;
-    // The quad is a ground-baked term, not geometry: keep it out of the normal
-    // pass so a future SSAO re-enable cannot pick up its 0.05-unit depth step.
+    // The quad is a ground-baked term, not geometry, so it stays out of the base
+    // layer and dedicated passes that rasterize real objects cannot pick it up.
     this.quad.layers.set(OVERLAY_LAYER);
     this.scene.add(this.quad);
 

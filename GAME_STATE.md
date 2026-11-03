@@ -202,9 +202,9 @@
 - **WebGL restore неполный.** После потери контекста `webglcontextrestored`
   только снимает флаг; composer targets, materials и shadow maps не
   пересобираются, поэтому пользователю предлагается reload (M6-13).
-- **SSAO временно выключен** флагом в `PostProcessing.buildPipeline`; код
-  оставлен компилируемым до визуальной приёмки contact shadow.
-- **Крупный `vendor-three` chunk.** Three/postprocessing (~646 kB minified)
+- **SSAO удалён из пайплайна.** Вместо него работает world-space contact shadow;
+  пресеты качества больше не содержат флаг SSAO.
+- **Крупный `vendor-three` chunk.** Three/postprocessing (~622 kB minified)
   вынесен из login-графа, но остаётся отдельным тяжёлым chunk'ом после Play;
   предупреждение Vite о размере >500 kB сохраняется.
 - **Крупные god-объекты.** `World` и `SceneManager` остаются точками

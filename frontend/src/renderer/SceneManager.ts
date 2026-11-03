@@ -187,7 +187,7 @@ export class SceneManager {
       this.camera,
       this.currentWidth,
       this.currentHeight,
-      { ssao: preset.ssao, bloom: preset.bloom },
+      { bloom: preset.bloom },
     );
     this.initAdaptiveResolution(preset);
   }
@@ -214,7 +214,7 @@ export class SceneManager {
     this.snakeLights.setCount(preset.snakeLights);
     this.contactShadow.setBaseResolution(preset.contactShadow);
 
-    this.postProcessing.setOptions({ ssao: preset.ssao, bloom: preset.bloom });
+    this.postProcessing.setOptions({ bloom: preset.bloom });
 
     this.initAdaptiveResolution(preset);
     this.applyPixelRatio(this.adaptiveResolution?.getRatio() ?? this.maxPixelRatio(preset));
