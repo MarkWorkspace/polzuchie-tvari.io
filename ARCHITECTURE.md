@@ -83,7 +83,7 @@
 
 6. **FrameComputer & SnakeProcessor (Воркер):**
    - По запросу `REQUEST_FRAME` (с `requestId`, `dt`, `myId`, `isSpectator`, `localInput`, `spectatorCam?`) воркер вызывает `computeFrame` с типизированным `FrameContext`; типы границы определены в [WorkerProtocol.ts](frontend/src/worker/shared/WorkerProtocol.ts).
-   - Выполняет предсказание локального игрока с помощью [CameraPredictor.predict](frontend/src/worker/CameraPredictor.ts#L27). Для спектатора в запросе передаётся позиция камеры (`spectatorCam`), которая задаёт `localX/localY` и обёртку мира вокруг текущего вида.
+   - Позиционирует камеру локального игрока через [CameraPredictor.predict](frontend/src/worker/CameraPredictor.ts#L27) как server-authoritative follower: `localX/localY` следуют за интерполированной серверной головой, а не за локальной симуляцией. Для спектатора в запросе передаётся позиция камеры (`spectatorCam`), которая задаёт `localX/localY` и обёртку мира вокруг текущего вида. Границы и причины зафиксированы в [ADR-006](docs/adr/ADR-006-server-authoritative-follower.md).
    - Вычисляет сплайны змеек ([SplineComputer.computeSplinePaths](frontend/src/worker/SplineComputer.ts#L14)), строит буферы геометрии ([MeshBuilder.appendSnakeMesh](frontend/src/worker/MeshBuilder.ts#L15)), вычисляет позиции глаз (`eyes.addEyes`), симулирует частицы (`ParticleComputer`). Координаты клеток переводятся в world через `gridToWorldX/Y` из [WorldMath.ts](frontend/src/worker/shared/WorldMath.ts); torus-операции — только через [MathUtils.ts](frontend/src/worker/shared/MathUtils.ts).
    - Преобразует данные в плоские типизированные массивы `Float32Array` и `Uint32Array` (буферы вершин, индексов, матриц инстансов).
    - **Формат границы:** Сообщение `FRAME_DATA` с набором типизированных массивов в качестве `Transferable Objects` и тем же `requestId`; при отсутствии состояния отправляется `FRAME_UNAVAILABLE`.
@@ -102,7 +102,7 @@
 
 ---
 
-### 2. Поток ввода: Ввод → Предсказание → Сервер
+### 2. Поток ввода: Ввод → Follow → Сервер
 
 Цепочка движения команд от действий пользователя до обработки на сервере:
 
@@ -115,7 +115,7 @@
        ▼ (Строковые команды LEFT_DOWN / TURN:<val> / SPACE_DOWN)
 [NetworkManager -> Web Worker (worker.ts)]
        │
-       ├─► [CameraPredictor] (Мгновенное предсказание локального игрока)
+       ├─► [CameraPredictor] (Follower: интерполяция серверной позиции, без симуляции)
        │
        ▼ (Отправка сырой строки)
 [WebSocketClient]
@@ -144,7 +144,8 @@
    - **Формат границы:** Сообщения воркеру `{ type: "SEND", data: string }`; `RESYNC` как игровой ввод не отправляется.
 
 3. **CameraPredictor (Воркер):**
-   - На каждом локальном запросе кадра (`REQUEST_FRAME`), используя значения локального ввода, мгновенно предсказывает позицию игрока (`localX`, `localY`) и угол наклона камеры (`localAngle`) для сглаживания движения камеры до получения подтверждения от сервера.
+   - На каждом локальном запросе кадра (`REQUEST_FRAME`) вычисляет позицию камеры (`localX`, `localY`) и угол (`localAngle`) как follower: позиция следует за интерполированной серверной головой, угол выводится из интерполированной геометрии тела. Локальный `turn` не двигает голову; буст влияет только на zoom.
+   - Это осознанная граница server-authoritative модели: клиент не симулирует коллизии, рост, еду, смерть или порталы. Полный CSP отклонён в [ADR-006](docs/adr/ADR-006-server-authoritative-follower.md); допустим только будущий presentation-only angle lead за флагом.
    - Для спектатора игрока нет: `localX/localY` берутся из переданной позиции `SpectatorCamera`, чтобы обёртка сущностей и follow-камера работали от текущего вида, а не от центра карты.
 
 4. **WebSocketClient (Воркер):**
@@ -171,7 +172,7 @@
 
 1. **Тороидальная математика:**
    - **Файлы:** [MathUtils.ts](frontend/src/worker/shared/MathUtils.ts) и [math_utils.py](backend/app/engine/systems/math_utils.py)
-   - **Что сломается:** Предсказание позиции и углов на клиенте разойдется с реальным движением на сервере. Камера начнёт дёргаться при пересечении границ карты, а сплайны змеек будут рассчитываться неверно, вызывая визуальные разрывы геометрии.
+   - **Что сломается:** Интерполяция позиции и углов на клиенте разойдётся с серверной геометрией. Камера начнёт дёргаться при пересечении границ карты, а сплайны змеек будут рассчитываться неверно, вызывая визуальные разрывы геометрии.
    - **Причина:** Дублирование wrap-логики (`wrapNearest`/`wrapDelta` ↔ `wrap_coordinate`/`wrap_delta`, `toroidalDelta` ↔ `toroidal_delta`). Обе реализации обязаны совпадать с `tests_shared/golden_vectors/math.json`.
 
 2. **Сетка и world-координаты:**

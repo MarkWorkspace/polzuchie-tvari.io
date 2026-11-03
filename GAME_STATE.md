@@ -21,7 +21,7 @@
 
 - Авторитетный тик 30 Гц: физика, повороты/буст, рост, коллизии, еда, порталы,
   чёрные дыры, надгробия и боты выполняются на сервере; клиент только
-  интерполирует и предсказывает камеру.
+  интерполирует состояние и ведёт камеру как follower (ADR-006).
 - Тороидальная карта с динамическими `world.width/height`; серверные позиции —
   в grid-единицах, клиентские world-единицы — `grid * gridSize`.
 - Пространственный индекс строится один раз за тик (`CELL_SIZE = 10.0`);
@@ -96,12 +96,16 @@
 - Docker-образы работают non-root (backend `appuser`, frontend `nginx`),
   base images закреплены digest'ами, healthcheck локальный, логи ограничены
   `json-file` (`10m × 3`).
-- CD: тег `vX.Y.Z` запускает `.github/workflows/release.yml` — verify
-  (Ruff/pytest, frontend lint/typecheck/test/build, compose config), publish в
-  GHCR (`:vX.Y.Z`, `:sha-<12>`, `:latest` только для stable-тегов без `-`) и
-  compose smoke из опубликованных образов с проверкой `/ready`, `/health` и
-  non-root. Деплоя на хосты нет: обновление и rollback выполняются через
-  `BACKEND_IMAGE`/`FRONTEND_IMAGE` и `docker compose pull/up --no-build`.
+- CD/release pipeline: тег `vX.Y.Z` запускает `.github/workflows/release.yml`.
+  Verify проверяет identity тега (только `refs/tags/...`, commit совпадает,
+  тег стоит на `main`/`dev`), lockfile, protobuf, аудит зависимостей,
+  backend/frontend-тесты и build. Publish собирает и пушит только
+  `:sha-<12>`; smoke поднимает эти digest-образы через compose и проверяет
+  `/ready`, `/health`, `/ws/ready`, корневую страницу, WebSocket upgrade,
+  non-root и OCI revision. Только после smoke `promote` создаёт `:vX.Y.Z` по
+  digest, а `:latest` двигает лишь stable push-тег. Деплоя на хосты нет:
+  обновление и rollback выполняются через `BACKEND_IMAGE`/`FRONTEND_IMAGE`
+  и `docker compose pull/up --no-build`.
 
 ### Клиент и рендер
 
@@ -233,6 +237,14 @@
   reload.
 - **SSAO удалён из пайплайна.** Вместо него работает world-space contact shadow;
   пресеты качества больше не содержат флаг SSAO.
+- **M6-10 prediction не внедрён.** ADR-006 фиксирует server-authoritative
+  follower: клиент интерполирует серверное состояние, не симулирует тело,
+  коллизии, еду, смерть или порталы. Полный CSP/C-position отклонены из-за
+  двух таймлайнов и fairness коллизий; допустим только будущий
+  presentation-only angle lead за флагом. Базовая задержка остаётся
+  ~150–250 мс (30 Гц, 3 тика интерполяции, throttle 40 мс), её снижают
+  отдельные задачи: event-driven ввод, throttle 25–30 мс, адаптивная
+  интерполяция 2–3 тика и, после load test, 60 Гц.
 - **Крупный `vendor-three` chunk.** Three/postprocessing (~622 kB minified)
   вынесен из login-графа, но остаётся отдельным тяжёлым chunk'ом после Play;
   предупреждение Vite о размере >500 kB сохраняется.
@@ -265,9 +277,11 @@
 
 ## WIP и сломанное
 
-Критичных незакрытых дефектов и известных «сломанных» механик нет. Задачи,
-которые сознательно отложены (prediction/reconciliation, полный WebGL rebuild,
-расширение E2E), перечислены в `REMEDIATION_PLAN.md` как M6 backlog.
+Критичных незакрытых дефектов и известных «сломанных» механик нет. WebGL
+rebuild и расширение E2E уже реализованы. M6-10 закрыт как решение
+server-authoritative follower (ADR-006), а не как «сделанный prediction»;
+M6-06 реализован, но ждёт первого реального release-тега и smoke. Остальные
+пункты M6 перечислены в `REMEDIATION_PLAN.md`.
 
 ## Проверки
 

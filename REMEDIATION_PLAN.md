@@ -205,13 +205,19 @@ tests_shared/golden_frames/*
 - [x] M5-05 Dead code removal
 - [x] M5-06 Docs sync
 - [x] M5-07 Runbook/SECURITY/ADRs
-- [ ] M6 optional backlog (по решению)
+- [ ] M6 optional backlog (M6-06 ждёт release-тега; M6-10 deferred by ADR-006)
 
 ### Execution notes
 
 - **Branch:** `remediation/audit-2026-10`.
 - **Gates:** все gates 0–5 зелёные (backend/frontend checks, тесты, E2E и Docker smoke).
-- **M6:** optional backlog не начат.
+- **M6:** M6-01…M6-05, M6-07…M6-09 и M6-11…M6-13 слиты в `dev`.
+  M6-06 реализован, но ждёт первого release-тега и smoke. M6-10 закрыт как
+  решение server-authoritative follower (ADR-006), а не как полный prediction:
+  полный CSP/C-position отклонены, допустим только будущий presentation-only
+  angle lead за флагом. Дешёвое снижение задержки выделено в M6-10b (event-driven
+  ввод, throttle 25–30 мс, адаптивная интерполяция 2–3 тика, 60 Гц после
+  нагрузочного теста).
 - **Отклонения:**
   - M1-05: добавлены passthrough `ALLOWED_ORIGINS` в `docker-compose.yml` и изоляция `backend/tests/conftest.py`.
   - M3-03/M3-04/M3-08/M3-09: использованы согласованные исключения по размеру изменений (authorized size exceptions).
@@ -777,7 +783,7 @@ tests_shared/golden_frames/*
 | M6-07 | E2E expansion: reconnect, context loss, admin save/restart, mobile | регрессии | M |
 | M6-08 | Split `World` → `ConfigStore`/`InputRouter`/`SnapshotService` | сопровождаемость | L |
 | M6-09 | Split `SceneManager` → lighting/fog/ground/pipeline | сопровождаемость | L |
-| M6-10 | Prediction + reconciliation или официально server-authoritative follower | latency | L |
+| M6-10 | Prediction + reconciliation; **deferred: server-authoritative follower (ADR-006)** | latency | L |
 | M6-11 | SSAO: включить или удалить мёртвый флаг/пресеты | честность настроек | S |
 | M6-12 | Adaptive resolution по GPU time, а не FPS | качество auto | M |
 | M6-13 | WebGL: полный rebuild composer/targets/materials после context restore | восстановление без reload | M/L |

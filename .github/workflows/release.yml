@@ -1,4 +1,4 @@
-# ROLE: CD для проекта: проверка тега, публикация GHCR-образов backend/frontend и smoke-тест compose. Не деплоит на хосты и не хранит секреты приложения.
+# ROLE: Release pipeline: validate tag identity, build images by verified SHA, smoke the SHA images, then promote version/latest by digest. No host deploy.
 name: Release
 
 permissions:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to publish (e.g. v1.2.3)"
+        description: "Release tag to publish (e.g. v1.2.3, no build metadata)"
         required: true
         type: string
 
@@ -25,27 +25,66 @@ jobs:
   verify:
     name: Verify release
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
+      short_sha: ${{ steps.tag.outputs.short_sha }}
+      is_stable: ${{ steps.tag.outputs.is_stable }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Validate release tag
+      - name: Validate release tag and resolve verified commit
+        id: tag
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Invalid release tag '$RELEASE_TAG' (expected vMAJOR.MINOR.PATCH[-prerelease])"
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::Invalid release tag '$RELEASE_TAG' (expected vMAJOR.MINOR.PATCH[-prerelease], no '+')"
+            exit 1
+          fi
+          if (( ${#RELEASE_TAG} > 128 )); then
+            echo "::error::Release tag is longer than the Docker tag limit (128 characters)"
             exit 1
           fi
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
-        with:
-          version: "0.11.2"
-          python-version: "3.13"
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-          working-directory: backend
+          tag_commit="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          head_commit="$(git rev-parse HEAD)"
+          if [[ "$tag_commit" != "$head_commit" ]]; then
+            echo "::error::Tag ${RELEASE_TAG} points to ${tag_commit}, but checkout resolved ${head_commit}"
+            exit 1
+          fi
+
+          # A release must be cut from an integration commit, not from an
+          # arbitrary feature branch. Tags on dev are allowed until main catches up.
+          git fetch --no-tags origin main dev
+          if ! git merge-base --is-ancestor "$head_commit" origin/main \
+            && ! git merge-base --is-ancestor "$head_commit" origin/dev; then
+            echo "::error::Release tag must point to a commit already merged into main or dev"
+            exit 1
+          fi
+
+          stable=false
+          if [[ "$RELEASE_TAG" != *-* ]]; then stable=true; fi
+          short_sha="${head_commit::12}"
+          {
+            echo "sha=$head_commit"
+            echo "short_sha=$short_sha"
+            echo "is_stable=$stable"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Release ${RELEASE_TAG}"
+            echo
+            echo "- commit: \`${head_commit}\`"
+            echo "- short SHA: \`${short_sha}\`"
+            echo "- stable: \`${stable}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify lockfile is current
+        working-directory: backend
+        run: uv lock --check
 
       - name: Sync backend dependencies
         working-directory: backend
@@ -59,9 +98,21 @@ jobs:
         working-directory: backend
         run: uv run --frozen ruff check .
 
+      - name: Verify generated protobuf code
+        working-directory: backend
+        run: |
+          uv run --frozen python scripts/generate_proto.py
+          git diff --exit-code -- app/engine/systems/snake_pb2.py
+
       - name: Run backend tests
         working-directory: backend
         run: uv run --frozen pytest tests/ -q
+
+      - name: Audit backend runtime dependencies
+        working-directory: backend
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > /tmp/backend-requirements.txt
+          uvx pip-audit==2.10.1 -r /tmp/backend-requirements.txt
 
       - uses: actions/setup-node@v4
         with:
@@ -81,6 +132,10 @@ jobs:
         working-directory: frontend
         run: npm run typecheck
 
+      - name: Audit frontend runtime dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Run frontend tests
         working-directory: frontend
         run: npm test
@@ -95,84 +150,117 @@ jobs:
           ADMIN_PASSWORD: ci-only
 
   publish:
-    name: Publish GHCR images
+    name: Publish SHA images to GHCR
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     permissions:
       contents: read
       packages: write
+    outputs:
+      backend_digest: ${{ steps.backend.outputs.digest }}
+      frontend_digest: ${{ steps.frontend.outputs.digest }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ needs.verify.outputs.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Re-check tag identity after checkout
+        run: |
+          set -euo pipefail
+          tag_commit="$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")"
+          head_commit="$(git rev-parse HEAD)"
+          test "$tag_commit" = "$head_commit"
+          test "$head_commit" = "${{ needs.verify.outputs.sha }}"
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Build and push backend image
+      - name: Refuse to overwrite an existing version tag
         run: |
+          set -euo pipefail
           repo="${GITHUB_REPOSITORY,,}"
-          sha="$(git rev-parse HEAD)"
-          sha_tag="${sha::12}"
-          tags=(
-            -t "ghcr.io/$repo/backend:$RELEASE_TAG"
-            -t "ghcr.io/$repo/backend:sha-$sha_tag"
-          )
-          if [[ "$RELEASE_TAG" != *-* ]]; then
-            tags+=(-t "ghcr.io/$repo/backend:latest")
-          fi
-          docker build "${tags[@]}" \
+          for component in backend frontend; do
+            image="ghcr.io/$repo/$component:$RELEASE_TAG"
+            if docker manifest inspect "$image" >/dev/null 2>&1; then
+              echo "::error::Release tag $image already exists; refusing to overwrite it"
+              exit 1
+            fi
+          done
+
+      - name: Build and push backend SHA image
+        id: backend
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          sha="${{ needs.verify.outputs.sha }}"
+          image="ghcr.io/$repo/backend:sha-${{ needs.verify.outputs.short_sha }}"
+          docker build -t "$image" \
             --label "org.opencontainers.image.revision=$sha" \
             --label "org.opencontainers.image.version=$RELEASE_TAG" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             backend
-          docker push --all-tags "ghcr.io/$repo/backend"
-
-      - name: Build and push frontend image
-        run: |
-          repo="${GITHUB_REPOSITORY,,}"
-          sha="$(git rev-parse HEAD)"
-          sha_tag="${sha::12}"
-          tags=(
-            -t "ghcr.io/$repo/frontend:$RELEASE_TAG"
-            -t "ghcr.io/$repo/frontend:sha-$sha_tag"
-          )
-          if [[ "$RELEASE_TAG" != *-* ]]; then
-            tags+=(-t "ghcr.io/$repo/frontend:latest")
+          docker push "$image"
+          digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$image" | sed 's/.*@//')"
+          if [[ "$digest" != sha256:* ]]; then
+            echo "::error::Could not resolve backend digest for $image"
+            exit 1
           fi
-          docker build "${tags[@]}" \
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "backend_digest=$digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build and push frontend SHA image
+        id: frontend
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          sha="${{ needs.verify.outputs.sha }}"
+          image="ghcr.io/$repo/frontend:sha-${{ needs.verify.outputs.short_sha }}"
+          docker build -t "$image" \
             --label "org.opencontainers.image.revision=$sha" \
             --label "org.opencontainers.image.version=$RELEASE_TAG" \
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             frontend
-          docker push --all-tags "ghcr.io/$repo/frontend"
+          docker push "$image"
+          digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$image" | sed 's/.*@//')"
+          if [[ "$digest" != sha256:* ]]; then
+            echo "::error::Could not resolve frontend digest for $image"
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "frontend_digest=$digest" >> "$GITHUB_STEP_SUMMARY"
 
   smoke:
-    name: Compose smoke (GHCR images)
-    needs: publish
+    name: Compose smoke (SHA images)
+    needs: [verify, publish]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: read
     env:
       ADMIN_PASSWORD: release-smoke
+      ALLOWED_ORIGINS: http://127.0.0.1:13000
       BACKEND_PORT: "18000"
       FRONTEND_PORT: "13000"
+      COMPOSE_PROJECT_NAME: release-smoke-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ needs.verify.outputs.sha }}
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Select release images
+      - name: Select SHA images by digest
         run: |
           repo="${GITHUB_REPOSITORY,,}"
-          echo "BACKEND_IMAGE=ghcr.io/$repo/backend:$RELEASE_TAG" >> "$GITHUB_ENV"
-          echo "FRONTEND_IMAGE=ghcr.io/$repo/frontend:$RELEASE_TAG" >> "$GITHUB_ENV"
+          echo "BACKEND_IMAGE=ghcr.io/$repo/backend@${{ needs.publish.outputs.backend_digest }}" >> "$GITHUB_ENV"
+          echo "FRONTEND_IMAGE=ghcr.io/$repo/frontend@${{ needs.publish.outputs.frontend_digest }}" >> "$GITHUB_ENV"
 
       - name: Pull release images
         run: docker compose pull backend frontend
@@ -180,11 +268,14 @@ jobs:
       - name: Start release stack
         run: docker compose up -d --no-build
 
-      - name: Wait for backend readiness and frontend health
+      - name: Wait for the production path through nginx
         run: |
+          set -euo pipefail
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:18000/ready >/dev/null \
-              && curl -fsS http://127.0.0.1:13000/health >/dev/null; then
+            if curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:18000/ready >/dev/null \
+              && curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:13000/health >/dev/null \
+              && curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:13000/ws/ready >/dev/null \
+              && curl --connect-timeout 2 --max-time 5 -fsS http://127.0.0.1:13000/ | grep -q 'id="app"'; then
               echo "Release stack healthy after ${attempt} attempt(s)"
               exit 0
             fi
@@ -192,17 +283,106 @@ jobs:
           done
           echo "::error::Release stack did not become healthy in 120s"
           docker compose ps
-          docker compose logs --tail=100 backend frontend
+          docker compose logs --tail=200 backend frontend
           exit 1
 
-      - name: Verify containers run as non-root
+      - name: Verify WebSocket upgrade through nginx
         run: |
-          backend_uid="$(docker compose exec -T backend id -u)"
-          frontend_uid="$(docker compose exec -T frontend id -u)"
-          echo "backend uid=$backend_uid frontend uid=$frontend_uid"
-          test "$backend_uid" != "0"
-          test "$frontend_uid" != "0"
+          set -euo pipefail
+          status="$(curl --connect-timeout 2 --max-time 5 -sS -o /dev/null -w '%{http_code}' \
+            --http1.1 \
+            -H 'Connection: Upgrade' \
+            -H 'Upgrade: websocket' \
+            -H 'Sec-WebSocket-Version: 13' \
+            -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+            -H 'Origin: http://127.0.0.1:13000' \
+            'http://127.0.0.1:13000/ws/?role=spectator' || true)"
+          echo "WebSocket handshake status: ${status}"
+          test "$status" = "101"
+
+      - name: Verify containers run as non-root and from the verified revision
+        run: |
+          set -euo pipefail
+          backend_id="$(docker compose ps -q backend)"
+          frontend_id="$(docker compose ps -q frontend)"
+          test "$(docker compose exec -T backend id -u)" != "0"
+          test "$(docker compose exec -T frontend id -u)" != "0"
+          test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$backend_id")" = "${{ needs.verify.outputs.sha }}"
+          test "$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$frontend_id")" = "${{ needs.verify.outputs.sha }}"
+          test "$(docker inspect --format '{{ .State.Health.Status }}' "$backend_id")" != "unhealthy"
+          test "$(docker inspect --format '{{ .State.Health.Status }}' "$frontend_id")" != "unhealthy"
 
       - name: Tear down release stack
         if: always()
         run: docker compose down -v || true
+
+  promote:
+    name: Promote verified digests
+    needs: [verify, publish, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Promote version tags by digest
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          for component in backend frontend; do
+            image="ghcr.io/$repo/$component"
+            case "$component" in
+              backend) digest="${{ needs.publish.outputs.backend_digest }}" ;;
+              frontend) digest="${{ needs.publish.outputs.frontend_digest }}" ;;
+            esac
+            docker buildx imagetools create \
+              -t "$image:$RELEASE_TAG" \
+              "$image@$digest"
+          done
+
+      - name: Move latest only for stable push tags
+        if: needs.verify.outputs.is_stable == 'true' && github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          docker buildx imagetools create \
+            -t "ghcr.io/$repo/backend:latest" \
+            "ghcr.io/$repo/backend@${{ needs.publish.outputs.backend_digest }}"
+          docker buildx imagetools create \
+            -t "ghcr.io/$repo/frontend:latest" \
+            "ghcr.io/$repo/frontend@${{ needs.publish.outputs.frontend_digest }}"
+
+      - name: Write release manifest
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY,,}"
+          latest=false
+          if [[ "${{ needs.verify.outputs.is_stable }}" == "true" && "$GITHUB_EVENT_NAME" == "push" ]]; then
+            latest=true
+          fi
+          cat > release-manifest.json <<EOF
+          {
+            "tag": "${RELEASE_TAG}",
+            "commit": "${{ needs.verify.outputs.sha }}",
+            "backend": "ghcr.io/$repo/backend@${{ needs.publish.outputs.backend_digest }}",
+            "frontend": "ghcr.io/$repo/frontend@${{ needs.publish.outputs.frontend_digest }}",
+            "latest": ${latest}
+          }
+          EOF
+          cat release-manifest.json
+          {
+            echo "### Release manifest"
+            echo
+            echo '```json'
+            cat release-manifest.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-manifest-${{ env.RELEASE_TAG }}
+          path: release-manifest.json
+          retention-days: 90

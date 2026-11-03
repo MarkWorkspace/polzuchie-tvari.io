@@ -7,5 +7,10 @@ __pycache__
 .gitignore
 .env
 .env.*
+config.json
+config.json.bak
+config.local.json
+config.*.local.json
+config.override.json
 tests
 test_*.py

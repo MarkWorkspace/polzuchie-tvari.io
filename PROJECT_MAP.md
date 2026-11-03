@@ -21,7 +21,8 @@
 │       ├── ADR-002-frame-sequencing.md # ROLE: frame_seq/server_tick, FULL-coalescing и RESYNC.
 │       ├── ADR-003-config-ownership.md # ROLE: World.config ownership, transactional save и config volume.
 │       ├── ADR-004-grid-world-conversion.md # ROLE: grid↔world helper, half-cell и torus boundaries.
-│       └── ADR-005-tick-events.md      # ROLE: Tick-boundary removals, killfeed/food drop и failed handshake.
+│       ├── ADR-005-tick-events.md      # ROLE: Tick-boundary removals, killfeed/food drop и failed handshake.
+│       └── ADR-006-server-authoritative-follower.md # ROLE: Follower-модель, отказ от полного CSP и границы presentation-only prediction.
 ├── .env.example                        # ROLE: Docker port, admin password and log-level template.
 ├── .dockerignore                       # ROLE: Build-context exclusions for the root/compose build context.
 ├── .editorconfig                       # ROLE: Shared editor whitespace/charset conventions.
@@ -184,7 +185,7 @@ frontend/
     │   ├── SplineComputer.ts           # ROLE: Расчёт 3D-сплайнов змеек на scratch-буферах без per-point аллокаций.
     │   ├── SplineComputer.test.ts      # ROLE: Тесты сплайнов: density, split на портале, unwrap границы, self-offset и независимость результатов.
     │   ├── MeshBuilder.ts              # ROLE: Сборка vertex/index-буферов из сплайнов.
-    │   ├── CameraPredictor.ts          # ROLE: Клиентское предсказание позиции камеры; для спектатора использует позицию камеры.
+    │   ├── CameraPredictor.ts          # ROLE: Follower-позиционирование камеры по интерполированной серверной голове; не симулирует тело/коллизии. Для спектатора использует позицию камеры.
     │   ├── CameraPredictor.test.ts     # ROLE: Тест обёртки/камеры спектатора в CameraPredictor.
     │   ├── FoodComputer.ts             # ROLE: Матрицы и цвета инстансов еды на переиспользуемых позициях; last-food кэш на WeakRef пересобирается по смене ссылки.
     │   ├── FoodComputer.test.ts        # ROLE: Тесты еды: fog/visibleCount, интерполяция, attraction, black-hole gravity/fast path и смена lastState.
@@ -436,7 +437,7 @@ tests_shared/
 .github/
 └── workflows/
     ├── ci.yml                          # ROLE: CI: Ruff/Biome/tsc/pytest/vitest, audits, Docker builds + non-root/nginx checks on push/PR.
-    └── release.yml                     # ROLE: CD: tag validation, GHCR publish (tag/sha/latest) and compose smoke; no host deploy.
+    └── release.yml                     # ROLE: Release pipeline: verified tag/SHA, SHA-image smoke, digest promotion to version/latest; no host deploy.
 ```
 
 ---

@@ -163,11 +163,14 @@ docker compose up --build
 ```
 
 Релизы публикуются по тегу `vX.Y.Z` workflow
-`.github/workflows/release.yml` в GHCR:
-`ghcr.io/<repo>/backend:vX.Y.Z` и `ghcr.io/<repo>/frontend:vX.Y.Z` (плюс
-`:sha-<12>`; `:latest` обновляется только для stable-тегов без `-`). Чтобы
-запустить опубликованные образы вместо локальной сборки, задайте
-`BACKEND_IMAGE` и `FRONTEND_IMAGE`, затем выполните
+`.github/workflows/release.yml`. Pipeline сначала собирает `:sha-<12>`,
+проверяет эти образы compose smoke, и только после успеха создаёт по digest
+`ghcr.io/<repo>/backend:vX.Y.Z` и `ghcr.io/<repo>/frontend:vX.Y.Z`
+(`:latest` обновляется только для stable push-тегов, не для prerelease и не
+для `workflow_dispatch`). В artifact `release-manifest-<tag>` записаны commit и
+digest'ы обоих образов; для rollback используйте digest, а не только тег.
+Чтобы запустить опубликованные образы вместо локальной сборки, задайте
+`BACKEND_IMAGE` и `FRONTEND_IMAGE` (можно `@sha256:...`), затем выполните
 `docker compose pull backend frontend` и `docker compose up -d --no-build`.
 Без этих переменных compose собирает локальные
 `polzuchie-tvari-backend:local` и `polzuchie-tvari-frontend:local`.

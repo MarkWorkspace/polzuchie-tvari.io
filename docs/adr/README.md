@@ -7,7 +7,8 @@
 означает, что решение реализовано и действует в текущем коде; `Superseded`
 должен ссылаться на заменяющий ADR. ADR-001…ADR-005 фиксируют решения D1–D6
 из [`REMEDIATION_PLAN.md`](../../REMEDIATION_PLAN.md); аддитивность D2 и
-recovery D6 покрыты ADR-002.
+recovery D6 покрыты ADR-002. ADR-006 фиксирует отказ от полного CSP в пользу
+server-authoritative follower и границы допустимого presentation-only prediction.
 
 | ADR | Решение | Статус |
 |---|---|---|
@@ -16,6 +17,7 @@ recovery D6 покрыты ADR-002.
 | [ADR-003](ADR-003-config-ownership.md) | Единый владелец конфига, транзакционное сохранение и volume | Accepted |
 | [ADR-004](ADR-004-grid-world-conversion.md) | Единое преобразование grid↔world и разделение torus-математики | Accepted |
 | [ADR-005](ADR-005-tick-events.md) | События удаления на границе тика через `pending_removals` | Accepted |
+| [ADR-006](ADR-006-server-authoritative-follower.md) | Server-authoritative follower; полный CSP deferred, C-position отклонён | Accepted |
 
 Связанные документы:
 

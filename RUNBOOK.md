@@ -176,29 +176,44 @@ alias `curl` от `Invoke-WebRequest`, и подставляйте timestamp/ID 
 ### 4.1. Откат кода
 
 Release публикуется GitHub Actions (`.github/workflows/release.yml`) по тегу
-`vX.Y.Z` (или вручную через `workflow_dispatch` с input `tag`): job `verify`
-прогоняет backend/frontend-проверки и `docker compose config`, job `publish`
-собирает и пушит в GHCR
-`ghcr.io/<repo>/backend:vX.Y.Z` и `ghcr.io/<repo>/frontend:vX.Y.Z` (плюс
-`:sha-<12>`; `:latest` двигается только для stable-тега без `-`, prerelease
-его не трогает), job `smoke` поднимает compose из опубликованных образов и
-проверяет `/ready`, `/health` и non-root.
+`vX.Y.Z` (или вручную через `workflow_dispatch` с input `tag`). Pipeline
+разделён на четыре шага:
 
-Откат на предыдущий release — переключить образы и перезапустить стек:
+1. `verify` — checkout только по `refs/tags/<tag>`, проверка, что commit тега
+   совпадает с checkout, тег стоит на `main`/`dev`; lockfile, protobuf,
+   аудит зависимостей, backend/frontend-тесты и build.
+2. `publish` — собирает и пушит **только** `:sha-<12>`; version tag и `latest`
+   на этом шаге не создаются. Если `:vX.Y.Z` уже существует, pipeline
+   останавливается, чтобы не перезаписать релиз.
+3. `smoke` — поднимает compose из digest-образов `:sha-<12>` и проверяет
+   `/ready`, `/health`, `/ws/ready`, корневую страницу, WebSocket upgrade через
+   nginx, non-root и OCI label `revision`.
+4. `promote` — только после успешного smoke создаёт `:vX.Y.Z` по digest.
+   `:latest` двигается только для stable push-тега, не для prerelease и не для
+   `workflow_dispatch`.
+
+После `promote` скачайте artifact `release-manifest-<tag>`: в нём записаны
+commit и digest'ы backend/frontend. Для rollback используйте digest, а не
+только тег: тег может быть перезаписан или удалён, digest — нет.
+
+Откат на предыдущий release — переключить digest-образы и перезапустить стек:
 
 ```bash
-export BACKEND_IMAGE="ghcr.io/<repo>/backend:vX.Y.Z"
-export FRONTEND_IMAGE="ghcr.io/<repo>/frontend:vX.Y.Z"
+export BACKEND_IMAGE="ghcr.io/<repo>/backend@sha256:<digest>"
+export FRONTEND_IMAGE="ghcr.io/<repo>/frontend@sha256:<digest>"
 docker compose pull backend frontend
-docker compose up -d --no-build
+docker compose up -d --no-build --force-recreate
 docker compose ps
 curl -sS -o - -w '\nHTTP %{http_code}\n' http://127.0.0.1:8000/ready
+curl -sS -o - -w '\nHTTP %{http_code}\n' http://127.0.0.1:3000/ws/ready
 ```
 
 Образы можно задать в `.env` или окружении; без `BACKEND_IMAGE`/
 `FRONTEND_IMAGE` compose использует локальные `polzuchie-tvari-*:local` и
 собирает их из `build:`. Для приватного пакета GHCR на хосте нужен
-`docker login ghcr.io` с токеном, у которого есть `read:packages`.
+`docker login ghcr.io` с classic PAT, у которого есть `read:packages`;
+публичный пакет можно тянуть анонимно. Перед первым production-тегом
+проверьте pull с чистого хоста, а не только из GitHub Actions.
 
 Если GHCR-образ нужной версии недоступен или проблема в инфраструктуре,
 остаётся source-rollback — checkout известного рабочего commit/тега и
@@ -213,6 +228,11 @@ docker compose up -d
 docker compose ps
 curl -sS -o - -w '\nHTTP %{http_code}\n' http://127.0.0.1:8000/ready
 ```
+
+Source-rollback ниже коммита перехода с bind-mount на named volume запрещён:
+старый compose будет монтировать `./backend/config.json`, а live-конфиг лежит
+в `backend_config`, поэтому стек может стартовать с другим конфигом. Если такой
+откат всё же нужен, сначала снимите backup и перенесите конфиг вручную.
 
 Не используйте `git reset --hard` на production-хосте, если в рабочем дереве
 есть чужие изменения. Если откат кода меняет схему конфига, согласуйте его с

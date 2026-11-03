@@ -7,4 +7,6 @@ Dockerfile
 .env
 .env.*
 coverage
+playwright-report
+test-results
 *.log
