@@ -347,7 +347,7 @@ jobs:
               backend) digest="${{ needs.publish.outputs.backend_digest }}" ;;
               frontend) digest="${{ needs.publish.outputs.frontend_digest }}" ;;
             esac
-            docker buildx imagetools create \
+            docker buildx imagetools create --prefer-index=false \
               -t "$image:$RELEASE_TAG" \
               "$image@$digest"
           done
@@ -357,10 +357,10 @@ jobs:
         run: |
           set -euo pipefail
           repo="${GITHUB_REPOSITORY,,}"
-          docker buildx imagetools create \
+          docker buildx imagetools create --prefer-index=false \
             -t "ghcr.io/$repo/backend:latest" \
             "ghcr.io/$repo/backend@${{ needs.publish.outputs.backend_digest }}"
-          docker buildx imagetools create \
+          docker buildx imagetools create --prefer-index=false \
             -t "ghcr.io/$repo/frontend:latest" \
             "ghcr.io/$repo/frontend@${{ needs.publish.outputs.frontend_digest }}"
 
