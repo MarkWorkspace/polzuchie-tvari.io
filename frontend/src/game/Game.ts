@@ -11,6 +11,7 @@ import {
 import { GameCamera } from "./Camera";
 import type { ControlMode } from "./InputManager";
 import { InputManager } from "./InputManager";
+import { shouldSendSteering } from "./InputSendPolicy";
 import { NetworkManager, type WorkerFailureReason } from "./NetworkManager";
 import { RenderOrchestrator } from "./RenderOrchestrator";
 
@@ -128,10 +129,12 @@ export class Game {
    * stale boost/steer state across respawn or reconnect.
    */
   public resyncInput(): void {
-    this.inputManager.resyncInput();
+    // Reset the sender first: inputManager.resyncInput() fires onInputUpdate,
+    // and this must not emit a stale turn snapshot before the forced one.
     this.throttledTurn = 0.0;
     this.lastAccelerating = false;
     this.lastTurnSendTime = 0;
+    this.inputManager.resyncInput();
     this.sendNetworkInput(true);
   }
 
@@ -221,7 +224,9 @@ export class Game {
           new CustomEvent("game-status", { detail: { status, controlMode: mode } }),
         );
       },
-      onInputUpdate: () => {},
+      // Send from the DOM event instead of waiting for the next rAF: this
+      // removes up to one frame of input latency and preserves short taps.
+      onInputUpdate: () => this.sendNetworkInput(),
     });
   }
 
@@ -256,11 +261,7 @@ export class Game {
       const turn = this.inputManager.getTurn();
       const now = performance.now();
 
-      const timePassed = now - this.lastTurnSendTime > 40;
-      const turnChanged = Math.abs(turn - this.throttledTurn) > 0.01;
-      const isZeroSnap = turn === 0.0 && this.throttledTurn !== 0.0;
-
-      if (forceSnapshot || isZeroSnap || (turnChanged && timePassed)) {
+      if (shouldSendSteering(now, this.lastTurnSendTime, turn, this.throttledTurn, forceSnapshot)) {
         this.networkManager.send(`TURN:${turn.toFixed(3)}`);
         this.throttledTurn = turn;
         this.lastTurnSendTime = now;

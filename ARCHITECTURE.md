@@ -79,7 +79,7 @@
 
 5. **StateInterpolator (Воркер):**
    - Помещает новое состояние в очередь `queue` (максимум 20 элементов), сглаживая timestamp low-pass фильтром и snap'ом при дрейфе > 200 мс.
-   - При запросе кадра интерполирует между состояниями вокруг `renderTime` с целевой задержкой 3 тика и адаптивной скоростью воспроизведения; при одном состоянии отдаёт его как есть.
+   - При запросе кадра интерполирует между состояниями вокруг `renderTime` с целевой задержкой 2–3 тика (2 на стабильном соединении, 3 при устойчивом джиттере) и адаптивной скоростью воспроизведения; при одном состоянии отдаёт его как есть.
 
 6. **FrameComputer & SnakeProcessor (Воркер):**
    - По запросу `REQUEST_FRAME` (с `requestId`, `dt`, `myId`, `isSpectator`, `localInput`, `spectatorCam?`) воркер вызывает `computeFrame` с типизированным `FrameContext`; типы границы определены в [WorkerProtocol.ts](frontend/src/worker/shared/WorkerProtocol.ts).
@@ -140,7 +140,7 @@
 2. **Game.ts (Клиент):**
    - Получает уведомления от `InputManager`.
    - В режиме `keyboard` отправляет строковые команды: `"LEFT_DOWN"`, `"LEFT_UP"`, `"RIGHT_DOWN"`, `"RIGHT_UP"`, `"SPACE_DOWN"`, `"SPACE_UP"`.
-   - В режимах `mouse`/`tilt` отправляет команду `"TURN:<value>"` (с точностью до 3 знаков после запятой, например, `"TURN:0.425"`), сглаживая и дросселируя отправку: не чаще раза в 40 мс, при изменении > 0.01 или при snap-to-zero. После respawn/reconnect отправляется полный snapshot текущего ввода.
+   - В режимах `mouse`/`tilt` отправляет команду `"TURN:<value>"` (с точностью до 3 знаков после запятой, например, `"TURN:0.425"`), сглаживая и дросселируя отправку: не чаще раза в 25 мс, при изменении > 0.01 или при snap-to-zero. Отправка инициируется из DOM-события ввода (`onInputUpdate`), а не ждёт следующего rAF, поэтому короткие тапы не теряются; после respawn/reconnect отправляется полный snapshot текущего ввода. Чистая политика throttle/zero-snap вынесена в [InputSendPolicy.ts](frontend/src/game/InputSendPolicy.ts).
    - **Формат границы:** Сообщения воркеру `{ type: "SEND", data: string }`; `RESYNC` как игровой ввод не отправляется.
 
 3. **CameraPredictor (Воркер):**
@@ -203,7 +203,7 @@
 Условия, которые гарантированно соблюдаются в коде:
 
 1. **Интерполяция:**
-   - [StateInterpolator.pushState](frontend/src/worker/StateInterpolation.ts#L9) ограничивает очередь 20 состояниями. Таймлайн сглаживается low-pass фильтром, snap при дрейфе > 200 мс, целевая задержка — 3 тика.
+   - [StateInterpolator.pushState](frontend/src/worker/StateInterpolation.ts#L9) ограничивает очередь 20 состояниями. Таймлайн сглаживается low-pass фильтром, snap при дрейфе > 200 мс, целевая задержка — 2–3 тика по джиттеру (2 на стабильном соединении, 3 при устойчивом джиттере).
 2. **Лимиты инстансов WebGL:**
    - `FoodRenderer` — `5000`, `PortalRenderer`/`BlackHoleRenderer` — `100`, `ParticleRenderer` — `2000`, `SnakeRenderer` — `1000` голов/глаз, `TombstoneRenderer` — `50`.
    - `GrassRenderer` использует бюджет пресета и общий cap `DECOR_BUDGET_CAPS.grass`; камни и трава не участвуют в коллизиях.
