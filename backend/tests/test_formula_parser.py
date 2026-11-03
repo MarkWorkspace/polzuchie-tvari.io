@@ -248,7 +248,7 @@ def test_growth_formula_runtime_error_is_contained_and_logged_once(caplog):
     world = World()
     world.update_config({"snake": {"growth_score_per_segment": "1/(s-3)"}})
 
-    with caplog.at_level(logging.ERROR, logger="app.engine.state"):
+    with caplog.at_level(logging.ERROR, logger="app.engine.config_store"):
         assert world.growth_segment_cost_func(3.0, 9.0) == pytest.approx(0.1)
         assert world.growth_segment_cost_func(3.0, 9.0) == pytest.approx(0.1)
 

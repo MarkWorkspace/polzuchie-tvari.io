@@ -120,7 +120,7 @@ def test_world_rejects_invalid_config_file(tmp_path, monkeypatch, caplog, patch)
     config_path.write_text(json.dumps(patch), encoding="utf-8")
     monkeypatch.setenv("CONFIG_PATH", str(config_path))
 
-    with caplog.at_level(logging.ERROR, logger="app.engine.state"):
+    with caplog.at_level(logging.ERROR, logger="app.engine.config_store"):
         with pytest.raises(RuntimeError, match="Invalid config file"):
             World()
 

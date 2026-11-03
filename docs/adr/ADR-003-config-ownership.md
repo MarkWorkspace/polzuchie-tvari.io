@@ -19,16 +19,18 @@
 
 ## Decision
 
-1. **Владелец — `World.config`.** `GameConfig` — dataclass-дерево; `Player.config`
-   хранит ссылку на живой конфиг, а не независимый снимок. После замены
-   `World.config` все игроки/боты перепривязываются, затем выполняется
-   `align_player_growth`.
+1. **Владелец — `ConfigStore`.** `GameConfig` — dataclass-дерево;
+   `World.config` — фасад/прокси на `ConfigStore.config`. `Player.config`
+   хранит ссылку на живой конфиг, а не независимый снимок; identity
+   `Player.config is World.config` сохраняется. После замены конфига все
+   игроки/боты перепривязываются, затем выполняется `align_player_growth`.
 2. **Производные поля обновляются.** У Food/Portal/BlackHole есть
    `apply_config()`, который пересчитывает радиусы/параметры без ре-ролла
    позиций. Изменение только радиуса не вызывает `update_slots(force_roll=True)`;
    изменение count/enabled/size — вызывает. Позиции не прыгают без
    необходимости.
-3. **Транзакционный update.** `World.update_config`:
+3. **Транзакционный update.** `ConfigStore.update_config` за фасадом
+   `World.update_config`:
    - валидирует `deepcopy`-кандидат до мутаций;
    - применяет кандидат к live state;
    - только затем копирует текущий файл в `config.json.bak` и пишет новый
@@ -82,6 +84,7 @@
 ## References
 
 - [`backend/app/engine/state.py`](../../backend/app/engine/state.py)
+- [`backend/app/engine/config_store.py`](../../backend/app/engine/config_store.py)
 - [`backend/app/api/admin.py`](../../backend/app/api/admin.py)
 - [`backend/app/api/config_schema.py`](../../backend/app/api/config_schema.py)
 - [`backend/game_config.py`](../../backend/game_config.py)

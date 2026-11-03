@@ -323,7 +323,10 @@ backend/
         ├── game.py                     # ROLE: Оркестратор тика — только вызывает системы по порядку. Не содержит игровой логики.
         ├── registry.py                 # ROLE: Авто-дискавери и порядок систем.
         ├── events.py                   # ROLE: Синхронная шина событий.
-        ├── state.py                    # ROLE: Контейнер игрового состояния, загрузка и транзакционное сохранение конфигурации (backup/rollback), управление игроками, draining/restart_epoch, счётчики frame_seq/server_tick и tick-метрики. Не содержит игровой логики тика.
+        ├── state.py                    # ROLE: Контейнер игрового состояния: игроки, спектаторы, сетка, менеджеры, draining/restart_epoch, frame_seq/server_tick, tick-метрики и reset. Фасад совместимости с тонкими wrappers на ConfigStore/InputRouter/SnapshotService. Не содержит игровой логики тика.
+        ├── config_store.py             # ROLE: GameConfig, CONFIG_PATH, компиляция формул роста и транзакционное сохранение конфига (backup/rollback, atomic replace, bind-mount fallback). Не владеет игроками/менеджерами.
+        ├── input_router.py             # ROLE: Разбор turn/boost/respawn/control-mode и применение к Player. Не тик, не сеть, не сериализация.
+        ├── snapshot_service.py         # ROLE: Делегаты get_delta_state/get_full_state в serialization и запись AoI-видимости клиента. Не строит кадры сам.
         ├── entities.py                 # ROLE: Датаклассы Player, Food, Portal, BlackHole. Только структуры данных.
         ├── food_manager.py             # ROLE: Жизненный цикл еды, кластеры, спавн, live-пересчёт радиусов.
         ├── world_elements/
@@ -394,6 +397,7 @@ backend/tests/
 ├── test_websocket_queue.py             # ROLE: Backpressure sender-очереди: QueueStatus FULL/DELTA, coalescing FULL у медленного клиента, close 1011 при сбое sender.
 ├── test_world_lifecycle.py             # ROLE: Resize карты и полная очистка World.reset_state.
 ├── test_world_elements.py              # ROLE: Тесты порталов и чёрных дыр.
+├── test_world_split.py                 # ROLE: Регрессии split World → ConfigStore/InputRouter/SnapshotService: proxies, wiring и instance-monkeypatch-точки.
 ├── frame_scenario.py                   # ROLE: Единые deterministic-сценарии кадра (default/empty): позиции, death/teleport/AoI transition/seam; build_scenario_frames для генератора и parity-тестов.
 └── generate_frame_fixtures.py          # ROLE: Генерация эталонных кадров всех parity-сценариев (FULL + DELTA). Запуск вручную при изменении формата.
 ```

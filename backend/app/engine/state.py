@@ -1,47 +1,28 @@
-# ROLE: Контейнер игрового состояния, загрузка конфигурации, управление игроками. Не содержит игровой логики тика.
-import os
-import json
-import logging
+# ROLE: Контейнер игрового состояния: игроки, спектаторы, сетка, менеджеры, tick-метрики и reset.
+# Делегирует конфиг, ввод и снимки в ConfigStore/InputRouter/SnapshotService; не содержит игровой логики тика.
 import math
-import shutil
-import tempfile
-import errno
 import time
-from copy import deepcopy
-from pathlib import Path
 
-from game_config import GameConfig, CELL_SIZE
+from game_config import CELL_SIZE
 from app.bots import BotManager
+from app.engine.config_store import ConfigStore
 from app.engine.entities import Player
 from app.engine.food_manager import FoodManager
+from app.engine.input_router import InputRouter
+from app.engine.snapshot_service import SnapshotService
 from app.engine.world_elements import PortalManager, BlackHoleManager
-from app.engine.systems.formula_parser import MIN_GROWTH_COST, compile_growth_formula
 from app.engine.events import EventBus
 import app.engine.game as game_orchestrator
-
-logger = logging.getLogger(__name__)
-
-VALID_ACTIONS = frozenset(
-    {
-        "LEFT_DOWN",
-        "LEFT_UP",
-        "RIGHT_DOWN",
-        "RIGHT_UP",
-        "SPACE_DOWN",
-        "SPACE_UP",
-        "RESPAWN",
-    }
-)
 
 
 class World:
     def __init__(self):
-        # Runtime containment for growth formulas: validation cannot prove
-        # totality, so the first evaluation failure is logged loudly once.
-        self._growth_formula_error_logged = False
-        self.config = GameConfig()
-        self.config_file_path = os.getenv("CONFIG_PATH", "config.json")
-        self._load_config_from_disk()
+        # Config loading must happen before players exist: it only builds the
+        # GameConfig and compiled growth formula. The input/snapshot services
+        # hold a back-reference and add no state.
+        self.config_store = ConfigStore(self)
+        self.input_router = InputRouter(self)
+        self.snapshot_service = SnapshotService(self)
 
         self.players = {}
         self.spectators = set()
@@ -105,355 +86,86 @@ class World:
     def tick_smoothing(self, smoothing_at_20hz):
         return 1.0 - ((1.0 - smoothing_at_20hz) ** (self.tick_interval / 0.05))
 
+    # Config ownership lives in ConfigStore. These properties keep the historic
+    # ``world.config``/``world.config_file_path`` attribute contract (including
+    # direct assignment) identical for API, serialization and tests.
+    @property
+    def config(self):
+        return self.config_store.config
+
+    @config.setter
+    def config(self, value):
+        self.config_store.config = value
+
+    @property
+    def config_file_path(self):
+        return self.config_store.config_file_path
+
+    @config_file_path.setter
+    def config_file_path(self, value):
+        self.config_store.config_file_path = value
+
+    @property
+    def growth_segment_cost_func(self):
+        return self.config_store.growth_segment_cost_func
+
+    @growth_segment_cost_func.setter
+    def growth_segment_cost_func(self, value):
+        self.config_store.growth_segment_cost_func = value
+
+    @property
+    def _growth_formula_error_logged(self):
+        return self.config_store._growth_formula_error_logged
+
+    @_growth_formula_error_logged.setter
+    def _growth_formula_error_logged(self, value):
+        self.config_store._growth_formula_error_logged = value
+
+    @property
+    def _compiled_growth_cost(self):
+        return self.config_store._compiled_growth_cost
+
+    @_compiled_growth_cost.setter
+    def _compiled_growth_cost(self, value):
+        self.config_store._compiled_growth_cost = value
+
+    # Thin config wrappers preserve the historic World API and instance-level
+    # monkeypatch points. ConfigStore routes transactional live/file steps back
+    # through these wrappers.
     def _load_config_from_disk(self):
-        if not os.path.exists(self.config_file_path):
-            self._update_compiled_formulas()
-            return
-        try:
-            with open(self.config_file_path, "r", encoding="utf-8") as f:
-                patch = json.load(f)
-            if not isinstance(patch, dict):
-                raise ValueError("Config file must contain a JSON object")
-            self.config.apply_patch(patch)
-        except Exception as e:
-            logger.error("Failed to load config from %s: %s", self.config_file_path, e)
-            raise RuntimeError(f"Invalid config file {self.config_file_path}: {e}") from e
-        logger.info("Successfully loaded config from %s", self.config_file_path)
-        self._update_compiled_formulas()
+        return self.config_store._load_config_from_disk()
 
     def _update_compiled_formulas(self):
-        formula = self.config.snake.growth_score_per_segment
-        # Fail fast on invalid expressions: GameConfig.validate() already
-        # compiles the formula. Runtime poles are contained by
-        # _safe_growth_cost so an accepted formula can never freeze a tick.
-        self._compiled_growth_cost = compile_growth_formula(formula).evaluate
-        self.growth_segment_cost_func = self._safe_growth_cost
-        logger.info("Bound growth segment cost function: %s", formula)
+        return self.config_store._update_compiled_formulas()
 
     def _safe_growth_cost(self, score, length):
-        try:
-            return max(
-                MIN_GROWTH_COST,
-                float(self._compiled_growth_cost(score, length)),
-            )
-        except Exception:
-            if not self._growth_formula_error_logged:
-                logger.exception(
-                    "Growth formula failed at score=%s length=%s; using minimum cost",
-                    score,
-                    length,
-                )
-                self._growth_formula_error_logged = True
-            return MIN_GROWTH_COST
+        return self.config_store._safe_growth_cost(score, length)
 
     def align_player_growth(self, player):
-        start_score = self.config.snake.start_score
-        start_length = self.config.snake.start_length
-        max_growth_score = self.config.snake.max_growth_score
-
-        if player.score <= start_score:
-            ideal_length = start_length
-            ideal_pending = 0.0
-        else:
-            current_score = start_score
-            current_length = start_length
-            ideal_pending = 0.0
-
-            max_iter = 10000
-            while max_iter > 0:
-                max_iter -= 1
-                cost = max(
-                    0.1,
-                    float(self.growth_segment_cost_func(current_score, current_length)),
-                )
-                if current_score + cost > player.score:
-                    ideal_pending = player.score - current_score
-                    ideal_length = current_length
-                    break
-                if current_score >= max_growth_score:
-                    ideal_pending = 0.0
-                    ideal_length = current_length
-                    break
-                current_score += cost
-                current_length += 1
-            else:
-                ideal_length = current_length
-                ideal_pending = player.score - current_score
-
-        current_length = player.body_len
-        score_offset = 0.0
-        if ideal_length > current_length:
-            for length in range(current_length, ideal_length):
-                cost = max(0.1, float(self.growth_segment_cost_func(player.score, length)))
-                score_offset += cost
-            player.pending_growth = ideal_pending + score_offset
-        elif ideal_length < current_length:
-            for length in range(ideal_length, current_length):
-                cost = max(0.1, float(self.growth_segment_cost_func(player.score, length)))
-                score_offset += cost
-            player.pending_growth = ideal_pending - score_offset
-        else:
-            player.pending_growth = ideal_pending
-
-    @staticmethod
-    def _fsync_file(path):
-        """Best-effort fsync of an existing file.
-
-        Windows cannot fsync a read-only handle, so reopen for writing; a
-        read-only config must not turn a completed copy into a failed update.
-        """
-        try:
-            with open(path, "r+b") as f:
-                os.fsync(f.fileno())
-        except OSError:
-            logger.debug("Could not fsync %s", path, exc_info=True)
-
-    @staticmethod
-    def _fsync_directory(directory):
-        """Best-effort directory fsync after a rename; skipped on Windows."""
-        if os.name == "nt" or not hasattr(os, "O_DIRECTORY"):
-            return
-        try:
-            dir_fd = os.open(str(directory), os.O_RDONLY | os.O_DIRECTORY)
-        except OSError:
-            logger.debug("Could not open %s for fsync", directory, exc_info=True)
-            return
-        try:
-            os.fsync(dir_fd)
-        except OSError:
-            logger.debug("Could not fsync directory %s", directory, exc_info=True)
-        finally:
-            os.close(dir_fd)
+        return self.config_store.align_player_growth(player)
 
     def _backup_config_file(self):
-        """Copy the current config file to ``<name>.bak``.
-
-        Returns True when a backup exists for this transaction. A missing
-        config file is a no-op: there is no previous version to restore.
-        """
-        path = Path(self.config_file_path)
-        if not path.exists():
-            return False
-        backup_path = path.with_name(f"{path.name}.bak")
-        shutil.copy2(path, backup_path)
-        self._fsync_file(backup_path)
-        logger.info("Backed up config to %s", backup_path)
-        return True
+        return self.config_store._backup_config_file()
 
     def _restore_config_file(self, old_config, config_existed, backup_ok):
-        """Best-effort disk rollback after a failed save.
-
-        Prefers the backup written before the save. If the config file did not
-        exist before the failed transaction, any partially created file is
-        removed. Errors are logged and never mask the original save failure.
-        """
-        path = Path(self.config_file_path)
-        backup_path = path.with_name(f"{path.name}.bak")
-        if backup_ok and backup_path.exists():
-            try:
-                shutil.copy2(backup_path, path)
-                self._fsync_file(path)
-                logger.info("Restored config from %s after failed save", backup_path)
-                return
-            except OSError:
-                logger.exception("Failed to restore config from %s", backup_path)
-        if not config_existed:
-            try:
-                path.unlink()
-            except FileNotFoundError:
-                pass
-            except OSError:
-                logger.exception("Failed to remove partial config %s", path)
-            return
-        try:
-            self._save_config_to_disk(old_config)
-        except Exception:
-            logger.exception("Failed to rewrite previous config to %s", path)
+        return self.config_store._restore_config_file(old_config, config_existed, backup_ok)
 
     def _save_config_to_disk(self, config=None):
-        path = Path(self.config_file_path)
-        payload = (config or self.config).to_dict()
-        temp_path = None
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            target_mode = path.stat().st_mode & 0o777 if path.exists() else 0o644
-            fd, temp_path = tempfile.mkstemp(
-                dir=str(path.parent),
-                prefix=f".{path.name}.",
-                suffix=".tmp",
-                text=True,
-            )
-            os.chmod(temp_path, target_mode)
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=4, ensure_ascii=False, allow_nan=False)
-                f.write("\n")
-                f.flush()
-                os.fsync(f.fileno())
-            try:
-                os.replace(temp_path, path)
-            except OSError as exc:
-                # A single-file bind mount is a mount point: rename(2)
-                # can fail with EXDEV/EBUSY. Fall back to an in-place write.
-                if exc.errno not in (errno.EXDEV, errno.EBUSY):
-                    raise
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=4, ensure_ascii=False, allow_nan=False)
-                    f.write("\n")
-                    f.flush()
-                    os.fsync(f.fileno())
-            else:
-                temp_path = None
-            self._fsync_directory(path.parent)
-            logger.info("Successfully saved config to %s", self.config_file_path)
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                os.unlink(temp_path)
+        return self.config_store._save_config_to_disk(config)
 
     def get_config(self):
-        return self.config.to_dict()
+        return self.config_store.get_config()
 
     def _apply_live_config(self, candidate, patch, old_width, old_height, old_cluster_count):
-        """Bind ``candidate`` to the live world and refresh derived state."""
-        self.config = candidate
-        # Players (including bots) hold a reference, not a snapshot: keep them
-        # on the live config before recalculating derived growth state.
-        for player in self.players.values():
-            player.config = candidate
-        self._update_compiled_formulas()
-
-        for player in self.players.values():
-            self.align_player_growth(player)
-
-        self.grid_width = candidate.world.width
-        self.grid_height = candidate.world.height
-        self.target_food_count = candidate.world.target_food_count
-        size_changed = old_width != self.grid_width or old_height != self.grid_height
-        self._recompute_grid_cells()
-        self.spatial_grid = {}
-
-        self.food_manager.on_grid_resize(old_width, old_height, old_cluster_count)
-        self.food_manager.apply_config()
-
-        # Radius-only changes must not re-roll slots; apply_config() refreshes
-        # derived fields on existing entities after any update_slots() call.
-        portals_changed = "world" in patch and (
-            "portals_enabled" in patch["world"] or "portals_count" in patch["world"]
+        return self.config_store._apply_live_config(
+            candidate, patch, old_width, old_height, old_cluster_count
         )
-        if portals_changed or size_changed:
-            self.portal_manager.update_slots(force_roll=True)
-        self.portal_manager.apply_config()
-
-        black_holes_changed = "world" in patch and (
-            "black_holes_enabled" in patch["world"] or "black_holes_count" in patch["world"]
-        )
-        if black_holes_changed or size_changed:
-            self.bh_manager.update_slots(force_roll=size_changed)
-        self.bh_manager.apply_config()
-
-        self.bot_manager.sync()
 
     def _restore_live_config(self, old_config, pending_growth_snapshot):
-        """Best-effort rollback of live state after a failed apply/save.
-
-        Restores config/player ownership, the compiled growth formula, grid
-        scalars, pending growth, derived radii and slot counts. Portal/black
-        hole positions may be reconciled, and food removed by
-        ``on_grid_resize`` is not resurrected. Each manager step is isolated so
-        a rollback failure never masks the original exception.
-        """
-        self.config = old_config
-        for player_id, player in self.players.items():
-            player.config = old_config
-            if player_id in pending_growth_snapshot:
-                player.pending_growth = pending_growth_snapshot[player_id]
-        self._update_compiled_formulas()
-
-        self.grid_width = old_config.world.width
-        self.grid_height = old_config.world.height
-        self.target_food_count = old_config.world.target_food_count
-        self._recompute_grid_cells()
-        self.spatial_grid = {}
-
-        try:
-            self.food_manager.apply_config()
-        except Exception:
-            logger.exception("Failed to restore food radii during config rollback")
-        try:
-            self.portal_manager.update_slots(force_roll=False)
-        except Exception:
-            logger.exception("Failed to restore portal slot count during config rollback")
-        try:
-            self.portal_manager.apply_config()
-        except Exception:
-            logger.exception("Failed to restore portal radii during config rollback")
-        try:
-            self.bh_manager.update_slots(force_roll=False)
-        except Exception:
-            logger.exception("Failed to restore black-hole slot count during config rollback")
-        try:
-            self.bh_manager.apply_config()
-        except Exception:
-            logger.exception("Failed to restore black-hole radii during config rollback")
-        try:
-            self.bot_manager.sync()
-        except Exception:
-            logger.exception("Failed to re-sync bots during config rollback")
+        return self.config_store._restore_live_config(old_config, pending_growth_snapshot)
 
     def update_config(self, patch):
-        """Validate, apply live and then persist a config patch.
-
-        Validation happens on a deep copy before any live state changes. The
-        candidate is then applied in memory and only afterwards written to
-        disk (with a ``.bak`` of the previous file). A failed apply leaves the
-        file untouched; a failed save rolls memory back to ``old_config`` and
-        restores the file from the backup. See ``_restore_live_config`` for the
-        best-effort rollback scope.
-        """
-        old_config = self.config
-        old_width = self.grid_width
-        old_height = self.grid_height
-        old_cluster_count = old_config.world.cluster_count
-
-        candidate = deepcopy(old_config)
-        candidate.apply_patch(patch)
-        pending_growth_snapshot = {
-            player_id: player.pending_growth for player_id, player in self.players.items()
-        }
-
-        try:
-            self._apply_live_config(candidate, patch, old_width, old_height, old_cluster_count)
-        except Exception:
-            try:
-                self._restore_live_config(old_config, pending_growth_snapshot)
-            except Exception:
-                logger.exception("Config rollback failed")
-            raise
-
-        config_existed = os.path.exists(self.config_file_path)
-        try:
-            backup_ok = self._backup_config_file()
-        except Exception:
-            try:
-                self._restore_live_config(old_config, pending_growth_snapshot)
-            except Exception:
-                logger.exception("Config rollback failed")
-            raise
-
-        try:
-            self._save_config_to_disk(candidate)
-        except Exception:
-            try:
-                self._restore_live_config(old_config, pending_growth_snapshot)
-            except Exception:
-                logger.exception("Config rollback failed")
-            try:
-                self._restore_config_file(old_config, config_existed, backup_ok)
-            except Exception:
-                logger.exception("Config rollback failed")
-            raise
-
-        self._config_updated_this_tick = True
-        return self.get_config()
+        return self.config_store.update_config(patch)
 
     def add_player(self, player_id, nickname="Игрок", skin="#22c55e"):
         self.spectators.discard(player_id)
@@ -502,62 +214,10 @@ class World:
             self.remove_player(player_id)
 
     def reset_player_input(self, player_id):
-        if player_id in self.players:
-            p = self.players[player_id]
-            p.turn = 0
-            p.current_turn = 0.0
-            p.accelerating = False
+        return self.input_router.reset_player_input(player_id)
 
     def update_direction(self, player_id, action):
-        if action == "RESPAWN":
-            if player_id in self.players:
-                p = self.players[player_id]
-                if p.is_dead:
-                    start_x, start_y = self.food_manager.get_safe_spawn_location()
-                    p.respawn(start_x, start_y)
-            return
-
-        if action.startswith("TURN:"):
-            try:
-                val = float(action[5:])
-                if math.isnan(val) or math.isinf(val):
-                    return
-                if -1.0 <= val <= 1.0:
-                    if player_id in self.players:
-                        self.players[player_id].turn = val
-                        self.players[player_id].steered_by_mouse = True
-            except ValueError:
-                pass
-            return
-
-        if action.startswith("CONTROL_MODE:"):
-            if player_id in self.players:
-                self.players[player_id].turn = 0
-                self.players[player_id].current_turn = 0.0
-                mode = action.split(":")[1]
-                self.players[player_id].steered_by_mouse = mode in ("mouse", "tilt")
-            return
-
-        if action not in VALID_ACTIONS:
-            return
-        if player_id in self.players:
-            p = self.players[player_id]
-            if action == "LEFT_DOWN":
-                p.turn = -1
-                p.steered_by_mouse = False
-            elif action == "LEFT_UP" and p.turn == -1:
-                p.turn = 0
-                p.steered_by_mouse = False
-            elif action == "RIGHT_DOWN":
-                p.turn = 1
-                p.steered_by_mouse = False
-            elif action == "RIGHT_UP" and p.turn == 1:
-                p.turn = 0
-                p.steered_by_mouse = False
-            elif action == "SPACE_DOWN":
-                p.accelerating = True
-            elif action == "SPACE_UP":
-                p.accelerating = False
+        return self.input_router.update_direction(player_id, action)
 
     def tick(self):
         game_orchestrator.tick(self)
@@ -570,10 +230,7 @@ class World:
         return_visibility=False,
         serialize_proto=False,
     ):
-        from app.engine.systems.serialization import get_delta_state
-
-        return get_delta_state(
-            self,
+        return self.snapshot_service.get_delta_state(
             client_id,
             is_full,
             update_visibility,
@@ -582,12 +239,10 @@ class World:
         )
 
     def get_full_state(self, client_id, serialize_proto=False):
-        from app.engine.systems.serialization import get_full_state
-
-        return get_full_state(self, client_id, serialize_proto)
+        return self.snapshot_service.get_full_state(client_id, serialize_proto)
 
     def set_client_visibility(self, client_id, visible_players):
-        self.client_visibility[client_id] = visible_players
+        return self.snapshot_service.set_client_visibility(client_id, visible_players)
 
     def update_player_score(self, player_id, score):
         if player_id in self.players:

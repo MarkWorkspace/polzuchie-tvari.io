@@ -28,6 +28,14 @@
   видимость считается по AoI, а не по полной карте.
 - Серверные боты — обычные `Player` без WebSocket: lifecycle, respawn,
   personalities (mixed/collector/aggressive/coward) и live-настройка из админки.
+- `World` разделён по ответственностям (M6-08): `ConfigStore` владеет
+  `GameConfig`, `CONFIG_PATH`, компиляцией формул и транзакционным
+  backup/rollback; `InputRouter` применяет turn/boost/respawn/control-mode;
+  `SnapshotService` делегирует FULL/DELTA в `serialization` и пишет
+  `client_visibility`. Публичный API и атрибуты `World` сохранены через
+  properties/thin wrappers, поэтому `world.config`, `world.config_file_path`,
+  `player.config is world.config` и instance-monkeypatch тестов работают
+  как раньше.
 - Смерть/удаление игрока идемпотентны; события удаления применяются на границе
   тика, поэтому killfeed и выпавшая еда не теряются при disconnect между тиками.
 
@@ -222,10 +230,11 @@
 - **Крупный `vendor-three` chunk.** Three/postprocessing (~622 kB minified)
   вынесен из login-графа, но остаётся отдельным тяжёлым chunk'ом после Play;
   предупреждение Vite о размере >500 kB сохраняется.
-- **Крупные god-объекты.** `World` остаётся точкой сопровождения (M6-08).
-  `SceneManager` после M6-09 — оркестратор renderer/composer/adaptive/context
-  lifecycle; свет/тени, земля и туман вынесены в `SceneLighting`,
-  `GroundPlane` и `FogOverlay`.
+- **Крупные god-объекты.** После M6-08 `World` — контейнер игроков/сетки/
+  менеджеров/тик-метрик и фасад совместимости; конфиг, ввод и снимки вынесены в
+  `ConfigStore`, `InputRouter` и `SnapshotService`. `SceneManager` после M6-09 —
+  оркестратор renderer/composer/adaptive/context lifecycle; свет/тени, земля и
+  туман вынесены в `SceneLighting`, `GroundPlane` и `FogOverlay`.
 - **Ручной Protobuf-декодер.** `ProtoFrameDecoder.ts` не использует runtime
   `protobufjs`; любое изменение `snake.proto` требует синхронного обновления
   декодера, `snake_pb2.py` и golden-фикстур.
@@ -251,9 +260,8 @@
 ## WIP и сломанное
 
 Критичных незакрытых дефектов и известных «сломанных» механик нет. Задачи,
-которые сознательно отложены (prediction/reconciliation, split `World`,
-полный WebGL rebuild, CD, расширение E2E), перечислены в
-`REMEDIATION_PLAN.md` как M6 backlog.
+которые сознательно отложены (prediction/reconciliation, полный WebGL rebuild,
+CD, расширение E2E), перечислены в `REMEDIATION_PLAN.md` как M6 backlog.
 
 ## Проверки
 
