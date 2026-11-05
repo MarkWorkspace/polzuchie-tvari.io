@@ -1,8 +1,9 @@
 // ROLE: Unit tests for the contact-shadow consumer: light offset, quad pose and
 // the soft default look. Body-mask math lives in SnakeBodyMask.test.ts.
 
+import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BODY_MASK_HALF_EXTENT } from "./SnakeBodyMask";
+import { DEFAULT_BODY_MASK_HALF_EXTENT, type SnakeBodyMask } from "./SnakeBodyMask";
 import {
   CONTACT_SHADOW_GROUND_OFFSET,
   contactQuadPose,
@@ -11,6 +12,7 @@ import {
   DEFAULT_CONTACT_SHADOW_COLOR,
   DEFAULT_CONTACT_SHADOW_LIGHT_OFFSET,
   DEFAULT_CONTACT_SHADOW_OPACITY,
+  SnakeContactShadow,
 } from "./SnakeContactShadow";
 
 describe("contact quad pose", () => {
@@ -57,5 +59,25 @@ describe("default shadow look", () => {
   it("keeps one soft, sun-tinted term instead of a black hole", () => {
     expect(DEFAULT_CONTACT_SHADOW_OPACITY).toBe(0.5);
     expect(DEFAULT_CONTACT_SHADOW_COLOR).toBe(0x1a2635);
+  });
+});
+
+describe("shadow quad placement", () => {
+  it("moves the body-aligned mask to the anti-light side", () => {
+    const texture = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+    const bodyMask = {
+      getFrame: () => ({ texture, x: 0, y: 0, halfExtent: 180 }),
+    } as unknown as SnakeBodyMask;
+    const scene = new THREE.Scene();
+    const shadow = new SnakeContactShadow(scene, bodyMask, { groundZ: -2 });
+
+    shadow.setTarget(120, -75);
+    shadow.update();
+
+    const quad = scene.children[0] as THREE.Mesh;
+    expect(quad.position.x).toBeCloseTo(120 - DEFAULT_CONTACT_SHADOW_LIGHT_OFFSET.x, 10);
+    expect(quad.position.y).toBeCloseTo(-75 - DEFAULT_CONTACT_SHADOW_LIGHT_OFFSET.y, 10);
+    expect(quad.scale.x).toBe(360);
+    shadow.dispose();
   });
 });
