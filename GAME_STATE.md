@@ -68,6 +68,11 @@ deferred-пункты перечислены в `REMEDIATION_PLAN.md` (M6) и н
 - Origin проверяется по точному allowlist; действуют role caps
   (`MAX_PLAYER_CONNECTIONS=50`, `MAX_SPECTATOR_CONNECTIONS=100`) и per-IP
   handshake-лимит (`30` за `10` секунд). Отказы: `1008`, `4002`, `4003`, `4029`.
+- Ввод: `TURN` отправляется из DOM-события с throttle 25 мс; zero-snap
+  срабатывает и при малом остатке руля, non-finite значения не уходят. При
+  `webglcontextlost`/fatal worker клиент отправляет release/`TURN:0.000` и
+  перестаёт слать ввод; повторный FULL с тем же `your_id` (RESYNC) не сбрасывает
+  удержание руля/буста.
 - Админка авторизуется серверной session-cookie `admin_token` (HttpOnly,
   SameSite=Strict, TTL 12 ч), а не паролем в `localStorage` или заголовке.
   Login rate limit ограничен, privileged-действия пишутся в JSON audit без
