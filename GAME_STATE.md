@@ -118,12 +118,13 @@ deferred-пункты перечислены в `REMEDIATION_PLAN.md` (M6) и н
 ### Клиент и рендер
 
 - Three.js-рендер: instanced еда/порталы/чёрные дыры/частицы/надгробия, тени,
-  contact shadow змейки, трава/камни, bloom-маска, атмосферный grade и
-  линзирование чёрных дыр.
+  общая body-маска змеек и contact shadow, трава/камни, bloom-маска,
+  атмосферный grade и линзирование чёрных дыр.
 - Renderer-слой разделён (M6-09): `SceneManager` оркестрирует renderer, сцену и
-  камеру, пресеты качества, world-space contact shadow, композер, adaptive pixel
-  ratio и context-loss/restore lifecycle. Свет/тени вынесены в `SceneLighting`,
-  земля — в `GroundPlane`, aerial fog и ground-fog overlay — в `FogOverlay`.
+  камеру, пресеты качества, `SnakeBodyMask`, contact shadow, композер, adaptive
+  pixel ratio и context-loss/restore lifecycle. Свет/тени вынесены в
+  `SceneLighting`, земля — в `GroundPlane`, aerial fog и ground-fog overlay — в
+  `FogOverlay`.
   Публичный API класса не менялся; константы света/тумана ре-экспортируются
   из `SceneManager`, `GROUND_Z` добавлен additive-only.
 - Горячие пути воркера (`SplineComputer`, `FoodComputer`) после M6-01 работают
@@ -141,8 +142,11 @@ deferred-пункты перечислены в `REMEDIATION_PLAN.md` (M6) и н
 - Приминание не только уменьшает высоту: блейды наклоняются почти на полную
   высоту, под телом расходятся наружу из пучка, а вдоль trail ложатся по
   направлению движения хвоста; сверху добавляется сухой оливковый tint.
-  Contact-маска даёт гало шириной ~12 u, поэтому след читается как
-  примятая полоса, а не как коротко подстриженная трава.
+  Под телом используется мягкий силуэт `SnakeBodyMask` (сама змейка, не тень) с
+  world-space offset 4 u и 5-tap расширением; contact shadow — отдельный
+  потребитель той же маски, поэтому смена цвета/прозрачности/смещения тени не
+  влияет на траву. След читается как примятая полоса, а не как коротко
+  подстриженная трава.
 - Пресеты качества Auto/High/Medium/Low управляют pixel ratio, тенями, bloom,
   плотностью декора и бюджетом snake-light'ов. Auto измеряет GPU time через
   `EXT_disjoint_timer_query_webgl2` (одна in-flight query; новый сэмпл примерно

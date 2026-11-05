@@ -4,7 +4,7 @@ import {
   BLOOM_MASK_LAYER,
   headGlowRadiusWorld,
   OVERLAY_LAYER,
-  SNAKE_SHADOW_LAYER,
+  SNAKE_MASK_LAYER,
 } from "./RenderConfig";
 
 describe("headGlowRadiusWorld", () => {
@@ -17,7 +17,7 @@ describe("headGlowRadiusWorld", () => {
 
 describe("render layers", () => {
   it("keeps the mask layers inside the valid three.js range", () => {
-    for (const layer of [BLOOM_MASK_LAYER, SNAKE_SHADOW_LAYER]) {
+    for (const layer of [BLOOM_MASK_LAYER, SNAKE_MASK_LAYER]) {
       expect(layer).toBeGreaterThanOrEqual(0);
       expect(layer).toBeLessThanOrEqual(31);
     }
@@ -26,8 +26,8 @@ describe("render layers", () => {
   it("keeps every mask pass on its own layer", () => {
     // Sharing layers would make one pass rasterize the wrong objects: the
     // overlay layer holds fog/glow sprites, the bloom mask holds every glow
-    // object, and the contact-shadow mask needs the ribbon alone on its layer.
-    const layers = [OVERLAY_LAYER, BLOOM_MASK_LAYER, SNAKE_SHADOW_LAYER];
+    // object, and the body mask needs the ribbon alone on its layer.
+    const layers = [OVERLAY_LAYER, BLOOM_MASK_LAYER, SNAKE_MASK_LAYER];
     expect(new Set(layers).size).toBe(layers.length);
   });
 });

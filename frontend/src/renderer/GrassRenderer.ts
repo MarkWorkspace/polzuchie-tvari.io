@@ -18,6 +18,7 @@ import {
 import { DecorUpdateGate, type DecorViewState } from "./DecorUpdateGate";
 import { GRASS_TRAIL_MAX_POINTS, GrassTrail, resolveGrassTrailPoint } from "./GrassTrail";
 import { RenderConfig, RenderLayer } from "./RenderConfig";
+import type { BodyMaskFrame } from "./SnakeBodyMask";
 
 const MAX_INSTANCES = DECOR_BUDGET_CAPS.grass;
 const FALLBACK_FOG_RADIUS = 900;
@@ -176,15 +177,17 @@ function createTuftGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
-/** Structural view of the contact shadow the grass shader can sample. */
-export interface ContactShadowFrame {
-  texture: THREE.Texture;
-  x: number;
-  y: number;
-  halfExtent: number;
+/** Outward offset of the trampled ring beyond the body silhouette, world units. */
+export const GRASS_BODY_TRAMPLE_OFFSET_WORLD = 4;
+
+/** Converts a world-space trample offset to mask UV units. */
+export function bodyMaskOffsetUv(offsetWorld: number, halfExtent: number): number {
+  const extent = Math.max(1, Number.isFinite(halfExtent) ? halfExtent : 180);
+  const offset = Math.max(0, Number.isFinite(offsetWorld) ? offsetWorld : 0);
+  return offset / (2 * extent);
 }
 
-function createEmptyShadowTexture(): THREE.DataTexture {
+function createEmptyBodyMaskTexture(): THREE.DataTexture {
   const texture = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
   texture.needsUpdate = true;
   return texture;
@@ -227,7 +230,7 @@ function createRootShadowMaterial(): THREE.ShaderMaterial {
 }
 
 /** Grass is opaque, so a ground-level decal is invisible; tint blades instead. */
-const GRASS_SHADOW_TINT = new THREE.Vector3(0.42, 0.5, 0.68);
+const GRASS_BODY_TINT = new THREE.Vector3(0.42, 0.5, 0.68);
 /** Crushed blades lose their fresh green; the trail gets a separate dry-olive tint. */
 const GRASS_TRAIL_TINT = new THREE.Vector3(0.46, 0.42, 0.26);
 
@@ -239,18 +242,18 @@ export class GrassRenderer {
   private readonly rootMaterial: THREE.ShaderMaterial;
   private readonly tufts: GrassTuftBuffer;
   private readonly fieldConfig: GrassFieldConfig;
-  private readonly emptyShadow = createEmptyShadowTexture();
+  private readonly emptyBodyMask = createEmptyBodyMaskTexture();
   private readonly uniforms = {
     uTime: { value: 0 },
     uWindStrength: { value: 1 },
     uPlayerPos: { value: new THREE.Vector2() },
-    uShadowMap: { value: this.emptyShadow as THREE.Texture },
-    uShadowCenter: { value: new THREE.Vector2() },
-    uShadowHalfExtent: { value: 180 },
-    uShadowStrength: { value: 0 },
-    uShadowTint: { value: GRASS_SHADOW_TINT },
+    uBodyMap: { value: this.emptyBodyMask as THREE.Texture },
+    uBodyCenter: { value: new THREE.Vector2() },
+    uBodyHalfExtent: { value: 180 },
+    uBodyStrength: { value: 0 },
+    uBodyTint: { value: GRASS_BODY_TINT },
     uTrailTint: { value: GRASS_TRAIL_TINT },
-    uShadowDilate: { value: 0.016 },
+    uBodyOffsetUv: { value: bodyMaskOffsetUv(GRASS_BODY_TRAMPLE_OFFSET_WORLD, 180) },
     uFieldCenter: { value: new THREE.Vector2() },
     uFieldRadius: { value: 1 },
     uFadeNear: { value: 250 },
@@ -331,7 +334,7 @@ export class GrassRenderer {
     viewHalfExtent: number,
     fieldRadius: number,
     cameraView: GrassPlacementView | null | undefined,
-    contactShadow?: ContactShadowFrame | null,
+    bodyMask?: BodyMaskFrame | null,
   ): void {
     const camX = finiteOr(targetX, finiteOr(frame?.camX, 0));
     const camY = finiteOr(targetY, finiteOr(frame?.camY, 0));
@@ -354,13 +357,17 @@ export class GrassRenderer {
     // The shadow mask is sampled in the vertex shader, so opaque blades under
     // the ribbon darken instead of hiding a ground decal. One frame behind the
     // mask render is invisible at 60 fps and keeps the passes independent.
-    this.uniforms.uShadowMap.value = contactShadow?.texture ?? this.emptyShadow;
-    this.uniforms.uShadowStrength.value = contactShadow ? 1 : 0;
-    if (contactShadow) {
-      this.uniforms.uShadowCenter.value.set(contactShadow.x, contactShadow.y);
-      this.uniforms.uShadowHalfExtent.value = Math.max(1, contactShadow.halfExtent);
-      // Keep the trample halo a constant world-space width on every zoom.
-      this.uniforms.uShadowDilate.value = 12 / (2 * this.uniforms.uShadowHalfExtent.value);
+    this.uniforms.uBodyMap.value = bodyMask?.texture ?? this.emptyBodyMask;
+    this.uniforms.uBodyStrength.value = bodyMask ? 1 : 0;
+    if (bodyMask) {
+      const halfExtent = Math.max(1, bodyMask.halfExtent);
+      this.uniforms.uBodyCenter.value.set(bodyMask.x, bodyMask.y);
+      this.uniforms.uBodyHalfExtent.value = halfExtent;
+      // The offset is a world-space ring; the shader expands a 5-tap cross.
+      this.uniforms.uBodyOffsetUv.value = bodyMaskOffsetUv(
+        GRASS_BODY_TRAMPLE_OFFSET_WORLD,
+        halfExtent,
+      );
     }
 
     const instanceBudget = Number.isFinite(budget) ? Math.min(budget, MAX_INSTANCES) : 0;
@@ -443,7 +450,7 @@ export class GrassRenderer {
     this.mesh.instanceColor?.dispose();
     this.rootMesh.geometry.dispose();
     this.rootMaterial.dispose();
-    this.emptyShadow.dispose();
+    this.emptyBodyMask.dispose();
   }
 
   private rebuild(
@@ -552,13 +559,13 @@ export class GrassRenderer {
       shader.uniforms.uTime = this.uniforms.uTime;
       shader.uniforms.uWindStrength = this.uniforms.uWindStrength;
       shader.uniforms.uPlayerPos = this.uniforms.uPlayerPos;
-      shader.uniforms.uShadowMap = this.uniforms.uShadowMap;
-      shader.uniforms.uShadowCenter = this.uniforms.uShadowCenter;
-      shader.uniforms.uShadowHalfExtent = this.uniforms.uShadowHalfExtent;
-      shader.uniforms.uShadowStrength = this.uniforms.uShadowStrength;
-      shader.uniforms.uShadowTint = this.uniforms.uShadowTint;
+      shader.uniforms.uBodyMap = this.uniforms.uBodyMap;
+      shader.uniforms.uBodyCenter = this.uniforms.uBodyCenter;
+      shader.uniforms.uBodyHalfExtent = this.uniforms.uBodyHalfExtent;
+      shader.uniforms.uBodyStrength = this.uniforms.uBodyStrength;
+      shader.uniforms.uBodyTint = this.uniforms.uBodyTint;
       shader.uniforms.uTrailTint = this.uniforms.uTrailTint;
-      shader.uniforms.uShadowDilate = this.uniforms.uShadowDilate;
+      shader.uniforms.uBodyOffsetUv = this.uniforms.uBodyOffsetUv;
       shader.uniforms.uTrail = this.uniforms.uTrail;
       shader.uniforms.uTrailCount = this.uniforms.uTrailCount;
       shader.uniforms.uFieldCenter = this.uniforms.uFieldCenter;
@@ -572,16 +579,16 @@ export class GrassRenderer {
         uniform float uFadeNear;
         uniform float uFadeFar;
         uniform vec2 uPlayerPos;
-        uniform sampler2D uShadowMap;
-        uniform vec2 uShadowCenter;
-        uniform float uShadowHalfExtent;
-        uniform float uShadowStrength;
-        uniform float uShadowDilate;
+        uniform sampler2D uBodyMap;
+        uniform vec2 uBodyCenter;
+        uniform float uBodyHalfExtent;
+        uniform float uBodyStrength;
+        uniform float uBodyOffsetUv;
         uniform vec4 uTrail[${GRASS_TRAIL_MAX_POINTS}];
         uniform int uTrailCount;
         uniform vec2 uFieldCenter;
         uniform float uFieldRadius;
-        varying float vGrassShadow;
+        varying float vGrassContact;
         varying float vGrassTrail;
         float grassBend = 0.0;
 
@@ -637,39 +644,39 @@ export class GrassRenderer {
       shader.vertexShader = shader.vertexShader.replace(
         "#include <project_vertex>",
         `
-        // The blurred ribbon mask is sampled at the tuft root before the vertex
-        // matrices are applied. The same coverage both tints and flattens the
-        // blades, so the opaque field cannot swallow the snake body.
+        // The raw ribbon mask is sampled at the tuft root before the vertex
+        // matrices are applied. A 5-tap cross at a world-space offset expands
+        // the silhouette beyond the body, and averaging it gives the soft edge.
         #ifdef USE_INSTANCING
           vec4 grassRootWorld = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
         #else
           vec4 grassRootWorld = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
         #endif
-        vec2 grassShadowUv = (grassRootWorld.xy - uShadowCenter) / (2.0 * uShadowHalfExtent) + 0.5;
-        vec2 shadowInside = step(vec2(0.0), grassShadowUv) * step(grassShadowUv, vec2(1.0));
-        // Dilate the blurred silhouette a little at the tuft root, so blades
-        // leaning into the body are flattened too, not only roots directly under it.
-        float shadowCoverage = texture2D(uShadowMap, grassShadowUv).r;
-        shadowCoverage = max(
-          shadowCoverage,
-          texture2D(uShadowMap, grassShadowUv + vec2(uShadowDilate, 0.0)).r
+        vec2 grassBodyUv = (grassRootWorld.xy - uBodyCenter) / (2.0 * uBodyHalfExtent) + 0.5;
+        vec2 bodyInside = step(vec2(0.0), grassBodyUv) * step(grassBodyUv, vec2(1.0));
+        // The mask is already softened in SnakeBodyMask. A 5-tap max adds a
+        // small world-space ring beyond the body without diluting the centre.
+        float bodyCoverage = texture2D(uBodyMap, grassBodyUv).r;
+        bodyCoverage = max(
+          bodyCoverage,
+          texture2D(uBodyMap, grassBodyUv + vec2(uBodyOffsetUv, 0.0)).r
         );
-        shadowCoverage = max(
-          shadowCoverage,
-          texture2D(uShadowMap, grassShadowUv - vec2(uShadowDilate, 0.0)).r
+        bodyCoverage = max(
+          bodyCoverage,
+          texture2D(uBodyMap, grassBodyUv - vec2(uBodyOffsetUv, 0.0)).r
         );
-        shadowCoverage = max(
-          shadowCoverage,
-          texture2D(uShadowMap, grassShadowUv + vec2(0.0, uShadowDilate)).r
+        bodyCoverage = max(
+          bodyCoverage,
+          texture2D(uBodyMap, grassBodyUv + vec2(0.0, uBodyOffsetUv)).r
         );
-        shadowCoverage = max(
-          shadowCoverage,
-          texture2D(uShadowMap, grassShadowUv - vec2(0.0, uShadowDilate)).r
+        bodyCoverage = max(
+          bodyCoverage,
+          texture2D(uBodyMap, grassBodyUv - vec2(0.0, uBodyOffsetUv)).r
         );
-        shadowCoverage *= shadowInside.x * shadowInside.y;
+        bodyCoverage *= bodyInside.x * bodyInside.y;
 
-        float grassFlattenFromShadow = clamp(
-          smoothstep(0.01, 0.38, shadowCoverage) * uShadowStrength,
+        float grassFlattenFromBody = clamp(
+          smoothstep(0.05, 0.45, bodyCoverage) * uBodyStrength,
           0.0,
           1.0
         );
@@ -712,7 +719,7 @@ export class GrassRenderer {
             : vec2(0.0);
 
         float grassFlatten = clamp(
-          max(grassFlattenFromShadow, trailFlatten * 0.85),
+          max(grassFlattenFromBody, trailFlatten * 0.85),
           0.0,
           1.0
         );
@@ -726,7 +733,7 @@ export class GrassRenderer {
         #endif
         vec2 grassSplayDir = normalize(grassBladeOffsetWorld + vec2(0.001, 0.001));
         vec2 grassBendVec =
-          grassSplayDir * (grassFlattenFromShadow * 0.9) +
+          grassSplayDir * (grassFlattenFromBody * 0.9) +
           trailBendDir * trailFlatten;
         vec2 grassBendDir =
           dot(grassBendVec, grassBendVec) > 1e-6
@@ -824,8 +831,8 @@ export class GrassRenderer {
         float grassPush = (1.0 - smoothstep(10.0, 28.0, grassDist)) * grassBend * 1.8;
         mvPosition.xy += (grassToPlayer / max(grassDist, 0.001)) * grassPush;
 
-        vGrassShadow =
-          clamp(shadowCoverage * 1.6, 0.0, 1.0) * uShadowStrength;
+        vGrassContact =
+          clamp(bodyCoverage * 1.6, 0.0, 1.0) * uBodyStrength;
         vGrassTrail = clamp(trailFlatten * 0.85, 0.0, 1.0);
 
         mvPosition = modelViewMatrix * mvPosition;
@@ -843,16 +850,16 @@ export class GrassRenderer {
         `,
       );
 
-      shader.fragmentShader = `varying float vGrassShadow;
+      shader.fragmentShader = `varying float vGrassContact;
       varying float vGrassTrail;
-      uniform vec3 uShadowTint;
+      uniform vec3 uBodyTint;
       uniform vec3 uTrailTint;
       ${shader.fragmentShader}`;
 
       shader.fragmentShader = shader.fragmentShader.replace(
         "#include <color_fragment>",
         `#include <color_fragment>
-        diffuseColor.rgb *= mix(vec3(1.0), uShadowTint, vGrassShadow);
+        diffuseColor.rgb *= mix(vec3(1.0), uBodyTint, vGrassContact);
         diffuseColor.rgb *= mix(vec3(1.0), uTrailTint, vGrassTrail);
         `,
       );

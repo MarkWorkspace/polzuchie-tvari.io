@@ -7,7 +7,7 @@ import {
   OVERLAY_LAYER,
   RenderConfig,
   RenderLayer,
-  SNAKE_SHADOW_LAYER,
+  SNAKE_MASK_LAYER,
 } from "./RenderConfig";
 import { patchSnakeMaterial } from "./shaders/snakeBody.glsl";
 
@@ -290,7 +290,7 @@ export class SnakeRenderer {
     // crisp core while the halo around it stays.
     this.bodyMesh.layers.enable(BLOOM_MASK_LAYER);
     // The top-down contact-shadow mask uses the ribbon alone.
-    this.bodyMesh.layers.enable(SNAKE_SHADOW_LAYER);
+    this.bodyMesh.layers.enable(SNAKE_MASK_LAYER);
     this._setWrapMatrices(WORLD_WIDTH * gridSize, WORLD_HEIGHT * gridSize);
     this.scene.add(this.bodyMesh);
   }

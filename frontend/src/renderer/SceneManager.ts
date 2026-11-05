@@ -1,4 +1,4 @@
-// ROLE: Оркестратор Three.js рендера: сцена/камера/рендерер, пресеты качества, adaptive pixel ratio по GPU time с GpuWatchdog, world-space contact shadow, композер и пересборка собственных GPU-ресурсов после webglcontextrestored. Свет/тени делегирует SceneLighting, землю — GroundPlane, туман — FogOverlay.
+// ROLE: Оркестратор Three.js рендера: сцена/камера/рендерер, пресеты качества, adaptive pixel ratio по GPU time с GpuWatchdog, общая body-маска змеек и contact shadow, композер и пересборка собственных GPU-ресурсов после webglcontextrestored. Свет/тени делегирует SceneLighting, землю — GroundPlane, туман — FogOverlay.
 import * as THREE from "three";
 import { gridSize, WORLD_HEIGHT, WORLD_WIDTH } from "../game/Config";
 import { AdaptiveResolution } from "./AdaptiveResolution";
@@ -16,6 +16,7 @@ import {
   saveRenderQuality,
 } from "./RenderQuality";
 import { SceneLighting } from "./SceneLighting";
+import { SnakeBodyMask } from "./SnakeBodyMask";
 import { SnakeContactShadow } from "./SnakeContactShadow";
 
 export { AERIAL_FOG_COLOR, AERIAL_FOG_COOL, AERIAL_FOG_WARM } from "./FogOverlay";
@@ -46,6 +47,7 @@ export class SceneManager {
   private lighting!: SceneLighting;
   private ground!: GroundPlane;
   private fog!: FogOverlay;
+  private bodyMask!: SnakeBodyMask;
   private contactShadow!: SnakeContactShadow;
 
   private currentWidth: number = 0;
@@ -75,7 +77,7 @@ export class SceneManager {
     this.lighting = new SceneLighting(this.scene, preset);
     this.ground = new GroundPlane(this.scene, preset);
     this.fog = new FogOverlay(this.scene, this.camera);
-    this.setupContactShadow();
+    this.setupGroundMasks();
     this.initPostProcessing();
     window.addEventListener("resize", this.handleResize);
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
@@ -147,7 +149,7 @@ export class SceneManager {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.lighting.setQuality(preset);
     this.ground.setReceiveShadow(preset.shadows);
-    this.contactShadow.setBaseResolution(preset.contactShadow);
+    this.bodyMask.setBaseResolution(preset.contactShadow);
 
     this.postProcessing.setOptions({ bloom: preset.bloom });
 
@@ -241,6 +243,7 @@ export class SceneManager {
     this.ground.dispose();
     this.fog.dispose();
     this.contactShadow.dispose();
+    this.bodyMask.dispose();
     this.postProcessing.destroy();
     this.renderer.dispose();
     this.container.removeChild(this.renderer.domElement);
@@ -254,9 +257,9 @@ export class SceneManager {
     return this.camera;
   }
 
-  /** Blurred contact mask for shaders that run before the shadow pass. */
-  public getContactShadowFrame(): ReturnType<SnakeContactShadow["getFrame"]> {
-    return this.contactShadow.getFrame();
+  /** Soft body silhouette for ground effects that run before the composer. */
+  public getBodyMaskFrame(): ReturnType<SnakeBodyMask["getFrame"]> {
+    return this.bodyMask.getFrame();
   }
 
   public getRenderer(): THREE.WebGLRenderer {
@@ -344,10 +347,15 @@ export class SceneManager {
       );
 
       // dispose() removes the ground quad from the scene, so the replacement
-      // owns exactly one quad instead of stacking a second copy.
+      // owns exactly one quad instead of stacking a second copy. The body mask
+      // owns the render targets, so it is rebuilt before the shadow consumer.
       this.contactShadow.dispose();
-      this.contactShadow = new SnakeContactShadow(this.scene, {
+      this.bodyMask.dispose();
+      this.bodyMask = new SnakeBodyMask({
         resolution: preset.contactShadow,
+        groundZ: GROUND_Z,
+      });
+      this.contactShadow = new SnakeContactShadow(this.scene, this.bodyMask, {
         groundZ: GROUND_Z,
       });
 
@@ -408,15 +416,17 @@ export class SceneManager {
       );
       this.fog.update(msg);
       this.fog.updateAerialFog(shadowDistance);
-      this.contactShadow.setMapSize(mapW * gridSize, mapH * gridSize);
-      this.contactShadow.setViewDistance(shadowDistance, this.camera.fov);
+      this.bodyMask.setMapSize(mapW * gridSize, mapH * gridSize);
+      this.bodyMask.setViewDistance(shadowDistance, this.camera.fov);
+      this.bodyMask.setTarget(camX, camY);
       this.contactShadow.setTarget(camX, camY);
     }
-    // Rasterize before the composer so the ground quad is part of the same
-    // frame as the body whose silhouette it follows.
+    // Rasterize the shared body mask before the composer so the grass and the
+    // contact-shadow quad see the same silhouette in the same frame.
     if (measureGpu && gpuTimer) gpuTimer.begin();
     try {
-      this.contactShadow.render(this.renderer, this.scene);
+      this.bodyMask.render(this.renderer, this.scene);
+      this.contactShadow.update();
       const rendered = this.postProcessing.render(this.scene, this.camera, msg);
       if (!rendered) {
         this.renderer.render(this.scene, this.camera);
@@ -430,9 +440,12 @@ export class SceneManager {
     }
   }
 
-  private setupContactShadow(): void {
-    this.contactShadow = new SnakeContactShadow(this.scene, {
+  private setupGroundMasks(): void {
+    this.bodyMask = new SnakeBodyMask({
       resolution: QUALITY_PRESETS[this.quality].contactShadow,
+      groundZ: GROUND_Z,
+    });
+    this.contactShadow = new SnakeContactShadow(this.scene, this.bodyMask, {
       groundZ: GROUND_Z,
     });
   }

@@ -44,10 +44,10 @@ export const BLOOM_MASK_LAYER = 2;
 
 /**
  * Snake bodies alone live here. A top-down ortho pass rasterizes them into the
- * world-space contact-shadow mask, so the ground shadow follows the exact
- * rounded ribbon silhouette instead of a shadow-map kernel.
+ * shared world-space body mask, so the ground shadow and grass trample follow
+ * the exact rounded ribbon silhouette instead of a shadow-map kernel.
  */
-export const SNAKE_SHADOW_LAYER = 3;
+export const SNAKE_MASK_LAYER = 3;
 
 /** Converts the configured glow radius from map cells to world units. */
 export function headGlowRadiusWorld(
