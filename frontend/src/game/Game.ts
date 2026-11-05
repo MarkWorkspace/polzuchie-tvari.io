@@ -9,6 +9,7 @@ import {
   mountGameErrorOverlay,
 } from "../ui/react/mountGameErrorOverlay";
 import { GameCamera } from "./Camera";
+import { canSendGameInput, isNewPlayerIdentity } from "./GameSessionPolicy";
 import type { ControlMode } from "./InputManager";
 import { InputManager } from "./InputManager";
 import { shouldSendSteering } from "./InputSendPolicy";
@@ -152,6 +153,10 @@ export class Game {
     // A fatal worker failure owns the overlay; do not replace it with a WebGL message.
     if (this.fatalError) return;
     this.contextLost = true;
+    // The event-driven sender is gated below; release server-held input first
+    // so the snake does not keep turning or boosting behind the overlay.
+    this.sendCleanRelease();
+    this.inputManager.resyncInput();
     cancelAnimationFrame(this.animFrameId);
     this.animFrameId = 0;
 
@@ -231,15 +236,19 @@ export class Game {
   }
 
   private sendCleanRelease(): void {
-    if (this.isConnected) {
-      this.networkManager.send("LEFT_UP");
-      this.networkManager.send("RIGHT_UP");
-      this.networkManager.send("SPACE_UP");
+    if (!this.isConnected) return;
+    this.networkManager.send("LEFT_UP");
+    this.networkManager.send("RIGHT_UP");
+    this.networkManager.send("SPACE_UP");
+    // TURN also marks the player as mouse-steered on the server, so keep it
+    // out of keyboard mode where LEFT_UP/RIGHT_UP already released the turn.
+    if (this.inputManager.getControlMode() !== "keyboard") {
+      this.networkManager.send("TURN:0.000");
     }
   }
 
   private sendNetworkInput(forceSnapshot = false): void {
-    if (!this.isConnected) return;
+    if (!canSendGameInput(this.isConnected, this.contextLost, this.fatalError)) return;
 
     const mode = this.inputManager.getControlMode();
     const isAccelerating = this.inputManager.isAccelerating();
@@ -296,6 +305,9 @@ export class Game {
         window.dispatchEvent(new CustomEvent("game-ping", { detail: latency }));
       },
       onYourId: (id) => {
+        // RESYNC re-sends the same your_id inside every FULL. Resetting input
+        // here would drop held steering/boost on every recovered delta gap.
+        if (!isNewPlayerIdentity(this.myId, id)) return;
         this.myId = id;
         if (typeof document !== "undefined") {
           document.body.dataset.playerId = id;

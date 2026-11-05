@@ -1,4 +1,4 @@
-// ROLE: Unit tests for the pure steering send policy (edge, zero snap, throttle).
+// ROLE: Unit tests for the pure steering send policy (edge, zero snap, throttle, finiteness).
 import { describe, expect, it } from "vitest";
 import { STEERING_SEND_INTERVAL_MS, shouldSendSteering } from "./InputSendPolicy";
 
@@ -20,6 +20,23 @@ describe("shouldSendSteering", () => {
 
   it("sends a zero snap without waiting for the interval", () => {
     expect(shouldSendSteering(1001, 1000, 0, 0.4)).toBe(true);
+  });
+
+  it("sends a zero snap when the last value is inside the epsilon band", () => {
+    expect(shouldSendSteering(1001, 1000, 0, 0.005)).toBe(true);
+  });
+
+  it("does not repeat an unchanged zero", () => {
+    expect(shouldSendSteering(1001, 1000, 0, 0)).toBe(false);
+  });
+
+  it("treats a sign change as a real change", () => {
+    expect(shouldSendSteering(1025, 1000, -0.4, 0.4)).toBe(true);
+  });
+
+  it("never sends a non-finite turn", () => {
+    expect(shouldSendSteering(1001, 1000, Number.NaN, 0.4)).toBe(false);
+    expect(shouldSendSteering(0, 0, Number.POSITIVE_INFINITY, 0)).toBe(false);
   });
 
   it("forces a snapshot even when the value did not change", () => {

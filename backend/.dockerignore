@@ -1,6 +1,10 @@
 .venv
 __pycache__
 *.pyc
+**/__pycache__
+**/*.pyc
+*.tmp
+**/*.tmp
 .pytest_cache
 .ruff_cache
 .git

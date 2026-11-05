@@ -205,7 +205,8 @@ tests_shared/golden_frames/*
 - [x] M5-05 Dead code removal
 - [x] M5-06 Docs sync
 - [x] M5-07 Runbook/SECURITY/ADRs
-- [x] M6 optional backlog (M6-06 проверен `v0.1.0-rc.3`/`v0.1.0`; M6-10 deferred by ADR-006)
+- [x] M6-01…M6-09, M6-11…M6-13 (M6-06 проверен `v0.1.0-rc.3`/`v0.1.0`)
+- [ ] M6-10 full CSP/C-position — deferred by ADR-006; follower и M6-10b реализованы
 
 ### Execution notes
 
@@ -214,11 +215,11 @@ tests_shared/golden_frames/*
 - **M6:** M6-01…M6-05, M6-07…M6-09 и M6-11…M6-13 слиты в `dev`.
   M6-06 проверен реальными `v0.1.0-rc.3` и `v0.1.0`: GHCR publish, compose
   smoke и digest promotion зелёные; version/sha/latest для `v0.1.0` совпадают
-  по digest. M6-10 закрыт как решение server-authoritative follower (ADR-006),
-  а не как полный prediction: полный CSP/C-position отклонены, допустим только
-  будущий presentation-only angle lead за флагом. Дешёвое снижение задержки
-  выделено в M6-10b (event-driven ввод, throttle 25 мс, адаптивная
-  интерполяция 2–3 тика, 60 Гц после нагрузочного теста).
+  по digest. M6-10a/b закрыты: принят server-authoritative follower (ADR-006),
+  реализованы event-driven ввод, throttle 25 мс и адаптивная интерполяция
+  2–3 тика. Полный CSP/C-position отклонены; M6-10c (presentation-only angle
+  lead) и 60 Гц остаются optional/deferred — только по результатам метрик и
+  нагрузочного теста.
 - **Отклонения:**
   - M1-05: добавлены passthrough `ALLOWED_ORIGINS` в `docker-compose.yml` и изоляция `backend/tests/conftest.py`.
   - M3-03/M3-04/M3-08/M3-09: использованы согласованные исключения по размеру изменений (authorized size exceptions).
@@ -781,10 +782,10 @@ tests_shared/golden_frames/*
 | M6-04 | UI a11y: focus trap, `role=dialog`, `aria-live`, mobile spectator, safeStorage | UX/доступность | M |
 | M6-05 | Admin UI hardening: `isSaving`, typed `SaveResult`, defaults, image path allowlist | админ-надёжность | M |
 | M6-06 | CD: GHCR, release tags, compose smoke, rollback | эксплуатация | L |
-| M6-07 | E2E expansion: reconnect, context loss, admin save/restart, mobile | регрессии | M |
+| M6-07 | E2E expansion: reconnect, context loss, admin save/restart (mobile E2E — deferred) | регрессии | M |
 | M6-08 | Split `World` → `ConfigStore`/`InputRouter`/`SnapshotService` | сопровождаемость | L |
 | M6-09 | Split `SceneManager` → lighting/fog/ground/pipeline | сопровождаемость | L |
-| M6-10 | Prediction + reconciliation; **deferred: server-authoritative follower (ADR-006)** | latency | L |
+| M6-10 | Full CSP/reconciliation; **deferred** (принят follower, ADR-006) | latency | L |
 | M6-11 | SSAO: включить или удалить мёртвый флаг/пресеты | честность настроек | S |
 | M6-12 | Adaptive resolution по GPU time, а не FPS | качество auto | M |
 | M6-13 | WebGL: полный rebuild composer/targets/materials после context restore | восстановление без reload | M/L |
@@ -930,6 +931,6 @@ tests_shared/golden_frames/*
 | Мёртвый код | M5-05 |
 | Docs drift / GAME_STATE changelog | M5-06 |
 | Нет runbook/security/ADR | M5-07 |
-| Аллокации кадра, minimap, lazy load, a11y, admin UI, CD, god objects, prediction, SSAO, adaptive resolution | M6 optional |
+| Аллокации кадра, minimap, lazy load, a11y, admin UI, CD, god objects, полный CSP/prediction, SSAO, adaptive resolution | M6 optional |
 
 **Отложено осознанно:** полный переход на ООП/ECS, аккаунты/OAuth/2FA, Kubernetes, редизайн UI, переписывание шейдеров без профилирования. Это не «забытые» находки, а решения вне scope текущего remediation.

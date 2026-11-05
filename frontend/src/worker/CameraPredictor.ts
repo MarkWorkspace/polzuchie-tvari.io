@@ -1,4 +1,4 @@
-// ROLE: Клиентское предсказание позиции камеры.
+// ROLE: Follower-позиционирование камеры по интерполированной серверной голове; не симулирует тело и коллизии.
 
 import type { GameState } from "../types/game";
 import { toroidalLerp, wrapDelta, wrapNearest } from "./shared/MathUtils";
@@ -239,7 +239,7 @@ export class CameraPredictor {
     _state: GameState,
   ) {
     // Item 19: Remove double-smoothing. serverX/Y are already smoothly interpolated
-    // using progress. Prediction + EMA creates lag. We just snap to the interpolated target.
+    // using progress. Follower + EMA creates lag. We just snap to the interpolated target.
     this.localX = serverX;
     this.localY = serverY;
   }

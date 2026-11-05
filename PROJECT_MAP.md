@@ -88,12 +88,14 @@ frontend/
     │   ├── spectatorBootstrap.ts       # ROLE: Lazy spectator bootstrap; выбирает player-HUD или debug-панели.
     │   ├── spectatorMode.ts            # ROLE: Чистый разбор `?spectator=` / `?debug=` в player/debug режим.
     │   ├── spectatorMode.test.ts       # ROLE: Тесты маршрутизации player/debug-спектатора.
-    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy, пауза rAF и reload-overlay при потере WebGL-контекста, возобновление loop после restore, overlay при фатальном сбое worker, `dataset.gameFrames` как E2E/debug-наблюдаемость, event-driven отправка ввода. Не содержит рендеринг.
+    │   ├── Game.ts                     # ROLE: Жизненный цикл приложения: init/update/destroy, пауза rAF и reload-overlay при потере WebGL-контекста, возобновление loop после restore, overlay при фатальном сбое worker, `dataset.gameFrames` как E2E/debug-наблюдаемость, event-driven отправка ввода с gate при context loss/фатальном сбое. Не содержит рендеринг.
     │   ├── RenderOrchestrator.ts       # ROLE: Оркестрация обновления и отрисовки трехмерных объектов сцены; считает ground-target травы со смещением вперёд по камере, строит ground-трапецию камеры и distance-LOD. Не содержит логики ввода или сети.
     │   ├── InputManager.ts             # ROLE: Ввод с клавиатуры, мыши, тача, гироскопа; guard editable/HUD и resync. Не UI, не сеть.
     │   ├── InputManager.test.ts        # ROLE: Тесты editable/HUD guard, UI-open паузы и resync ввода.
-    │   ├── InputSendPolicy.ts          # ROLE: Чистая политика отправки руления: edge/zero-snap и throttle 25 мс. Не сеть и не состояние игры.
-    │   ├── InputSendPolicy.test.ts     # ROLE: Тесты edge/zero-snap/throttle политики отправки руления.
+    │   ├── InputSendPolicy.ts          # ROLE: Чистая политика отправки руления: edge/zero-snap, throttle 25 мс и отсев non-finite. Не сеть и не состояние игры.
+    │   ├── InputSendPolicy.test.ts     # ROLE: Тесты edge/zero-snap/throttle/finiteness политики отправки руления.
+    │   ├── GameSessionPolicy.ts        # ROLE: Чистые guard'ы сессии: можно ли отправлять ввод и сменилась ли identity. Не DOM, не сеть.
+    │   ├── GameSessionPolicy.test.ts   # ROLE: Тесты input-gate при context loss/fatal error и identity-resync.
     │   ├── NetworkManager.ts           # ROLE: WebSocket-интерфейс к воркеру, requestId-корреляция кадров, player-session bootstrap (POST /session), worker watchdog/restart с backoff. Не бизнес-логика.
     │   ├── NetworkManager.test.ts      # ROLE: Тесты session bootstrap, WS URL без client_id, reconnect backoff, requestId-корреляции и worker watchdog/restart.
     │   ├── PlayerSessionLock.ts        # ROLE: Web Locks + BroadcastChannel: одна player-вкладка, takeover между вкладками. Не сеть и не UI.

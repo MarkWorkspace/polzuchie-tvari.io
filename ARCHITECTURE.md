@@ -36,7 +36,7 @@
        ▼ (Интерполяция на основе dt по запросу REQUEST_FRAME)
 [StateInterpolator.interpolate]
        │
-       ▼ (Предсказание камеры, сплайны, меши, глаза, частицы)
+       ▼ (Follow-камера, сплайны, меши, глаза, частицы)
 [FrameComputer & SnakeProcessor]
        │
        ▼ (Типизированные массивы в качестве Transferable Objects)
@@ -83,8 +83,8 @@
 
 6. **FrameComputer & SnakeProcessor (Воркер):**
    - По запросу `REQUEST_FRAME` (с `requestId`, `dt`, `myId`, `isSpectator`, `localInput`, `spectatorCam?`) воркер вызывает `computeFrame` с типизированным `FrameContext`; типы границы определены в [WorkerProtocol.ts](frontend/src/worker/shared/WorkerProtocol.ts).
-   - Позиционирует камеру локального игрока через [CameraPredictor.predict](frontend/src/worker/CameraPredictor.ts#L27) как server-authoritative follower: `localX/localY` следуют за интерполированной серверной головой, а не за локальной симуляцией. Для спектатора в запросе передаётся позиция камеры (`spectatorCam`), которая задаёт `localX/localY` и обёртку мира вокруг текущего вида. Границы и причины зафиксированы в [ADR-006](docs/adr/ADR-006-server-authoritative-follower.md).
-   - Вычисляет сплайны змеек ([SplineComputer.computeSplinePaths](frontend/src/worker/SplineComputer.ts#L14)), строит буферы геометрии ([MeshBuilder.appendSnakeMesh](frontend/src/worker/MeshBuilder.ts#L15)), вычисляет позиции глаз (`eyes.addEyes`), симулирует частицы (`ParticleComputer`). Координаты клеток переводятся в world через `gridToWorldX/Y` из [WorldMath.ts](frontend/src/worker/shared/WorldMath.ts); torus-операции — только через [MathUtils.ts](frontend/src/worker/shared/MathUtils.ts).
+   - Позиционирует камеру локального игрока через [CameraPredictor.predict](frontend/src/worker/CameraPredictor.ts) как server-authoritative follower: `localX/localY` следуют за интерполированной серверной головой, а не за локальной симуляцией. Для спектатора в запросе передаётся позиция камеры (`spectatorCam`), которая задаёт `localX/localY` и обёртку мира вокруг текущего вида. Границы и причины зафиксированы в [ADR-006](docs/adr/ADR-006-server-authoritative-follower.md).
+   - Вычисляет сплайны змеек ([SplineComputer.computeSplinePaths](frontend/src/worker/SplineComputer.ts)), строит буферы геометрии ([MeshBuilder.appendSnakeMesh](frontend/src/worker/MeshBuilder.ts#L15)), вычисляет позиции глаз (`eyes.addEyes`), симулирует частицы (`ParticleComputer`). Координаты клеток переводятся в world через `gridToWorldX/Y` из [WorldMath.ts](frontend/src/worker/shared/WorldMath.ts); torus-операции — только через [MathUtils.ts](frontend/src/worker/shared/MathUtils.ts).
    - Преобразует данные в плоские типизированные массивы `Float32Array` и `Uint32Array` (буферы вершин, индексов, матриц инстансов).
    - **Формат границы:** Сообщение `FRAME_DATA` с набором типизированных массивов в качестве `Transferable Objects` и тем же `requestId`; при отсутствии состояния отправляется `FRAME_UNAVAILABLE`.
 
@@ -140,7 +140,7 @@
 2. **Game.ts (Клиент):**
    - Получает уведомления от `InputManager`.
    - В режиме `keyboard` отправляет строковые команды: `"LEFT_DOWN"`, `"LEFT_UP"`, `"RIGHT_DOWN"`, `"RIGHT_UP"`, `"SPACE_DOWN"`, `"SPACE_UP"`.
-   - В режимах `mouse`/`tilt` отправляет команду `"TURN:<value>"` (с точностью до 3 знаков после запятой, например, `"TURN:0.425"`), сглаживая и дросселируя отправку: не чаще раза в 25 мс, при изменении > 0.01 или при snap-to-zero. Отправка инициируется из DOM-события ввода (`onInputUpdate`), а не ждёт следующего rAF, поэтому короткие тапы не теряются; после respawn/reconnect отправляется полный snapshot текущего ввода. Чистая политика throttle/zero-snap вынесена в [InputSendPolicy.ts](frontend/src/game/InputSendPolicy.ts).
+   - В режимах `mouse`/`tilt` отправляет команду `"TURN:<value>"` (с точностью до 3 знаков после запятой, например, `"TURN:0.425"`), сглаживая и дросселируя отправку: не чаще раза в 25 мс, при изменении > 0.01 или при snap-to-zero. Отправка инициируется из DOM-события ввода (`onInputUpdate`), а не ждёт следующего rAF, поэтому короткие тапы не теряются; после respawn/reconnect отправляется полный snapshot очищенного ввода (release/zero). Чистая политика throttle/zero-snap вынесена в [InputSendPolicy.ts](frontend/src/game/InputSendPolicy.ts).
    - **Формат границы:** Сообщения воркеру `{ type: "SEND", data: string }`; `RESYNC` как игровой ввод не отправляется.
 
 3. **CameraPredictor (Воркер):**
@@ -203,7 +203,7 @@
 Условия, которые гарантированно соблюдаются в коде:
 
 1. **Интерполяция:**
-   - [StateInterpolator.pushState](frontend/src/worker/StateInterpolation.ts#L9) ограничивает очередь 20 состояниями. Таймлайн сглаживается low-pass фильтром, snap при дрейфе > 200 мс, целевая задержка — 2–3 тика по джиттеру (2 на стабильном соединении, 3 при устойчивом джиттере).
+   - [StateInterpolator.pushState](frontend/src/worker/StateInterpolation.ts) ограничивает очередь 20 состояниями. Таймлайн сглаживается low-pass фильтром, snap при дрейфе > 200 мс, целевая задержка — 2–3 тика по джиттеру (2 на стабильном соединении, 3 при устойчивом джиттере).
 2. **Лимиты инстансов WebGL:**
    - `FoodRenderer` — `5000`, `PortalRenderer`/`BlackHoleRenderer` — `100`, `ParticleRenderer` — `2000`, `SnakeRenderer` — `1000` голов/глаз, `TombstoneRenderer` — `50`.
    - `GrassRenderer` использует бюджет пресета и общий cap `DECOR_BUDGET_CAPS.grass`; камни и трава не участвуют в коллизиях.

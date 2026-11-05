@@ -169,6 +169,8 @@ docker compose up --build
 (`:latest` обновляется только для stable push-тегов, не для prerelease и не
 для `workflow_dispatch`). В artifact `release-manifest-<tag>` записаны commit и
 digest'ы обоих образов; для rollback используйте digest, а не только тег.
+`:sha-<12>` — staging-тег и может быть перезаписан повторной сборкой того же
+commit, поэтому для деплоя он не предназначен.
 Чтобы запустить опубликованные образы вместо локальной сборки, задайте
 `BACKEND_IMAGE` и `FRONTEND_IMAGE` (можно `@sha256:...`), затем выполните
 `docker compose pull backend frontend` и `docker compose up -d --no-build`.

@@ -193,7 +193,10 @@ Release публикуется GitHub Actions (`.github/workflows/release.yml`) 
    `workflow_dispatch`.
 
 Pipeline проверен на `v0.1.0-rc.3` и `v0.1.0`: для stable-тега `:v0.1.0`,
-`:sha-<12>` и `:latest` указывают на один digest.
+`:sha-<12>` и `:latest` указывают на один digest. `:sha-<12>` — staging-тег:
+повторная сборка того же commit с другим version-label может его перезаписать
+(так `sha-5e9dad95b5db` после stable-релиза стал равен `v0.1.0`). Для деплоя
+берите digest из `release-manifest-<tag>`, а не `:sha-*`.
 
 После `promote` скачайте artifact `release-manifest-<tag>`: в нём записаны
 commit и digest'ы backend/frontend. Для rollback используйте digest, а не
@@ -218,6 +221,10 @@ curl -sS -o - -w '\nHTTP %{http_code}\n' http://127.0.0.1:3000/ws/ready
 публичный пакет можно тянуть анонимно. Перед первым production-тегом
 проверьте pull с чистого хоста, а не только из GitHub Actions.
 
+Если `BACKEND_IMAGE`/`FRONTEND_IMAGE` заданы в `.env`, `unset` их не уберёт:
+compose всё равно прочитает `.env`. Для source-rollback удалите или
+закомментируйте эти строки в `.env` либо используйте отдельный env-file.
+
 Если GHCR-образ нужной версии недоступен или проблема в инфраструктуре,
 остаётся source-rollback — checkout известного рабочего commit/тега и
 пересборка:
@@ -231,6 +238,9 @@ docker compose up -d
 docker compose ps
 curl -sS -o - -w '\nHTTP %{http_code}\n' http://127.0.0.1:8000/ready
 ```
+
+После `unset` и правки `.env` проверьте `docker compose config`, что образы
+снова локальные, и только затем запускайте `build`.
 
 Source-rollback ниже коммита перехода с bind-mount на named volume запрещён:
 старый compose будет монтировать `./backend/config.json`, а live-конфиг лежит
